@@ -1,0 +1,19 @@
+@import "tailwindcss";
+
+.custom-leaflet-icon { background: transparent; border: none; }
+
+/* Hiệu ứng nhấp nháy nhè nhẹ cho texture Lửa 5 */
+@keyframes gentleFirePulse {
+  0%, 100% {
+    opacity: 0.88;
+    filter: contrast(1.2) brightness(1.1) drop-shadow(0 0 2px rgba(255, 69, 0, 0.35));
+  }
+  50% {
+    opacity: 1;
+    filter: contrast(1.35) brightness(1.3) drop-shadow(0 0 6px rgba(255, 69, 0, 0.7));
+  }
+}
+
+.animate-gentle-fire {
+  animation: gentleFirePulse 2s ease-in-out infinite;
+}
