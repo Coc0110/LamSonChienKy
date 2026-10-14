@@ -13,7 +13,7 @@ interface UIState {
 export const useUIStore = create<UIState>((set) => ({
   activeModal: null,
   isEditMode: false,
-  selectedCityId: null,
+  selectedCityId: 'lam_son',
 
   setActiveModal: (modal) => set({ activeModal: modal }),
   toggleEditMode: () => set((state) => ({ isEditMode: !state.isEditMode })),

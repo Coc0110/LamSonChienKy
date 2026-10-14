@@ -1,8 +1,26 @@
 @import "tailwindcss";
 
-.custom-leaflet-icon { background: transparent; border: none; }
+@font-face {
+  font-family: 'HanZiVH';
+  src: url('/fonts/TP_Han_Zi.ttf') format('truetype'),
+       url('/fonts/TP_Han_Zi.otf') format('opentype'),
+       url('/fonts/TP Han Zi.ttf') format('truetype'),
+       url('/fonts/TP Han Zi.otf') format('opentype');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
 
-/* Hiệu ứng nhấp nháy nhè nhẹ cho texture Lửa 5 */
+@theme {
+  --font-serif: 'HanZiVH', Georgia, 'Times New Roman', serif;
+  --font-sans: 'HanZiVH', system-ui, -apple-system, sans-serif;
+}
+
+html, body, #root, * {
+  font-family: 'HanZiVH', Georgia, 'Times New Roman', serif;
+}
+
+/* Hiệu ứng nhấp nháy nhè nhẹ cho texture Lửa */
 @keyframes gentleFirePulse {
   0%, 100% {
     opacity: 0.88;
@@ -16,4 +34,15 @@
 
 .animate-gentle-fire {
   animation: gentleFirePulse 2s ease-in-out infinite;
+}
+
+/* Ẩn thanh cuộn nhưng vẫn cho phép cuộn vuốt cảm ứng trên điện thoại */
+.no-scrollbar::-webkit-scrollbar,
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar,
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }

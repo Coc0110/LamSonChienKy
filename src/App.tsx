@@ -16,13 +16,10 @@ function App() {
   }, [isPaused, gameSpeed, tick]);
 
   return (
-    <div className="w-screen h-screen overflow-hidden flex bg-stone-100 font-sans text-stone-800">
+    <div className="w-screen h-screen overflow-hidden relative bg-stone-950 select-none">
+      <WorldMap />
+      <TopBar />
       <LeftPanel />
-      
-      <main className="flex-1 relative">
-        <WorldMap />
-        <TopBar />
-      </main>
     </div>
   );
 }

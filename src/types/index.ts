@@ -27,3 +27,10 @@ export interface Connection {
   to: string;
   waypoints?: [number, number][]; // Mảng các tọa độ [x, y] để vẽ đường cong
 }
+
+export interface River {
+  id: string;
+  name: string;
+  points: [number, number][]; // Tọa độ [xPct, yPct]
+  width?: number;
+}
