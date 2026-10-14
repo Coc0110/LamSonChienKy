@@ -46,3 +46,10 @@ html, body, #root, * {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* Reset nền và viền mặc định của Leaflet divIcon để icon cứ điểm hiển thị tròn sạch */
+.leaflet-div-icon,
+.custom-map-node-wrapper {
+  background: transparent !important;
+  border: none !important;
+}

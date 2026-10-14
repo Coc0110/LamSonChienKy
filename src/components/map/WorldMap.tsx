@@ -106,7 +106,10 @@ export const WorldMap: React.FC = () => {
       return Math.log2(coverScale) + 0.02;
     };
 
+    let isDisposed = false;
+
     const updateView = (isInitial = false) => {
+      if (isDisposed || !mapContainerRef.current) return;
       const minCoverZoom = calculateCoverZoom();
       map.setMinZoom(minCoverZoom);
 
@@ -121,10 +124,18 @@ export const WorldMap: React.FC = () => {
     };
 
     // Đợi một chút để kích thước DOM container ổn định
-    setTimeout(() => {
+    const initTimer = setTimeout(() => {
+      if (isDisposed) return;
       map.invalidateSize();
       updateView(true);
     }, 50);
+
+    const handleResize = () => {
+      if (isDisposed) return;
+      map.invalidateSize();
+      updateView(false);
+    };
+    window.addEventListener('resize', handleResize);
 
     // Khung tọa độ bao phủ 100% diện tích toàn bộ bản đồ sa bàn Việt Nam (0..100% X, 0..100% Y)
     const fullMapBounds = L.latLngBounds(
@@ -155,10 +166,37 @@ export const WorldMap: React.FC = () => {
     markersLayerRef.current = markersLayer;
 
     return () => {
+      isDisposed = true;
+      clearTimeout(initTimer);
+      window.removeEventListener('resize', handleResize);
       map.remove();
       mapInstanceRef.current = null;
     };
   }, []);
+
+  const isFirstMountRef = useRef(true);
+
+  // 1.1 Tự động lướt camera tới cứ điểm khi người chơi chọn từ danh sách Quân Thư
+  useEffect(() => {
+    if (isFirstMountRef.current) {
+      isFirstMountRef.current = false;
+      return;
+    }
+    const map = mapInstanceRef.current;
+    if (!selectedCityId || !map) return;
+    try {
+      const city = cities.find(c => c.id === selectedCityId);
+      if (!city) return;
+      const targetLatLng = percentToLatLng(city.x, city.y);
+      const currentZoom = map.getZoom ? map.getZoom() : 2.2;
+      map.flyTo(targetLatLng, Math.max(currentZoom, 2.2), {
+        duration: 0.8,
+        easeLinearity: 0.25,
+      });
+    } catch {
+      // Bỏ qua nếu map chưa nạp xong view
+    }
+  }, [selectedCityId, cities]);
 
   // 2. Cập nhật các đường nối (Connections) đồng bộ trên Leaflet
   useEffect(() => {
