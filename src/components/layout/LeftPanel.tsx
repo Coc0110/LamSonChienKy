@@ -1,24 +1,31 @@
 import React, { useState, useMemo } from 'react';
-import { Swords, Shield, Users, Wheat, Eye, X, Scroll, Castle, Mountain, Tent, Flag } from 'lucide-react';
+import { Swords, Shield, Users, Wheat, Eye, X, Scroll, Castle, Mountain, Tent, Flag, Award } from 'lucide-react';
 import { useGameStore } from '../../store/gameStore';
 import { useUIStore } from '../../store/uiStore';
 
 export const LeftPanel: React.FC = () => {
   const selectedCityId = useUIStore(state => state.selectedCityId);
   const selectCity = useUIStore(state => state.selectCity);
+  const setActiveModal = useUIStore(state => state.setActiveModal);
   const cities = useGameStore(state => state.cities);
+  const generals = useGameStore(state => state.generals);
   const [isListOpen, setIsListOpen] = useState(false);
 
   const selectedCity = useMemo(() => cities.find(c => c.id === selectedCityId), [cities, selectedCityId]);
+  const unlockedGenerals = useMemo(() => generals.filter(g => g.unlocked), [generals]);
+  const stationedGenerals = useMemo(
+    () => unlockedGenerals.filter(g => g.locationId === selectedCityId),
+    [unlockedGenerals, selectedCityId]
+  );
 
   return (
     <>
-      {/* 1. NÚT MỞ QUÂN THƯ / DANH SÁCH CỨ ĐIỂM (Dạng thẻ bài giấy Dó nổi góc trái) */}
-      {!selectedCity && (
-        <div className="absolute top-20 left-3 md:left-4 z-30 pointer-events-auto">
+      {/* 1. CỤM NÚT MỞ QUÂN THƯ & LỆNH BÀI TƯỚNG (Dạng thẻ bài giấy Dó & Đồng cổ nổi góc trái) */}
+      <div className="absolute top-20 left-3 md:left-4 z-30 flex items-center gap-2 pointer-events-auto">
+        {!selectedCity && (
           <button
             onClick={() => setIsListOpen(!isListOpen)}
-            className="group relative flex items-center gap-2 px-3.5 py-2 rounded-lg transition-transform duration-150 hover:scale-105 active:scale-95 shadow-lg"
+            className="group relative flex items-center gap-2 px-3.5 py-2 rounded-lg transition-transform duration-150 hover:scale-105 active:scale-95 shadow-lg cursor-pointer"
             title="Xem Quân Thư & Danh Sách Cứ Điểm"
           >
             {/* Lớp nền giấy Dó */}
@@ -29,26 +36,38 @@ export const LeftPanel: React.FC = () => {
                 boxShadow: 'inset 0 0 10px rgba(110, 65, 25, 0.28), 2px 3px 6px rgba(40, 25, 10, 0.35)',
               }}
             />
-            {/* Vân sớ giấy */}
-            <div 
-              className="absolute inset-0 opacity-20 pointer-events-none rounded-[4px_7px_5px_6px]"
-              style={{
-                backgroundImage: 'radial-gradient(ellipse at top left, rgba(140,90,40,0.3) 0%, transparent 70%), repeating-linear-gradient(45deg, rgba(80,45,15,0.04) 0px, rgba(80,45,15,0.04) 2px, transparent 2px, transparent 6px)',
-              }}
-            />
             {/* Nội dung nút */}
             <div className="relative z-10 flex items-center gap-2 font-serif font-black text-[#2d1e13] text-sm">
               <Scroll size={17} className="text-[#8c2d19]" />
               <span>Quân Thư</span>
             </div>
           </button>
-        </div>
-      )}
+        )}
+
+        {/* Nút Mở Khay Lệnh Bài Danh Tướng */}
+        <button
+          onClick={() => setActiveModal('generals')}
+          className="group relative flex items-center gap-2 px-3.5 py-2 rounded-lg transition-transform duration-150 hover:scale-105 active:scale-95 shadow-lg cursor-pointer"
+          title="Xem Thẻ Bài Đồng Danh Tướng Lam Sơn"
+        >
+          <div 
+            className="absolute inset-0 rounded-[4px_7px_5px_6px] bg-gradient-to-br from-[#8c6239] via-[#6e4a28] to-[#4f3319] border border-[#cfa872]"
+            style={{
+              filter: 'url(#torn-paper-edge)',
+              boxShadow: 'inset 0 0 10px rgba(25, 12, 4, 0.55), 2px 3px 6px rgba(0, 0, 0, 0.5)',
+            }}
+          />
+          <div className="relative z-10 flex items-center gap-2 font-serif font-black text-[#f5dec0] text-sm">
+            <Award size={17} className="text-[#ffd27d]" />
+            <span>Thẻ Tướng ({unlockedGenerals.length}/{generals.length})</span>
+          </div>
+        </button>
+      </div>
 
       {/* 2. DANH SÁCH CỨ ĐIỂM (QUÂN THƯ CUỘN GIẤY) */}
       {isListOpen && !selectedCity && (
         <div 
-          className="fixed inset-x-3 bottom-4 md:inset-auto md:absolute md:top-20 md:left-4 z-40 md:w-84 max-h-[70vh] md:max-h-[75vh] flex flex-col pointer-events-auto rounded-xl overflow-hidden shadow-2xl transition-all"
+          className="fixed inset-x-3 bottom-4 md:inset-auto md:absolute md:top-32 md:left-4 z-40 md:w-84 max-h-[70vh] md:max-h-[72vh] flex flex-col pointer-events-auto rounded-xl overflow-hidden shadow-2xl transition-all"
         >
           {/* Lớp nền giấy Dó */}
           <div 
@@ -68,7 +87,7 @@ export const LeftPanel: React.FC = () => {
             </div>
             <button 
               onClick={() => setIsListOpen(false)}
-              className="p-1 rounded hover:bg-[#d8c29d]/50 text-[#593922] transition"
+              className="p-1 rounded hover:bg-[#d8c29d]/50 text-[#593922] transition cursor-pointer"
             >
               <X size={18} />
             </button>
@@ -87,7 +106,7 @@ export const LeftPanel: React.FC = () => {
                     selectCity(c.id);
                     setIsListOpen(false);
                   }}
-                  className={`w-full text-left px-3 py-2 rounded-lg border transition-all flex items-center justify-between ${
+                  className={`w-full text-left px-3 py-2 rounded-lg border transition-all flex items-center justify-between cursor-pointer ${
                     isLamSon
                       ? 'bg-[#fcf8f0]/90 border-[#c29080] hover:bg-[#faeee5]'
                       : isMing
@@ -128,7 +147,7 @@ export const LeftPanel: React.FC = () => {
       {/* 3. CHIẾN THƯ CHI TIẾT CỨ ĐIỂM (KHI NGƯỜI CHƠI NHẤP VÀO CỨ ĐIỂM BẤT KỲ) */}
       {selectedCity && (
         <div 
-          className="fixed inset-x-3 bottom-3 md:inset-auto md:absolute md:top-20 md:left-4 z-40 md:w-92 max-h-[75vh] md:max-h-[80vh] flex flex-col pointer-events-auto rounded-xl overflow-hidden shadow-2xl transition-all duration-200"
+          className="fixed inset-x-3 bottom-3 md:inset-auto md:absolute md:top-32 md:left-4 z-40 md:w-92 max-h-[72vh] md:max-h-[76vh] flex flex-col pointer-events-auto rounded-xl overflow-hidden shadow-2xl transition-all duration-200"
         >
           {/* Lớp nền giấy Dó thượng hạng */}
           <div 
@@ -193,7 +212,7 @@ export const LeftPanel: React.FC = () => {
             {/* Nút Đóng Chiến Thư */}
             <button 
               onClick={() => selectCity(null)}
-              className="p-1.5 rounded-full hover:bg-[#d8c29d]/60 text-[#593922] transition ml-2 shrink-0"
+              className="p-1.5 rounded-full hover:bg-[#d8c29d]/60 text-[#593922] transition ml-2 shrink-0 cursor-pointer"
               title="Đóng Quân Thư"
             >
               <X size={20} />
@@ -230,6 +249,44 @@ export const LeftPanel: React.FC = () => {
               </div>
             </div>
 
+            {/* 1.5. Tướng Lĩnh Trấn Thủ Tại Cứ Điểm (Nếu thuộc phe Lam Sơn) */}
+            {selectedCity.faction === 'lam_son' && (
+              <div className="p-3 rounded-lg bg-[#f4e8d1] border border-[#c4a87e] space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-[#5c3e23]">
+                    <Award size={14} className="text-[#8c2d19]" />
+                    <span>Tướng Trấn Thủ ({stationedGenerals.length})</span>
+                  </div>
+                  <button
+                    onClick={() => setActiveModal('generals')}
+                    className="text-[11px] font-bold text-[#8c2d19] hover:underline cursor-pointer"
+                  >
+                    Xem Lệnh Bài →
+                  </button>
+                </div>
+
+                {stationedGenerals.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto no-scrollbar">
+                    {stationedGenerals.map(gen => (
+                      <button
+                        key={gen.id}
+                        onClick={() => setActiveModal('generals')}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-gradient-to-b from-[#8c6239] to-[#5e3e1f] border border-[#cfa872] text-[#f7e7c8] text-xs font-serif font-bold shadow-xs hover:brightness-110 transition cursor-pointer"
+                        title={`${gen.title} • ${gen.epithet}`}
+                      >
+                        <span className="text-[#ffd27d]">{gen.hanzi}</span>
+                        <span>{gen.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-xs italic text-[#785838]">
+                    Chưa có tướng trấn thủ tại đây.
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* 2. Thẻ Lệnh Quân Sự (Command Tablets) */}
             <div className="pt-1">
               <div className="text-xs font-serif font-black text-[#5c3e23] uppercase tracking-wider mb-2 flex items-center gap-1.5">
@@ -242,7 +299,7 @@ export const LeftPanel: React.FC = () => {
                   <>
                     <button 
                       onClick={() => alert(`Đã phát lệnh Xuất Binh từ ${selectedCity.name}!`)}
-                      className="flex flex-col items-center justify-center p-2.5 rounded-lg bg-gradient-to-b from-[#f7ebd7] to-[#ebd2af] border border-[#a88252] hover:from-[#fcf4e8] hover:to-[#f0dbbd] active:scale-95 transition shadow-xs group"
+                      className="flex flex-col items-center justify-center p-2.5 rounded-lg bg-gradient-to-b from-[#f7ebd7] to-[#ebd2af] border border-[#a88252] hover:from-[#fcf4e8] hover:to-[#f0dbbd] active:scale-95 transition shadow-xs group cursor-pointer"
                     >
                       <Swords size={20} className="text-[#8c2d19] group-hover:scale-110 transition-transform mb-1" />
                       <span className="font-serif font-black text-xs text-[#2a1708]">Xuất Binh</span>
@@ -250,7 +307,7 @@ export const LeftPanel: React.FC = () => {
 
                     <button 
                       onClick={() => alert(`Chiêu mộ thêm tráng đinh tại vùng ${selectedCity.name}!`)}
-                      className="flex flex-col items-center justify-center p-2.5 rounded-lg bg-gradient-to-b from-[#f7ebd7] to-[#ebd2af] border border-[#a88252] hover:from-[#fcf4e8] hover:to-[#f0dbbd] active:scale-95 transition shadow-xs group"
+                      className="flex flex-col items-center justify-center p-2.5 rounded-lg bg-gradient-to-b from-[#f7ebd7] to-[#ebd2af] border border-[#a88252] hover:from-[#fcf4e8] hover:to-[#f0dbbd] active:scale-95 transition shadow-xs group cursor-pointer"
                     >
                       <Users size={20} className="text-[#2b593f] group-hover:scale-110 transition-transform mb-1" />
                       <span className="font-serif font-black text-xs text-[#2a1708]">Chiêu Quân</span>
@@ -258,7 +315,7 @@ export const LeftPanel: React.FC = () => {
 
                     <button 
                       onClick={() => alert(`Thu gom lương thảo, chuẩn bị quân nhu tại ${selectedCity.name}!`)}
-                      className="col-span-2 sm:col-span-1 flex flex-col items-center justify-center p-2.5 rounded-lg bg-gradient-to-b from-[#f7ebd7] to-[#ebd2af] border border-[#a88252] hover:from-[#fcf4e8] hover:to-[#f0dbbd] active:scale-95 transition shadow-xs group"
+                      className="col-span-2 sm:col-span-1 flex flex-col items-center justify-center p-2.5 rounded-lg bg-gradient-to-b from-[#f7ebd7] to-[#ebd2af] border border-[#a88252] hover:from-[#fcf4e8] hover:to-[#f0dbbd] active:scale-95 transition shadow-xs group cursor-pointer"
                     >
                       <Wheat size={20} className="text-[#85531b] group-hover:scale-110 transition-transform mb-1" />
                       <span className="font-serif font-black text-xs text-[#2a1708]">Thu Lương</span>
@@ -268,7 +325,7 @@ export const LeftPanel: React.FC = () => {
                   <>
                     <button 
                       onClick={() => alert(`Khởi binh tiến đánh ${selectedCity.name}!`)}
-                      className="flex flex-col items-center justify-center p-2.5 rounded-lg bg-gradient-to-b from-[#eed4cc] to-[#dcaba0] border border-[#a84435] hover:from-[#f5dfd8] hover:to-[#e4b5ab] active:scale-95 transition shadow-xs group"
+                      className="flex flex-col items-center justify-center p-2.5 rounded-lg bg-gradient-to-b from-[#eed4cc] to-[#dcaba0] border border-[#a84435] hover:from-[#f5dfd8] hover:to-[#e4b5ab] active:scale-95 transition shadow-xs group cursor-pointer"
                     >
                       <Swords size={20} className="text-[#a82415] group-hover:scale-110 transition-transform mb-1" />
                       <span className="font-serif font-black text-xs text-[#52130b]">Công Thành</span>
@@ -276,7 +333,7 @@ export const LeftPanel: React.FC = () => {
 
                     <button 
                       onClick={() => alert(`Cử thám mã thâm nhập do thám binh lực ${selectedCity.name}!`)}
-                      className="flex flex-col items-center justify-center p-2.5 rounded-lg bg-gradient-to-b from-[#f7ebd7] to-[#ebd2af] border border-[#a88252] hover:from-[#fcf4e8] hover:to-[#f0dbbd] active:scale-95 transition shadow-xs group"
+                      className="flex flex-col items-center justify-center p-2.5 rounded-lg bg-gradient-to-b from-[#f7ebd7] to-[#ebd2af] border border-[#a88252] hover:from-[#fcf4e8] hover:to-[#f0dbbd] active:scale-95 transition shadow-xs group cursor-pointer"
                     >
                       <Eye size={20} className="text-[#3b5998] group-hover:scale-110 transition-transform mb-1" />
                       <span className="font-serif font-black text-xs text-[#2a1708]">Do Thám</span>

@@ -2,11 +2,11 @@ import type { CityNode, Connection } from '../types';
 
 export const INITIAL_CITIES: CityNode[] = [
     { id: 'lam_son', name: 'Lam Sơn', type: 'camp', x: 55.89, y: 48.65, faction: 'lam_son', troops: 2000 },
-    { id: 'chi_linh', name: 'Núi Chí Linh', type: 'camp', x: 49.64, y: 44.38, faction: 'lam_son', troops: 0 },
+    { id: 'chi_linh', name: 'Núi Chí Linh', type: 'camp', x: 52.04, y: 46.34, faction: 'lam_son', troops: 0 },
     { id: 'lac_thuy', name: 'Lạc Thủy', type: 'chokepoint', x: 56.65, y: 46.54, faction: 'neutral', troops: 0 },
-    { id: 'muong_mot', name: 'Mường Một', type: 'camp', x: 49.75, y: 41.96, faction: 'neutral', troops: 0 },
+    { id: 'muong_mot', name: 'Mường Một', type: 'camp', x: 55.39, y: 49.33, faction: 'neutral', troops: 0 },
     { id: 'nga_lac', name: 'Nga Lạc', type: 'camp', x: 55.74, y: 47.91, faction: 'neutral', troops: 0 },
-    { id: 'muong_thoi', name: 'Mường Thôi', type: 'camp', x: 51.42, y: 42.6, faction: 'neutral', troops: 0 },
+    { id: 'muong_thoi', name: 'Mường Thôi', type: 'camp', x: 42.06, y: 41.91, faction: 'neutral', troops: 0 },
     { id: 'loi_giang', name: 'Lỗi Giang', type: 'chokepoint', x: 56.62, y: 44.34, faction: 'neutral', troops: 0 },
     { id: 'kinh_long', name: 'Ải Kình Lộng', type: 'chokepoint', x: 53.95, y: 43.03, faction: 'ming', troops: 500 },
     { id: 'deo_ong', name: 'Đèo Ống', type: 'chokepoint', x: 52.6, y: 43.42, faction: 'ming', troops: 300 },

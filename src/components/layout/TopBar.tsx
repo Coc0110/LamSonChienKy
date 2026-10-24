@@ -43,7 +43,7 @@ const ParchmentSlip: React.FC<{
 );
 
 export const TopBar: React.FC = () => {
-  const { resources, cities } = useGameStore();
+  const { resources, cities, resetCityPositions } = useGameStore();
   const { toggleEditMode, isEditMode } = useUIStore();
 
   return (
@@ -136,23 +136,44 @@ export const TopBar: React.FC = () => {
         {/* 3. Thẻ Dấu Triện / Nút Sửa Bản Đồ */}
         <div className="ml-auto pointer-events-auto shrink-0 pl-2 flex items-center gap-2">
           {isEditMode && (
-            <button 
-              onClick={() => {
-                const exportData = cities.map(c => `{ id: '${c.id}', name: '${c.name}', type: '${c.type}', x: ${c.x}, y: ${c.y}, faction: '${c.faction}', troops: ${c.troops} }`).join(',\n    ');
-                navigator.clipboard.writeText(`export const INITIAL_CITIES: CityNode[] = [\n    ${exportData}\n];`);
-                alert('Đã copy dữ liệu tọa độ mới vào Clipboard!');
-              }}
-              className="relative h-11 px-4 flex items-center justify-center font-serif font-bold text-xs uppercase tracking-wider text-[#f5ebd7] transition hover:scale-105 cursor-pointer"
-            >
-              <div 
-                className="absolute inset-0 rounded-[3px_6px_3px_5px] bg-gradient-to-br from-[#2f4d66] to-[#1a2d3d] border border-[#486b8c]"
-                style={{
-                  filter: 'url(#torn-paper-edge)',
-                  boxShadow: 'inset 0 0 8px rgba(10,25,40,0.5), 2px 3px 5px rgba(10,15,25,0.4)',
+            <>
+              <button 
+                onClick={() => {
+                  if (confirm('Khôi phục lại tọa độ gốc trong mapData.ts?')) {
+                    resetCityPositions();
+                  }
                 }}
-              />
-              <span className="relative z-10">COPY TỌA ĐỘ</span>
-            </button>
+                className="relative h-11 px-3.5 flex items-center justify-center font-serif font-bold text-xs uppercase tracking-wider text-[#f5ebd7] transition hover:scale-105 cursor-pointer"
+                title="Xóa tọa độ tạm và khôi phục tọa độ gốc từ mapData.ts"
+              >
+                <div 
+                  className="absolute inset-0 rounded-[3px_6px_3px_5px] bg-gradient-to-br from-[#5c4832] to-[#382a1b] border border-[#856b4d]"
+                  style={{
+                    filter: 'url(#torn-paper-edge)',
+                    boxShadow: 'inset 0 0 8px rgba(20,15,10,0.5), 2px 3px 5px rgba(15,10,5,0.4)',
+                  }}
+                />
+                <span className="relative z-10">KHÔI PHỤC GỐC</span>
+              </button>
+
+              <button 
+                onClick={() => {
+                  const exportData = cities.map(c => `{ id: '${c.id}', name: '${c.name}', type: '${c.type}', x: ${c.x}, y: ${c.y}, faction: '${c.faction}', troops: ${c.troops} }`).join(',\n    ');
+                  navigator.clipboard.writeText(`export const INITIAL_CITIES: CityNode[] = [\n    ${exportData}\n];`);
+                  alert('Đã copy dữ liệu tọa độ mới vào Clipboard!');
+                }}
+                className="relative h-11 px-4 flex items-center justify-center font-serif font-bold text-xs uppercase tracking-wider text-[#f5ebd7] transition hover:scale-105 cursor-pointer"
+              >
+                <div 
+                  className="absolute inset-0 rounded-[3px_6px_3px_5px] bg-gradient-to-br from-[#2f4d66] to-[#1a2d3d] border border-[#486b8c]"
+                  style={{
+                    filter: 'url(#torn-paper-edge)',
+                    boxShadow: 'inset 0 0 8px rgba(10,25,40,0.5), 2px 3px 5px rgba(10,15,25,0.4)',
+                  }}
+                />
+                <span className="relative z-10">COPY TỌA ĐỘ</span>
+              </button>
+            </>
           )}
 
           <button 

@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { TopBar } from './components/layout/TopBar';
 import { LeftPanel } from './components/layout/LeftPanel';
 import { WorldMap } from './components/map/WorldMap';
+import { GeneralsModal } from './components/generals/GeneralsModal';
 import { useGameStore } from './store/gameStore';
 
 function App() {
@@ -20,6 +21,7 @@ function App() {
       <WorldMap />
       <TopBar />
       <LeftPanel />
+      <GeneralsModal />
     </div>
   );
 }

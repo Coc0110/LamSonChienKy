@@ -1,11 +1,13 @@
 import { create } from 'zustand';
 
+export type ModalType = 'army' | 'supplies' | 'generals' | null;
+
 interface UIState {
-  activeModal: 'army' | 'supplies' | null;
+  activeModal: ModalType;
   isEditMode: boolean;
   selectedCityId: string | null;
 
-  setActiveModal: (modal: 'army' | 'supplies' | null) => void;
+  setActiveModal: (modal: ModalType) => void;
   toggleEditMode: () => void;
   selectCity: (id: string | null) => void;
 }
