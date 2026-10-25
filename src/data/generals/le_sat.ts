@@ -17,7 +17,7 @@ export const le_sat: General = {
   id: 'le_sat',
   name: 'Lê Sát',
   hanzi: '黎察',
-  portraitUrl: undefined,
+  portraitUrl: '/generals/le_sat.png?v=7',
   title: 'ĐẠI TƯ ĐỒ',
   epithet: 'Trảm Tướng Lê Sát - Người Chém Liễu Thăng',
   group: 'lung_nhai_1416',

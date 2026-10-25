@@ -23,3 +23,8 @@ raw_assets/
 *.njsproj
 *.sln
 *.sw?
+
+# Preview snapshots & heavy tool checks
+tools/*.png
+tools/*.jpg
+*_preview.png

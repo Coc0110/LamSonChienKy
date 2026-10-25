@@ -196,7 +196,7 @@ export const LeftPanel: React.FC = () => {
               </h1>
 
               {/* Loại hình địa thế */}
-              <div className="flex items-center gap-2 text-xs font-serif text-[#66462c] mt-0.5 font-bold">
+              <div className="flex items-center gap-2 text-sm font-sans text-[#66462c] mt-0.5 font-bold tracking-wide">
                 <span>
                   {selectedCity.type === 'city' 
                     ? 'Thành trì kiên cố' 
@@ -225,21 +225,21 @@ export const LeftPanel: React.FC = () => {
             {/* 1. Thông Tin Quân Lực & Phòng Thủ */}
             <div className="grid grid-cols-2 gap-2.5">
               <div className="p-3 rounded-lg bg-[#f9f3e6] border border-[#c9b28f] shadow-xs">
-                <div className="flex items-center gap-1.5 text-xs text-[#704d2e] font-bold">
+                <div className="flex items-center gap-1.5 text-sm text-[#704d2e] font-bold">
                   <Users size={15} className="text-[#8c2d19]" />
                   <span>Quân đồn trú</span>
                 </div>
-                <div className="mt-1 font-serif font-black text-xl text-[#2a1708]">
-                  {selectedCity.troops.toLocaleString()} <span className="text-xs font-normal text-[#5c3e23]">binh</span>
+                <div className="mt-1 font-sans font-bold text-2xl text-[#2a1708]">
+                  {selectedCity.troops.toLocaleString()} <span className="text-sm font-normal text-[#5c3e23]">binh</span>
                 </div>
               </div>
 
               <div className="p-3 rounded-lg bg-[#f9f3e6] border border-[#c9b28f] shadow-xs">
-                <div className="flex items-center gap-1.5 text-xs text-[#704d2e] font-bold">
+                <div className="flex items-center gap-1.5 text-sm text-[#704d2e] font-bold">
                   <Shield size={15} className="text-[#3b5998]" />
                   <span>Địa thế phòng thủ</span>
                 </div>
-                <div className="mt-1 font-serif font-bold text-sm text-[#2a1708] leading-tight">
+                <div className="mt-1 font-sans text-base text-[#2a1708] leading-tight font-bold">
                   {selectedCity.type === 'city' 
                     ? 'Thành cao hào sâu' 
                     : selectedCity.type === 'chokepoint' 
@@ -289,8 +289,8 @@ export const LeftPanel: React.FC = () => {
 
             {/* 2. Thẻ Lệnh Quân Sự (Command Tablets) */}
             <div className="pt-1">
-              <div className="text-xs font-serif font-black text-[#5c3e23] uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                <Flag size={14} className="text-[#8c2d19]" />
+              <div className="text-sm font-sans font-bold text-[#5c3e23] uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <Flag size={15} className="text-[#8c2d19]" />
                 <span>Hạ Lệnh Quân Cơ</span>
               </div>
 
@@ -302,7 +302,7 @@ export const LeftPanel: React.FC = () => {
                       className="flex flex-col items-center justify-center p-2.5 rounded-lg bg-gradient-to-b from-[#f7ebd7] to-[#ebd2af] border border-[#a88252] hover:from-[#fcf4e8] hover:to-[#f0dbbd] active:scale-95 transition shadow-xs group cursor-pointer"
                     >
                       <Swords size={20} className="text-[#8c2d19] group-hover:scale-110 transition-transform mb-1" />
-                      <span className="font-serif font-black text-xs text-[#2a1708]">Xuất Binh</span>
+                      <span className="font-sans font-bold text-sm text-[#2a1708]">Xuất Binh</span>
                     </button>
 
                     <button 
@@ -310,7 +310,7 @@ export const LeftPanel: React.FC = () => {
                       className="flex flex-col items-center justify-center p-2.5 rounded-lg bg-gradient-to-b from-[#f7ebd7] to-[#ebd2af] border border-[#a88252] hover:from-[#fcf4e8] hover:to-[#f0dbbd] active:scale-95 transition shadow-xs group cursor-pointer"
                     >
                       <Users size={20} className="text-[#2b593f] group-hover:scale-110 transition-transform mb-1" />
-                      <span className="font-serif font-black text-xs text-[#2a1708]">Chiêu Quân</span>
+                      <span className="font-sans font-bold text-sm text-[#2a1708]">Chiêu Quân</span>
                     </button>
 
                     <button 
@@ -318,7 +318,7 @@ export const LeftPanel: React.FC = () => {
                       className="col-span-2 sm:col-span-1 flex flex-col items-center justify-center p-2.5 rounded-lg bg-gradient-to-b from-[#f7ebd7] to-[#ebd2af] border border-[#a88252] hover:from-[#fcf4e8] hover:to-[#f0dbbd] active:scale-95 transition shadow-xs group cursor-pointer"
                     >
                       <Wheat size={20} className="text-[#85531b] group-hover:scale-110 transition-transform mb-1" />
-                      <span className="font-serif font-black text-xs text-[#2a1708]">Thu Lương</span>
+                      <span className="font-sans font-bold text-sm text-[#2a1708]">Thu Lương</span>
                     </button>
                   </>
                 ) : (
@@ -328,7 +328,7 @@ export const LeftPanel: React.FC = () => {
                       className="flex flex-col items-center justify-center p-2.5 rounded-lg bg-gradient-to-b from-[#eed4cc] to-[#dcaba0] border border-[#a84435] hover:from-[#f5dfd8] hover:to-[#e4b5ab] active:scale-95 transition shadow-xs group cursor-pointer"
                     >
                       <Swords size={20} className="text-[#a82415] group-hover:scale-110 transition-transform mb-1" />
-                      <span className="font-serif font-black text-xs text-[#52130b]">Công Thành</span>
+                      <span className="font-sans font-bold text-sm text-[#52130b]">Công Thành</span>
                     </button>
 
                     <button 
@@ -336,7 +336,7 @@ export const LeftPanel: React.FC = () => {
                       className="flex flex-col items-center justify-center p-2.5 rounded-lg bg-gradient-to-b from-[#f7ebd7] to-[#ebd2af] border border-[#a88252] hover:from-[#fcf4e8] hover:to-[#f0dbbd] active:scale-95 transition shadow-xs group cursor-pointer"
                     >
                       <Eye size={20} className="text-[#3b5998] group-hover:scale-110 transition-transform mb-1" />
-                      <span className="font-serif font-black text-xs text-[#2a1708]">Do Thám</span>
+                      <span className="font-sans font-bold text-sm text-[#2a1708]">Do Thám</span>
                     </button>
                   </>
                 )}
@@ -344,7 +344,7 @@ export const LeftPanel: React.FC = () => {
             </div>
 
             {/* Lời trích dẫn sử lược */}
-            <div className="p-2.5 rounded-lg bg-[#efe3cb]/60 border border-[#cbba9e] text-[#69482b] font-serif italic text-xs leading-relaxed text-center">
+            <div className="p-3 rounded-lg bg-[#efe3cb]/70 border border-[#cbba9e] text-[#54341c] font-sans text-sm md:text-base leading-relaxed text-center font-bold">
               "Đất Lam Sơn hiểm trở, nước sông Chu trong vắt, người xứ Thanh hào kiệt quy tụ một lòng dấy nghĩa..."
             </div>
 

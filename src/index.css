@@ -1,23 +1,86 @@
 @import "tailwindcss";
 
+/* ============================================================================
+   1. FONT HÁN TỰ / THƯ PHÁP CỔ VIỆT HÓA (HanZiVH)
+   Dùng cho các "TÊN": Tên tướng, Tên địa danh, Tên các thẻ buff, Tiêu đề cổ trang
+   ============================================================================ */
 @font-face {
   font-family: 'HanZiVH';
   src: url('/fonts/TP_Han_Zi.ttf') format('truetype'),
-       url('/fonts/TP_Han_Zi.otf') format('opentype'),
-       url('/fonts/TP Han Zi.ttf') format('truetype'),
-       url('/fonts/TP Han Zi.otf') format('opentype');
+       url('/fonts/TP_Han_Zi.otf') format('opentype');
   font-weight: 100 900;
   font-style: normal;
   font-display: swap;
 }
 
-@theme {
-  --font-serif: 'HanZiVH', Georgia, 'Times New Roman', serif;
-  --font-sans: 'HanZiVH', system-ui, -apple-system, sans-serif;
+/* ============================================================================
+   2. FONT CASTER VIỆT HÓA (Caster)
+   Dùng cho toàn bộ Mô tả, Nội dung diễn giải, Chỉ số, Lệnh bài, Trích dẫn sử thi
+   ============================================================================ */
+@font-face {
+  font-family: 'Caster';
+  src: url('/fonts/Caster.otf') format('opentype');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
 }
 
-html, body, #root, * {
+/* ============================================================================
+   3. CÁC FONT DỰ PHÒNG KHÁC (Supa Mega, Brushwell, Product Sans)
+   ============================================================================ */
+@font-face {
+  font-family: 'SupaMegaFantastic';
+  src: url('/fonts/iCielSupaMegaFantastic-Regular.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Brushwell';
+  src: url('/fonts/NVN_Brushwell_Regular.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'ProductSans';
+  src: url('/fonts/Product_Sans_Regular.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@theme {
+  --font-sans: 'Caster', cursive, sans-serif;
+  --font-desc: 'Caster', cursive, sans-serif;
+  --font-brush: 'Caster', cursive, sans-serif;
+  --font-scroll: 'Caster', cursive, sans-serif;
+  --font-serif: 'HanZiVH', Georgia, 'Times New Roman', serif;
+  --font-title: 'HanZiVH', Georgia, 'Times New Roman', serif;
+}
+
+/* Thiết lập font mặc định cho toàn bộ mô tả và giao diện là Caster */
+html, body, #root {
+  font-family: 'Caster', cursive, sans-serif;
+}
+
+/* Các lớp tiện ích bổ trợ phân định font chữ rõ ràng */
+.font-name,
+.font-hanzi,
+.font-title {
   font-family: 'HanZiVH', Georgia, 'Times New Roman', serif;
+}
+
+.font-desc,
+.font-brush,
+.font-scroll {
+  font-family: 'Caster', cursive, sans-serif;
+}
+
+.font-product {
+  font-family: 'ProductSans', system-ui, -apple-system, sans-serif;
 }
 
 /* Hiệu ứng nhấp nháy nhè nhẹ cho texture Lửa */
@@ -63,6 +126,7 @@ html, body, #root, * {
   color: #ebd0a7 !important;
   padding: 8px 12px !important;
   backdrop-filter: blur(6px);
+  font-family: 'Caster', cursive, sans-serif !important;
 }
 .parchment-tactical-tooltip .leaflet-tooltip-pane {
   z-index: 900;
@@ -84,7 +148,6 @@ html, body, #root, * {
 .marching-route-line {
   animation: marchLineAnim 2.4s linear infinite;
 }
-
 
 /* Tương tác địa bàn Huyện Thành thế kỷ XV */
 .district-polygon-interactive {

@@ -17,7 +17,7 @@ export const luu_nhan_chu: General = {
   id: 'luu_nhan_chu',
   name: 'Lưu Nhân Chú',
   hanzi: '劉仁澍',
-  portraitUrl: undefined,
+  portraitUrl: '/generals/luu_nhan_chu.png?v=7',
   title: 'TỂ TƯỚNG ĐẠI TƯ MÃ',
   epithet: 'Hắc Ám Phục Kích',
   group: 'lung_nhai_1416',

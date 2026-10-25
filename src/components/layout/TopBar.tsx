@@ -29,7 +29,7 @@ const ParchmentSlip: React.FC<ParchmentSlipProps> = ({
   className = '' 
 }) => (
   <div 
-    className={`relative shrink-0 flex items-center justify-center font-serif font-bold text-xs tracking-wider transition-transform hover:scale-105 ${rotation} ${className}`}
+    className={`relative shrink-0 flex items-center justify-center font-sans font-bold text-sm tracking-wide transition-transform hover:scale-105 ${rotation} ${className}`}
     style={{
       filter: 'drop-shadow(1px 2px 3px rgba(0,0,0,0.45)) drop-shadow(0 1px 1px rgba(30,20,10,0.3))',
     }}
@@ -123,7 +123,7 @@ export const TopBar: React.FC = () => {
         <div className="pointer-events-auto shrink-0 flex items-center gap-1.5 z-50">
           <button 
             onClick={toggleEditMode}
-            className="relative h-9 px-4 flex items-center justify-center font-serif font-bold text-xs uppercase tracking-wider transition hover:scale-105 active:scale-95 shadow-xl cursor-pointer"
+            className="relative h-9 px-4 flex items-center justify-center font-sans font-bold text-xs uppercase tracking-wider transition hover:scale-105 active:scale-95 shadow-xl cursor-pointer"
           >
             <div 
               className={`absolute inset-0 rounded-[4px_7px_3px_6px] transition-colors ${

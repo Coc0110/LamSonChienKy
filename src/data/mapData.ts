@@ -80,6 +80,7 @@ export const INITIAL_CONNECTIONS: Connection[] = [
     { from: 'nong_cong', to: 'co_binh' }
 ];
 
-export const START_YEAR = 1418;
+// Thời điểm bắt đầu trò chơi: Ngày mở đầu Hội Thề Lũng Nhai (Tháng 2 năm Bính Thân 1416)
+export const START_YEAR = 1416;
 export const START_MONTH = 2;
-export const START_DAY = 7;
+export const START_DAY = 1;

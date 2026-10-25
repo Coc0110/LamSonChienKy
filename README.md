@@ -1,32 +1,53 @@
-# React + TypeScript + Vite
+# Khởi Nghĩa Lam Sơn (1418 – 1427)
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Dự án game chiến thuật lịch sử mô phỏng cuộc Khởi nghĩa Lam Sơn hào hùng do Bình Định Vương Lê Lợi lãnh đạo, kết hợp giữa phong cách sa bàn chiến thuật cổ điển và công nghệ web hiện đại.
 
-Currently, two official plugins are available:
+## Công nghệ sử dụng
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **Frontend**: React 19, TypeScript
+- **Bundler & Tooling**: Vite 8, Oxlint
+- **Bản đồ**: Leaflet, CRS.Simple tile pyramid đa tầng, SVG overlays
+- **Quản lý trạng thái**: Zustand
+- **Giao diện**: Tailwind CSS v4, Lucide Icons
+- **Đồ họa**: Phong cách sa bàn giấy da cừu (parchment), thẻ bài đồng phong hóa, thư pháp và Hán tự Việt hóa.
 
-## React Compiler
+## Cấu trúc thư mục chính
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```text
+├── public/                 # Tài nguyên tĩnh (tiles bản đồ, font chữ, huy hiệu, chân dung tướng)
+├── src/
+│   ├── components/
+│   │   ├── generals/       # Thẻ bài đồng danh tướng, modal danh sách tướng
+│   │   ├── layout/         # TopBar tài nguyên, LeftPanel chiến thư và quân thư
+│   │   ├── map/            # WorldMap sa bàn chiến lược và công cụ nắn ranh giới
+│   │   └── modals/         # Các bảng thông tin chi tiết quân lực, quân nhu
+│   ├── data/               # Dữ liệu cứ điểm, ranh giới huyện thành, danh tướng
+│   ├── store/              # Zustand stores (gameStore, uiStore)
+│   ├── types/              # Type definitions (Tướng, Cứ điểm, Tài nguyên, Địa hình)
+│   └── utils/              # Các hàm tiện ích (tính toán tọa độ bản đồ...)
+└── tools/                  # Script tiền xử lý và cắt tile bản đồ
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+## Hướng dẫn cài đặt & Chạy dự án
+
+### 1. Cài đặt dependencies
+```bash
+npm install
+```
+
+### 2. Chạy môi trường phát triển (Dev)
+```bash
+npm run dev
+# hoặc chạy file dev.bat trên Windows
+```
+
+### 3. Kiểm tra chất lượng mã (Lint)
+```bash
+npm run lint
+```
+
+### 4. Build sản phẩm (Production)
+```bash
+npm run build
+# hoặc chạy file build.bat trên Windows
+```

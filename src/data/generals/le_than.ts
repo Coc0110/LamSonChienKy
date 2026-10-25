@@ -17,7 +17,7 @@ export const le_than: General = {
   id: 'le_than',
   name: 'Lê Thận',
   hanzi: '黎慎',
-  portraitUrl: undefined,
+  portraitUrl: '/generals/le_than.png?v=7',
   title: 'THÁI PHÓ HOẰNG HÓA',
   epithet: 'Người Dâng Gươm Thuận Thiên',
   group: 'lung_nhai_1416',

@@ -1,3 +1,9 @@
 @echo off
-set "PATH=C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Microsoft\VisualStudio\NodeJs;%PATH%"
-npx vite preview --port 5173
+setlocal
+where node >nul 2>nul
+if %ERRORLEVEL% neq 0 (
+  if exist "C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Microsoft\VisualStudio\NodeJs" (
+    set "PATH=C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Microsoft\VisualStudio\NodeJs;%PATH%"
+  )
+)
+npm run preview

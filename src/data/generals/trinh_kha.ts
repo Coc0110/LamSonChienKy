@@ -17,7 +17,7 @@ export const trinh_kha: General = {
   id: 'trinh_kha',
   name: 'Trịnh Khả',
   hanzi: '鄭可',
-  portraitUrl: undefined,
+  portraitUrl: '/generals/trinh_kha.png?v=7',
   title: 'NHẬP NỘI THÁI ÚY',
   epithet: 'Tượng Binh Đô Đốc',
   group: 'lung_nhai_1416',

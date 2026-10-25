@@ -51,7 +51,7 @@ export const TimePanel: React.FC = () => {
         }}
       />
 
-      {/* 2. HIỆU ỨNG ĐÓNG BĂNG: TEXTURE BĂNG MỚI PHỦ KÍN 100% */}
+      {/* 2. HIỆU ỨNG ĐÓNG BĂNG KHI TẠM DỪNG: PHỦ BĂNG TUYẾT XANH NGỌC */}
       <div 
         className={`effect-overlay frost-effect absolute inset-0 rounded-[4px_8px_5px_7px] pointer-events-none overflow-hidden transition-opacity duration-300 ease-in-out ${
           timeState === 'paused' ? 'opacity-100' : 'opacity-0'
@@ -60,33 +60,30 @@ export const TimePanel: React.FC = () => {
         <div 
           className="absolute inset-0"
           style={{
-            backgroundImage: 'url(/new_texture_ice.png)',
-            backgroundSize: '100% 100%',
-            backgroundRepeat: 'no-repeat',
-            filter: 'contrast(1.15) brightness(1.05) drop-shadow(0 0 5px rgba(56, 189, 248, 0.45))',
+            background: 'radial-gradient(circle at center, rgba(224, 242, 254, 0.75) 0%, rgba(56, 189, 248, 0.5) 70%, rgba(3, 105, 161, 0.4) 100%)',
+            boxShadow: 'inset 0 0 10px rgba(14, 165, 233, 0.65)',
+            backdropFilter: 'blur(0.5px)',
           }}
         />
       </div>
 
-      {/* 3. HIỆU ỨNG BỐC CHÁY: TEXTURE LỬA MỚI PHỦ KÍN 100% & NHẤP NHÁY NHÈ NHẸ */}
+      {/* 3. HIỆU ỨNG BỐC CHÁY KHI HỎA TỐC 2X: HÀO QUANG LỬA ĐỎ CAM */}
       <div 
         className={`effect-overlay fire-effect absolute inset-0 rounded-[4px_8px_5px_7px] pointer-events-none overflow-hidden transition-opacity duration-300 ease-in-out ${
           timeState === 'fast' ? 'opacity-100' : 'opacity-0'
         }`}
       >
         <div 
-          className="absolute inset-0 animate-gentle-fire"
+          className="absolute inset-0 animate-pulse"
           style={{
-            backgroundImage: 'url(/new_texture_fire.png)',
-            backgroundSize: '100% 100%',
-            backgroundRepeat: 'no-repeat',
-            filter: 'contrast(1.2) brightness(1.1) drop-shadow(0 0 6px rgba(255, 69, 0, 0.6))',
+            background: 'radial-gradient(circle at center, rgba(254, 240, 138, 0.8) 0%, rgba(249, 115, 22, 0.6) 65%, rgba(220, 38, 38, 0.5) 100%)',
+            boxShadow: 'inset 0 0 10px rgba(234, 88, 12, 0.8)',
           }}
         />
       </div>
 
       {/* 4. NỘI DUNG CHỮ NGÀY THÁNG (Nổi lên trên cùng với z-index 10, chữ rõ nét) */}
-      <div className="time-content relative z-10 px-3.5 py-1.5 flex items-center gap-2 font-serif text-[#2a1708] font-black text-sm tracking-wide whitespace-nowrap drop-shadow-[0_1px_2px_rgba(255,255,255,0.7)]">
+      <div className="time-content relative z-10 px-3.5 py-1.5 flex items-center gap-2 font-sans text-[#2a1708] font-bold text-base tracking-wide whitespace-nowrap drop-shadow-[0_1px_2px_rgba(255,255,255,0.7)]">
         <Clock className="text-[#8c2d19] transition-transform duration-300 group-hover:rotate-45" size={16} />
         <span>Ngày {day}/{month}/{year}</span>
       </div>

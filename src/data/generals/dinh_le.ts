@@ -17,7 +17,7 @@ export const dinh_le: General = {
   id: 'dinh_le',
   name: 'Đinh Lễ',
   hanzi: '丁禮',
-  portraitUrl: undefined,
+  portraitUrl: '/generals/dinh_le.png?v=7',
   title: 'TƯ KHÔNG',
   epithet: 'Sát Thần Đinh Lễ',
   group: 'lung_nhai_1416',

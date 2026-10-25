@@ -3,42 +3,19 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useGameStore } from '../../store/gameStore';
 import { useUIStore } from '../../store/uiStore';
-import type { Faction } from '../../types';
+import type { DistrictInfo, ParchmentMode } from '../../types/map';
+import {
+  percentToLatLng,
+  latLngToPercent,
+  MAP_COORD_W,
+  MAP_COORD_H,
+  TILE_SIZE,
+} from '../../utils/mapGeo';
 import districtData from '../../data/districtPolygons.json';
-
-// Tọa độ hệ chuẩn Leaflet CRS.Simple tại Zoom 0:
-const MAP_COORD_W = 560;
-const MAP_COORD_H = 736;
-const TILE_SIZE = 512;
+import { DistrictEditorBar } from './DistrictEditorBar';
+import { ParchmentControls } from './ParchmentControls';
 
 const DISTRICT_STORAGE_KEY = 'lam_son_district_polygons_custom_v1';
-
-// Chuyển đổi tọa độ phần trăm % (0..100) sang Leaflet CRS.Simple [lat, lng]
-const percentToLatLng = (x: number, y: number): L.LatLng => {
-  const lng = (x / 100) * MAP_COORD_W;
-  const lat = -((y / 100) * MAP_COORD_H);
-  return L.latLng(lat, lng);
-};
-
-// Chuyển đổi từ Leaflet LatLng ngược lại %
-export const latLngToPercent = (latlng: L.LatLng): { x: number; y: number } => {
-  const x = Math.max(0, Math.min(100, Math.round((latlng.lng / MAP_COORD_W) * 1000) / 1000));
-  const y = Math.max(0, Math.min(100, Math.round((-latlng.lat / MAP_COORD_H) * 1000) / 1000));
-  return { x, y };
-};
-
-type ParchmentMode = 'cutout' | 'sheet' | 'off';
-
-interface DistrictInfo {
-  id: string;
-  name: string;
-  chau: string;
-  faction: Faction;
-  type: string;
-  troops: number;
-  center: [number, number];
-  polygon: [number, number][];
-}
 
 export const WorldMap: React.FC = () => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -48,6 +25,7 @@ export const WorldMap: React.FC = () => {
   const vertexHandlesLayerRef = useRef<L.LayerGroup | null>(null);
   const parchmentCutoutRef = useRef<L.ImageOverlay | null>(null);
   const parchmentSheetRef = useRef<L.ImageOverlay | null>(null);
+  const polygonsMapRef = useRef<Map<string, L.Polygon>>(new Map());
 
   const [parchmentMode, setParchmentMode] = useState<ParchmentMode>('cutout');
   const [showDistricts, setShowDistricts] = useState<boolean>(true);
@@ -107,7 +85,7 @@ export const WorldMap: React.FC = () => {
 
     tileLayer.addTo(map);
 
-    // Pane riêng cho vector ranh giới huyện thành (zIndex: 450) để luôn nổi trên nền tranh vẽ sa bàn
+    // Pane riêng cho vector ranh giới huyện thành (zIndex: 450)
     map.createPane('districtsPane');
     const dPane = map.getPane('districtsPane');
     if (dPane) {
@@ -139,33 +117,20 @@ export const WorldMap: React.FC = () => {
       }
     };
 
-    const initTimer = setTimeout(() => {
-      if (isDisposed) return;
-      map.invalidateSize();
-      updateView(true);
-    }, 50);
-
-    const handleResize = () => {
-      if (isDisposed) return;
-      map.invalidateSize();
-      updateView(false);
-    };
-    window.addEventListener('resize', handleResize);
-
     const fullMapBounds = L.latLngBounds(
       percentToLatLng(0, 100),
       percentToLatLng(100, 0)
     );
 
     // 1. Sông ngòi toàn quốc
-    L.imageOverlay('/map_rivers.svg', fullMapBounds, {
+    const riversOverlay = L.imageOverlay('/map_rivers.svg', fullMapBounds, {
       opacity: 0.95,
       interactive: false,
       zIndex: 15,
     }).addTo(map);
 
     // 2. Biên giới toàn quốc
-    L.imageOverlay('/map_borders.svg', fullMapBounds, {
+    const bordersOverlay = L.imageOverlay('/map_borders.svg', fullMapBounds, {
       opacity: 0.9,
       interactive: false,
       zIndex: 20,
@@ -177,21 +142,36 @@ export const WorldMap: React.FC = () => {
       percentToLatLng(70.0, 38.0)
     );
 
-    // Lớp Bản đồ Sa bàn Giấy Da Cừu Thanh Hóa (Đặt trong overlayPane với zIndex 25, hiển thị chuẩn trên vệ tinh và dưới nét ranh giới)
     const cutoutOverlay = L.imageOverlay('/thanh_hoa_parchment.png', thanhHoaBounds, {
-      opacity: parchmentMode === 'cutout' ? 1.0 : 0,
+      opacity: 1.0,
       interactive: false,
       zIndex: 25,
     }).addTo(map);
 
     const sheetOverlay = L.imageOverlay('/thanh_hoa_parchment_full.jpg', thanhHoaBounds, {
-      opacity: parchmentMode === 'sheet' ? 1.0 : 0,
+      opacity: 0,
       interactive: false,
       zIndex: 24,
     }).addTo(map);
 
     parchmentCutoutRef.current = cutoutOverlay;
     parchmentSheetRef.current = sheetOverlay;
+
+    const initTimer = setTimeout(() => {
+      if (isDisposed) return;
+      map.invalidateSize();
+      updateView(true);
+      [riversOverlay, bordersOverlay, sheetOverlay, cutoutOverlay].forEach(o => {
+        if (!(o as any)._map) (o as any)._layerAdd({ target: map });
+      });
+    }, 50);
+
+    const handleResize = () => {
+      if (isDisposed) return;
+      map.invalidateSize();
+      updateView(false);
+    };
+    window.addEventListener('resize', handleResize);
 
     // LayerGroups
     const linesLayer = L.layerGroup().addTo(map);
@@ -212,7 +192,7 @@ export const WorldMap: React.FC = () => {
     };
   }, []);
 
-  // Cập nhật chế độ hiển thị lớp Sa bàn Giấy Da Cừu
+  // Cập nhật chế độ hiển thị Sa bàn Giấy Da Cừu
   useEffect(() => {
     const cutout = parchmentCutoutRef.current;
     const sheet = parchmentSheetRef.current;
@@ -284,15 +264,14 @@ export const WorldMap: React.FC = () => {
         weight: isConnectedToSelected ? 2.5 : 1.5,
         dashArray: isConnectedToSelected ? '6, 6' : '4, 4',
         opacity: isConnectedToSelected ? 0.85 : 0.45,
+        lineCap: 'round',
+        lineJoin: 'round',
         interactive: false,
       });
 
       polyline.addTo(linesLayer);
     });
-  }, [cities, connections, selectedCityId]);
-
-  // 3. QUẢN LÝ CÁC ĐỐI TƯỢNG POLYGON HUYỆN THÀNH
-  const polygonsMapRef = useRef<Map<string, L.Polygon>>(new Map());
+  }, [connections, cities, selectedCityId]);
 
   // Cập nhật tọa độ polygon cho huyện
   const updateDistrictPolygonVertex = (districtId: string, vertexIndex: number, newX: number, newY: number) => {
@@ -301,7 +280,6 @@ export const WorldMap: React.FC = () => {
         if (d.id !== districtId) return d;
         const newPoly = [...d.polygon];
         newPoly[vertexIndex] = [newX, newY];
-        // Nếu là điểm đầu/cuối của vòng khép kín
         if (vertexIndex === 0) newPoly[newPoly.length - 1] = [newX, newY];
         if (vertexIndex === newPoly.length - 1) newPoly[0] = [newX, newY];
         return { ...d, polygon: newPoly };
@@ -328,7 +306,7 @@ export const WorldMap: React.FC = () => {
       const poly = L.polygon(latlngs, {
         fill: true,
         fillColor: '#ffffff',
-        fillOpacity: 0.0001, // 100% không phủ màu để lộ trọn vẹn nét vẽ sa bàn
+        fillOpacity: 0.0001,
         color: '#4a2810',
         weight: 1.1,
         opacity: 0.85,
@@ -355,9 +333,10 @@ export const WorldMap: React.FC = () => {
       polygonsMapRef.current.set(district.id, poly);
     });
 
+    const currentPolygons = polygonsMapRef.current;
     return () => {
-      polygonsMapRef.current.forEach(p => p.remove());
-      polygonsMapRef.current.clear();
+      currentPolygons.forEach(p => p.remove());
+      currentPolygons.clear();
     };
   }, [districtsList, selectCity]);
 
@@ -373,7 +352,6 @@ export const WorldMap: React.FC = () => {
       }
 
       if (isSelected) {
-        // Nổi bật nét mực Chu Sa cổ (TUYỆT ĐỐI KHÔNG FILL MÀU)
         poly.setStyle({
           color: '#991b1b',
           weight: 2.8,
@@ -381,7 +359,6 @@ export const WorldMap: React.FC = () => {
           fillOpacity: 0.0001,
         });
       } else if (isHovered) {
-        // Rê chuột: nét hổ phách ấm (TUYỆT ĐỐI KHÔNG FILL MÀU)
         poly.setStyle({
           color: '#c2410c',
           weight: 2.0,
@@ -389,7 +366,6 @@ export const WorldMap: React.FC = () => {
           fillOpacity: 0.0001,
         });
       } else {
-        // Bình thường: nét mực sepia mỏng
         poly.setStyle({
           color: '#4a2810',
           weight: 1.1,
@@ -401,7 +377,6 @@ export const WorldMap: React.FC = () => {
   }, [selectedCityId, hoveredDistrictId, showDistricts, parchmentMode]);
 
   // 4. CHẾ ĐỘ CHỈNH SỬA RANH GIỚI BẰNG TAY (Edit Mode)
-  // Khi bật SỬA MAP, các điểm mốc (Vertex Handles) của huyện đang chọn sẽ hiện ra cho phép kéo thả trực tiếp
   useEffect(() => {
     const handlesLayer = vertexHandlesLayerRef.current;
     if (!handlesLayer) return;
@@ -414,7 +389,6 @@ export const WorldMap: React.FC = () => {
     if (!currentDistrict) return;
 
     currentDistrict.polygon.forEach((pt, idx) => {
-      // Bỏ qua điểm cuối nếu trùng điểm đầu
       if (idx === currentDistrict.polygon.length - 1 && idx > 0) return;
 
       const latlng = percentToLatLng(pt[0], pt[1]);
@@ -433,7 +407,6 @@ export const WorldMap: React.FC = () => {
 
       handleMarker.on('drag', (e) => {
         const newPos = e.target.getLatLng();
-        // Cập nhật polygon hiển thị ngay lập tức khi kéo
         const poly = polygonsMapRef.current.get(currentDistrict.id);
         if (poly) {
           const currentLatLngs = poly.getLatLngs()[0] as L.LatLng[];
@@ -469,30 +442,33 @@ export const WorldMap: React.FC = () => {
       const isHovered = hoveredDistrictId === district.id;
 
       if (isSelected || isHovered) {
-        const liveCity = cities.find(c => c.id === district.id);
-        const faction: Faction = liveCity ? liveCity.faction : district.faction;
-        const troops = liveCity ? liveCity.troops : district.troops;
-
         const centerLatLng = percentToLatLng(district.center[0], district.center[1]);
 
-        const badgeBorder = isSelected
-          ? 'border-amber-400 ring-2 ring-amber-500/80'
-          : 'border-[#a87c4f]/80';
+        const cityNode = cities.find(c => c.id === district.id);
+        const faction = cityNode ? cityNode.faction : district.faction;
+        const troops = cityNode ? cityNode.troops : district.troops;
 
-        const factionColor = faction === 'lam_son'
-          ? 'text-red-400'
-          : faction === 'ming'
-          ? 'text-blue-300'
-          : 'text-amber-200';
+        const factionColor =
+          faction === 'lam_son'
+            ? 'text-amber-400 font-black'
+            : faction === 'ming'
+            ? 'text-sky-400 font-black'
+            : 'text-stone-300';
 
-        const troopsBadge = troops > 0 ? `
-          <span class="ml-1.5 px-1.5 py-0.5 bg-black/60 text-[10px] rounded font-mono text-amber-300 border border-amber-600/40">
-            ${troops > 1000 ? `${(troops / 1000).toFixed(1)}k` : troops}
-          </span>
-        ` : '';
+        const badgeBorder =
+          faction === 'lam_son'
+            ? 'border-amber-600/80 shadow-[0_0_12px_rgba(245,158,11,0.5)]'
+            : faction === 'ming'
+            ? 'border-blue-600/80 shadow-[0_0_12px_rgba(59,130,246,0.5)]'
+            : 'border-stone-600/60 shadow-[0_0_8px_rgba(0,0,0,0.6)]';
+
+        const troopsBadge =
+          troops > 0
+            ? `<span class="ml-1.5 px-1.5 py-0.2 rounded text-[10px] bg-black/50 border border-stone-600/70 text-stone-200 font-mono">${troops.toLocaleString()}</span>`
+            : '';
 
         const labelHtml = `
-          <div class="pointer-events-none transform -translate-x-1/2 -translate-y-1/2 transition-transform duration-150 ${isSelected ? 'scale-115 -translate-y-2' : ''}">
+          <div class="pointer-events-none transform -translate-x-1/2 -translate-y-full pb-2 animate-in fade-in zoom-in-95 duration-150">
             <div class="px-3 py-1 rounded-md bg-[#1e130a]/92 border ${badgeBorder} shadow-2xl backdrop-blur-sm flex items-center whitespace-nowrap font-serif font-bold text-xs tracking-wide text-[#f5ebd9]"
                  style="box-shadow: 0 4px 16px rgba(0,0,0,0.65);">
               <span class="${factionColor}">${district.name}</span>
@@ -523,110 +499,24 @@ export const WorldMap: React.FC = () => {
 
   return (
     <div className="absolute inset-0 z-0 bg-[#16171a] overflow-hidden">
-      {/* Banner thông báo chế độ Sửa Map & Bộ công cụ tinh chỉnh ranh giới (Tự co giãn, không tràn màn hình) */}
+      {/* Banner thông báo chế độ Sửa Map & Bộ công cụ tinh chỉnh ranh giới */}
       {isEditMode && (
-        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[1000] w-[95vw] max-w-2xl bg-[#221008]/96 text-[#f5ebd7] px-4 py-3 rounded-xl border-2 border-amber-500 shadow-2xl backdrop-blur-md flex flex-col items-center gap-2 pointer-events-auto">
-          <div className="flex flex-wrap items-center justify-center gap-2 w-full">
-            <span className="font-bold font-serif text-xs md:text-sm tracking-wider text-amber-300 uppercase whitespace-nowrap">
-              ✦ Chế độ nắn ranh giới Huyện Thành ✦
-            </span>
-            <select
-              value={selectedCityId || ''}
-              onChange={(e) => selectCity(e.target.value)}
-              className="bg-[#382013] text-amber-200 border border-amber-600/80 rounded px-2.5 py-1 text-xs font-serif font-bold cursor-pointer focus:outline-none focus:ring-1 focus:ring-amber-400"
-            >
-              {districtsList.map(d => (
-                <option key={d.id} value={d.id}>{d.name} ({d.chau})</option>
-              ))}
-            </select>
-            <button
-              onClick={() => {
-                const custom = localStorage.getItem('lam_son_district_polygons_custom_v1');
-                if (custom) {
-                  navigator.clipboard.writeText(custom);
-                  alert('Đã copy toàn bộ dữ liệu ranh giới huyện thành vào Clipboard!');
-                } else {
-                  alert('Chưa có chỉnh sửa ranh giới mới nào!');
-                }
-              }}
-              className="px-2.5 py-1 bg-[#2f4d66] hover:bg-[#3d6385] text-white rounded text-xs font-bold border border-[#5282ad] shadow cursor-pointer transition hover:scale-105 whitespace-nowrap"
-            >
-              Copy Ranh Giới
-            </button>
-            <button
-              onClick={() => {
-                if (confirm('Khôi phục lại toàn bộ ranh giới huyện thành về mặc định ban đầu?')) {
-                  localStorage.removeItem('lam_son_district_polygons_custom_v1');
-                  window.location.reload();
-                }
-              }}
-              className="px-2.5 py-1 bg-[#5c2419] hover:bg-[#783021] text-amber-100 rounded text-xs font-bold border border-[#963e2c] shadow cursor-pointer transition hover:scale-105 whitespace-nowrap"
-            >
-              Làm Lại Gốc
-            </button>
-            <button
-              onClick={toggleEditMode}
-              className="px-2.5 py-1 bg-[#22543d] hover:bg-[#276749] text-emerald-100 rounded text-xs font-bold border border-[#38a169] shadow cursor-pointer transition hover:scale-105 whitespace-nowrap"
-            >
-              ✓ Xong Sửa
-            </button>
-          </div>
-          <p className="text-[11px] md:text-xs text-stone-300 text-center">
-            {selectedCityId
-              ? `Đang nắn: ${districtsList.find(d => d.id === selectedCityId)?.name || selectedCityId} — Kéo các nút tròn vàng viền đỏ trên đường ranh giới để nắn hình.`
-              : 'Click chọn một huyện thành trên bản đồ hoặc chọn từ danh sách ở trên để bắt đầu nắn ranh giới.'}
-          </p>
-        </div>
+        <DistrictEditorBar
+          selectedCityId={selectedCityId}
+          districtsList={districtsList}
+          onSelectCity={selectCity}
+          onToggleEditMode={toggleEditMode}
+          storageKey={DISTRICT_STORAGE_KEY}
+        />
       )}
 
-      {/* Thanh chuyển đổi chế độ xem Sa bàn Giấy Da Cừu (Khu vực Thanh Hóa) */}
-      <div className="absolute bottom-5 left-5 z-[900] flex items-center gap-1.5 bg-[#1e130a]/90 border border-[#a87c4f]/70 rounded-lg p-1.5 shadow-2xl backdrop-blur-sm text-xs font-serif">
-        <span className="px-2 py-1 text-[#ebd0a7] font-bold tracking-wider uppercase">
-          Sa bàn Thanh Hóa:
-        </span>
-        <button
-          onClick={() => setParchmentMode('cutout')}
-          className={`px-2.5 py-1 rounded transition-colors cursor-pointer ${
-            parchmentMode === 'cutout'
-              ? 'bg-[#8c5828] text-[#fff3db] border border-[#deb887] font-bold shadow'
-              : 'text-[#c9a679] hover:bg-[#332010]'
-          }`}
-        >
-          Chỉ vùng Thanh Hóa
-        </button>
-        <button
-          onClick={() => setParchmentMode('sheet')}
-          className={`px-2.5 py-1 rounded transition-colors cursor-pointer ${
-            parchmentMode === 'sheet'
-              ? 'bg-[#8c5828] text-[#fff3db] border border-[#deb887] font-bold shadow'
-              : 'text-[#c9a679] hover:bg-[#332010]'
-          }`}
-        >
-          Nguyên tấm Da Cừu
-        </button>
-        <button
-          onClick={() => setParchmentMode('off')}
-          className={`px-2.5 py-1 rounded transition-colors cursor-pointer ${
-            parchmentMode === 'off'
-              ? 'bg-[#8c5828] text-[#fff3db] border border-[#deb887] font-bold shadow'
-              : 'text-[#c9a679] hover:bg-[#332010]'
-          }`}
-        >
-          Vệ tinh gốc
-        </button>
-        <div className="h-4 w-[1px] bg-[#a87c4f]/40 mx-1" />
-        <button
-          onClick={() => setShowDistricts(prev => !prev)}
-          className={`px-2.5 py-1 rounded transition-colors cursor-pointer ${
-            showDistricts && parchmentMode !== 'off'
-              ? 'bg-[#6e2214] text-[#fff3db] border border-[#e6a87c] font-bold shadow'
-              : 'text-[#c9a679] hover:bg-[#332010]'
-          }`}
-          title="Bật/tắt ranh giới và vùng tương tác huyện thành"
-        >
-          Địa bàn Huyện Thành: {showDistricts ? 'Bật' : 'Tắt'}
-        </button>
-      </div>
+      {/* Thanh chuyển đổi chế độ xem Sa bàn Giấy Da Cừu */}
+      <ParchmentControls
+        parchmentMode={parchmentMode}
+        onChangeMode={setParchmentMode}
+        showDistricts={showDistricts}
+        onToggleDistricts={() => setShowDistricts(prev => !prev)}
+      />
 
       {/* Container của Leaflet Map */}
       <div 

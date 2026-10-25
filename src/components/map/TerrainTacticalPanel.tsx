@@ -62,7 +62,7 @@ export const TerrainTacticalPanel: React.FC<TerrainTacticalPanelProps> = ({
   };
 
   return (
-    <div className="absolute top-20 right-5 z-[800] w-88 max-w-[calc(100vw-2.5rem)] bg-[#1a1007]/95 border-2 border-[#a87c4f] rounded-xl shadow-2xl backdrop-blur-md text-[#ebd0a7] font-serif overflow-hidden transition-all duration-300">
+    <div className="absolute top-20 right-5 z-[800] w-88 max-w-[calc(100vw-2.5rem)] bg-[#1a1007]/95 border-2 border-[#a87c4f] rounded-xl shadow-2xl backdrop-blur-md text-[#ebd0a7] font-sans overflow-hidden transition-all duration-300">
       {/* Header Panel */}
       <div className="px-4 py-3 bg-[#2b1809] border-b border-[#a87c4f]/60 flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -107,7 +107,7 @@ export const TerrainTacticalPanel: React.FC<TerrainTacticalPanelProps> = ({
               <span className="text-[11px] font-sans uppercase tracking-wider text-stone-400">
                 Cứ điểm đang chọn:
               </span>
-              <span className="font-bold text-sm text-[#fde68a] flex items-center gap-1">
+              <span className="font-serif font-bold text-sm text-[#fde68a] flex items-center gap-1">
                 <MapPin size={14} className="text-[#f59e0b]" />
                 {activeCity.name}
               </span>
@@ -118,7 +118,7 @@ export const TerrainTacticalPanel: React.FC<TerrainTacticalPanelProps> = ({
                 {getTerrainIcon(currentTerrain.type)}
                 {currentTerrain.name}
               </span>
-              <span className="text-base font-bold text-[#deb887]">
+              <span className="font-serif text-base font-bold text-[#deb887]">
                 {currentTerrain.nameHanzi}
               </span>
             </div>
@@ -193,7 +193,7 @@ export const TerrainTacticalPanel: React.FC<TerrainTacticalPanelProps> = ({
               <select
                 value={targetCityId}
                 onChange={(e) => setTargetCityId(e.target.value)}
-                className="w-full bg-[#170b03] border border-[#a87c4f]/80 rounded px-2.5 py-1.5 text-xs text-[#fef3c7] font-serif cursor-pointer focus:outline-none focus:ring-1 focus:ring-[#f59e0b]"
+                className="w-full bg-[#170b03] border border-[#a87c4f]/80 rounded px-2.5 py-1.5 text-xs text-[#fef3c7] font-sans cursor-pointer focus:outline-none focus:ring-1 focus:ring-[#f59e0b]"
               >
                 {allCities
                   .filter(c => c.id !== activeCity.id)

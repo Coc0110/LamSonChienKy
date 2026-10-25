@@ -80,7 +80,7 @@ export const GeneralsModal: React.FC = () => {
 
           {/* Nội dung Chiếu thư & Trưng bày Thẻ Bài Đồng mới nhận */}
           <div className="p-6 space-y-5 max-h-[80vh] overflow-y-auto no-scrollbar">
-            <p className="text-center font-serif text-base md:text-lg text-[#edd8b4] max-w-2xl mx-auto leading-relaxed">
+            <p className="text-center font-sans text-base md:text-lg text-[#edd8b4] max-w-2xl mx-auto leading-relaxed">
               {recruitmentNotice.description}
             </p>
 
@@ -99,7 +99,7 @@ export const GeneralsModal: React.FC = () => {
                       setPopupFlippedIds(prev => ({ ...prev, [gen.id]: !prev[gen.id] }))
                     }
                   />
-                  <span className="mt-3 text-xs text-amber-300/90 font-serif italic max-w-44 text-center">
+                  <span className="mt-3 text-xs text-amber-300/90 font-sans italic max-w-44 text-center">
                     {gen.epithet}
                   </span>
                 </div>
@@ -109,7 +109,7 @@ export const GeneralsModal: React.FC = () => {
             <div className="flex justify-center pt-2">
               <button
                 onClick={dismissRecruitmentNotice}
-                className="px-8 py-3 rounded-lg bg-gradient-to-b from-[#b33622] to-[#7d1e0e] border border-[#e07058] text-[#fff5e4] font-serif font-black text-base tracking-wider uppercase shadow-lg hover:brightness-110 active:scale-95 transition cursor-pointer"
+                className="px-8 py-3 rounded-lg bg-gradient-to-b from-[#b33622] to-[#7d1e0e] border border-[#e07058] text-[#fff5e4] font-sans font-bold text-base tracking-wider uppercase shadow-lg hover:brightness-110 active:scale-95 transition cursor-pointer"
               >
                 Ban Lệnh Bài — Thu Nhận Vào Đại Quân
               </button>
@@ -151,7 +151,7 @@ export const GeneralsModal: React.FC = () => {
           <div className="flex flex-wrap items-center gap-1.5">
             <button
               onClick={() => setSelectedFilter('all')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-serif font-bold transition cursor-pointer border ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-sans font-bold transition cursor-pointer border ${
                 selectedFilter === 'all'
                   ? 'bg-[#b38248] text-[#1c1006] border-[#f2d09b]'
                   : 'bg-[#2a1b0e] text-[#d6ba8f] border-[#634629] hover:bg-[#3b2715]'
@@ -161,7 +161,7 @@ export const GeneralsModal: React.FC = () => {
             </button>
             <button
               onClick={() => setSelectedFilter('lung_nhai_1416')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-serif font-bold transition cursor-pointer border ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-sans font-bold transition cursor-pointer border ${
                 selectedFilter === 'lung_nhai_1416'
                   ? 'bg-[#b38248] text-[#1c1006] border-[#f2d09b]'
                   : 'bg-[#2a1b0e] text-[#d6ba8f] border-[#634629] hover:bg-[#3b2715]'
@@ -172,7 +172,7 @@ export const GeneralsModal: React.FC = () => {
             {groupCounts.khoi_nghia_1418 > 0 && (
               <button
                 onClick={() => setSelectedFilter('khoi_nghia_1418')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-serif font-bold transition cursor-pointer border ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-sans font-bold transition cursor-pointer border ${
                   selectedFilter === 'khoi_nghia_1418'
                     ? 'bg-[#b38248] text-[#1c1006] border-[#f2d09b]'
                     : 'bg-[#2a1b0e] text-[#d6ba8f] border-[#634629] hover:bg-[#3b2715]'
@@ -184,7 +184,7 @@ export const GeneralsModal: React.FC = () => {
             {groupCounts.quy_tu_1420_1426 > 0 && (
               <button
                 onClick={() => setSelectedFilter('quy_tu_1420_1426')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-serif font-bold transition cursor-pointer border ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-sans font-bold transition cursor-pointer border ${
                   selectedFilter === 'quy_tu_1420_1426'
                     ? 'bg-[#b38248] text-[#1c1006] border-[#f2d09b]'
                     : 'bg-[#2a1b0e] text-[#d6ba8f] border-[#634629] hover:bg-[#3b2715]'
