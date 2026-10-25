@@ -12,6 +12,68 @@ export interface Resources {
 export type Faction = 'lam_son' | 'ming' | 'neutral';
 export type NodeType = 'city' | 'camp' | 'chokepoint';
 
+export interface CityPopulation {
+  combatTroops: number;       // Nghĩa Binh (người có khả năng tác chiến)
+  idleLaborers: number;       // Tráng Phu rảnh rỗi (thanh kéo: Vùng Xanh Lá)
+  farmLaborers: number;       // Tráng Phu đang cày cấy tích lương (thanh kéo: Vùng Cam)
+  forgeLaborers: number;      // Tráng Phu đang rèn đúc vũ khí (thanh kéo: Vùng Cam)
+  swappedCombatants: number;  // Nghĩa Binh đang thế chỗ cho tráng phu đi thao luyện
+  unfitPopulation: number;    // Dân cư phi chiến đấu: phụ nữ, người già, trẻ nhỏ (thanh kéo: Vùng Đen)
+}
+
+export interface CityBuildings {
+  farms: number;              // Đồn điền / Ruộng cày cấy
+  forges: number;             // Lò rèn vũ khí bí mật
+}
+
+export type StructureType = 'farm' | 'forge';
+
+export type WeaponCraftType = 'spear' | 'sword' | 'crossbow';
+
+export interface ForgeOrder {
+  id: string;
+  weaponType: WeaponCraftType;
+  name: string;
+  quantity: number;
+  totalDays: number;
+  remainingDays: number;
+  assignedSmiths: number;
+  goldCost: number;
+}
+
+export interface PlacedStructure {
+  id: string;
+  cityId: string;
+  type: StructureType;
+  name: string;
+  x: number;               // Tọa độ % (0..100) trên bản đồ
+  y: number;               // Tọa độ % (0..100) trên bản đồ
+  terrain: 'plains' | 'forest' | 'mountain' | 'cliff' | 'swamp' | 'water';
+  status: 'building' | 'active';
+  
+  // Xây dựng thi công
+  buildDaysTotal: number;
+  buildDaysRemaining: number;
+  builderWorkers: number;
+
+  // Ruộng cày cấy
+  assignedWorkers: number; // Nông đinh đang canh tác
+  maxWorkers: number;      // Tối đa tráng phu / 1 khu ruộng (mặc định 15)
+  cropDays: number;        // Số ngày sinh trưởng đã qua trong vụ mùa (0..90)
+  cropCycleDays: number;   // Chu kỳ mùa vụ (90 ngày ~ 1 vụ Chiêm / vụ Mùa)
+
+  // Lò rèn đúc
+  activeOrder?: ForgeOrder | null;
+}
+
+export interface TrainingSession {
+  generalId: string;          // Vị tướng phụ trách thao luyện
+  traineesCount: number;      // Tổng số tráng phu được đưa vào thao luyện
+  swappedCount: number;       // Số nghĩa binh phải điều động thế chỗ làm việc
+  totalDays: number;          // Tổng số ngày thao luyện
+  remainingDays: number;      // Số ngày còn lại
+}
+
 export interface CityNode {
   id: string;
   name: string;
@@ -20,6 +82,10 @@ export interface CityNode {
   y: number;
   faction: Faction;
   troops: number;
+  hasBase?: boolean;          // Đã xây dựng căn cứ chỉ huy (Lam Sơn có sẵn)
+  population?: CityPopulation;
+  buildings?: CityBuildings;
+  training?: TrainingSession | null;
 }
 
 export interface Connection {

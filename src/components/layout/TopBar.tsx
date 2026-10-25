@@ -81,15 +81,19 @@ export const TopBar: React.FC = () => {
             <span>Quân: {Math.floor(resources.troops).toLocaleString()}</span>
           </ParchmentSlip>
 
-          <ParchmentSlip rotation="rotate-[-0.3deg]">
-            <GitMerge size={15} className="text-[#4a3a28]" />
-            <span>Ngựa: {Math.floor(resources.horses).toLocaleString()}</span>
-          </ParchmentSlip>
+          {resources.horses > 0 && (
+            <ParchmentSlip rotation="rotate-[-0.3deg]">
+              <GitMerge size={15} className="text-[#4a3a28]" />
+              <span>Ngựa: {Math.floor(resources.horses).toLocaleString()}</span>
+            </ParchmentSlip>
+          )}
 
-          <ParchmentSlip rotation="rotate-[0.4deg]">
-            <Tent size={15} className="text-[#593d25]" />
-            <span>Voi: {Math.floor(resources.elephants).toLocaleString()}</span>
-          </ParchmentSlip>
+          {resources.elephants > 0 && (
+            <ParchmentSlip rotation="rotate-[0.4deg]">
+              <Tent size={15} className="text-[#593d25]" />
+              <span>Voi: {Math.floor(resources.elephants).toLocaleString()}</span>
+            </ParchmentSlip>
+          )}
 
           <ParchmentSlip highlight={resources.food <= 0} rotation="rotate-[-0.6deg]">
             <Wheat size={15} className={resources.food <= 0 ? "text-[#a82415] animate-pulse" : "text-[#7a481c]"} />

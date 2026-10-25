@@ -1,11 +1,128 @@
-import type { CityNode, Connection } from '../types';
+import type { CityNode, Connection, PlacedStructure } from '../types';
+
+// Danh sách các công trình khai hoang và lò rèn ban đầu
+export const INITIAL_STRUCTURES: PlacedStructure[] = [
+  {
+    id: 'farm_lam_son_1',
+    cityId: 'lam_son',
+    type: 'farm',
+    name: 'Đồn Điền Lương Giang 1',
+    x: 57.6,
+    y: 47.2,
+    terrain: 'plains',
+    status: 'active',
+    buildDaysTotal: 12,
+    buildDaysRemaining: 0,
+    builderWorkers: 0,
+    assignedWorkers: 15,
+    maxWorkers: 15,
+    cropDays: 45, // Đang được nửa vụ mùa
+    cropCycleDays: 90,
+  },
+  {
+    id: 'farm_lam_son_2',
+    cityId: 'lam_son',
+    type: 'farm',
+    name: 'Đồn Điền Lương Giang 2',
+    x: 58.0,
+    y: 49.6,
+    terrain: 'plains',
+    status: 'active',
+    buildDaysTotal: 12,
+    buildDaysRemaining: 0,
+    builderWorkers: 0,
+    assignedWorkers: 15,
+    maxWorkers: 15,
+    cropDays: 30,
+    cropCycleDays: 90,
+  },
+  {
+    id: 'forge_lam_son_1',
+    cityId: 'lam_son',
+    type: 'forge',
+    name: 'Lò Rèn Rừng Già Lam Sơn',
+    x: 55.2,
+    y: 48.6,
+    terrain: 'forest',
+    status: 'active',
+    buildDaysTotal: 18,
+    buildDaysRemaining: 0,
+    builderWorkers: 0,
+    assignedWorkers: 0,
+    maxWorkers: 15,
+    cropDays: 0,
+    cropCycleDays: 0,
+    activeOrder: null,
+  },
+  {
+    id: 'forge_chi_linh_1',
+    cityId: 'chi_linh',
+    type: 'forge',
+    name: 'Lò Đúc Sơn Động Chí Linh',
+    x: 51.5,
+    y: 46.2,
+    terrain: 'mountain',
+    status: 'active',
+    buildDaysTotal: 18,
+    buildDaysRemaining: 0,
+    builderWorkers: 0,
+    assignedWorkers: 0,
+    maxWorkers: 15,
+    cropDays: 0,
+    cropCycleDays: 0,
+    activeOrder: null,
+  },
+];
 
 // Danh sách Cứ điểm / Huyện thành đương thời tỉnh Thanh Hóa thế kỷ XV
 // Tọa độ chuẩn khớp trực tiếp với từng địa hạt huyện thành trên bản đồ sa bàn
 export const INITIAL_CITIES: CityNode[] = [
     // --- CHÂU THANH HÓA (Căn cứ địa nghĩa quân & Vùng núi hiểm trở) ---
-    { id: 'lam_son', name: 'Lam Sơn', type: 'camp', x: 55.6, y: 48.1, faction: 'lam_son', troops: 2000 },
-    { id: 'chi_linh', name: 'Núi Chí Linh', type: 'camp', x: 51.8, y: 46.5, faction: 'lam_son', troops: 500 },
+    {
+      id: 'lam_son',
+      name: 'Lam Sơn',
+      type: 'camp',
+      x: 55.6,
+      y: 48.1,
+      faction: 'lam_son',
+      troops: 50,
+      hasBase: true,          // Căn cứ khởi phát đại nghiệp nghĩa quân Lam Sơn (có sẵn)
+      population: {
+        combatTroops: 50,       // 18 vị đầu lĩnh Lũng Nhai + 32 võ đinh bảo vệ gia trang
+        idleLaborers: 70,       // Tráng phu rảnh rỗi sẵn sàng thao luyện hoặc thi công
+        farmLaborers: 30,       // 30 nông đinh canh tác 2 khu ruộng đồn điền
+        forgeLaborers: 0,       // Lò rèn chờ lệnh rèn mới điều động thợ
+        swappedCombatants: 0,   // Số nghĩa binh đang thế chỗ làm việc
+        unfitPopulation: 60,    // Người già, phụ nữ, trẻ nhỏ nương nhờ
+      },
+      buildings: {
+        farms: 2,               // 2 khu đồn điền cày cấy
+        forges: 1,              // 1 lò rèn vũ khí bí mật
+      },
+      training: null,
+    },
+    {
+      id: 'chi_linh',
+      name: 'Núi Chí Linh',
+      type: 'camp',
+      x: 51.8,
+      y: 46.5,
+      faction: 'lam_son',
+      troops: 20,
+      population: {
+        combatTroops: 20,       // Đội tuần tiễu sơn trại hiểm yếu
+        idleLaborers: 25,
+        farmLaborers: 0,
+        forgeLaborers: 0,
+        swappedCombatants: 0,
+        unfitPopulation: 0,
+      },
+      buildings: {
+        farms: 0,
+        forges: 1,
+      },
+      training: null,
+    },
     { id: 'co_loi', name: 'Cổ Lôi', type: 'camp', x: 56.2, y: 51.2, faction: 'neutral', troops: 0 },
     { id: 'loi_giang', name: 'Lỗi Giang', type: 'chokepoint', x: 51.8, y: 45.6, faction: 'neutral', troops: 0 },
     { id: 'quan_du', name: 'Quan Du', type: 'camp', x: 52.8, y: 43.3, faction: 'ming', troops: 1500 },

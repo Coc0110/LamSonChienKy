@@ -12,6 +12,7 @@ import {
   TILE_SIZE,
 } from '../../utils/mapGeo';
 import districtData from '../../data/districtPolygons.json';
+import { getTerrainAt } from '../../data/terrainData';
 import { DistrictEditorBar } from './DistrictEditorBar';
 import { ParchmentControls } from './ParchmentControls';
 
@@ -23,6 +24,10 @@ export const WorldMap: React.FC = () => {
   const linesLayerRef = useRef<L.LayerGroup | null>(null);
   const labelsLayerRef = useRef<L.LayerGroup | null>(null);
   const vertexHandlesLayerRef = useRef<L.LayerGroup | null>(null);
+  const nodesLayerRef = useRef<L.LayerGroup | null>(null);
+  const structuresLayerRef = useRef<L.LayerGroup | null>(null);
+  const previewLayerRef = useRef<L.LayerGroup | null>(null);
+  const controlRadiusLayerRef = useRef<L.LayerGroup | null>(null);
   const parchmentCutoutRef = useRef<L.ImageOverlay | null>(null);
   const parchmentSheetRef = useRef<L.ImageOverlay | null>(null);
   const polygonsMapRef = useRef<Map<string, L.Polygon>>(new Map());
@@ -30,6 +35,7 @@ export const WorldMap: React.FC = () => {
   const [parchmentMode, setParchmentMode] = useState<ParchmentMode>('cutout');
   const [showDistricts, setShowDistricts] = useState<boolean>(true);
   const [hoveredDistrictId, setHoveredDistrictId] = useState<string | null>(null);
+  const [isMapReady, setIsMapReady] = useState<boolean>(false);
 
   // Danh sách polygon các huyện (hỗ trợ lưu chỉnh sửa vào localStorage)
   const [districtsList, setDistrictsList] = useState<DistrictInfo[]>(() => {
@@ -46,11 +52,15 @@ export const WorldMap: React.FC = () => {
 
   const cities = useGameStore(state => state.cities);
   const connections = useGameStore(state => state.connections);
+  const structures = useGameStore(state => state.structures);
+  const placeStructure = useGameStore(state => state.placeStructure);
 
   const isEditMode = useUIStore(state => state.isEditMode);
   const toggleEditMode = useUIStore(state => state.toggleEditMode);
   const selectedCityId = useUIStore(state => state.selectedCityId);
   const selectCity = useUIStore(state => state.selectCity);
+  const placementMode = useUIStore(state => state.placementMode);
+  const setPlacementMode = useUIStore(state => state.setPlacementMode);
 
   // 1. Khởi tạo Leaflet Map và Multi-resolution TileLayer
   useEffect(() => {
@@ -90,6 +100,14 @@ export const WorldMap: React.FC = () => {
     const dPane = map.getPane('districtsPane');
     if (dPane) {
       dPane.style.zIndex = '450';
+    }
+
+    // Pane cho các công trình và cứ điểm trên bản đồ (zIndex: 650 - cao hơn mọi overlay và polygon)
+    map.createPane('structuresPane');
+    const sPane = map.getPane('structuresPane');
+    if (sPane) {
+      sPane.style.zIndex = '650';
+      sPane.style.pointerEvents = 'auto';
     }
 
     const calculateCoverZoom = () => {
@@ -177,11 +195,21 @@ export const WorldMap: React.FC = () => {
     const linesLayer = L.layerGroup().addTo(map);
     const labelsLayer = L.layerGroup().addTo(map);
     const vertexHandlesLayer = L.layerGroup().addTo(map);
+    const controlRadiusLayer = L.layerGroup().addTo(map);
+    const nodesLayer = L.layerGroup().addTo(map);
+    const structuresLayer = L.layerGroup().addTo(map);
+    const previewLayer = L.layerGroup().addTo(map);
 
     mapInstanceRef.current = map;
     linesLayerRef.current = linesLayer;
     labelsLayerRef.current = labelsLayer;
     vertexHandlesLayerRef.current = vertexHandlesLayer;
+    controlRadiusLayerRef.current = controlRadiusLayer;
+    nodesLayerRef.current = nodesLayer;
+    structuresLayerRef.current = structuresLayer;
+    previewLayerRef.current = previewLayer;
+
+    setIsMapReady(true);
 
     return () => {
       isDisposed = true;
@@ -189,6 +217,7 @@ export const WorldMap: React.FC = () => {
       window.removeEventListener('resize', handleResize);
       map.remove();
       mapInstanceRef.current = null;
+      setIsMapReady(false);
     };
   }, []);
 
@@ -271,7 +300,7 @@ export const WorldMap: React.FC = () => {
 
       polyline.addTo(linesLayer);
     });
-  }, [connections, cities, selectedCityId]);
+  }, [isMapReady, connections, cities, selectedCityId]);
 
   // Cập nhật tọa độ polygon cho huyện
   const updateDistrictPolygonVertex = (districtId: string, vertexIndex: number, newX: number, newY: number) => {
@@ -495,7 +524,334 @@ export const WorldMap: React.FC = () => {
         labelMarker.addTo(labelsLayer);
       }
     });
-  }, [showDistricts, parchmentMode, selectedCityId, hoveredDistrictId, cities, districtsList]);
+  }, [isMapReady, showDistricts, parchmentMode, selectedCityId, hoveredDistrictId, cities, districtsList]);
+
+  // 5.5 HIỂN THỊ CĂN CỨ NGHĨA QUÂN (CHẤM ĐỎ) & CỨ ĐIỂM QUÂN MINH (CHẤM XANH DƯƠNG) & SONG KIẾM LUYỆN BINH
+  useEffect(() => {
+    if (!isMapReady) return;
+    const layer = nodesLayerRef.current;
+    if (!layer) return;
+    layer.clearLayers();
+
+    cities.forEach(city => {
+      const pos = percentToLatLng(city.x, city.y);
+      const isLamSonBase = city.faction === 'lam_son' && (city.hasBase || city.id === 'lam_son');
+      const isMing = city.faction === 'ming';
+
+      // 1. Căn Cứ Nghĩa Quân (Chấm Đỏ Lam Sơn)
+      if (isLamSonBase) {
+        const hasTraining = !!(city.training && city.training.remainingDays > 0);
+
+        const html = `
+          <div class="relative w-full h-full flex items-center justify-center cursor-pointer select-none group">
+            <!-- Vòng sóng nhấp nháy phát quang căn cứ Lam Sơn -->
+            <div class="absolute w-9 h-9 rounded-full bg-red-600/35 animate-ping pointer-events-none"></div>
+            <div class="absolute w-7 h-7 rounded-full bg-red-500/30 animate-pulse pointer-events-none"></div>
+
+            <!-- Chấm đỏ căn cứ trung tâm -->
+            <div class="w-5 h-5 rounded-full bg-red-600 border-2 border-amber-200 shadow-[0_0_14px_rgba(239,68,68,1)] flex items-center justify-center transform group-hover:scale-125 transition-transform duration-150 z-10">
+              <div class="w-1.5 h-1.5 rounded-full bg-white shadow-xs"></div>
+            </div>
+
+            <!-- Icon Song Kiếm khi đang thao luyện -->
+            ${hasTraining ? `
+              <div class="absolute -top-7 left-1/2 -translate-x-1/2 bg-[#2d1508] border-2 border-amber-400 rounded-full w-7 h-7 flex items-center justify-center shadow-xl animate-bounce z-20" title="Đang thao luyện nghĩa binh">
+                <span class="text-xs">⚔️</span>
+              </div>
+            ` : ''}
+
+            <!-- Nhãn tên Căn Cứ -->
+            <div class="absolute top-full mt-1.5 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded bg-black/95 border border-red-500 text-[11px] font-serif font-black text-amber-200 whitespace-nowrap shadow-xl pointer-events-none z-20">
+              Căn cứ ${city.name}
+            </div>
+
+            <!-- Tooltip chi tiết khi rê chuột -->
+            <div class="hidden group-hover:block absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 rounded-lg bg-[#1a0f08]/98 border border-red-500 shadow-2xl text-stone-200 text-xs whitespace-nowrap pointer-events-none z-30">
+              <div class="font-serif font-bold text-red-400">Đại Bản Doanh ${city.name}</div>
+              <div class="text-[11px] text-stone-300">Quân đồn trú: ${city.troops} nghĩa binh</div>
+              ${hasTraining ? `<div class="text-[11px] text-amber-300 font-bold mt-0.5">⚔️ Đang thao luyện ${city.training!.traineesCount} tráng phu (còn ${city.training!.remainingDays} ngày)</div>` : ''}
+            </div>
+          </div>
+        `;
+
+        const marker = L.marker(pos, {
+          icon: L.divIcon({
+            className: 'base-node-marker',
+            html,
+            iconSize: [28, 28],
+            iconAnchor: [14, 14],
+          }),
+          pane: 'structuresPane',
+        });
+
+        marker.on('click', (e) => {
+          L.DomEvent.stopPropagation(e);
+          selectCity(city.id);
+        });
+
+        marker.addTo(layer);
+      }
+
+      // 2. Cứ Điểm Quân Minh (Chấm Xanh Dương to nhỏ phụ thuộc lượng quân)
+      else if (isMing) {
+        const troops = city.troops;
+        const dotSize = Math.max(12, Math.min(28, Math.round(8 + Math.sqrt(troops / 13))));
+        const isMainFortress = troops >= 8000;
+
+        const html = `
+          <div class="relative w-full h-full flex items-center justify-center cursor-pointer select-none group">
+            ${isMainFortress ? `
+              <div style="width: ${dotSize + 10}px; height: ${dotSize + 10}px;" class="absolute rounded-full bg-blue-500/35 animate-pulse pointer-events-none"></div>
+            ` : ''}
+            
+            <div style="width: ${dotSize}px; height: ${dotSize}px;" 
+                 class="rounded-full bg-blue-600 border-2 border-sky-300 shadow-[0_0_12px_rgba(37,99,235,0.9)] flex items-center justify-center hover:scale-130 transition-transform duration-150 z-10">
+              ${dotSize >= 20 ? `<div class="w-2 h-2 rounded-full bg-white/90"></div>` : ''}
+            </div>
+
+            <!-- Tooltip chi tiết cứ điểm giặc Minh -->
+            <div class="hidden group-hover:block absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 rounded bg-[#0b1329]/98 border border-blue-500 shadow-2xl text-stone-200 text-xs whitespace-nowrap pointer-events-none z-30">
+              <div class="font-serif font-bold text-sky-300">${city.name}</div>
+              <div class="text-[11px] text-sky-200 font-mono">${troops.toLocaleString()} quân Minh đồn trú</div>
+            </div>
+          </div>
+        `;
+
+        const marker = L.marker(pos, {
+          icon: L.divIcon({
+            className: 'ming-node-marker',
+            html,
+            iconSize: [dotSize, dotSize],
+            iconAnchor: [dotSize / 2, dotSize / 2],
+          }),
+          pane: 'structuresPane',
+        });
+
+        marker.on('click', (e) => {
+          L.DomEvent.stopPropagation(e);
+          selectCity(city.id);
+        });
+
+        marker.addTo(layer);
+      }
+    });
+  }, [isMapReady, cities, selectCity]);
+
+  // 6. HIỂN THỊ CÁC CÔNG TRÌNH: RUỘNG (CHẤM VÀNG) & LÒ RÈN (CHẤM ĐEN)
+  useEffect(() => {
+    if (!isMapReady) return;
+    const layer = structuresLayerRef.current;
+    if (!layer) return;
+    layer.clearLayers();
+
+    structures.forEach(structure => {
+      const isFarm = structure.type === 'farm';
+      const isBuilding = structure.status === 'building';
+      const order = structure.activeOrder;
+      const pos = percentToLatLng(structure.x, structure.y);
+
+      let dotHtml = '';
+
+      if (isFarm) {
+        // Ruộng là chấm màu vàng
+        dotHtml = `
+          <div class="relative w-full h-full flex items-center justify-center cursor-pointer select-none group">
+            <div class="w-4 h-4 rounded-full bg-amber-400 border-2 border-[#78350f] shadow-[0_0_10px_rgba(251,191,36,1)] hover:scale-140 transition-transform duration-150 z-10 ${isBuilding ? 'animate-pulse' : ''}">
+              <div class="w-1.5 h-1.5 rounded-full bg-amber-100 mx-auto mt-0.5"></div>
+            </div>
+
+            <!-- Tooltip -->
+            <div class="hidden group-hover:block absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2.5 py-1.5 rounded-lg bg-[#1a1208]/98 border border-amber-500 shadow-2xl text-stone-200 text-[11px] whitespace-nowrap pointer-events-none z-30">
+              <div class="font-serif font-bold text-amber-300">🌾 ${structure.name} (Ruộng lúa)</div>
+              <div class="text-stone-300">
+                ${isBuilding 
+                  ? `Đang khai hoang (còn ${structure.buildDaysRemaining} ngày)`
+                  : `${structure.assignedWorkers}/${structure.maxWorkers} nông đinh • Vụ lúa: ${structure.cropDays}/${structure.cropCycleDays} ngày`
+                }
+              </div>
+            </div>
+          </div>
+        `;
+      } else {
+        // Lò rèn là chấm màu đen
+        dotHtml = `
+          <div class="relative w-full h-full flex items-center justify-center cursor-pointer select-none group">
+            <div class="w-4 h-4 rounded-full bg-[#0a0a0c] border-2 ${order ? 'border-red-500 shadow-[0_0_12px_rgba(239,68,68,1)] ring-2 ring-red-500/50' : 'border-stone-300 shadow-[0_0_8px_rgba(0,0,0,0.9)]'} hover:scale-140 transition-transform duration-150 z-10">
+              ${order ? '<div class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse mx-auto mt-0.5"></div>' : ''}
+            </div>
+
+            <!-- Tooltip -->
+            <div class="hidden group-hover:block absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2.5 py-1.5 rounded-lg bg-[#141416]/98 border border-stone-500 shadow-2xl text-stone-200 text-[11px] whitespace-nowrap pointer-events-none z-30">
+              <div class="font-serif font-bold text-stone-200">⚒️ ${structure.name} (Lò rèn)</div>
+              <div class="text-stone-300">
+                ${isBuilding 
+                  ? `Đang dựng lò (còn ${structure.buildDaysRemaining} ngày)`
+                  : order 
+                  ? `Đang rèn ${order.quantity} ${order.name} (còn ${order.remainingDays} ngày)` 
+                  : 'Lò rèn sẵn sàng nhận lệnh đúc'
+                }
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      const marker = L.marker(pos, {
+        icon: L.divIcon({
+          className: 'placed-dot-marker',
+          html: dotHtml,
+          iconSize: [20, 20],
+          iconAnchor: [10, 10],
+        }),
+        pane: 'structuresPane',
+      });
+
+      marker.on('click', (e) => {
+        L.DomEvent.stopPropagation(e);
+        selectCity(structure.cityId);
+      });
+
+      marker.addTo(layer);
+    });
+  }, [isMapReady, structures, selectCity]);
+
+  // 7. CHẾ ĐỘ CHỌN VỊ TRÍ ĐẶT CÔNG TRÌNH & VÒNG BÁN KÍNH BẢO HỘ 14 DẶM
+  useEffect(() => {
+    if (!isMapReady) return;
+    const map = mapInstanceRef.current;
+    const previewLayer = previewLayerRef.current;
+    const controlLayer = controlRadiusLayerRef.current;
+    if (!map || !previewLayer || !controlLayer) return;
+
+    previewLayer.clearLayers();
+    controlLayer.clearLayers();
+
+    if (!placementMode) return;
+
+    const targetCity = cities.find(c => c.id === placementMode.cityId);
+
+    // Vẽ vòng tròn bán kính 14 dặm bao bọc căn cứ
+    if (targetCity) {
+      const baseLatLng = percentToLatLng(targetCity.x, targetCity.y);
+      const radiusCRS = (14.0 / 100) * MAP_COORD_W;
+
+      const controlCircle = L.circle(baseLatLng, {
+        radius: radiusCRS,
+        color: '#f59e0b',
+        weight: 1.5,
+        dashArray: '6, 6',
+        fillColor: '#f59e0b',
+        fillOpacity: 0.08,
+        pane: 'structuresPane',
+        interactive: false,
+      });
+
+      controlCircle.addTo(controlLayer);
+    }
+
+    const handleMouseMove = (e: L.LeafletMouseEvent) => {
+      previewLayer.clearLayers();
+      const { x, y } = latLngToPercent(e.latlng);
+      const terrain = getTerrainAt(x, y);
+
+      let isValid = true;
+      let reason = '';
+
+      // Kiểm tra khoảng cách tới cứ điểm (14 dặm)
+      if (targetCity) {
+        const cityDist = Math.hypot(targetCity.x - x, targetCity.y - y);
+        if (cityDist > 14.0) {
+          isValid = false;
+          reason = `Quá xa căn cứ (${cityDist.toFixed(1)} > 14 dặm)`;
+        }
+      }
+
+      // Kiểm tra khoảng cách tới các công trình khác
+      if (isValid) {
+        for (const s of structures) {
+          if (Math.hypot(s.x - x, s.y - y) < 2.2) {
+            isValid = false;
+            reason = `Quá gần ${s.name} (< 2.2 dặm)`;
+            break;
+          }
+        }
+      }
+
+      // Kiểm tra địa hình phù hợp
+      if (isValid) {
+        if (placementMode.type === 'farm') {
+          if (terrain.type !== 'plains') {
+            isValid = false;
+            reason = `Địa hình ${terrain.name} (cần Đồng Bằng)`;
+          }
+        } else if (placementMode.type === 'forge') {
+          if (terrain.type === 'water') {
+            isValid = false;
+            reason = 'Không thể đặt trên sông ngòi';
+          } else if (terrain.type === 'cliff') {
+            isValid = false;
+            reason = 'Vách đá dốc không thể dựng lò';
+          }
+        }
+      }
+
+      const color = isValid ? '#22c55e' : '#ef4444';
+      const dotColor = placementMode.type === 'farm' ? 'bg-amber-400' : 'bg-stone-950 border-stone-400';
+
+      const iconHtml = `
+        <div class="pointer-events-none -translate-x-1/2 -translate-y-1/2 flex flex-col items-center">
+          <div class="w-8 h-8 rounded-full border-2 flex items-center justify-center text-xs shadow-xl"
+               style="border-color: ${color}; background: ${isValid ? 'rgba(34, 197, 94, 0.25)' : 'rgba(239, 68, 68, 0.25)'};">
+            <div class="w-3.5 h-3.5 rounded-full ${dotColor} border"></div>
+          </div>
+          <div class="mt-1 px-2 py-0.5 rounded text-[10px] font-bold text-white shadow whitespace-nowrap"
+               style="background: ${isValid ? '#15803d' : '#b91c1c'};">
+            ${isValid ? `✓ Hợp lệ (${terrain.name})` : `✗ ${reason}`}
+          </div>
+        </div>
+      `;
+
+      const previewMarker = L.marker(e.latlng, {
+        icon: L.divIcon({
+          className: 'placement-preview-marker',
+          html: iconHtml,
+          iconSize: [36, 36],
+          iconAnchor: [18, 18],
+        }),
+        pane: 'structuresPane',
+        interactive: false,
+      });
+
+      previewMarker.addTo(previewLayer);
+    };
+
+    const handleClick = (e: L.LeafletMouseEvent) => {
+      const { x, y } = latLngToPercent(e.latlng);
+      const res = placeStructure(placementMode.cityId, placementMode.type, x, y);
+      if (res.success) {
+        setPlacementMode(null);
+      }
+      alert(res.message);
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setPlacementMode(null);
+      }
+    };
+
+    map.on('mousemove', handleMouseMove);
+    map.on('click', handleClick);
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      map.off('mousemove', handleMouseMove);
+      map.off('click', handleClick);
+      window.removeEventListener('keydown', handleKeyDown);
+      previewLayer.clearLayers();
+      controlLayer.clearLayers();
+    };
+  }, [isMapReady, placementMode, cities, structures, placeStructure, setPlacementMode]);
 
   return (
     <div className="absolute inset-0 z-0 bg-[#16171a] overflow-hidden">
@@ -510,6 +866,29 @@ export const WorldMap: React.FC = () => {
         />
       )}
 
+      {/* Banner chế độ đang đặt công trình (Placement Mode) */}
+      {placementMode && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 px-5 py-2.5 rounded-xl bg-[#1e120a]/95 border-2 border-amber-500 shadow-2xl backdrop-blur-md flex items-center gap-3 font-sans text-xs text-amber-200 animate-in fade-in slide-in-from-top-4">
+          <span className="text-xl animate-bounce">
+            {placementMode.type === 'farm' ? '🌾' : '⚒️'}
+          </span>
+          <div>
+            <div className="font-bold text-amber-300">
+              Đang chọn vị trí khai hoang {placementMode.type === 'farm' ? 'Ruộng Lúa Nước (chỉ đất Đồng Bằng)' : 'Lò Rèn Bí Mật (ưu tiên Rừng/Núi)'}
+            </div>
+            <div className="text-[11px] text-stone-300">
+              Rê chuột trên bản đồ xem kiểm tra địa hình, nhấp chuột để cắm mốc xây dựng.
+            </div>
+          </div>
+          <button
+            onClick={() => setPlacementMode(null)}
+            className="px-2.5 py-1 rounded bg-stone-800 hover:bg-stone-700 text-stone-300 font-bold text-[11px] transition cursor-pointer"
+          >
+            Hủy Bỏ (ESC)
+          </button>
+        </div>
+      )}
+
       {/* Thanh chuyển đổi chế độ xem Sa bàn Giấy Da Cừu */}
       <ParchmentControls
         parchmentMode={parchmentMode}
@@ -518,10 +897,34 @@ export const WorldMap: React.FC = () => {
         onToggleDistricts={() => setShowDistricts(prev => !prev)}
       />
 
-      {/* Container của Leaflet Map */}
+      {/* Container của Leaflet Map - Hỗ trợ kéo thả công trình từ panel */}
       <div 
         ref={mapContainerRef} 
         className="w-full h-full bg-[#16171a]"
+        onDragOver={(e) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'copy';
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          const raw = e.dataTransfer.getData('text/plain');
+          if (!raw) return;
+          try {
+            const data = JSON.parse(raw);
+            if (!data.type || !data.cityId) return;
+            const map = mapInstanceRef.current;
+            const container = mapContainerRef.current;
+            if (!map || !container) return;
+            const rect = container.getBoundingClientRect();
+            const pt = L.point(e.clientX - rect.left, e.clientY - rect.top);
+            const latlng = map.containerPointToLatLng(pt);
+            const { x, y } = latLngToPercent(latlng);
+            const res = placeStructure(data.cityId, data.type, x, y);
+            alert(res.message);
+          } catch {
+            // ignore
+          }
+        }}
       />
     </div>
   );
