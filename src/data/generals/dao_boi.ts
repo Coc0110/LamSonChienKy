@@ -1,0 +1,47 @@
+import type { General } from '../../types';
+
+/**
+ * ============================================================================
+ * HỒ SƠ DANH TƯỚNG: ĐÀO BỒI
+ * ============================================================================
+ * Bạn có thể tự do chỉnh sửa thông tin vị tướng này tại đây:
+ * - stats: Chỉ số khởi đầu (Thống Lĩnh, Võ Nghệ, Mưu Lược)
+ * - troops: Binh chủng sở trường ('infantry' | 'cavalry' | 'archer' | 'elephant' | 'navy')
+ * - buffName: Tên ngắn gọn của buff (2-3 chữ) hiển thị ở mặt sau thẻ đồng
+ * - buffDescription: Chi tiết hiệu ứng buff (hiển thị trong Cuộn Thư khi nháy đúp)
+ * - lore: Điển tích và tiểu sử lịch sử
+ * ============================================================================
+ */
+export const dao_boi: General = {
+  // --- 1. ĐỊNH DANH CƠ BẢN ---
+  id: 'dao_boi',
+  name: 'Đào Bồi',
+  hanzi: '陶培',
+  portraitUrl: undefined,
+  title: 'TƯỚNG QUÂN',
+  epithet: 'Kiên Trung Dũng Tướng',
+  group: 'khoi_nghia_1418',
+  unlocked: false,
+  locationId: 'lam_son',
+
+  // --- 2. BẬC SAO & CHỈ SỐ KHỞI ĐẦU ---
+  stars: 5,
+  starTier: 'silver',
+  stats: {
+    command: 75,   // Thống Lĩnh (1 - 100)
+    martial: 78,   // Võ Nghệ   (1 - 100)
+    intellect: 70, // Mưu Lược  (1 - 100)
+  },
+
+  // --- 3. BINH CHỦNG & ĐẶC KỸ CHIẾN TRẬN ---
+  troops: ["infantry"],
+  buffName: 'KIÊN TRUNG PHÒNG',
+  buffDescription: '+15% Sức phòng ngự trại đóng quân',
+  specialty: '+15% Sức phòng ngự trại đóng quân',
+
+  // --- 4. THÔNG TIN TIỂU SỬ & CUỘN THƯ LỊCH SỬ ---
+  joinYear: 1418,
+  joinMonth: 2,
+  joinDay: 18,
+  lore: 'Tướng sĩ xứ Thanh hưởng ứng lời hịch của Bình Định Vương từ những ngày đầu dựng cờ.',
+};

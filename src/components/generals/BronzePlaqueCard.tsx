@@ -1,6 +1,6 @@
 import React from 'react';
 import { RotateCw } from 'lucide-react';
-import type { CityNode, General, StarTier } from '../../types';
+import type { CityNode, General, StarTier, TroopType } from '../../types';
 
 interface BronzePlaqueCardProps {
   general: General;
@@ -40,6 +40,38 @@ const STAR_TIER_STYLES: Record<
     label: 'Bậc Đỏ',
   },
 };
+
+const TROOP_SPECS: {
+  id: TroopType;
+  label: string;
+  iconUrl: string;
+}[] = [
+  {
+    id: 'infantry',
+    label: 'Bộ Binh',
+    iconUrl: '/troops/infantry.png?v=3',
+  },
+  {
+    id: 'cavalry',
+    label: 'Thiết Đột (Kỵ)',
+    iconUrl: '/troops/cavalry.png',
+  },
+  {
+    id: 'archer',
+    label: 'Cung Nỏ',
+    iconUrl: '/troops/archer.png',
+  },
+  {
+    id: 'elephant',
+    label: 'Tượng Binh',
+    iconUrl: '/troops/elephant.png',
+  },
+  {
+    id: 'navy',
+    label: 'Thủy Quân',
+    iconUrl: '/troops/navy.png',
+  },
+];
 
 const PLAQUE_OUTER_PATH = `
   M 68 6
@@ -213,6 +245,48 @@ const CarvedBronzeGrooveTextStyle: React.CSSProperties = {
     '0 1.2px 0 rgba(245, 208, 155, 0.7), 1px 1px 0 rgba(230, 188, 132, 0.5), 0 -1px 1px rgba(12, 4, 0, 0.9)',
 };
 
+/**
+ * Quy tắc màu sắc chỉ số mặt sau theo yêu cầu người dùng:
+ * - > 90: Màu Đỏ Chu Sa khắc chìm (91, 92, 95...)
+ * - > 80 và <= 90: Màu Tím Tía Hoàng Gia Cổ / Tử Thạch khắc chìm sâu (81 đến 90)
+ * - <= 80: Màu Đen Mun khắc chìm sâu
+ * Cả 3 màu đều dùng hiệu ứng khắc chìm (groove bevel), đổ bóng rãnh sâu, không dùng vệt sáng nổi
+ */
+const getStatNumberStyle = (val: number, size: 'sm' | 'md' | 'lg' = 'md'): React.CSSProperties => {
+  const baseNumStyle: React.CSSProperties = {
+    fontFamily: "'HanZiVH', Georgia, 'Times New Roman', serif",
+    fontWeight: 900,
+    fontSize: size === 'sm' ? '11px' : size === 'lg' ? '14px' : '12.5px',
+    lineHeight: 1,
+    letterSpacing: '0.06em',
+  };
+  if (val > 90) {
+    // > 90: ĐỎ CHU SA ĐÚC CHÌM SÂU (rãnh tối màu chu sa đậm, viền kim loại đón sáng như số 78)
+    return {
+      ...baseNumStyle,
+      color: '#420808',
+      textShadow:
+        '0 1.2px 0 rgba(245, 208, 155, 0.65), 1px 1px 0 rgba(230, 188, 132, 0.35), 0 -1.2px 1.5px rgba(10, 2, 2, 0.98), 0 0.8px 1px rgba(220, 38, 38, 0.75)',
+    };
+  }
+  if (val > 80) {
+    // > 80 và <= 90: TÍM TÍA HOÀNG GIA CỔ / TỬ THẠCH KHẮC CHÌM SÂU
+    // Tông màu men tím tía thẫm cổ điển (#310d38), lòng rãnh sâu có ánh tím thạch anh huyền bí, chìm sâu vào thẻ đồng
+    return {
+      ...baseNumStyle,
+      color: '#310d38',
+      textShadow:
+        '0 1.2px 0 rgba(245, 208, 155, 0.65), 1px 1px 0 rgba(230, 188, 132, 0.35), 0 -1.2px 1.5px rgba(10, 2, 12, 0.98), 0 0.8px 1px rgba(168, 85, 247, 0.85)',
+    };
+  }
+  return {
+    ...baseNumStyle,
+    color: '#1a0b03',
+    textShadow:
+      '0 1.2px 0 rgba(245, 208, 155, 0.65), 1px 1px 0 rgba(230, 188, 132, 0.35), 0 -1.2px 1.5px rgba(10, 3, 0, 0.95)',
+  };
+};
+
 // Ranh giới đường viền trong vát 4 góc để cắt bỏ phần hình ảnh tràn ra ngoài
 const INNER_BORDER_CLIP_STYLE: React.CSSProperties = {
   clipPath:
@@ -228,7 +302,7 @@ export const BronzePlaqueCard: React.FC<BronzePlaqueCardProps> = ({
 }) => {
   const isLeLaiCard = general.id === 'le_lai';
   const isLeLoiCard = general.id === 'le_loi';
-  const isModernBronzeCard = isLeLaiCard || isLeLoiCard;
+  const isModernBronzeCard = !!general.portraitUrl;
   const hanziChars = general.hanzi.split('');
   const starTierStyle = STAR_TIER_STYLES[general.starTier || 'silver'];
   const starCount = general.stars || 5;
@@ -500,7 +574,7 @@ export const BronzePlaqueCard: React.FC<BronzePlaqueCardProps> = ({
                       LAI
                     </span>
                   </div>
-                ) : (
+                ) : isLeLoiCard ? (
                   /* Lê Lợi: đưa sang phía bên trái nằm ngay dưới thanh kiếm */
                   <div
                     className="absolute left-[13%] top-[30%] z-20 flex flex-col items-center justify-center leading-none select-none"
@@ -522,6 +596,24 @@ export const BronzePlaqueCard: React.FC<BronzePlaqueCardProps> = ({
                     >
                       LỢI
                     </span>
+                  </div>
+                ) : (
+                  /* Tướng khác có ảnh chân dung: hiển thị tên dạng chữ khắc xếp dọc gọn gàng */
+                  <div
+                    className="absolute left-[12%] bottom-[16%] z-20 flex flex-col items-center justify-center leading-none select-none"
+                    style={CarvedBronzeGrooveTextStyle}
+                  >
+                    {general.name.toUpperCase().split(' ').map((word, wIdx) => (
+                      <span
+                        key={wIdx}
+                        className="font-serif font-black uppercase tracking-[0.12em] mt-0.5 first:mt-0"
+                        style={{
+                          fontSize: size === 'sm' ? '11px' : size === 'lg' ? '16px' : '13px',
+                        }}
+                      >
+                        {word}
+                      </span>
+                    ))}
                   </div>
                 )}
               </div>
@@ -685,67 +777,110 @@ export const BronzePlaqueCard: React.FC<BronzePlaqueCardProps> = ({
           <div className={`relative w-full ${bodyHeight} flex flex-col items-center justify-between`}>
             <PlaqueFrameSVG idSuffix={`back-${general.id}`} selected={selected} />
 
-            {/* Nội dung khắc chìm trực tiếp trên lưng thẻ */}
-            <div className="relative z-10 w-full h-full flex flex-col items-center justify-between pt-10 pb-8 px-6 text-center">
-              {/* PHẦN TRÊN: Danh hiệu / Biệt hiệu */}
-              <div
-                className="w-full font-serif font-black tracking-[0.08em] uppercase leading-tight text-[#ebd0a7] shrink-0 line-clamp-1"
-                style={{
-                  ...EngravedTextStyle,
-                  fontSize: size === 'sm' ? '8px' : size === 'lg' ? '11px' : '9.5px',
-                }}
-              >
-                {general.epithet}
+            {/* Nội dung mặt sau thẻ đồng: Đúng 3 thành phần theo yêu cầu (3 dòng chỉ số, 5 icon binh chủng, tên buff) */}
+            <div className="absolute top-[16%] bottom-[14%] inset-x-[11%] z-10 flex flex-col justify-around py-1 text-center pointer-events-none select-none">
+              {/* 1. BA DÒNG CHỈ SỐ KHẮC CHÌM ĐỒNG */}
+              <div className="w-full flex flex-col space-y-2 px-1">
+                {/* Thống Lĩnh */}
+                <div className="flex items-center justify-between">
+                  <span
+                    className="font-serif font-black uppercase tracking-[0.14em]"
+                    style={{
+                      ...CarvedBronzeGrooveTextStyle,
+                      fontSize: size === 'sm' ? '10px' : size === 'lg' ? '13px' : '11.5px',
+                    }}
+                  >
+                    THỐNG LĨNH
+                  </span>
+                  <span
+                    style={getStatNumberStyle(general.stats.command, size)}
+                    className="leading-none tracking-wider font-serif font-black"
+                  >
+                    {general.stats.command}
+                  </span>
+                </div>
+
+                {/* Võ Nghệ */}
+                <div className="flex items-center justify-between">
+                  <span
+                    className="font-serif font-black uppercase tracking-[0.14em]"
+                    style={{
+                      ...CarvedBronzeGrooveTextStyle,
+                      fontSize: size === 'sm' ? '10px' : size === 'lg' ? '13px' : '11.5px',
+                    }}
+                  >
+                    VÕ NGHỆ
+                  </span>
+                  <span
+                    style={getStatNumberStyle(general.stats.martial, size)}
+                    className="leading-none tracking-wider font-serif font-black"
+                  >
+                    {general.stats.martial}
+                  </span>
+                </div>
+
+                {/* Mưu Lược */}
+                <div className="flex items-center justify-between">
+                  <span
+                    className="font-serif font-black uppercase tracking-[0.14em]"
+                    style={{
+                      ...CarvedBronzeGrooveTextStyle,
+                      fontSize: size === 'sm' ? '10px' : size === 'lg' ? '13px' : '11.5px',
+                    }}
+                  >
+                    MƯU LƯỢC
+                  </span>
+                  <span
+                    style={getStatNumberStyle(general.stats.intellect, size)}
+                    className="leading-none tracking-wider font-serif font-black"
+                  >
+                    {general.stats.intellect}
+                  </span>
+                </div>
               </div>
 
-              {/* PHẦN GIỮA: 3 Chỉ Số Tam Tài & Đặc Kỹ khắc trực tiếp */}
-              <div className="my-auto w-full flex flex-col items-center justify-center gap-2 py-1">
-                <div className="w-full space-y-1.5 border-y border-[#381c0a]/85 py-2">
-                  <div className="flex items-center justify-between font-serif font-black text-[#f5dec0]" style={EngravedTextStyle}>
-                    <span className="text-[10px] tracking-widest uppercase text-[#dfb885]">Thống Lĩnh</span>
-                    <span className="text-sm text-[#fff0d4]">{general.stats.command}</span>
-                  </div>
-                  <div className="flex items-center justify-between font-serif font-black text-[#f5dec0]" style={EngravedTextStyle}>
-                    <span className="text-[10px] tracking-widest uppercase text-[#dfb885]">Võ Nghệ</span>
-                    <span className="text-sm text-[#fff0d4]">{general.stats.martial}</span>
-                  </div>
-                  <div className="flex items-center justify-between font-serif font-black text-[#f5dec0]" style={EngravedTextStyle}>
-                    <span className="text-[10px] tracking-widest uppercase text-[#dfb885]">Mưu Lược</span>
-                    <span className="text-sm text-[#fff0d4]">{general.stats.intellect}</span>
-                  </div>
-                </div>
+              {/* RÃNH PHÂN CÁCH ĐỒNG CỔ */}
+              <div className="w-full h-[1.5px] bg-[#3a1d08] shadow-[0_1px_0_rgba(245,208,155,0.4)] my-1" />
 
-                <div
-                  className="font-serif font-bold text-[#edd0a4] leading-snug line-clamp-3 px-0.5"
-                  style={{
-                    ...EngravedTextStyle,
-                    fontSize: size === 'sm' ? '8.5px' : size === 'lg' ? '11px' : '9.5px',
-                  }}
-                >
-                  {general.specialty}
-                </div>
+              {/* 2. HÌNH KHẮC BINH CHỦNG TRỰC TIẾP LÊN MẶT THẺ (Khắc chìm thuần túy, không có viền hộp) */}
+              <div className="w-full flex items-center justify-center gap-4 py-1">
+                {TROOP_SPECS.filter(troop => general.troops?.includes(troop.id)).map(troop => (
+                  <div
+                    key={troop.id}
+                    title={`${troop.label} (Sở trường)`}
+                    className={`flex items-center justify-center ${
+                      size === 'sm' ? 'w-5.5 h-5.5' : size === 'lg' ? 'w-9.5 h-9.5' : 'w-7.5 h-7.5'
+                    }`}
+                  >
+                    <img
+                      src={troop.iconUrl}
+                      alt={troop.label}
+                      draggable={false}
+                      className="w-full h-full object-contain select-none"
+                      style={{
+                        filter:
+                          'drop-shadow(0 1.2px 0 rgba(245, 208, 155, 0.7)) drop-shadow(0 -1.2px 1.5px rgba(10, 3, 0, 0.95))',
+                      }}
+                    />
+                  </div>
+                ))}
               </div>
 
-              {/* PHẦN DƯỚI: Tên tướng & Năm tụ nghĩa */}
-              <div className="w-full flex flex-col items-center border-t border-[#381c0a]/85 pt-1.5 shrink-0">
-                <div
-                  className="font-serif font-black tracking-wider text-[#f5dec0] uppercase leading-tight"
+              {/* RÃNH PHÂN CÁCH ĐỒNG CỔ */}
+              <div className="w-full h-[1.5px] bg-[#3a1d08] shadow-[0_1px_0_rgba(245,208,155,0.4)] my-1" />
+
+              {/* 3. TÊN BUFF ĐẶC KỸ KHẮC CHÌM (Luôn trên 1 hàng, không xuống dòng) */}
+              <div className="w-full flex items-center justify-center py-2 px-1 overflow-hidden">
+                <span
+                  className="font-serif font-black uppercase text-center whitespace-nowrap tracking-[0.14em]"
                   style={{
-                    ...EngravedTextStyle,
-                    fontSize: size === 'sm' ? '11px' : size === 'lg' ? '15px' : '13px',
+                    ...CarvedBronzeGrooveTextStyle,
+                    fontSize: size === 'sm' ? '9.5px' : size === 'lg' ? '13px' : '11.5px',
                   }}
+                  title={general.buffName || 'CHIẾN CÔNG'}
                 >
-                  {general.name}
-                </div>
-                <div
-                  className="font-serif font-bold tracking-widest uppercase text-[#d9b37c] mt-0.5"
-                  style={{
-                    ...EngravedTextStyle,
-                    fontSize: size === 'sm' ? '8px' : '9.5px',
-                  }}
-                >
-                  {general.title} • {general.joinYear}
-                </div>
+                  {general.buffName || 'CHIẾN CÔNG'}
+                </span>
               </div>
             </div>
           </div>

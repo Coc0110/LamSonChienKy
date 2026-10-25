@@ -30,6 +30,7 @@ export interface Connection {
 
 export type GeneralGroup = 'lung_nhai_1416' | 'khoi_nghia_1418' | 'quy_tu_1420_1426';
 export type StarTier = 'silver' | 'gold' | 'red';
+export type TroopType = 'infantry' | 'cavalry' | 'archer' | 'elephant' | 'navy';
 
 export interface General {
   id: string;
@@ -54,6 +55,15 @@ export interface General {
   };
   specialty: string;      // Kỹ năng / Hiệu ứng đặc biệt
   lore: string;           // Điển tích ngắn
+  // Cân bằng game & Hiển thị mặt sau thẻ đồng:
+  buffName?: string;      // Tên ngắn gọn của Buff / Đặc kỹ (mặt sau thẻ)
+  troops?: TroopType[];   // Binh chủng sở trường (icon phát sáng mặt sau thẻ)
+
+  // Thông tin mở rộng cho Cuộn Thư Danh Tướng (Dossier Scroll):
+  birthYear?: number;
+  hometown?: string;
+  buffDescription?: string;
+  historicalEvents?: string[];
 }
 
 export interface RecruitmentEventNotice {

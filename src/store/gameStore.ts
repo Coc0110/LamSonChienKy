@@ -3,7 +3,7 @@ import type { Resources, CityNode, Connection, General, RecruitmentEventNotice }
 import { INITIAL_CITIES, INITIAL_CONNECTIONS, START_DAY, START_MONTH, START_YEAR } from '../data/mapData';
 import { INITIAL_GENERALS } from '../data/generalsData';
 
-const COORDS_STORAGE_KEY = 'lam_son_coords_v2';
+const COORDS_STORAGE_KEY = 'lam_son_coords_v3_districts';
 
 const loadSavedCities = (): CityNode[] => {
   try {

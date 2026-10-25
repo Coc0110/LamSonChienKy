@@ -53,3 +53,50 @@ html, body, #root, * {
   background: transparent !important;
   border: none !important;
 }
+
+/* Tooltip địa hình phong cách Sa bàn Giấy Da Cừu */
+.parchment-tactical-tooltip {
+  background: rgba(26, 16, 7, 0.95) !important;
+  border: 1px solid #a87c4f !important;
+  border-radius: 8px !important;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.75), inset 0 0 12px rgba(168, 124, 79, 0.2) !important;
+  color: #ebd0a7 !important;
+  padding: 8px 12px !important;
+  backdrop-filter: blur(6px);
+}
+.parchment-tactical-tooltip .leaflet-tooltip-pane {
+  z-index: 900;
+}
+.parchment-tactical-tooltip::before {
+  border-top-color: #a87c4f !important;
+}
+
+/* Hiệu ứng quân cơ hành quân di chuyển theo nét đứt */
+@keyframes marchLineAnim {
+  from {
+    stroke-dashoffset: 64;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.marching-route-line {
+  animation: marchLineAnim 2.4s linear infinite;
+}
+
+
+/* Tương tác địa bàn Huyện Thành thế kỷ XV */
+.district-polygon-interactive {
+  cursor: pointer !important;
+  transition: all 0.25s cubic-bezier(0.2, 0, 0, 1) !important;
+  outline: none !important;
+}
+
+.district-polygon-hover {
+  filter: drop-shadow(0 0 6px rgba(234, 88, 12, 0.75)) !important;
+}
+
+.district-polygon-selected {
+  filter: drop-shadow(0 0 10px rgba(185, 28, 28, 0.85)) drop-shadow(0 4px 12px rgba(0, 0, 0, 0.55)) !important;
+}

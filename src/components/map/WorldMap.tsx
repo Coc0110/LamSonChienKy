@@ -1,17 +1,17 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useGameStore } from '../../store/gameStore';
 import { useUIStore } from '../../store/uiStore';
-import type { NodeType, Faction } from '../../types';
+import type { Faction } from '../../types';
+import districtData from '../../data/districtPolygons.json';
 
 // Tọa độ hệ chuẩn Leaflet CRS.Simple tại Zoom 0:
-// 8960 / 16 = 560
-// 11776 / 16 = 736
-// Tại Zoom 4 (Zoom gốc): 560 * 16 = 8960 px, 736 * 16 = 11776 px (100% độ phân giải gốc)
 const MAP_COORD_W = 560;
 const MAP_COORD_H = 736;
 const TILE_SIZE = 512;
+
+const DISTRICT_STORAGE_KEY = 'lam_son_district_polygons_custom_v1';
 
 // Chuyển đổi tọa độ phần trăm % (0..100) sang Leaflet CRS.Simple [lat, lng]
 const percentToLatLng = (x: number, y: number): L.LatLng => {
@@ -21,38 +21,53 @@ const percentToLatLng = (x: number, y: number): L.LatLng => {
 };
 
 // Chuyển đổi từ Leaflet LatLng ngược lại %
-const latLngToPercent = (latlng: L.LatLng): { x: number; y: number } => {
-  const x = Math.max(0, Math.min(100, Math.round((latlng.lng / MAP_COORD_W) * 10000) / 100));
-  const y = Math.max(0, Math.min(100, Math.round((-latlng.lat / MAP_COORD_H) * 10000) / 100));
+export const latLngToPercent = (latlng: L.LatLng): { x: number; y: number } => {
+  const x = Math.max(0, Math.min(100, Math.round((latlng.lng / MAP_COORD_W) * 1000) / 1000));
+  const y = Math.max(0, Math.min(100, Math.round((-latlng.lat / MAP_COORD_H) * 1000) / 1000));
   return { x, y };
 };
 
-// SVG Icon cho từng loại cứ điểm
-const getIconSvg = (type: NodeType, size: number) => {
-  if (type === 'city') {
-    return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 20v-9H2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2Z"/><path d="M18 11V4H6v7"/><path d="M15 22v-4a3 3 0 0 0-3-3v0a3 3 0 0 0-3 3v4"/><path d="M22 11V9"/><path d="M2 11V9"/><path d="M6 4V2"/><path d="M18 4V2"/><path d="M10 4V2"/><path d="M14 4V2"/></svg>`;
-  }
-  if (type === 'chokepoint') {
-    return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m8 3 4 8 5-5 5 15H2L8 3z"/><path d="m4.14 15.08 4.29-3.79 3.07 3.07"/></svg>`;
-  }
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 21 14 3"/><path d="M20.5 21 10 3"/><path d="M15.5 21 12 15l-3.5 6"/><path d="M2 21h20"/></svg>`;
-};
+type ParchmentMode = 'cutout' | 'sheet' | 'off';
 
-const factionColors: Record<Faction, string> = {
-  lam_son: 'bg-red-700 border-red-300 text-red-100',
-  ming: 'bg-blue-800 border-blue-400 text-blue-100',
-  neutral: 'bg-stone-600 border-stone-400 text-stone-200'
-};
+interface DistrictInfo {
+  id: string;
+  name: string;
+  chau: string;
+  faction: Faction;
+  type: string;
+  troops: number;
+  center: [number, number];
+  polygon: [number, number][];
+}
 
 export const WorldMap: React.FC = () => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
-  const markersLayerRef = useRef<L.LayerGroup | null>(null);
   const linesLayerRef = useRef<L.LayerGroup | null>(null);
+  const labelsLayerRef = useRef<L.LayerGroup | null>(null);
+  const vertexHandlesLayerRef = useRef<L.LayerGroup | null>(null);
+  const parchmentCutoutRef = useRef<L.ImageOverlay | null>(null);
+  const parchmentSheetRef = useRef<L.ImageOverlay | null>(null);
+
+  const [parchmentMode, setParchmentMode] = useState<ParchmentMode>('cutout');
+  const [showDistricts, setShowDistricts] = useState<boolean>(true);
+  const [hoveredDistrictId, setHoveredDistrictId] = useState<string | null>(null);
+
+  // Danh sách polygon các huyện (hỗ trợ lưu chỉnh sửa vào localStorage)
+  const [districtsList, setDistrictsList] = useState<DistrictInfo[]>(() => {
+    try {
+      const saved = localStorage.getItem(DISTRICT_STORAGE_KEY);
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch {
+      // ignore
+    }
+    return (districtData as any).districts || [];
+  });
 
   const cities = useGameStore(state => state.cities);
   const connections = useGameStore(state => state.connections);
-  const updateCityPosition = useGameStore(state => state.updateCityPosition);
 
   const isEditMode = useUIStore(state => state.isEditMode);
   const selectedCityId = useUIStore(state => state.selectedCityId);
@@ -66,26 +81,23 @@ export const WorldMap: React.FC = () => {
     const northEast = L.latLng(0, MAP_COORD_W);
     const bounds = L.latLngBounds(southWest, northEast);
 
-    // Khởi tạo bản đồ phẳng với CRS.Simple
     const map = L.map(mapContainerRef.current, {
       crs: L.CRS.Simple,
       minZoom: 0,
-      maxZoom: 6,       // Cho phép zoom sâu tới mức 6 (phóng to sắc nét)
+      maxZoom: 6,
       zoomSnap: 0.1,
       zoomDelta: 0.5,
       wheelPxPerZoomLevel: 100,
       maxBounds: bounds,
-      maxBoundsViscosity: 1.0, // KHÓA CỨNG VIỀN: Không thể kéo trượt ra ngoài bản đồ
+      maxBoundsViscosity: 1.0,
       attributionControl: false,
       zoomControl: false,
     });
 
-    // TileLayer chuẩn nạp từ kim tự tháp tiles: /tiles/{z}/{x}/{y}.jpg
-    // Zoom 0 -> Zoom 4 (Zoom 4 là 100% độ phân giải gốc 8960x11776)
     const tileLayer = L.tileLayer('/tiles/{z}/{x}/{y}.jpg', {
       minZoom: 0,
       maxZoom: 6,
-      maxNativeZoom: 4, // Ảnh gốc đạt độ nét tối đa ở zoom 4, zoom 5 và 6 scale phần cứng siêu nét
+      maxNativeZoom: 4,
       minNativeZoom: 0,
       tileSize: TILE_SIZE,
       noWrap: true,
@@ -94,15 +106,26 @@ export const WorldMap: React.FC = () => {
 
     tileLayer.addTo(map);
 
-    // Tính toán mức Zoom tối thiểu sao cho bản đồ luôn PHỦ KÍN 100% màn hình (Cover mode)
-    // Không bao giờ để lộ khoảng trống ở 2 bên trái/phải hay trên/dưới
+    // Tạo các Pane độc lập để phân lớp tuyệt đối không bị đè hay mất hiển thị
+    map.createPane('parchmentPane');
+    const pPane = map.getPane('parchmentPane');
+    if (pPane) {
+      pPane.style.zIndex = '350';
+      pPane.style.pointerEvents = 'none';
+    }
+
+    map.createPane('districtsPane');
+    const dPane = map.getPane('districtsPane');
+    if (dPane) {
+      dPane.style.zIndex = '450';
+    }
+
     const calculateCoverZoom = () => {
       const size = map.getSize();
       if (!size.x || !size.y) return 0;
       const scaleX = size.x / MAP_COORD_W;
       const scaleY = size.y / MAP_COORD_H;
       const coverScale = Math.max(scaleX, scaleY);
-      // log2(scale) chính là zoom level trong CRS.Simple, cộng 0.02 để triệt tiêu sai số làm tròn pixel
       return Math.log2(coverScale) + 0.02;
     };
 
@@ -114,16 +137,14 @@ export const WorldMap: React.FC = () => {
       map.setMinZoom(minCoverZoom);
 
       if (isInitial) {
-        // Mở game: Tập trung camera vào khu vực trung tâm chiến sự Thanh Hóa (Lam Sơn - Tây Đô)
-        const initialCenter = percentToLatLng(55, 46);
-        const initialZoom = Math.max(minCoverZoom, minCoverZoom + 1.0);
+        const initialCenter = percentToLatLng(54.5, 47.5);
+        const initialZoom = Math.max(minCoverZoom, minCoverZoom + 1.15);
         map.setView(initialCenter, initialZoom);
       } else if (map.getZoom() < minCoverZoom) {
         map.setZoom(minCoverZoom);
       }
     };
 
-    // Đợi một chút để kích thước DOM container ổn định
     const initTimer = setTimeout(() => {
       if (isDisposed) return;
       map.invalidateSize();
@@ -137,33 +158,56 @@ export const WorldMap: React.FC = () => {
     };
     window.addEventListener('resize', handleResize);
 
-    // Khung tọa độ bao phủ 100% diện tích toàn bộ bản đồ sa bàn Việt Nam (0..100% X, 0..100% Y)
     const fullMapBounds = L.latLngBounds(
-      percentToLatLng(0, 100), // South-West: [-736, 0]
-      percentToLatLng(100, 0)  // North-East: [0, 560]
+      percentToLatLng(0, 100),
+      percentToLatLng(100, 0)
     );
 
-    // 1. Lớp phủ hệ thống sông ngòi toàn quốc (Vector SVG siêu nét từ Figma)
+    // 1. Sông ngòi toàn quốc
     L.imageOverlay('/map_rivers.svg', fullMapBounds, {
       opacity: 0.95,
       interactive: false,
       zIndex: 15,
     }).addTo(map);
 
-    // 2. Lớp phủ hệ thống biên giới, ranh giới toàn quốc (Vector SVG siêu nét từ Figma)
+    // 2. Biên giới toàn quốc
     L.imageOverlay('/map_borders.svg', fullMapBounds, {
       opacity: 0.9,
       interactive: false,
       zIndex: 20,
     }).addTo(map);
 
-    // 3. Tạo các LayerGroup quản lý Marker và Đường nối
+    // 2.5 Bản đồ Sa bàn Giấy Da Cừu Thanh Hóa
+    const thanhHoaBounds = L.latLngBounds(
+      percentToLatLng(36.0, 59.0),
+      percentToLatLng(70.0, 38.0)
+    );
+
+    // Cache bust để luôn nạp đúng ảnh gốc không bị browser giữ cache hỏng
+    const cutoutOverlay = L.imageOverlay('/thanh_hoa_parchment.png?v=original_argon_v3', thanhHoaBounds, {
+      opacity: 1.0,
+      interactive: false,
+      pane: 'parchmentPane',
+    }).addTo(map);
+
+    const sheetOverlay = L.imageOverlay('/thanh_hoa_parchment_full.jpg?v=original_argon_v3', thanhHoaBounds, {
+      opacity: 0,
+      interactive: false,
+      pane: 'parchmentPane',
+    }).addTo(map);
+
+    parchmentCutoutRef.current = cutoutOverlay;
+    parchmentSheetRef.current = sheetOverlay;
+
+    // LayerGroups
     const linesLayer = L.layerGroup().addTo(map);
-    const markersLayer = L.layerGroup().addTo(map);
+    const labelsLayer = L.layerGroup().addTo(map);
+    const vertexHandlesLayer = L.layerGroup().addTo(map);
 
     mapInstanceRef.current = map;
     linesLayerRef.current = linesLayer;
-    markersLayerRef.current = markersLayer;
+    labelsLayerRef.current = labelsLayer;
+    vertexHandlesLayerRef.current = vertexHandlesLayer;
 
     return () => {
       isDisposed = true;
@@ -174,9 +218,27 @@ export const WorldMap: React.FC = () => {
     };
   }, []);
 
+  // Cập nhật chế độ hiển thị lớp Sa bàn Giấy Da Cừu
+  useEffect(() => {
+    const cutout = parchmentCutoutRef.current;
+    const sheet = parchmentSheetRef.current;
+    if (!cutout || !sheet) return;
+
+    if (parchmentMode === 'cutout') {
+      cutout.setOpacity(1.0);
+      sheet.setOpacity(0);
+    } else if (parchmentMode === 'sheet') {
+      cutout.setOpacity(0);
+      sheet.setOpacity(1.0);
+    } else {
+      cutout.setOpacity(0);
+      sheet.setOpacity(0);
+    }
+  }, [parchmentMode]);
+
   const isFirstMountRef = useRef(true);
 
-  // 1.1 Tự động lướt camera tới cứ điểm khi người chơi chọn từ danh sách Quân Thư
+  // 1.1 Lướt camera tới cứ điểm khi chọn từ danh sách Quân Thư
   useEffect(() => {
     if (isFirstMountRef.current) {
       isFirstMountRef.current = false;
@@ -188,17 +250,17 @@ export const WorldMap: React.FC = () => {
       const city = cities.find(c => c.id === selectedCityId);
       if (!city) return;
       const targetLatLng = percentToLatLng(city.x, city.y);
-      const currentZoom = map.getZoom ? map.getZoom() : 2.2;
-      map.flyTo(targetLatLng, Math.max(currentZoom, 2.2), {
-        duration: 0.8,
+      map.panTo(targetLatLng, {
+        animate: true,
+        duration: 0.6,
         easeLinearity: 0.25,
       });
     } catch {
-      // Bỏ qua nếu map chưa nạp xong view
+      // ignore
     }
   }, [selectedCityId, cities]);
 
-  // 2. Cập nhật các đường nối (Connections) đồng bộ trên Leaflet
+  // 2. Cập nhật các đường nối hành quân
   useEffect(() => {
     const linesLayer = linesLayerRef.current;
     if (!linesLayer) return;
@@ -221,98 +283,343 @@ export const WorldMap: React.FC = () => {
       }
       latlngs.push(p2);
 
+      const isConnectedToSelected = selectedCityId === conn.from || selectedCityId === conn.to;
+
       const polyline = L.polyline(latlngs, {
-        color: '#f59e0b',
-        weight: 2,
-        dashArray: '8, 8',
-        opacity: 0.6,
+        color: isConnectedToSelected ? '#f59e0b' : '#a87c4f',
+        weight: isConnectedToSelected ? 2.5 : 1.5,
+        dashArray: isConnectedToSelected ? '6, 6' : '4, 4',
+        opacity: isConnectedToSelected ? 0.85 : 0.45,
         interactive: false,
       });
 
       polyline.addTo(linesLayer);
     });
-  }, [cities, connections]);
+  }, [cities, connections, selectedCityId]);
 
-  // 3. Cập nhật các Cứ điểm (Markers) & Tương tác kéo thả EditMode
+  // 3. QUẢN LÝ CÁC ĐỐI TƯỢNG POLYGON HUYỆN THÀNH
+  const polygonsMapRef = useRef<Map<string, L.Polygon>>(new Map());
+
+  // Cập nhật tọa độ polygon cho huyện
+  const updateDistrictPolygonVertex = (districtId: string, vertexIndex: number, newX: number, newY: number) => {
+    setDistrictsList(prev => {
+      const next = prev.map(d => {
+        if (d.id !== districtId) return d;
+        const newPoly = [...d.polygon];
+        newPoly[vertexIndex] = [newX, newY];
+        // Nếu là điểm đầu/cuối của vòng khép kín
+        if (vertexIndex === 0) newPoly[newPoly.length - 1] = [newX, newY];
+        if (vertexIndex === newPoly.length - 1) newPoly[0] = [newX, newY];
+        return { ...d, polygon: newPoly };
+      });
+      try {
+        localStorage.setItem(DISTRICT_STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  };
+
   useEffect(() => {
-    const markersLayer = markersLayerRef.current;
-    if (!markersLayer) return;
+    const map = mapInstanceRef.current;
+    if (!map) return;
 
-    markersLayer.clearLayers();
+    // Xóa các polygon cũ
+    polygonsMapRef.current.forEach(p => p.remove());
+    polygonsMapRef.current.clear();
 
-    cities.forEach(city => {
-      const latlng = percentToLatLng(city.x, city.y);
-      const isSelected = selectedCityId === city.id;
-      const isCity = city.type === 'city';
-      const iconSize = isCity ? 20 : 16;
-      const boxSize = isCity ? 'w-10 h-10' : 'w-8 h-8';
-      const colorClass = factionColors[city.faction];
+    districtsList.forEach(district => {
+      const latlngs = district.polygon.map(pt => percentToLatLng(pt[0], pt[1]));
+      const poly = L.polygon(latlngs, {
+        fill: true,
+        fillColor: '#ffffff',
+        fillOpacity: 0.0001, // 100% không phủ màu để lộ trọn vẹn nét vẽ sa bàn
+        color: '#4a2810',
+        weight: 1.1,
+        opacity: 0.85,
+        lineCap: 'round',
+        lineJoin: 'round',
+        smoothFactor: 1.0,
+        pane: 'districtsPane',
+        interactive: true,
+      });
 
-      const troopsBadge = city.troops > 0 && !isEditMode ? `
-        <div class="absolute -top-3 -right-3 bg-black/80 text-white text-[10px] px-1.5 py-0.5 rounded-full border border-stone-600 font-sans pointer-events-none">
-          ${city.troops > 1000 ? `${(city.troops / 1000).toFixed(1)}k` : city.troops}
-        </div>
-      ` : '';
+      poly.on('mouseover', () => {
+        setHoveredDistrictId(district.id);
+      });
 
-      const nameClass = isSelected && !isEditMode
-        ? 'bg-amber-900/90 text-amber-100 ring-1 ring-amber-400'
-        : 'bg-black/60 text-stone-200';
+      poly.on('mouseout', () => {
+        setHoveredDistrictId(prev => (prev === district.id ? null : prev));
+      });
 
-      const ringClass = isSelected && !isEditMode
-        ? 'scale-125 ring-4 ring-amber-400'
-        : isEditMode
-        ? 'hover:scale-110 ring-2 ring-white/60'
-        : 'hover:scale-110';
+      poly.on('click', () => {
+        selectCity(district.id);
+      });
 
-      const customIcon = L.divIcon({
-        className: 'custom-map-node-wrapper',
+      poly.addTo(map);
+      polygonsMapRef.current.set(district.id, poly);
+    });
+
+    return () => {
+      polygonsMapRef.current.forEach(p => p.remove());
+      polygonsMapRef.current.clear();
+    };
+  }, [districtsList, selectCity]);
+
+  // Cập nhật Style highlight trực tiếp (0ms latency, không redraw)
+  useEffect(() => {
+    polygonsMapRef.current.forEach((poly, did) => {
+      const isSelected = selectedCityId === did;
+      const isHovered = hoveredDistrictId === did;
+
+      if (!showDistricts || parchmentMode === 'off') {
+        poly.setStyle({ opacity: 0, fillOpacity: 0 });
+        return;
+      }
+
+      if (isSelected) {
+        // Nổi bật nét mực Chu Sa cổ (TUYỆT ĐỐI KHÔNG FILL MÀU)
+        poly.setStyle({
+          color: '#991b1b',
+          weight: 2.8,
+          opacity: 1.0,
+          fillOpacity: 0.0001,
+        });
+      } else if (isHovered) {
+        // Rê chuột: nét hổ phách ấm (TUYỆT ĐỐI KHÔNG FILL MÀU)
+        poly.setStyle({
+          color: '#c2410c',
+          weight: 2.0,
+          opacity: 1.0,
+          fillOpacity: 0.0001,
+        });
+      } else {
+        // Bình thường: nét mực sepia mỏng
+        poly.setStyle({
+          color: '#4a2810',
+          weight: 1.1,
+          opacity: 0.85,
+          fillOpacity: 0.0001,
+        });
+      }
+    });
+  }, [selectedCityId, hoveredDistrictId, showDistricts, parchmentMode]);
+
+  // 4. CHẾ ĐỘ CHỈNH SỬA RANH GIỚI BẰNG TAY (Edit Mode)
+  // Khi bật SỬA MAP, các điểm mốc (Vertex Handles) của huyện đang chọn sẽ hiện ra cho phép kéo thả trực tiếp
+  useEffect(() => {
+    const handlesLayer = vertexHandlesLayerRef.current;
+    if (!handlesLayer) return;
+
+    handlesLayer.clearLayers();
+
+    if (!isEditMode || !selectedCityId) return;
+
+    const currentDistrict = districtsList.find(d => d.id === selectedCityId);
+    if (!currentDistrict) return;
+
+    currentDistrict.polygon.forEach((pt, idx) => {
+      // Bỏ qua điểm cuối nếu trùng điểm đầu
+      if (idx === currentDistrict.polygon.length - 1 && idx > 0) return;
+
+      const latlng = percentToLatLng(pt[0], pt[1]);
+
+      const handleIcon = L.divIcon({
+        className: 'district-vertex-handle',
         html: `
-          <div class="flex flex-col items-center select-none transform -translate-x-1/2 -translate-y-1/2 ${isEditMode ? 'cursor-move' : 'cursor-pointer'}">
-            <div class="relative rounded-full border-2 flex items-center justify-center shadow-lg transition-transform ${boxSize} ${colorClass} ${ringClass}">
-              ${getIconSvg(city.type, iconSize)}
-              ${troopsBadge}
-            </div>
-            <div class="mt-1 px-2 py-0.5 rounded text-xs font-bold whitespace-nowrap drop-shadow-md pointer-events-none transition-colors ${nameClass}">
-              ${city.name}
-            </div>
-          </div>
+          <div class="w-3.5 h-3.5 -translate-x-1/2 -translate-y-1/2 bg-amber-400 border-2 border-red-700 rounded-full shadow-lg hover:scale-150 transition-transform cursor-crosshair"></div>
         `,
         iconSize: [0, 0],
         iconAnchor: [0, 0],
       });
 
-      const marker = L.marker(latlng, {
-        icon: customIcon,
-        draggable: isEditMode,
+      const handleMarker = L.marker(latlng, {
+        icon: handleIcon,
+        draggable: true,
       });
 
-      if (isEditMode) {
-        marker.on('dragend', (e) => {
-          const newPos = e.target.getLatLng();
-          const { x, y } = latLngToPercent(newPos);
-          updateCityPosition(city.id, x, y);
-        });
-      } else {
-        marker.on('click', () => {
-          selectCity(city.id);
-        });
-      }
+      handleMarker.on('drag', (e) => {
+        const newPos = e.target.getLatLng();
+        // Cập nhật polygon hiển thị ngay lập tức khi kéo
+        const poly = polygonsMapRef.current.get(currentDistrict.id);
+        if (poly) {
+          const currentLatLngs = poly.getLatLngs()[0] as L.LatLng[];
+          if (currentLatLngs && currentLatLngs[idx]) {
+            currentLatLngs[idx] = newPos;
+            if (idx === 0) currentLatLngs[currentLatLngs.length - 1] = newPos;
+            poly.setLatLngs([currentLatLngs]);
+          }
+        }
+      });
 
-      marker.addTo(markersLayer);
+      handleMarker.on('dragend', (e) => {
+        const newPos = e.target.getLatLng();
+        const { x, y } = latLngToPercent(newPos);
+        updateDistrictPolygonVertex(currentDistrict.id, idx, x, y);
+      });
+
+      handleMarker.addTo(handlesLayer);
     });
-  }, [cities, isEditMode, selectedCityId, selectCity, updateCityPosition]);
+  }, [isEditMode, selectedCityId, districtsList]);
+
+  // 5. HIỂN THỊ CHỮ THẺ BÀI NỔI KHI RÊ CHUỘT HOẶC CHỌN HUYỆN
+  useEffect(() => {
+    const labelsLayer = labelsLayerRef.current;
+    if (!labelsLayer) return;
+
+    labelsLayer.clearLayers();
+
+    if (!showDistricts || parchmentMode === 'off') return;
+
+    districtsList.forEach(district => {
+      const isSelected = selectedCityId === district.id;
+      const isHovered = hoveredDistrictId === district.id;
+
+      if (isSelected || isHovered) {
+        const liveCity = cities.find(c => c.id === district.id);
+        const faction: Faction = liveCity ? liveCity.faction : district.faction;
+        const troops = liveCity ? liveCity.troops : district.troops;
+
+        const centerLatLng = percentToLatLng(district.center[0], district.center[1]);
+
+        const badgeBorder = isSelected
+          ? 'border-amber-400 ring-2 ring-amber-500/80'
+          : 'border-[#a87c4f]/80';
+
+        const factionColor = faction === 'lam_son'
+          ? 'text-red-400'
+          : faction === 'ming'
+          ? 'text-blue-300'
+          : 'text-amber-200';
+
+        const troopsBadge = troops > 0 ? `
+          <span class="ml-1.5 px-1.5 py-0.5 bg-black/60 text-[10px] rounded font-mono text-amber-300 border border-amber-600/40">
+            ${troops > 1000 ? `${(troops / 1000).toFixed(1)}k` : troops}
+          </span>
+        ` : '';
+
+        const labelHtml = `
+          <div class="pointer-events-none transform -translate-x-1/2 -translate-y-1/2 transition-transform duration-150 ${isSelected ? 'scale-115 -translate-y-2' : ''}">
+            <div class="px-3 py-1 rounded-md bg-[#1e130a]/92 border ${badgeBorder} shadow-2xl backdrop-blur-sm flex items-center whitespace-nowrap font-serif font-bold text-xs tracking-wide text-[#f5ebd9]"
+                 style="box-shadow: 0 4px 16px rgba(0,0,0,0.65);">
+              <span class="${factionColor}">${district.name}</span>
+              ${troopsBadge}
+            </div>
+            ${isSelected ? `
+              <div class="w-2.5 h-2.5 bg-[#a87c4f] mx-auto rotate-45 -mt-1.5 shadow-md"></div>
+            ` : ''}
+          </div>
+        `;
+
+        const labelIcon = L.divIcon({
+          className: 'district-floating-label',
+          html: labelHtml,
+          iconSize: [0, 0],
+          iconAnchor: [0, 0],
+        });
+
+        const labelMarker = L.marker(centerLatLng, {
+          icon: labelIcon,
+          interactive: false,
+        });
+
+        labelMarker.addTo(labelsLayer);
+      }
+    });
+  }, [showDistricts, parchmentMode, selectedCityId, hoveredDistrictId, cities, districtsList]);
 
   return (
     <div className="absolute inset-0 z-0 bg-[#16171a] overflow-hidden">
-      {/* Banner thông báo Chế độ sửa bản đồ */}
+      {/* Banner & Bảng điều khiển Chế độ sửa bản đồ (Đặt ở giữa phía trên, thao tác dễ dàng không bao giờ tràn) */}
       {isEditMode && (
-        <div className="absolute top-20 left-1/2 -translate-x-1/2 z-[1000] bg-red-900/90 text-white px-6 py-2 rounded-b-xl border-x-2 border-b-2 border-red-500 shadow-xl text-center pointer-events-none backdrop-blur-sm">
-          <h3 className="font-bold">CHẾ ĐỘ TÙY CHỈNH BẢN ĐỒ (EDIT MODE) ĐANG BẬT</h3>
-          <p className="text-sm">Kéo thả các Cứ điểm trực tiếp trên bản đồ.</p>
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[1000] bg-[#221008]/95 text-[#f5ebd7] px-6 py-3 rounded-xl border-2 border-amber-500 shadow-2xl backdrop-blur-md flex flex-col items-center gap-2 pointer-events-auto">
+          <div className="flex items-center gap-3">
+            <span className="font-bold font-serif text-sm tracking-wider text-amber-300 uppercase">
+              ✦ Chế độ nắn ranh giới Huyện Thành ✦
+            </span>
+            <button
+              onClick={() => {
+                const custom = localStorage.getItem('lam_son_district_polygons_custom_v1');
+                if (custom) {
+                  navigator.clipboard.writeText(custom);
+                  alert('Đã copy toàn bộ dữ liệu ranh giới huyện thành vào Clipboard!');
+                } else {
+                  alert('Chưa có chỉnh sửa ranh giới mới nào!');
+                }
+              }}
+              className="px-3 py-1 bg-[#2f4d66] hover:bg-[#3d6385] text-white rounded text-xs font-bold border border-[#5282ad] shadow cursor-pointer transition hover:scale-105"
+            >
+              Copy Ranh Giới
+            </button>
+            <button
+              onClick={() => {
+                if (confirm('Khôi phục lại toàn bộ ranh giới huyện thành về mặc định ban đầu?')) {
+                  localStorage.removeItem('lam_son_district_polygons_custom_v1');
+                  window.location.reload();
+                }
+              }}
+              className="px-3 py-1 bg-[#5c2419] hover:bg-[#783021] text-amber-100 rounded text-xs font-bold border border-[#963e2c] shadow cursor-pointer transition hover:scale-105"
+            >
+              Làm Lại Gốc
+            </button>
+          </div>
+          <p className="text-xs text-stone-300">
+            Click chọn bất kỳ huyện thành nào trên bản đồ, các điểm mốc vàng đỏ sẽ hiện ra để bạn kéo nắn trực tiếp.
+          </p>
         </div>
       )}
 
-      {/* Container của Leaflet Map - nền đen sạch, không dùng background tĩnh gây đứng hình */}
+      {/* Thanh chuyển đổi chế độ xem Sa bàn Giấy Da Cừu (Khu vực Thanh Hóa) */}
+      <div className="absolute bottom-5 left-5 z-[900] flex items-center gap-1.5 bg-[#1e130a]/90 border border-[#a87c4f]/70 rounded-lg p-1.5 shadow-2xl backdrop-blur-sm text-xs font-serif">
+        <span className="px-2 py-1 text-[#ebd0a7] font-bold tracking-wider uppercase">
+          Sa bàn Thanh Hóa:
+        </span>
+        <button
+          onClick={() => setParchmentMode('cutout')}
+          className={`px-2.5 py-1 rounded transition-colors cursor-pointer ${
+            parchmentMode === 'cutout'
+              ? 'bg-[#8c5828] text-[#fff3db] border border-[#deb887] font-bold shadow'
+              : 'text-[#c9a679] hover:bg-[#332010]'
+          }`}
+        >
+          Chỉ vùng Thanh Hóa
+        </button>
+        <button
+          onClick={() => setParchmentMode('sheet')}
+          className={`px-2.5 py-1 rounded transition-colors cursor-pointer ${
+            parchmentMode === 'sheet'
+              ? 'bg-[#8c5828] text-[#fff3db] border border-[#deb887] font-bold shadow'
+              : 'text-[#c9a679] hover:bg-[#332010]'
+          }`}
+        >
+          Nguyên tấm Da Cừu
+        </button>
+        <button
+          onClick={() => setParchmentMode('off')}
+          className={`px-2.5 py-1 rounded transition-colors cursor-pointer ${
+            parchmentMode === 'off'
+              ? 'bg-[#8c5828] text-[#fff3db] border border-[#deb887] font-bold shadow'
+              : 'text-[#c9a679] hover:bg-[#332010]'
+          }`}
+        >
+          Vệ tinh gốc
+        </button>
+        <div className="h-4 w-[1px] bg-[#a87c4f]/40 mx-1" />
+        <button
+          onClick={() => setShowDistricts(prev => !prev)}
+          className={`px-2.5 py-1 rounded transition-colors cursor-pointer ${
+            showDistricts && parchmentMode !== 'off'
+              ? 'bg-[#6e2214] text-[#fff3db] border border-[#e6a87c] font-bold shadow'
+              : 'text-[#c9a679] hover:bg-[#332010]'
+          }`}
+          title="Bật/tắt ranh giới và vùng tương tác huyện thành"
+        >
+          Địa bàn Huyện Thành: {showDistricts ? 'Bật' : 'Tắt'}
+        </button>
+      </div>
+
+      {/* Container của Leaflet Map */}
       <div 
         ref={mapContainerRef} 
         className="w-full h-full bg-[#16171a]"
