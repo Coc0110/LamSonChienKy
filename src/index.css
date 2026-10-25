@@ -100,3 +100,20 @@ html, body, #root, * {
 .district-polygon-selected {
   filter: drop-shadow(0 0 10px rgba(185, 28, 28, 0.85)) drop-shadow(0 4px 12px rgba(0, 0, 0, 0.55)) !important;
 }
+
+/* Điểm mốc nắn ranh giới huyện thành (Edit Mode) - nổi bật, dễ kéo thả */
+.district-vertex-handle-marker {
+  z-index: 1000 !important;
+  pointer-events: auto !important;
+}
+
+.district-vertex-handle-marker div {
+  transition: transform 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.district-vertex-handle-marker:hover div {
+  transform: scale(1.4) !important;
+  background-color: #fef08a !important;
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.95), 0 0 4px #fbbf24 !important;
+}

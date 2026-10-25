@@ -70,6 +70,7 @@ export const WorldMap: React.FC = () => {
   const connections = useGameStore(state => state.connections);
 
   const isEditMode = useUIStore(state => state.isEditMode);
+  const toggleEditMode = useUIStore(state => state.toggleEditMode);
   const selectedCityId = useUIStore(state => state.selectedCityId);
   const selectCity = useUIStore(state => state.selectCity);
 
@@ -106,14 +107,7 @@ export const WorldMap: React.FC = () => {
 
     tileLayer.addTo(map);
 
-    // Tạo các Pane độc lập để phân lớp tuyệt đối không bị đè hay mất hiển thị
-    map.createPane('parchmentPane');
-    const pPane = map.getPane('parchmentPane');
-    if (pPane) {
-      pPane.style.zIndex = '350';
-      pPane.style.pointerEvents = 'none';
-    }
-
+    // Pane riêng cho vector ranh giới huyện thành (zIndex: 450) để luôn nổi trên nền tranh vẽ sa bàn
     map.createPane('districtsPane');
     const dPane = map.getPane('districtsPane');
     if (dPane) {
@@ -183,17 +177,17 @@ export const WorldMap: React.FC = () => {
       percentToLatLng(70.0, 38.0)
     );
 
-    // Cache bust để luôn nạp đúng ảnh gốc không bị browser giữ cache hỏng
-    const cutoutOverlay = L.imageOverlay('/thanh_hoa_parchment.png?v=original_argon_v3', thanhHoaBounds, {
-      opacity: 1.0,
+    // Lớp Bản đồ Sa bàn Giấy Da Cừu Thanh Hóa (Đặt trong overlayPane với zIndex 25, hiển thị chuẩn trên vệ tinh và dưới nét ranh giới)
+    const cutoutOverlay = L.imageOverlay('/thanh_hoa_parchment.png', thanhHoaBounds, {
+      opacity: parchmentMode === 'cutout' ? 1.0 : 0,
       interactive: false,
-      pane: 'parchmentPane',
+      zIndex: 25,
     }).addTo(map);
 
-    const sheetOverlay = L.imageOverlay('/thanh_hoa_parchment_full.jpg?v=original_argon_v3', thanhHoaBounds, {
-      opacity: 0,
+    const sheetOverlay = L.imageOverlay('/thanh_hoa_parchment_full.jpg', thanhHoaBounds, {
+      opacity: parchmentMode === 'sheet' ? 1.0 : 0,
       interactive: false,
-      pane: 'parchmentPane',
+      zIndex: 24,
     }).addTo(map);
 
     parchmentCutoutRef.current = cutoutOverlay;
@@ -426,12 +420,10 @@ export const WorldMap: React.FC = () => {
       const latlng = percentToLatLng(pt[0], pt[1]);
 
       const handleIcon = L.divIcon({
-        className: 'district-vertex-handle',
-        html: `
-          <div class="w-3.5 h-3.5 -translate-x-1/2 -translate-y-1/2 bg-amber-400 border-2 border-red-700 rounded-full shadow-lg hover:scale-150 transition-transform cursor-crosshair"></div>
-        `,
-        iconSize: [0, 0],
-        iconAnchor: [0, 0],
+        className: 'district-vertex-handle-marker',
+        html: '<div style="width: 14px; height: 14px; background: #fbbf24; border: 2.5px solid #991b1b; border-radius: 50%; box-shadow: 0 0 6px rgba(0,0,0,0.9); cursor: crosshair; touch-action: none;"></div>',
+        iconSize: [14, 14],
+        iconAnchor: [7, 7],
       });
 
       const handleMarker = L.marker(latlng, {
@@ -531,13 +523,22 @@ export const WorldMap: React.FC = () => {
 
   return (
     <div className="absolute inset-0 z-0 bg-[#16171a] overflow-hidden">
-      {/* Banner & Bảng điều khiển Chế độ sửa bản đồ (Đặt ở giữa phía trên, thao tác dễ dàng không bao giờ tràn) */}
+      {/* Banner thông báo chế độ Sửa Map & Bộ công cụ tinh chỉnh ranh giới (Tự co giãn, không tràn màn hình) */}
       {isEditMode && (
-        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[1000] bg-[#221008]/95 text-[#f5ebd7] px-6 py-3 rounded-xl border-2 border-amber-500 shadow-2xl backdrop-blur-md flex flex-col items-center gap-2 pointer-events-auto">
-          <div className="flex items-center gap-3">
-            <span className="font-bold font-serif text-sm tracking-wider text-amber-300 uppercase">
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[1000] w-[95vw] max-w-2xl bg-[#221008]/96 text-[#f5ebd7] px-4 py-3 rounded-xl border-2 border-amber-500 shadow-2xl backdrop-blur-md flex flex-col items-center gap-2 pointer-events-auto">
+          <div className="flex flex-wrap items-center justify-center gap-2 w-full">
+            <span className="font-bold font-serif text-xs md:text-sm tracking-wider text-amber-300 uppercase whitespace-nowrap">
               ✦ Chế độ nắn ranh giới Huyện Thành ✦
             </span>
+            <select
+              value={selectedCityId || ''}
+              onChange={(e) => selectCity(e.target.value)}
+              className="bg-[#382013] text-amber-200 border border-amber-600/80 rounded px-2.5 py-1 text-xs font-serif font-bold cursor-pointer focus:outline-none focus:ring-1 focus:ring-amber-400"
+            >
+              {districtsList.map(d => (
+                <option key={d.id} value={d.id}>{d.name} ({d.chau})</option>
+              ))}
+            </select>
             <button
               onClick={() => {
                 const custom = localStorage.getItem('lam_son_district_polygons_custom_v1');
@@ -548,7 +549,7 @@ export const WorldMap: React.FC = () => {
                   alert('Chưa có chỉnh sửa ranh giới mới nào!');
                 }
               }}
-              className="px-3 py-1 bg-[#2f4d66] hover:bg-[#3d6385] text-white rounded text-xs font-bold border border-[#5282ad] shadow cursor-pointer transition hover:scale-105"
+              className="px-2.5 py-1 bg-[#2f4d66] hover:bg-[#3d6385] text-white rounded text-xs font-bold border border-[#5282ad] shadow cursor-pointer transition hover:scale-105 whitespace-nowrap"
             >
               Copy Ranh Giới
             </button>
@@ -559,13 +560,21 @@ export const WorldMap: React.FC = () => {
                   window.location.reload();
                 }
               }}
-              className="px-3 py-1 bg-[#5c2419] hover:bg-[#783021] text-amber-100 rounded text-xs font-bold border border-[#963e2c] shadow cursor-pointer transition hover:scale-105"
+              className="px-2.5 py-1 bg-[#5c2419] hover:bg-[#783021] text-amber-100 rounded text-xs font-bold border border-[#963e2c] shadow cursor-pointer transition hover:scale-105 whitespace-nowrap"
             >
               Làm Lại Gốc
             </button>
+            <button
+              onClick={toggleEditMode}
+              className="px-2.5 py-1 bg-[#22543d] hover:bg-[#276749] text-emerald-100 rounded text-xs font-bold border border-[#38a169] shadow cursor-pointer transition hover:scale-105 whitespace-nowrap"
+            >
+              ✓ Xong Sửa
+            </button>
           </div>
-          <p className="text-xs text-stone-300">
-            Click chọn bất kỳ huyện thành nào trên bản đồ, các điểm mốc vàng đỏ sẽ hiện ra để bạn kéo nắn trực tiếp.
+          <p className="text-[11px] md:text-xs text-stone-300 text-center">
+            {selectedCityId
+              ? `Đang nắn: ${districtsList.find(d => d.id === selectedCityId)?.name || selectedCityId} — Kéo các nút tròn vàng viền đỏ trên đường ranh giới để nắn hình.`
+              : 'Click chọn một huyện thành trên bản đồ hoặc chọn từ danh sách ở trên để bắt đầu nắn ranh giới.'}
           </p>
         </div>
       )}
