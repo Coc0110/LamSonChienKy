@@ -37,6 +37,7 @@ export const CityBuildingTab: React.FC<CityBuildingTabProps> = ({
   const assignFarmWorkers = useGameStore(state => state.assignFarmWorkers);
   const cancelForgeOrder = useGameStore(state => state.cancelForgeOrder);
   const tradeFoodForGold = useGameStore(state => state.tradeFoodForGold);
+  const demolishStructure = useGameStore(state => state.demolishStructure);
 
   const placementMode = useUIStore(state => state.placementMode);
   const setPlacementMode = useUIStore(state => state.setPlacementMode);
@@ -70,6 +71,13 @@ export const CityBuildingTab: React.FC<CityBuildingTabProps> = ({
   const handleDragStart = (e: React.DragEvent, type: 'farm' | 'forge') => {
     e.dataTransfer.setData('text/plain', JSON.stringify({ type, cityId: city.id }));
     e.dataTransfer.effectAllowed = 'copy';
+  };
+
+  const handleDemolish = (structureId: string, name: string) => {
+    if (confirm(`Bạn có chắc chắn muốn dỡ bỏ [${name}]? Thu hồi 50% vàng và trả lại tráng phu về rảnh rỗi.`)) {
+      const res = demolishStructure(structureId);
+      alert(res.message);
+    }
   };
 
   const handleTrade = (amount: number) => {
@@ -373,6 +381,24 @@ export const CityBuildingTab: React.FC<CityBuildingTabProps> = ({
                     </span>
                   </div>
                 )}
+
+                <div className="flex items-center gap-2 pt-1.5 border-t border-stone-800/80 justify-end">
+                  <button
+                    onClick={() => setPlacementMode({ type: 'farm', cityId: city.id, relocateStructureId: farm.id })}
+                    className="px-2 py-0.5 rounded bg-stone-800 hover:bg-amber-900/60 text-amber-300 text-[10px] font-bold border border-stone-700 hover:border-amber-600 transition flex items-center gap-1 cursor-pointer"
+                    title="Di dời ruộng lúa sang ô đồng bằng khác"
+                  >
+                    <Move size={10} />
+                    <span>Di dời</span>
+                  </button>
+                  <button
+                    onClick={() => handleDemolish(farm.id, farm.name)}
+                    className="px-2 py-0.5 rounded bg-stone-800 hover:bg-red-950 text-stone-400 hover:text-red-300 text-[10px] font-bold border border-stone-700 hover:border-red-600 transition cursor-pointer"
+                    title="Phá dỡ ruộng lúa, thu hồi vàng và giải phóng nông đinh"
+                  >
+                    Phá bỏ
+                  </button>
+                </div>
               </div>
             );
           })
@@ -445,6 +471,24 @@ export const CityBuildingTab: React.FC<CityBuildingTabProps> = ({
                       Hủy mẻ
                     </button>
                   )}
+                </div>
+
+                <div className="flex items-center gap-2 pt-1.5 border-t border-stone-800/80 justify-end">
+                  <button
+                    onClick={() => setPlacementMode({ type: 'forge', cityId: city.id, relocateStructureId: forge.id })}
+                    className="px-2 py-0.5 rounded bg-stone-800 hover:bg-sky-900/60 text-sky-300 text-[10px] font-bold border border-stone-700 hover:border-sky-600 transition flex items-center gap-1 cursor-pointer"
+                    title="Di dời lò rèn sang ô rừng/núi khác"
+                  >
+                    <Move size={10} />
+                    <span>Di dời</span>
+                  </button>
+                  <button
+                    onClick={() => handleDemolish(forge.id, forge.name)}
+                    className="px-2 py-0.5 rounded bg-stone-800 hover:bg-red-950 text-stone-400 hover:text-red-300 text-[10px] font-bold border border-stone-700 hover:border-red-600 transition cursor-pointer"
+                    title="Phá dỡ lò rèn, thu hồi vàng và giải phóng thợ đúc"
+                  >
+                    Phá bỏ
+                  </button>
                 </div>
 
                 {/* Thanh tiến độ */}

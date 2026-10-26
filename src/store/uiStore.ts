@@ -7,6 +7,7 @@ export type ModalType = 'army' | 'supplies' | 'generals' | null;
 export interface PlacementMode {
   type: StructureType;
   cityId: string;
+  relocateStructureId?: string; // ID của công trình đang di dời nếu có
 }
 
 interface UIState {

@@ -1,8 +1,9 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useGameStore } from '../../store/gameStore';
 import { useUIStore } from '../../store/uiStore';
+import type { PlacedStructure } from '../../types';
 import type { DistrictInfo, ParchmentMode } from '../../types/map';
 import {
   percentToLatLng,
@@ -103,6 +104,7 @@ export const WorldMap: React.FC = () => {
   const connections = useGameStore(state => state.connections);
   const structures = useGameStore(state => state.structures);
   const placeStructure = useGameStore(state => state.placeStructure);
+  const demolishStructure = useGameStore(state => state.demolishStructure);
 
   const isEditMode = useUIStore(state => state.isEditMode);
   const toggleEditMode = useUIStore(state => state.toggleEditMode);
@@ -112,6 +114,60 @@ export const WorldMap: React.FC = () => {
   const setPlacementMode = useUIStore(state => state.setPlacementMode);
   const showGrid = useUIStore(state => state.showGrid);
   const hoveredCell = useUIStore(state => state.hoveredCell);
+
+  // Popover thao tác nhanh khi nhấp chọn cơ quan/công trình trên bản đồ
+  const [selectedStructureMenu, setSelectedStructureMenu] = useState<PlacedStructure | null>(null);
+
+  // Hàm xử lý đặt hoặc di dời công trình dùng chung cho mọi sự kiện click (polygon, marker, base map)
+  const handlePlacementAt = useCallback((latlng: L.LatLng) => {
+    const currentPlacement = useUIStore.getState().placementMode;
+    if (!currentPlacement) return;
+
+    const { x, y } = latLngToPercent(latlng);
+    const latestState = useGameStore.getState();
+    const validation = validateCellPlacement(
+      x,
+      y,
+      currentPlacement.type,
+      currentPlacement.cityId,
+      latestState.cities,
+      latestState.structures,
+      currentPlacement.relocateStructureId
+    );
+
+    if (!validation.canBuild) {
+      alert(validation.reason || 'Vị trí này không hợp lệ để thi công!');
+      return;
+    }
+
+    if (currentPlacement.relocateStructureId) {
+      const res = latestState.relocateStructure(
+        currentPlacement.relocateStructureId,
+        validation.snappedX,
+        validation.snappedY
+      );
+      if (res.success) {
+        setPlacementMode(null);
+      }
+      alert(res.message);
+    } else {
+      const res = latestState.placeStructure(
+        currentPlacement.cityId,
+        currentPlacement.type,
+        validation.snappedX,
+        validation.snappedY
+      );
+      if (res.success) {
+        setPlacementMode(null);
+      }
+      alert(res.message);
+    }
+  }, [setPlacementMode]);
+
+  const handlePlacementAtRef = useRef(handlePlacementAt);
+  useEffect(() => {
+    handlePlacementAtRef.current = handlePlacementAt;
+  }, [handlePlacementAt]);
 
   // 1. Khởi tạo Leaflet Map và Multi-resolution TileLayer
   useEffect(() => {
@@ -481,6 +537,10 @@ export const WorldMap: React.FC = () => {
 
       poly.on('click', (e) => {
         L.DomEvent.stopPropagation(e);
+        if (useUIStore.getState().placementMode) {
+          handlePlacementAtRef.current(e.latlng);
+          return;
+        }
         selectCity(district.id);
       });
 
@@ -712,6 +772,10 @@ export const WorldMap: React.FC = () => {
 
         marker.on('click', (e) => {
           L.DomEvent.stopPropagation(e);
+          if (useUIStore.getState().placementMode) {
+            handlePlacementAtRef.current(e.latlng);
+            return;
+          }
           selectCity(city.id);
         });
 
@@ -755,6 +819,10 @@ export const WorldMap: React.FC = () => {
 
         marker.on('click', (e) => {
           L.DomEvent.stopPropagation(e);
+          if (useUIStore.getState().placementMode) {
+            handlePlacementAtRef.current(e.latlng);
+            return;
+          }
           selectCity(city.id);
         });
 
@@ -834,7 +902,11 @@ export const WorldMap: React.FC = () => {
 
       marker.on('click', (e) => {
         L.DomEvent.stopPropagation(e);
-        selectCity(structure.cityId);
+        if (useUIStore.getState().placementMode) {
+          handlePlacementAtRef.current(e.latlng);
+          return;
+        }
+        setSelectedStructureMenu(structure);
       });
 
       marker.addTo(layer);
@@ -887,12 +959,14 @@ export const WorldMap: React.FC = () => {
         placementMode.type,
         placementMode.cityId,
         latestState.cities,
-        latestState.structures
+        latestState.structures,
+        placementMode.relocateStructureId
       );
 
       const isValid = validation.canBuild;
       const terrainInfo = TERRAIN_DEFINITIONS[validation.terrain];
       const color = isValid ? '#22c55e' : '#ef4444';
+      const isRelocating = Boolean(placementMode.relocateStructureId);
       const dotColor = placementMode.type === 'farm' ? 'bg-amber-400' : 'bg-stone-950 border-stone-400';
 
       const iconHtml = `
@@ -903,7 +977,7 @@ export const WorldMap: React.FC = () => {
           </div>
           <div class="mt-1 px-2 py-0.5 rounded text-[10px] font-bold text-white shadow whitespace-nowrap"
                style="background: ${isValid ? '#15803d' : '#b91c1c'};">
-            ${isValid ? `✓ Hợp lệ [Ô ${validation.col},${validation.row}] (${terrainInfo.name})` : `✗ ${validation.reason}`}
+            ${isValid ? `✓ ${isRelocating ? 'Di dời tới' : 'Cắm mốc'} [Ô ${validation.col},${validation.row}] (${terrainInfo.name})` : `✗ ${validation.reason}`}
           </div>
         </div>
       `;
@@ -926,27 +1000,7 @@ export const WorldMap: React.FC = () => {
     };
 
     const handleClick = (e: L.LeafletMouseEvent) => {
-      const { x, y } = latLngToPercent(e.latlng);
-      const latestState = useGameStore.getState();
-      const validation = validateCellPlacement(
-        x,
-        y,
-        placementMode.type,
-        placementMode.cityId,
-        latestState.cities,
-        latestState.structures
-      );
-
-      if (!validation.canBuild) {
-        alert(validation.reason || 'Vị trí này không hợp lệ để thi công!');
-        return;
-      }
-
-      const res = placeStructure(placementMode.cityId, placementMode.type, validation.snappedX, validation.snappedY);
-      if (res.success) {
-        setPlacementMode(null);
-      }
-      alert(res.message);
+      handlePlacementAtRef.current(e.latlng);
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -982,26 +1036,159 @@ export const WorldMap: React.FC = () => {
         />
       )}
 
-      {/* Banner chế độ đang đặt công trình (Placement Mode) */}
-      {placementMode && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 px-5 py-2.5 rounded-xl bg-[#1e120a]/95 border-2 border-amber-500 shadow-2xl backdrop-blur-md flex items-center gap-3 font-sans text-xs text-amber-200 animate-in fade-in slide-in-from-top-4">
-          <span className="text-xl animate-bounce">
-            {placementMode.type === 'farm' ? '🌾' : '⚒️'}
-          </span>
-          <div>
-            <div className="font-bold text-amber-300">
-              Đang chọn vị trí khai hoang {placementMode.type === 'farm' ? 'Ruộng Lúa Nước (chỉ đất Đồng Bằng)' : 'Lò Rèn Bí Mật (ưu tiên Rừng/Núi)'}
+      {/* THANH ĐIỀU KHIỂN CHẾ ĐỘ XÂY DỰNG & DI DỜI (CONSTRUCTION BAR) */}
+      {placementMode && (() => {
+        const isRelocating = Boolean(placementMode.relocateStructureId);
+        const relocatingStructure = isRelocating ? structures.find(s => s.id === placementMode.relocateStructureId) : null;
+        const isFarm = placementMode.type === 'farm';
+
+        return (
+          <div className="absolute top-20 left-1/2 -translate-x-1/2 z-[1000] w-[95vw] max-w-2xl bg-[#1e130c]/98 text-[#f5ebd7] px-4 py-3 rounded-2xl border-2 border-amber-500 shadow-[0_10px_35px_rgba(0,0,0,0.85)] backdrop-blur-md flex items-center justify-between gap-4 animate-in fade-in slide-in-from-top-4 pointer-events-auto">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl animate-bounce shrink-0">
+                {isRelocating ? '🚚' : isFarm ? '🌾' : '⚒️'}
+              </span>
+              <div>
+                <div className="font-serif font-black text-amber-300 text-sm flex items-center gap-2">
+                  <span>
+                    {isRelocating 
+                      ? `Đang Di Dời: ${relocatingStructure?.name || 'Công trình'}`
+                      : `Chế Độ Xây Dựng: ${isFarm ? 'Ruộng Lúa Nước' : 'Lò Rèn Bí Mật'}`
+                    }
+                  </span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-950/80 text-amber-200 border border-amber-600/70 font-sans font-bold">
+                    {isFarm ? 'Chỉ đất Đồng Bằng' : 'Ưu tiên Rừng / Núi'}
+                  </span>
+                </div>
+                <div className="text-[11px] text-stone-300 mt-0.5">
+                  👉 Rê chuột xem ô đất (viền xanh hợp lệ). Nhấp chuột trái để cắm mốc đặt. Bán kính bảo hộ: 14 dặm (vòng vàng đứt nét).
+                </div>
+              </div>
             </div>
-            <div className="text-[11px] text-stone-300">
-              Rê chuột trên bản đồ xem kiểm tra địa hình, nhấp chuột trái để cắm mốc, giữ chuột phải để kéo di chuyển bản đồ.
-            </div>
+
+            <button
+              onClick={() => setPlacementMode(null)}
+              className="shrink-0 px-3.5 py-2 rounded-xl bg-gradient-to-r from-red-800 to-red-700 hover:from-red-700 hover:to-red-600 text-amber-100 font-bold text-xs shadow-lg border border-red-500 transition hover:scale-105 active:scale-95 cursor-pointer whitespace-nowrap flex items-center gap-1.5"
+            >
+              <span>✕</span>
+              <span>HỦY BỎ (ESC)</span>
+            </button>
           </div>
-          <button
-            onClick={() => setPlacementMode(null)}
-            className="px-2.5 py-1 rounded bg-stone-800 hover:bg-stone-700 text-stone-300 font-bold text-[11px] transition cursor-pointer"
-          >
-            Hủy Bỏ (ESC)
-          </button>
+        );
+      })()}
+
+      {/* POPOVER THAO TÁC CƠ QUAN / CÔNG TRÌNH (DI DỜI / PHÁ BỎ) */}
+      {selectedStructureMenu && (
+        <div className="fixed inset-0 z-[1200] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <div className="relative w-full max-w-sm rounded-2xl bg-[#1e130c] border-2 border-amber-500/80 shadow-[0_15px_40px_rgba(0,0,0,0.85)] p-5 text-stone-200 font-sans space-y-4">
+            
+            {/* Header */}
+            <div className="flex items-start justify-between border-b border-amber-900/60 pb-3">
+              <div className="flex items-center gap-3">
+                <span className="w-10 h-10 rounded-xl bg-amber-950/90 border border-amber-600 flex items-center justify-center text-xl shadow-md">
+                  {selectedStructureMenu.type === 'farm' ? '🌾' : '⚒️'}
+                </span>
+                <div>
+                  <h3 className="font-serif font-black text-amber-200 text-base leading-tight">
+                    {selectedStructureMenu.name}
+                  </h3>
+                  <div className="text-[11px] text-stone-400 mt-0.5 flex items-center gap-2">
+                    <span className="px-1.5 py-0.5 rounded bg-black/40 text-amber-300 font-mono text-[10px]">
+                      {selectedStructureMenu.type === 'farm' ? 'Ruộng Lúa Nước' : 'Lò Rèn Binh Khí'}
+                    </span>
+                    <span>•</span>
+                    <span>Đất: <strong>{TERRAIN_DEFINITIONS[selectedStructureMenu.terrain]?.name || selectedStructureMenu.terrain}</strong></span>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setSelectedStructureMenu(null)}
+                className="w-7 h-7 rounded-full bg-stone-800/80 hover:bg-stone-700 text-stone-400 hover:text-white flex items-center justify-center transition cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Thông tin trạng thái */}
+            <div className="p-3 rounded-xl bg-black/40 border border-amber-950 text-xs space-y-1.5">
+              <div className="flex justify-between text-stone-300">
+                <span>Trạng thái:</span>
+                <span className="font-bold text-amber-300">
+                  {selectedStructureMenu.status === 'building'
+                    ? `🚧 Đang thi công (còn ${selectedStructureMenu.buildDaysRemaining} ngày)`
+                    : '🟢 Hoạt động bình thường'}
+                </span>
+              </div>
+              {selectedStructureMenu.type === 'farm' && selectedStructureMenu.status === 'active' && (
+                <div className="flex justify-between text-stone-300">
+                  <span>Nông đinh canh tác:</span>
+                  <span className="font-bold text-emerald-400">
+                    {selectedStructureMenu.assignedWorkers}/{selectedStructureMenu.maxWorkers} người
+                  </span>
+                </div>
+              )}
+              {selectedStructureMenu.type === 'forge' && selectedStructureMenu.status === 'active' && (
+                <div className="flex justify-between text-stone-300">
+                  <span>Mẻ rèn:</span>
+                  <span className="font-bold text-sky-400">
+                    {selectedStructureMenu.activeOrder
+                      ? `🔥 Đang đúc ${selectedStructureMenu.activeOrder.quantity} ${selectedStructureMenu.activeOrder.name}`
+                      : 'Sẵn sàng nhận lệnh'}
+                  </span>
+                </div>
+              )}
+              <div className="flex justify-between text-[11px] text-stone-400 pt-1 border-t border-stone-800/60 font-mono">
+                <span>Tọa độ bản đồ:</span>
+                <span>{selectedStructureMenu.x.toFixed(1)}%, {selectedStructureMenu.y.toFixed(1)}%</span>
+              </div>
+            </div>
+
+            {/* Các nút hành động: Di dời & Phá bỏ */}
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <button
+                onClick={() => {
+                  const s = selectedStructureMenu;
+                  setSelectedStructureMenu(null);
+                  setPlacementMode({
+                    type: s.type,
+                    cityId: s.cityId,
+                    relocateStructureId: s.id,
+                  });
+                }}
+                className="py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-stone-950 font-bold text-xs shadow-lg transition flex items-center justify-center gap-1.5 cursor-pointer hover:scale-[1.02] active:scale-98"
+              >
+                <span>🚚</span>
+                <span>Di Dời Vị Trí</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  const s = selectedStructureMenu;
+                  if (confirm(`Bạn có chắc chắn muốn phá dỡ [${s.name}]? Bạn sẽ thu hồi 50% vàng phế liệu và giải phóng tráng phu về rảnh rỗi.`)) {
+                    setSelectedStructureMenu(null);
+                    const res = demolishStructure(s.id);
+                    alert(res.message);
+                  }
+                }}
+                className="py-2.5 px-3 rounded-xl bg-gradient-to-r from-red-800 to-red-900 hover:from-red-700 hover:to-red-800 text-red-100 font-bold text-xs shadow-lg transition border border-red-700/60 flex items-center justify-center gap-1.5 cursor-pointer hover:scale-[1.02] active:scale-98"
+              >
+                <span>💥</span>
+                <span>Phá Bỏ (Hồi Vàng)</span>
+              </button>
+            </div>
+
+            {/* Nút phụ: Mở Chiến thư căn cứ */}
+            <button
+              onClick={() => {
+                selectCity(selectedStructureMenu.cityId);
+                setSelectedStructureMenu(null);
+              }}
+              className="w-full py-1.5 rounded-lg bg-stone-900 hover:bg-stone-800 text-stone-400 hover:text-stone-200 text-[11px] font-bold border border-stone-800 transition cursor-pointer"
+            >
+              🏛️ Mở Bảng Quản Lý Căn Cứ
+            </button>
+          </div>
         </div>
       )}
 

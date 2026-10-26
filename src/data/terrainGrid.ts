@@ -171,7 +171,8 @@ export function validateCellPlacement(
   structureType: StructureType,
   targetCityId: string,
   cities: CityNode[],
-  structures: PlacedStructure[]
+  structures: PlacedStructure[],
+  ignoreStructureId?: string
 ): CellBuildValidation {
   const { col, row, centerX, centerY } = coordToCell(rawX, rawY);
   const terrain = getGridTerrain(col, row);
@@ -197,6 +198,9 @@ export function validateCellPlacement(
 
   // 2. Kiểm tra ô đã bị chiếm dụng bởi công trình khác chưa
   for (const s of structures) {
+    if (ignoreStructureId && s.id === ignoreStructureId) {
+      continue;
+    }
     const sCell = coordToCell(s.x, s.y);
     if (sCell.col === col && sCell.row === row) {
       return {

@@ -91,6 +91,8 @@ interface GameState {
 
   // Quản lý Xây Dựng & Đồn Điền & Lò Rèn
   placeStructure: (cityId: string, type: StructureType, x: number, y: number) => { success: boolean; message: string };
+  relocateStructure: (structureId: string, newX: number, newY: number) => { success: boolean; message: string };
+  demolishStructure: (structureId: string) => { success: boolean; message: string };
   assignFarmWorkers: (structureId: string, delta: number) => { success: boolean; message: string };
   startForgeOrder: (structureId: string, order: { weaponType: WeaponCraftType; quantity: number; smiths: number }) => { success: boolean; message: string };
   cancelForgeOrder: (structureId: string) => void;
@@ -350,6 +352,108 @@ export const useGameStore = create<GameState>((set, get) => ({
       message: type === 'farm'
         ? `Đã cắm mốc khai hoang [${newStructure.name}] tại đồng bằng. Cần 12 ngày thi công!`
         : `Đã khởi công dựng [${newStructure.name}] tại ${terrainInfo.name}. Cần 18 ngày thi công!`,
+    };
+  },
+
+  // 1.1 DI DỜI CƠ QUAN / CÔNG TRÌNH SANG VỊ TRÍ MỚI
+  relocateStructure: (structureId, newX, newY) => {
+    const structure = get().structures.find(s => s.id === structureId);
+    if (!structure) {
+      return { success: false, message: 'Công trình không tồn tại!' };
+    }
+
+    const city = get().cities.find(c => c.id === structure.cityId);
+    if (!city) {
+      return { success: false, message: 'Không tìm thấy căn cứ sở tại!' };
+    }
+
+    // Kiểm tra cự ly bảo hộ 14 dặm
+    const dist = Math.hypot(city.x - newX, city.y - newY);
+    if (dist > 14.0) {
+      return { success: false, message: `Vị trí mới quá xa căn cứ ${city.name} (${dist.toFixed(1)} > 14 dặm)!` };
+    }
+
+    // Kiểm tra khoảng cách với các công trình khác
+    for (const s of get().structures) {
+      if (s.id === structureId) continue;
+      if (Math.hypot(s.x - newX, s.y - newY) < 1.5) {
+        return { success: false, message: `Vị trí quá gần [${s.name}] (cần cách ít nhất 1.5 dặm)!` };
+      }
+    }
+
+    const terrain = getGridTerrainAt(newX, newY);
+    const terrainInfo = TERRAIN_DEFINITIONS[terrain];
+    if (structure.type === 'farm' && terrain !== 'plains') {
+      return { success: false, message: `Ruộng lúa nước chỉ có thể canh tác trên đất Đồng Bằng! Vị trí này là ${terrainInfo.name}.` };
+    }
+    if (structure.type === 'forge' && (terrain === 'water' || terrain === 'cliff')) {
+      return { success: false, message: 'Không thể di dời lò rèn vào vùng sông nước hoặc vách đá!' };
+    }
+
+    set(state => ({
+      structures: state.structures.map(s => {
+        if (s.id !== structureId) return s;
+        return {
+          ...s,
+          x: newX,
+          y: newY,
+          terrain,
+        };
+      }),
+    }));
+
+    return {
+      success: true,
+      message: `Đã di dời thành công [${structure.name}] sang vị trí mới (${terrainInfo.name})!`,
+    };
+  },
+
+  // 1.2 PHÁ DỠ / DỠ BỎ CÔNG TRÌNH & THU HỒI TÀI NGUYÊN
+  demolishStructure: (structureId) => {
+    const structure = get().structures.find(s => s.id === structureId);
+    if (!structure) {
+      return { success: false, message: 'Công trình không tồn tại!' };
+    }
+
+    let refundGold = structure.type === 'farm' ? 40 : 60; // Thu hồi 50% vàng
+    let returnedWorkers = 0;
+
+    if (structure.status === 'building') {
+      returnedWorkers = structure.builderWorkers;
+      refundGold = structure.type === 'farm' ? 50 : 80;
+    } else {
+      returnedWorkers = structure.assignedWorkers;
+    }
+
+    set(state => ({
+      resources: {
+        ...state.resources,
+        gold: state.resources.gold + refundGold,
+      },
+      cities: state.cities.map(c => {
+        if (c.id !== structure.cityId || !c.population) return c;
+        const currentPop = c.population;
+        return {
+          ...c,
+          population: {
+            ...currentPop,
+            idleLaborers: currentPop.idleLaborers + returnedWorkers,
+            farmLaborers: structure.type === 'farm'
+              ? Math.max(0, (currentPop.farmLaborers || 0) - (structure.status === 'active' ? structure.assignedWorkers : 0))
+              : currentPop.farmLaborers,
+          },
+          buildings: {
+            farms: structure.type === 'farm' ? Math.max(0, (c.buildings?.farms || 1) - 1) : (c.buildings?.farms || 0),
+            forges: structure.type === 'forge' ? Math.max(0, (c.buildings?.forges || 1) - 1) : (c.buildings?.forges || 0),
+          }
+        };
+      }),
+      structures: state.structures.filter(s => s.id !== structureId),
+    }));
+
+    return {
+      success: true,
+      message: `Đã phá dỡ [${structure.name}], thu hồi +${refundGold} Vàng và trả ${returnedWorkers} tráng phu về rảnh rỗi!`,
     };
   },
 

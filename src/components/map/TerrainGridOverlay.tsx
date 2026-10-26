@@ -128,10 +128,12 @@ export const TerrainGridOverlay: React.FC<TerrainGridOverlayProps> = ({ map }) =
 
     const zoom = map.getZoom();
 
-    // 1. Tô màu địa hình từng ô nếu bật showTerrainOverlay hoặc terrainEditMode
-    if (showTerrainOverlay || terrainEditMode) {
-      // Khi zoom xa (< 1.8) và không ở chế độ sơn, tô màu gộp 4 ô (~1km) hoặc 2 ô để tối ưu mượt mà 60fps
-      const fillStep = (zoom < 1.8 && !terrainEditMode) ? 4 : (zoom < 2.2 && !terrainEditMode) ? 2 : 1;
+    // 1. Tô màu địa hình từng ô nếu bật showTerrainOverlay, terrainEditMode hoặc khi đang xây dựng (placementMode)
+    const isShowingTerrainColors = showTerrainOverlay || terrainEditMode || Boolean(placementMode);
+    if (isShowingTerrainColors) {
+      // Khi zoom xa (< 1.8) và không ở chế độ sơn/đặt công trình, tô màu gộp 4 ô (~1km) hoặc 2 ô để tối ưu mượt mà 60fps
+      const isPreciseMode = terrainEditMode || Boolean(placementMode);
+      const fillStep = (zoom < 1.8 && !isPreciseMode) ? 4 : (zoom < 2.2 && !isPreciseMode) ? 2 : 1;
 
       for (let r = startRow; r <= endRow; r += fillStep) {
         for (let c = startCol; c <= endCol; c += fillStep) {
