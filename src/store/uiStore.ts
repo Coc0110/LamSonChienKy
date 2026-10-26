@@ -45,7 +45,7 @@ export const useUIStore = create<UIState>((set) => ({
   placementMode: null,
   activeForgeModalStructureId: null,
 
-  showGrid: true,             // Mặc định bật lưới nhẹ
+  showGrid: false,            // Mặc định ẩn lưới, chỉ hiện khi xây dựng, sửa map hoặc hành quân
   showTerrainOverlay: false,  // Màu địa hình tổng thể tắt ban đầu, có nút bật
   terrainEditMode: false,
   brushTerrain: 'forest',

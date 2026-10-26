@@ -30,6 +30,7 @@ const TERRAIN_FILL_COLORS: Record<TerrainType, string> = {
 export const TerrainGridOverlay: React.FC<TerrainGridOverlayProps> = ({ map }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
+  const isEditMode = useUIStore(state => state.isEditMode);
   const showGrid = useUIStore(state => state.showGrid);
   const showTerrainOverlay = useUIStore(state => state.showTerrainOverlay);
   const terrainEditMode = useUIStore(state => state.terrainEditMode);
@@ -99,8 +100,10 @@ export const TerrainGridOverlay: React.FC<TerrainGridOverlayProps> = ({ map }) =
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Nếu không bật cả Lưới lẫn Lớp Địa Hình và không trong chế độ Đặt / Sơn thì không cần vẽ nền
-    if (!showGrid && !showTerrainOverlay && !terrainEditMode && !placementMode) {
+    const shouldDrawGrid = showGrid || isEditMode || terrainEditMode || Boolean(placementMode);
+
+    // Nếu không bật cả Lưới lẫn Lớp Địa Hình và không trong chế độ Đặt / Sửa Map thì không cần vẽ nền
+    if (!shouldDrawGrid && !showTerrainOverlay) {
       return;
     }
 
@@ -152,9 +155,10 @@ export const TerrainGridOverlay: React.FC<TerrainGridOverlayProps> = ({ map }) =
     }
 
     // 2. Vẽ các đường kẻ lưới ô vuông (Square Grid Lines)
-    if (showGrid || terrainEditMode || placementMode) {
-      // Khi zoom xa (< 1.8) và không ở chế độ sơn/đặt công trình, chỉ vẽ mốc 4 ô (~1km) hoặc 20 ô (~5km)
-      const step = (zoom < 1.8 && !terrainEditMode && !placementMode) ? 4 : 1;
+    if (shouldDrawGrid) {
+      // Khi ở chế độ đặt công trình hoặc sửa map, luôn vẽ lưới chi tiết
+      const isPreciseMode = terrainEditMode || Boolean(placementMode) || isEditMode;
+      const step = (zoom < 1.8 && !isPreciseMode) ? 4 : 1;
       const actualStartRow = Math.floor(startRow / step) * step;
       const actualStartCol = Math.floor(startCol / step) * step;
 
@@ -216,7 +220,7 @@ export const TerrainGridOverlay: React.FC<TerrainGridOverlayProps> = ({ map }) =
     }
 
     // 3. Highlight ô đang rê chuột (Hover) hoặc vùng cọ vẽ (Brush)
-    if (hoveredCell) {
+    if (hoveredCell && (shouldDrawGrid || showTerrainOverlay)) {
       if (terrainEditMode) {
         // Vẽ viền phạm vi cọ vẽ (1x1, 3x3, 5x5, 9x9)
         const half = Math.floor(brushSize / 2);
@@ -251,6 +255,7 @@ export const TerrainGridOverlay: React.FC<TerrainGridOverlayProps> = ({ map }) =
   }, [
     map,
     syncCanvasSizeAndPos,
+    isEditMode,
     showGrid,
     showTerrainOverlay,
     terrainEditMode,
@@ -298,6 +303,12 @@ export const TerrainGridOverlay: React.FC<TerrainGridOverlayProps> = ({ map }) =
     if (!map) return;
 
     const handleMouseMove = (e: L.LeafletMouseEvent) => {
+      const isGridActive = showGrid || isEditMode || terrainEditMode || Boolean(placementMode) || showTerrainOverlay;
+      if (!isGridActive) {
+        if (hoveredCell) setHoveredCell(null);
+        return;
+      }
+
       const { x, y } = latLngToPercent(e.latlng);
       const cell = coordToCell(x, y);
 
@@ -342,7 +353,18 @@ export const TerrainGridOverlay: React.FC<TerrainGridOverlayProps> = ({ map }) =
       map.off('mouseup', handleMouseUp);
       map.off('mouseout', handleMouseLeave);
     };
-  }, [map, terrainEditMode, brushTerrain, brushSize, setHoveredCell]);
+  }, [
+    map,
+    showGrid,
+    isEditMode,
+    showTerrainOverlay,
+    placementMode,
+    terrainEditMode,
+    brushTerrain,
+    brushSize,
+    setHoveredCell,
+    hoveredCell,
+  ]);
 
   return null;
 };
