@@ -1,3 +1,4 @@
+import { useUIStore } from './uiStore';
 import { create } from 'zustand';
 import type {
   Resources,
@@ -93,6 +94,8 @@ interface GameState {
   placeStructure: (cityId: string, type: StructureType, x: number, y: number) => { success: boolean; message: string };
   relocateStructure: (structureId: string, newX: number, newY: number) => { success: boolean; message: string };
   demolishStructure: (structureId: string) => { success: boolean; message: string };
+  relocateBase: (baseId: string, newX: number, newY: number, newDistrictId?: string) => { success: boolean; message: string };
+  demolishBase: (baseId: string) => { success: boolean; message: string };
   assignFarmWorkers: (structureId: string, delta: number) => { success: boolean; message: string };
   startForgeOrder: (structureId: string, order: { weaponType: WeaponCraftType; quantity: number; smiths: number }) => { success: boolean; message: string };
   cancelForgeOrder: (structureId: string) => void;
@@ -454,6 +457,159 @@ export const useGameStore = create<GameState>((set, get) => ({
     return {
       success: true,
       message: `Đã phá dỡ [${structure.name}], thu hồi +${refundGold} Vàng và trả ${returnedWorkers} tráng phu về rảnh rỗi!`,
+    };
+  },
+
+  // 1.3 DI DỜI CĂN CỨ SANG VỊ TRÍ MỚI
+  relocateBase: (baseId: string, newX: number, newY: number, newDistrictId?: string) => {
+    const base = get().cities.find(c => c.id === baseId);
+    if (!base) {
+      return { success: false, message: 'Căn cứ không tồn tại!' };
+    }
+
+    const terrain = getGridTerrainAt(newX, newY);
+    if (terrain === 'water' || terrain === 'cliff') {
+      return { success: false, message: 'Không thể đóng quân trên sông nước sâu hoặc vách đá hiểm trở!' };
+    }
+
+    // Kiểm tra cự ly với các cứ điểm khác (cần cách ít nhất 2.5 dặm)
+    for (const c of get().cities) {
+      if (c.id === baseId) continue;
+      if (Math.hypot(c.x - newX, c.y - newY) < 2.5) {
+        return { success: false, message: `Vị trí quá gần cứ điểm [${c.name}] (cần cách ít nhất 2.5 dặm)!` };
+      }
+    }
+
+    set(state => ({
+      cities: state.cities.map(c => {
+        if (c.id !== baseId) return c;
+        return {
+          ...c,
+          x: newX,
+          y: newY,
+          districtId: newDistrictId || c.districtId,
+        };
+      }),
+    }));
+
+    // Cập nhật tọa độ lưu trữ
+    try {
+      const saved = localStorage.getItem(COORDS_STORAGE_KEY);
+      const parsed = saved ? JSON.parse(saved) : {};
+      parsed[baseId] = { x: newX, y: newY };
+      localStorage.setItem(COORDS_STORAGE_KEY, JSON.stringify(parsed));
+    } catch {
+      // ignore
+    }
+
+    return {
+      success: true,
+      message: `Đã di dời thành công Căn cứ [${base.name}] sang vị trí mới!`,
+    };
+  },
+
+  // 1.4 PHÁ HỦY / GIẢI THỂ CĂN CỨ VÀ DỒN QUÂN VỀ CĂN CỨ GẦN NHẤT
+  demolishBase: (baseId: string) => {
+    const target = get().cities.find(c => c.id === baseId);
+    if (!target) {
+      return { success: false, message: 'Căn cứ không tồn tại!' };
+    }
+
+    if (target.faction !== 'lam_son') {
+      return { success: false, message: 'Chỉ có thể giải thể căn cứ thuộc phe Lam Sơn!' };
+    }
+
+    // Đếm số căn cứ còn lại của Lam Sơn
+    const lamSonBases = get().cities.filter(c => c.faction === 'lam_son' && (c.hasBase || c.type === 'camp') && c.id !== baseId);
+    if (lamSonBases.length === 0) {
+      return {
+        success: false,
+        message: 'Nghĩa quân cần ít nhất một căn cứ để duy trì đại nghiệp! Không thể giải thể bản doanh cuối cùng.',
+      };
+    }
+
+    // Tìm căn cứ Lam Sơn gần nhất theo khoảng cách hình học
+    let nearestBase = lamSonBases[0];
+    let minDist = Infinity;
+    for (const b of lamSonBases) {
+      const dist = Math.hypot(b.x - target.x, b.y - target.y);
+      if (dist < minDist) {
+        minDist = dist;
+        nearestBase = b;
+      }
+    }
+
+    const troopsMoving = target.troops;
+    const targetPop = target.population;
+
+    set(state => {
+      // 1. Hợp nhất quân số và dân cư vào căn cứ gần nhất
+      const updatedCities = state.cities.map(c => {
+        if (c.id === nearestBase.id) {
+          const currentPop = c.population || {
+            combatTroops: c.troops,
+            idleLaborers: 0,
+            farmLaborers: 0,
+            forgeLaborers: 0,
+            swappedCombatants: 0,
+            unfitPopulation: 0,
+          };
+          return {
+            ...c,
+            troops: c.troops + troopsMoving,
+            population: {
+              combatTroops: currentPop.combatTroops + (targetPop?.combatTroops || troopsMoving) + (targetPop?.swappedCombatants || 0),
+              idleLaborers: currentPop.idleLaborers + (targetPop?.idleLaborers || 0) + (targetPop?.farmLaborers || 0) + (targetPop?.forgeLaborers || 0),
+              farmLaborers: currentPop.farmLaborers,
+              forgeLaborers: currentPop.forgeLaborers,
+              swappedCombatants: currentPop.swappedCombatants,
+              unfitPopulation: currentPop.unfitPopulation + (targetPop?.unfitPopulation || 0),
+            },
+          };
+        }
+        if (c.id === baseId) {
+          return {
+            ...c,
+            faction: 'neutral' as const,
+            hasBase: false,
+            troops: 0,
+            population: undefined,
+            buildings: undefined,
+            training: null,
+          };
+        }
+        return c;
+      });
+
+      // 2. Chuyển các tướng đóng tại căn cứ bị phá hủy về căn cứ gần nhất
+      const updatedGenerals = state.generals.map(g => {
+        if (g.locationId === baseId) {
+          return { ...g, locationId: nearestBase.id };
+        }
+        return g;
+      });
+
+      // 3. Chuyển giao các cơ quan đồn điền/lò rèn về cho căn cứ gần nhất phụ trách
+      const updatedStructures = state.structures.map(s => {
+        if (s.cityId === baseId) {
+          return { ...s, cityId: nearestBase.id };
+        }
+        return s;
+      });
+
+      return {
+        cities: updatedCities,
+        generals: updatedGenerals,
+        structures: updatedStructures,
+      };
+    });
+
+    // Chuyển chọn giao diện sang căn cứ mới
+    useUIStore.getState().selectBase(nearestBase.id);
+
+    return {
+      success: true,
+      message: `Đã giải thể Căn cứ [${target.name}]! Toàn bộ ${troopsMoving} quân binh, tráng phu và danh tướng đã bí mật rút về tụ hợp tại Căn cứ [${nearestBase.name}].`,
     };
   },
 

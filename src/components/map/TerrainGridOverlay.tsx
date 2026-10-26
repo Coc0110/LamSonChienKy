@@ -37,6 +37,7 @@ export const TerrainGridOverlay: React.FC<TerrainGridOverlayProps> = ({ map }) =
   const brushTerrain = useUIStore(state => state.brushTerrain);
   const brushSize = useUIStore(state => state.brushSize);
   const placementMode = useUIStore(state => state.placementMode);
+  const baseRelocateMode = useUIStore(state => state.baseRelocateMode);
   const hoveredCell = useUIStore(state => state.hoveredCell);
   const setHoveredCell = useUIStore(state => state.setHoveredCell);
 
@@ -129,10 +130,10 @@ export const TerrainGridOverlay: React.FC<TerrainGridOverlayProps> = ({ map }) =
     const zoom = map.getZoom();
 
     // 1. Tô màu địa hình từng ô nếu bật showTerrainOverlay, terrainEditMode hoặc khi đang xây dựng (placementMode)
-    const isShowingTerrainColors = showTerrainOverlay || terrainEditMode || Boolean(placementMode);
+    const isShowingTerrainColors = showTerrainOverlay || terrainEditMode || Boolean(placementMode) || Boolean(baseRelocateMode);
     if (isShowingTerrainColors) {
       // Khi zoom xa (< 1.8) và không ở chế độ sơn/đặt công trình, tô màu gộp 4 ô (~1km) hoặc 2 ô để tối ưu mượt mà 60fps
-      const isPreciseMode = terrainEditMode || Boolean(placementMode);
+      const isPreciseMode = terrainEditMode || Boolean(placementMode) || Boolean(baseRelocateMode);
       const fillStep = (zoom < 1.8 && !isPreciseMode) ? 4 : (zoom < 2.2 && !isPreciseMode) ? 2 : 1;
 
       for (let r = startRow; r <= endRow; r += fillStep) {

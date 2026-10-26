@@ -78,6 +78,7 @@ export interface CityNode {
   id: string;
   name: string;
   type: NodeType;
+  districtId?: string;
   x: number;
   y: number;
   faction: Faction;

@@ -18,3 +18,39 @@ export const latLngToPercent = (latlng: L.LatLng): { x: number; y: number } => {
   const y = Math.max(0, Math.min(100, Math.round(((-latlng.lat / MAP_COORD_H) * 100) * 1000) / 1000));
   return { x, y };
 };
+
+// Thuật toán Ray-Casting kiểm tra điểm (x, y) có nằm trong đa giác hay không
+export const pointInPolygon = (x: number, y: number, vs: [number, number][]): boolean => {
+  let inside = false;
+  for (let i = 0, j = vs.length - 1; i < vs.length; j = i++) {
+    const xi = vs[i][0], yi = vs[i][1];
+    const xj = vs[j][0], yj = vs[j][1];
+    const intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+};
+
+// Tra cứu huyện chứa tọa độ (x, y)
+export const findDistrictForCoord = <T extends { id: string; name: string; center: [number, number]; polygon: [number, number][] }>(
+  x: number,
+  y: number,
+  districts: T[]
+): T | null => {
+  for (const d of districts) {
+    if (pointInPolygon(x, y, d.polygon)) {
+      return d;
+    }
+  }
+  // Nếu nằm ngoài ranh giới đa giác (sát viền), lấy huyện có tâm gần nhất
+  let closest: T | null = null;
+  let minDist = Infinity;
+  for (const d of districts) {
+    const dist = Math.hypot(d.center[0] - x, d.center[1] - y);
+    if (dist < minDist) {
+      minDist = dist;
+      closest = d;
+    }
+  }
+  return closest;
+};

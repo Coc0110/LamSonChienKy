@@ -81,6 +81,7 @@ export const INITIAL_CITIES: CityNode[] = [
     {
       id: 'lam_son',
       name: 'Lam Sơn',
+      districtId: 'lam_son',
       type: 'camp',
       x: 55.6,
       y: 48.1,
@@ -104,11 +105,13 @@ export const INITIAL_CITIES: CityNode[] = [
     {
       id: 'chi_linh',
       name: 'Núi Chí Linh',
+      districtId: 'chi_linh',
       type: 'camp',
       x: 51.8,
       y: 46.5,
       faction: 'lam_son',
       troops: 20,
+      hasBase: true,
       population: {
         combatTroops: 20,       // Đội tuần tiễu sơn trại hiểm yếu
         idleLaborers: 25,

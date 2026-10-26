@@ -8,6 +8,7 @@ import type { DistrictInfo, ParchmentMode } from '../../types/map';
 import {
   percentToLatLng,
   latLngToPercent,
+  findDistrictForCoord,
   MAP_COORD_W,
   MAP_COORD_H,
   TILE_SIZE,
@@ -17,6 +18,7 @@ import { TERRAIN_DEFINITIONS } from '../../data/terrainData';
 import type { TerrainType } from '../../types/terrain';
 import {
   validateCellPlacement,
+  coordToCell,
   getGridTerrain,
   cellToCoord,
 } from '../../data/terrainGrid';
@@ -110,16 +112,38 @@ export const WorldMap: React.FC = () => {
   const toggleEditMode = useUIStore(state => state.toggleEditMode);
   const selectedCityId = useUIStore(state => state.selectedCityId);
   const selectCity = useUIStore(state => state.selectCity);
+  const selectBase = useUIStore(state => state.selectBase);
+  const selectDistrict = useUIStore(state => state.selectDistrict);
   const placementMode = useUIStore(state => state.placementMode);
   const setPlacementMode = useUIStore(state => state.setPlacementMode);
+  const baseRelocateMode = useUIStore(state => state.baseRelocateMode);
+  const setBaseRelocateMode = useUIStore(state => state.setBaseRelocateMode);
   const showGrid = useUIStore(state => state.showGrid);
   const hoveredCell = useUIStore(state => state.hoveredCell);
 
   // Popover thao tác nhanh khi nhấp chọn cơ quan/công trình trên bản đồ
   const [selectedStructureMenu, setSelectedStructureMenu] = useState<PlacedStructure | null>(null);
 
-  // Hàm xử lý đặt hoặc di dời công trình dùng chung cho mọi sự kiện click (polygon, marker, base map)
+  // Hàm xử lý đặt hoặc di dời công trình / căn cứ dùng chung cho mọi sự kiện click (polygon, marker, base map)
   const handlePlacementAt = useCallback((latlng: L.LatLng) => {
+    const currentBaseRelocate = useUIStore.getState().baseRelocateMode;
+    if (currentBaseRelocate) {
+      const { x, y } = latLngToPercent(latlng);
+      const cell = coordToCell(x, y);
+      const { minX, minY, maxX, maxY } = cellToCoord(cell.col, cell.row);
+      const snappedX = Math.round(((minX + maxX) / 2) * 100) / 100;
+      const snappedY = Math.round(((minY + maxY) / 2) * 100) / 100;
+
+      const matchedDistrict = findDistrictForCoord(snappedX, snappedY, districtsList);
+      const latestState = useGameStore.getState();
+      const res = latestState.relocateBase(currentBaseRelocate.baseId, snappedX, snappedY, matchedDistrict?.id);
+      if (res.success) {
+        useUIStore.getState().setBaseRelocateMode(null);
+      }
+      alert(res.message);
+      return;
+    }
+
     const currentPlacement = useUIStore.getState().placementMode;
     if (!currentPlacement) return;
 
@@ -537,11 +561,11 @@ export const WorldMap: React.FC = () => {
 
       poly.on('click', (e) => {
         L.DomEvent.stopPropagation(e);
-        if (useUIStore.getState().placementMode) {
+        if (useUIStore.getState().placementMode || useUIStore.getState().baseRelocateMode) {
           handlePlacementAtRef.current(e.latlng);
           return;
         }
-        selectCity(district.id);
+        selectDistrict(district.id);
       });
 
       poly.addTo(map);
@@ -724,19 +748,34 @@ export const WorldMap: React.FC = () => {
       const isLamSonBase = city.faction === 'lam_son' && (city.hasBase || city.id === 'lam_son');
       const isMing = city.faction === 'ming';
 
-      // 1. Căn Cứ Nghĩa Quân (Chấm Đỏ Lam Sơn)
+      // 1. Căn Cứ Nghĩa Quân (Chấm Đỏ Lam Sơn - Kích thước to nhỏ theo số quân)
       if (isLamSonBase) {
         const hasTraining = !!(city.training && city.training.remainingDays > 0);
+        const troops = city.troops;
+
+        // Tỉ lệ kích thước hạt nhân và hào quang tương ứng với lượng quân đồn trú
+        const baseSize = Math.max(22, Math.min(52, Math.round(18 + Math.sqrt(Math.max(0, troops)) * 1.05)));
+        const pingSize = Math.round(baseSize * 1.8);
+        const pulseSize = Math.round(baseSize * 1.4);
+        const coreDotSize = Math.max(3, Math.min(8, Math.round(baseSize * 0.2)));
+
+        const matchedDistrict = findDistrictForCoord(city.x, city.y, districtsList);
+        const districtName = matchedDistrict?.name || city.name;
 
         const html = `
           <div class="relative w-full h-full flex items-center justify-center cursor-pointer select-none group">
             <!-- Vòng sóng nhấp nháy phát quang căn cứ Lam Sơn -->
-            <div class="absolute w-9 h-9 rounded-full bg-red-600/35 animate-ping pointer-events-none"></div>
-            <div class="absolute w-7 h-7 rounded-full bg-red-500/30 animate-pulse pointer-events-none"></div>
+            <div style="width: ${pingSize}px; height: ${pingSize}px;" class="absolute rounded-full bg-red-600/35 animate-ping pointer-events-none"></div>
+            <div style="width: ${pulseSize}px; height: ${pulseSize}px;" class="absolute rounded-full bg-red-500/30 animate-pulse pointer-events-none"></div>
 
-            <!-- Chấm đỏ căn cứ trung tâm -->
-            <div class="w-5 h-5 rounded-full bg-red-600 border-2 border-amber-200 shadow-[0_0_14px_rgba(239,68,68,1)] flex items-center justify-center transform group-hover:scale-125 transition-transform duration-150 z-10">
-              <div class="w-1.5 h-1.5 rounded-full bg-white shadow-xs"></div>
+            <!-- Chấm đỏ căn cứ trung tâm (to nhỏ linh hoạt theo quân số) -->
+            <div style="width: ${baseSize}px; height: ${baseSize}px;" class="rounded-full bg-red-600 border-2 border-amber-200 shadow-[0_0_16px_rgba(239,68,68,1)] flex items-center justify-center transform group-hover:scale-120 transition-all duration-150 z-10">
+              <div style="width: ${coreDotSize}px; height: ${coreDotSize}px;" class="rounded-full bg-white shadow-xs"></div>
+            </div>
+
+            <!-- Huy hiệu quân số đồn trú -->
+            <div class="absolute -top-3 -right-3 px-1.5 py-0.2 rounded-full bg-[#1c0f06] border border-amber-400 text-[10px] font-mono font-bold text-amber-300 shadow-md pointer-events-none z-20">
+              ${troops}
             </div>
 
             <!-- Icon Song Kiếm khi đang thao luyện -->
@@ -754,29 +793,31 @@ export const WorldMap: React.FC = () => {
             <!-- Tooltip chi tiết khi rê chuột -->
             <div class="hidden group-hover:block absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 rounded-lg bg-[#1a0f08]/98 border border-red-500 shadow-2xl text-stone-200 text-xs whitespace-nowrap pointer-events-none z-30">
               <div class="font-serif font-bold text-red-400">Đại Bản Doanh ${city.name}</div>
-              <div class="text-[11px] text-stone-300">Quân đồn trú: ${city.troops} nghĩa binh</div>
+              <div class="text-[10px] text-amber-300/90 font-serif">Thuộc địa bàn: Huyện ${districtName}</div>
+              <div class="text-[11px] text-stone-300 mt-0.5">Quân đồn trú: ${city.troops} nghĩa binh</div>
               ${hasTraining ? `<div class="text-[11px] text-amber-300 font-bold mt-0.5">⚔️ Đang thao luyện ${city.training!.traineesCount} tráng phu (còn ${city.training!.remainingDays} ngày)</div>` : ''}
             </div>
           </div>
         `;
 
+        const totalIconSize = baseSize + 14;
         const marker = L.marker(pos, {
           icon: L.divIcon({
             className: 'base-node-marker',
             html,
-            iconSize: [28, 28],
-            iconAnchor: [14, 14],
+            iconSize: [totalIconSize, totalIconSize],
+            iconAnchor: [totalIconSize / 2, totalIconSize / 2],
           }),
           pane: 'structuresPane',
         });
 
         marker.on('click', (e) => {
           L.DomEvent.stopPropagation(e);
-          if (useUIStore.getState().placementMode) {
+          if (useUIStore.getState().placementMode || useUIStore.getState().baseRelocateMode) {
             handlePlacementAtRef.current(e.latlng);
             return;
           }
-          selectCity(city.id);
+          selectBase(city.id);
         });
 
         marker.addTo(layer);
@@ -819,11 +860,11 @@ export const WorldMap: React.FC = () => {
 
         marker.on('click', (e) => {
           L.DomEvent.stopPropagation(e);
-          if (useUIStore.getState().placementMode) {
+          if (useUIStore.getState().placementMode || useUIStore.getState().baseRelocateMode) {
             handlePlacementAtRef.current(e.latlng);
             return;
           }
-          selectCity(city.id);
+          selectBase(city.id);
         });
 
         marker.addTo(layer);
@@ -924,33 +965,76 @@ export const WorldMap: React.FC = () => {
     previewLayer.clearLayers();
     controlLayer.clearLayers();
 
-    if (!placementMode) return;
+    if (!placementMode && !baseRelocateMode) return;
 
-    const currentCities = useGameStore.getState().cities;
-    const targetCity = currentCities.find(c => c.id === placementMode.cityId);
+    if (placementMode) {
+      const currentCities = useGameStore.getState().cities;
+      const targetCity = currentCities.find(c => c.id === placementMode.cityId);
 
-    // Vẽ vòng tròn bán kính 14 dặm bao bọc căn cứ
-    if (targetCity) {
-      const baseLatLng = percentToLatLng(targetCity.x, targetCity.y);
-      const radiusCRS = (14.0 / 100) * MAP_COORD_W;
+      // Vẽ vòng tròn bán kính 14 dặm bao bọc căn cứ
+      if (targetCity) {
+        const baseLatLng = percentToLatLng(targetCity.x, targetCity.y);
+        const radiusCRS = (14.0 / 100) * MAP_COORD_W;
 
-      const controlCircle = L.circle(baseLatLng, {
-        radius: radiusCRS,
-        color: '#f59e0b',
-        weight: 1.5,
-        dashArray: '6, 6',
-        fillColor: '#f59e0b',
-        fillOpacity: 0.08,
-        pane: 'structuresPane',
-        interactive: false,
-      });
+        const controlCircle = L.circle(baseLatLng, {
+          radius: radiusCRS,
+          color: '#f59e0b',
+          weight: 1.5,
+          dashArray: '6, 6',
+          fillColor: '#f59e0b',
+          fillOpacity: 0.08,
+          pane: 'structuresPane',
+          interactive: false,
+        });
 
-      controlCircle.addTo(controlLayer);
+        controlCircle.addTo(controlLayer);
+      }
     }
 
     const handleMouseMove = (e: L.LeafletMouseEvent) => {
       previewLayer.clearLayers();
       const { x, y } = latLngToPercent(e.latlng);
+
+      if (baseRelocateMode) {
+        const cell = coordToCell(x, y);
+        const { minX, minY, maxX, maxY } = cellToCoord(cell.col, cell.row);
+        const snappedX = Math.round(((minX + maxX) / 2) * 100) / 100;
+        const snappedY = Math.round(((minY + maxY) / 2) * 100) / 100;
+        const terrain = getGridTerrain(cell.col, cell.row);
+        const terrainInfo = TERRAIN_DEFINITIONS[terrain];
+        const isValid = terrain !== 'water' && terrain !== 'cliff';
+        const color = isValid ? '#22c55e' : '#ef4444';
+        const matchedDistrict = findDistrictForCoord(snappedX, snappedY, districtsList);
+
+        const iconHtml = `
+          <div class="pointer-events-none -translate-x-1/2 -translate-y-1/2 flex flex-col items-center">
+            <div class="w-9 h-9 rounded-full border-2 flex items-center justify-center text-xs shadow-xl animate-pulse"
+                 style="border-color: ${color}; background: ${isValid ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'};">
+              <span class="text-sm">🚚</span>
+            </div>
+            <div class="mt-1 px-2.5 py-0.5 rounded text-[10px] font-serif font-bold text-white shadow whitespace-nowrap"
+                 style="background: ${isValid ? '#15803d' : '#b91c1c'};">
+              ${isValid ? `✓ Đóng quân tại [Ô ${cell.col},${cell.row}] (${terrainInfo.name}) - Huyện ${matchedDistrict?.name || ''}` : `✗ Địa hình hiểm trở (${terrainInfo.name})`}
+            </div>
+          </div>
+        `;
+
+        const previewMarker = L.marker(percentToLatLng(snappedX, snappedY), {
+          icon: L.divIcon({
+            className: 'base-relocate-preview-marker',
+            html: iconHtml,
+            iconSize: [40, 40],
+            iconAnchor: [20, 20],
+          }),
+          pane: 'structuresPane',
+          interactive: false,
+        });
+
+        previewMarker.addTo(previewLayer);
+        return;
+      }
+
+      if (!placementMode) return;
       const latestState = useGameStore.getState();
 
       const validation = validateCellPlacement(
@@ -1006,6 +1090,7 @@ export const WorldMap: React.FC = () => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setPlacementMode(null);
+        setBaseRelocateMode(null);
       }
     };
 
@@ -1020,7 +1105,7 @@ export const WorldMap: React.FC = () => {
       previewLayer.clearLayers();
       controlLayer.clearLayers();
     };
-  }, [mapInstance, placementMode, placeStructure, setPlacementMode]);
+  }, [mapInstance, placementMode, baseRelocateMode, districtsList, placeStructure, setPlacementMode, setBaseRelocateMode]);
 
   return (
     <div className="absolute inset-0 z-0 bg-[#16171a] overflow-hidden">
@@ -1034,6 +1119,38 @@ export const WorldMap: React.FC = () => {
           storageKey={DISTRICT_STORAGE_KEY}
           onResetCurrentDistrict={resetSingleDistrict}
         />
+      )}
+
+      {/* THANH ĐIỀU KHIỂN DI DỜI CĂN CỨ */}
+      {baseRelocateMode && (
+        <div className="absolute top-20 left-1/2 -translate-x-1/2 z-[1000] pointer-events-auto flex items-center justify-between gap-4 px-6 py-3 rounded-2xl bg-[#1e130c]/98 border-2 border-amber-500 shadow-[0_10px_35px_rgba(0,0,0,0.85)] backdrop-blur-md animate-in fade-in slide-in-from-top-4 duration-200 max-w-2xl w-[95vw] md:w-auto">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl animate-bounce shrink-0">
+              🚚
+            </span>
+            <div>
+              <div className="font-serif font-black text-amber-300 text-sm flex items-center gap-2">
+                <span>
+                  Đang Di Dời: Căn Cứ {cities.find(c => c.id === baseRelocateMode.baseId)?.name || ''}
+                </span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-950/80 text-amber-200 border border-amber-600/70 font-sans font-bold">
+                  Đất bằng / Rừng già / Núi non
+                </span>
+              </div>
+              <div className="text-[11px] text-stone-300 mt-0.5">
+                👉 Nhấp chuột trái vào bất kỳ ô đất nào trên bản đồ để lập doanh trại mới. (Tránh sông sâu & vách đá).
+              </div>
+            </div>
+          </div>
+
+          <button
+            onClick={() => setBaseRelocateMode(null)}
+            className="shrink-0 px-3.5 py-2 rounded-xl bg-gradient-to-r from-red-800 to-red-700 hover:from-red-700 hover:to-red-600 text-amber-100 font-bold text-xs shadow-lg border border-red-500 transition hover:scale-105 active:scale-95 cursor-pointer whitespace-nowrap flex items-center gap-1.5"
+          >
+            <span>✕</span>
+            <span>HỦY BỎ (ESC)</span>
+          </button>
+        </div>
       )}
 
       {/* THANH ĐIỀU KHIỂN CHẾ ĐỘ XÂY DỰNG & DI DỜI (CONSTRUCTION BAR) */}
