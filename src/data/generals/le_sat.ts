@@ -30,12 +30,12 @@ export const le_sat: General = {
   stats: {
     command: 83,   // Thống Lĩnh (1 - 100)
     martial: 88,   // Võ Nghệ   (1 - 100)
-    intellect: 72, // Mưu Lược  (1 - 100)
+    intellect: 74, // Mưu Lược  (1 - 100)
   },
 
   // --- 3. BINH CHỦNG & ĐẶC KỸ CHIẾN TRẬN ---
   troops: ["infantry","cavalry"],
-  buffName: 'TRẢM SOÁI KỲ',
+  buffName: 'TRẢM SOÁI',
   buffDescription: '+35% Sát thương xung kích, tăng tỷ lệ trảm tướng địch trong phục kích',
   specialty: '+35% Sát thương xung kích, tăng tỷ lệ trảm tướng địch trong phục kích',
 

@@ -29,13 +29,13 @@ export const dinh_le: General = {
   starTier: 'red',
   stats: {
     command: 86,   // Thống Lĩnh (1 - 100)
-    martial: 85,   // Võ Nghệ   (1 - 100)
-    intellect: 80, // Mưu Lược  (1 - 100)
+    martial: 89,   // Võ Nghệ   (1 - 100)
+    intellect: 78, // Mưu Lược  (1 - 100)
   },
 
   // --- 3. BINH CHỦNG & ĐẶC KỸ CHIẾN TRẬN ---
   troops: ["infantry"],
-  buffName: 'MAI PHỤC KẾ',
+  buffName: 'SÁT THẦN',
   buffDescription: '+40% Sức chiến đấu ở địa hình Đầm lầy & Truy kích (Trận Tốt Động)',
   specialty: '+40% Sức chiến đấu ở địa hình Đầm lầy & Truy kích (Trận Tốt Động)',
 
