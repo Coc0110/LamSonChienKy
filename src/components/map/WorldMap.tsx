@@ -12,9 +12,25 @@ import {
   TILE_SIZE,
 } from '../../utils/mapGeo';
 import districtData from '../../data/districtPolygons.json';
-import { getTerrainAt } from '../../data/terrainData';
+import { TERRAIN_DEFINITIONS } from '../../data/terrainData';
+import type { TerrainType } from '../../types/terrain';
+import {
+  validateCellPlacement,
+  getGridTerrain,
+  cellToCoord,
+} from '../../data/terrainGrid';
 import { DistrictEditorBar } from './DistrictEditorBar';
 import { ParchmentControls } from './ParchmentControls';
+import { TerrainGridOverlay } from './TerrainGridOverlay';
+
+const TERRAIN_ICONS: Record<TerrainType, string> = {
+  plains: '🌾',
+  forest: '🌲',
+  mountain: '⛰️',
+  cliff: '🧗',
+  swamp: '💧',
+  water: '🌊',
+};
 
 const DISTRICT_STORAGE_KEY = 'lam_son_district_polygons_custom_v1';
 
@@ -61,6 +77,8 @@ export const WorldMap: React.FC = () => {
   const selectCity = useUIStore(state => state.selectCity);
   const placementMode = useUIStore(state => state.placementMode);
   const setPlacementMode = useUIStore(state => state.setPlacementMode);
+  const showGrid = useUIStore(state => state.showGrid);
+  const hoveredCell = useUIStore(state => state.hoveredCell);
 
   // 1. Khởi tạo Leaflet Map và Multi-resolution TileLayer
   useEffect(() => {
@@ -760,52 +778,19 @@ export const WorldMap: React.FC = () => {
     const handleMouseMove = (e: L.LeafletMouseEvent) => {
       previewLayer.clearLayers();
       const { x, y } = latLngToPercent(e.latlng);
-      const terrain = getTerrainAt(x, y);
-
-      let isValid = true;
-      let reason = '';
-
       const latestState = useGameStore.getState();
-      const latestCity = latestState.cities.find(c => c.id === placementMode.cityId);
 
-      // Kiểm tra khoảng cách tới cứ điểm (14 dặm)
-      if (latestCity) {
-        const cityDist = Math.hypot(latestCity.x - x, latestCity.y - y);
-        if (cityDist > 14.0) {
-          isValid = false;
-          reason = `Quá xa căn cứ (${cityDist.toFixed(1)} > 14 dặm)`;
-        }
-      }
+      const validation = validateCellPlacement(
+        x,
+        y,
+        placementMode.type,
+        placementMode.cityId,
+        latestState.cities,
+        latestState.structures
+      );
 
-      // Kiểm tra khoảng cách tới các công trình khác
-      if (isValid) {
-        for (const s of latestState.structures) {
-          if (Math.hypot(s.x - x, s.y - y) < 2.2) {
-            isValid = false;
-            reason = `Quá gần ${s.name} (< 2.2 dặm)`;
-            break;
-          }
-        }
-      }
-
-      // Kiểm tra địa hình phù hợp
-      if (isValid) {
-        if (placementMode.type === 'farm') {
-          if (terrain.type !== 'plains') {
-            isValid = false;
-            reason = `Địa hình ${terrain.name} (cần Đồng Bằng)`;
-          }
-        } else if (placementMode.type === 'forge') {
-          if (terrain.type === 'water') {
-            isValid = false;
-            reason = 'Không thể đặt trên sông ngòi';
-          } else if (terrain.type === 'cliff') {
-            isValid = false;
-            reason = 'Vách đá dốc không thể dựng lò';
-          }
-        }
-      }
-
+      const isValid = validation.canBuild;
+      const terrainInfo = TERRAIN_DEFINITIONS[validation.terrain];
       const color = isValid ? '#22c55e' : '#ef4444';
       const dotColor = placementMode.type === 'farm' ? 'bg-amber-400' : 'bg-stone-950 border-stone-400';
 
@@ -817,12 +802,15 @@ export const WorldMap: React.FC = () => {
           </div>
           <div class="mt-1 px-2 py-0.5 rounded text-[10px] font-bold text-white shadow whitespace-nowrap"
                style="background: ${isValid ? '#15803d' : '#b91c1c'};">
-            ${isValid ? `✓ Hợp lệ (${terrain.name})` : `✗ ${reason}`}
+            ${isValid ? `✓ Hợp lệ [Ô ${validation.col},${validation.row}] (${terrainInfo.name})` : `✗ ${validation.reason}`}
           </div>
         </div>
       `;
 
-      const previewMarker = L.marker(e.latlng, {
+      // Hút chặt vào tâm của ô vuông lưới (0.5% x 0.5%)
+      const snappedPos = percentToLatLng(validation.snappedX, validation.snappedY);
+
+      const previewMarker = L.marker(snappedPos, {
         icon: L.divIcon({
           className: 'placement-preview-marker',
           html: iconHtml,
@@ -838,7 +826,22 @@ export const WorldMap: React.FC = () => {
 
     const handleClick = (e: L.LeafletMouseEvent) => {
       const { x, y } = latLngToPercent(e.latlng);
-      const res = placeStructure(placementMode.cityId, placementMode.type, x, y);
+      const latestState = useGameStore.getState();
+      const validation = validateCellPlacement(
+        x,
+        y,
+        placementMode.type,
+        placementMode.cityId,
+        latestState.cities,
+        latestState.structures
+      );
+
+      if (!validation.canBuild) {
+        alert(validation.reason || 'Vị trí này không hợp lệ để thi công!');
+        return;
+      }
+
+      const res = placeStructure(placementMode.cityId, placementMode.type, validation.snappedX, validation.snappedY);
       if (res.success) {
         setPlacementMode(null);
       }
@@ -900,6 +903,59 @@ export const WorldMap: React.FC = () => {
         </div>
       )}
 
+      {/* Tấm Lưới Ô Địa Hình Canvas (Grid 0.5% & Sơn Địa Hình) */}
+      <TerrainGridOverlay map={mapInstance} />
+
+      {/* HUD Thông tin Ô Lưới Địa Hình & Tác Chiến khi rê chuột */}
+      {showGrid && hoveredCell && !placementMode && !isEditMode && (() => {
+        const terrainType = getGridTerrain(hoveredCell.col, hoveredCell.row);
+        const terrain = TERRAIN_DEFINITIONS[terrainType];
+        const { centerX, centerY } = cellToCoord(hoveredCell.col, hoveredCell.row);
+
+        const speedText = terrainType === 'water' ? 'Không thể qua (sông nước)'
+          : terrainType === 'cliff' ? 'Vách đá (-80% tốc độ)'
+          : terrainType === 'swamp' ? 'Đầm lầy (-65% tốc độ)'
+          : terrainType === 'mountain' ? 'Núi cao (-55% tốc độ)'
+          : terrainType === 'forest' ? 'Rừng già (-30% tốc độ)'
+          : 'Đồng bằng (100% tốc độ)';
+
+        const tacticalText = terrainType === 'forest' ? '🌲 Phục kích & ẩn nấp: +40%'
+          : terrainType === 'mountain' ? '⛰️ Phòng thủ & chốt chặn: +50%'
+          : terrainType === 'swamp' ? '💧 Bẫy sa lầy kỵ binh: +35%'
+          : terrainType === 'cliff' ? '🧗 Hẻm núi hiểm trở'
+          : terrainType === 'plains' ? '🌾 Đất màu mỡ mở đồn điền'
+          : '🌊 Dòng nước sông Mã tự nhiên';
+
+        return (
+          <div className="absolute bottom-6 left-6 z-30 pointer-events-none animate-in fade-in slide-in-from-bottom-2 duration-150">
+            <div className="px-3 py-2 rounded-lg bg-[#14120e]/95 border border-[#8a724d]/60 shadow-[0_8px_20px_rgba(0,0,0,0.8)] backdrop-blur-sm text-stone-200 font-sans text-xs min-w-[240px]">
+              <div className="flex items-center justify-between pb-1 mb-1.5 border-b border-[#524430]/60">
+                <span className="font-serif font-bold text-[#f7e6c4] flex items-center gap-1.5">
+                  <span className="text-base">{TERRAIN_ICONS[terrainType]}</span>
+                  {terrain.name}
+                </span>
+                <span className="font-mono text-[10px] text-amber-300/80 bg-black/40 px-1.5 py-0.5 rounded">
+                  Ô [{hoveredCell.col}, {hoveredCell.row}] • {centerX.toFixed(1)}%, {centerY.toFixed(1)}%
+                </span>
+              </div>
+              <div className="space-y-1 text-[11px]">
+                <div className="flex items-center justify-between text-stone-300">
+                  <span className="text-stone-400">Hành quân:</span>
+                  <span className="font-medium text-amber-200">{speedText}</span>
+                </div>
+                <div className="text-[11px] text-emerald-400/90 font-medium">
+                  {tacticalText}
+                </div>
+                <div className="pt-1 flex gap-2 text-[10px] text-stone-400 border-t border-stone-800/60">
+                  <span>Ruộng: {terrainType === 'plains' ? '🟢 Khả dụng' : '🔴 Cấm'}</span>
+                  <span>Lò rèn: {terrainType !== 'water' && terrainType !== 'cliff' ? '🟢 Khả dụng' : '🔴 Cấm'}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Thanh chuyển đổi chế độ xem Sa bàn Giấy Da Cừu */}
       <ParchmentControls
         parchmentMode={parchmentMode}
@@ -930,7 +986,23 @@ export const WorldMap: React.FC = () => {
             const pt = L.point(e.clientX - rect.left, e.clientY - rect.top);
             const latlng = map.containerPointToLatLng(pt);
             const { x, y } = latLngToPercent(latlng);
-            const res = placeStructure(data.cityId, data.type, x, y);
+
+            const latestState = useGameStore.getState();
+            const validation = validateCellPlacement(
+              x,
+              y,
+              data.type,
+              data.cityId,
+              latestState.cities,
+              latestState.structures
+            );
+
+            if (!validation.canBuild) {
+              alert(validation.reason || 'Không thể cắm mốc tại ô này!');
+              return;
+            }
+
+            const res = placeStructure(data.cityId, data.type, validation.snappedX, validation.snappedY);
             alert(res.message);
           } catch {
             // ignore

@@ -19,7 +19,8 @@ import {
   START_YEAR,
 } from '../data/mapData';
 import { INITIAL_GENERALS } from '../data/generalsData';
-import { getTerrainAt } from '../data/terrainData';
+import { TERRAIN_DEFINITIONS } from '../data/terrainData';
+import { getGridTerrainAt } from '../data/terrainGrid';
 
 const COORDS_STORAGE_KEY = 'lam_son_coords_v3_districts';
 
@@ -278,16 +279,17 @@ export const useGameStore = create<GameState>((set, get) => ({
     }
 
     // Kiểm tra tính phù hợp của địa hình
-    const terrain = getTerrainAt(x, y);
+    const terrainType = getGridTerrainAt(x, y);
+    const terrainInfo = TERRAIN_DEFINITIONS[terrainType];
     if (type === 'farm') {
-      if (terrain.type !== 'plains') {
-        return { success: false, message: `Ruộng lúa nước bắt buộc phải khai hoang tại đất bãi phù sa Đồng Bằng! Địa hình nơi đây là ${terrain.name}, không thể cày cấy.` };
+      if (terrainType !== 'plains') {
+        return { success: false, message: `Ruộng lúa nước bắt buộc phải khai hoang tại đất bãi phù sa Đồng Bằng! Địa hình nơi đây là ${terrainInfo.name}, không thể cày cấy.` };
       }
     } else if (type === 'forge') {
-      if (terrain.type === 'water') {
+      if (terrainType === 'water') {
         return { success: false, message: 'Không thể dựng lò rèn trên sông ngòi, dòng chảy!' };
       }
-      if (terrain.type === 'cliff') {
+      if (terrainType === 'cliff') {
         return { success: false, message: 'Vách đá dốc đứng hiểm trở, không có mặt bằng dựng lò rèn!' };
       }
     }
@@ -313,7 +315,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       name: type === 'farm' ? `Đồn Điền ${city.name} ${sameTypeCount}` : `Lò Rèn ${city.name} ${sameTypeCount}`,
       x,
       y,
-      terrain: terrain.type,
+      terrain: terrainType,
       status: 'building',
       buildDaysTotal: buildDays,
       buildDaysRemaining: buildDays,
@@ -347,7 +349,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       success: true,
       message: type === 'farm'
         ? `Đã cắm mốc khai hoang [${newStructure.name}] tại đồng bằng. Cần 12 ngày thi công!`
-        : `Đã khởi công dựng [${newStructure.name}] tại ${terrain.name}. Cần 18 ngày thi công!`,
+        : `Đã khởi công dựng [${newStructure.name}] tại ${terrainInfo.name}. Cần 18 ngày thi công!`,
     };
   },
 
