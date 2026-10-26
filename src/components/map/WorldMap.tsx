@@ -511,7 +511,7 @@ export const WorldMap: React.FC = () => {
 
         const labelHtml = `
           <div class="pointer-events-none select-none flex items-center justify-center whitespace-nowrap font-serif font-black tracking-widest ${isSelected ? 'scale-115' : ''} transition-transform duration-150 animate-in fade-in zoom-in-95"
-               style="font-size: 19px; transform: translate(-50%, calc(-50% - 14px)); text-align: center; text-shadow: -1.5px -1.5px 0 #180e06, 1.5px -1.5px 0 #180e06, -1.5px 1.5px 0 #180e06, 1.5px 1.5px 0 #180e06, 0 2px 8px rgba(0,0,0,0.95), 0 0 14px ${glowColor};">
+               style="font-size: 19px; transform: translate(-50%, calc(-60% - 14px)); text-align: center; text-shadow: -1.5px -1.5px 0 #180e06, 1.5px -1.5px 0 #180e06, -1.5px 1.5px 0 #180e06, 1.5px 1.5px 0 #180e06, 0 2px 8px rgba(0,0,0,0.95), 0 0 14px ${glowColor};">
             <span class="${factionColor}">${district.name}</span>
             ${troopsBadge}
           </div>
