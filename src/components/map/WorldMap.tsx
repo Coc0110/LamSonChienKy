@@ -55,15 +55,48 @@ export const WorldMap: React.FC = () => {
 
   // Danh sách polygon các huyện (hỗ trợ lưu chỉnh sửa vào localStorage)
   const [districtsList, setDistrictsList] = useState<DistrictInfo[]>(() => {
+    const defaultDistricts: DistrictInfo[] = (districtData as any).districts || [];
     try {
       const saved = localStorage.getItem(DISTRICT_STORAGE_KEY);
       if (saved) {
-        return JSON.parse(saved);
+        const parsed: DistrictInfo[] = JSON.parse(saved);
+        // Tự động kiểm tra và phục hồi các đỉnh bị lỗi văng ra góc trên bên trái do bug chia 100
+        let hasFixed = false;
+        const repaired = parsed.map(d => {
+          const defaultD = defaultDistricts.find(def => def.id === d.id);
+          const repairedPolygon = d.polygon.map((pt, idx) => {
+            if (defaultD && defaultD.polygon[idx] && (pt[0] < 5 || pt[1] < 5)) {
+              const defPt = defaultD.polygon[idx];
+              if (defPt[0] > 20 && defPt[1] > 20) {
+                hasFixed = true;
+                // Nếu tọa độ x * 100 gần bằng defPt[0], khôi phục giá trị đã scale 100
+                if (Math.abs(pt[0] * 100 - defPt[0]) < 10 && Math.abs(pt[1] * 100 - defPt[1]) < 10) {
+                  return [Math.round(pt[0] * 100 * 1000) / 1000, Math.round(pt[1] * 100 * 1000) / 1000] as [number, number];
+                }
+                return defPt;
+              }
+            }
+            return pt;
+          });
+          return {
+            ...d,
+            polygon: repairedPolygon,
+          };
+        });
+
+        if (hasFixed) {
+          try {
+            localStorage.setItem(DISTRICT_STORAGE_KEY, JSON.stringify(repaired));
+          } catch {
+            // ignore
+          }
+        }
+        return repaired;
       }
     } catch {
       // ignore
     }
-    return (districtData as any).districts || [];
+    return defaultDistricts;
   });
 
   const cities = useGameStore(state => state.cities);
@@ -100,6 +133,40 @@ export const WorldMap: React.FC = () => {
       attributionControl: false,
       zoomControl: false,
     });
+
+    // Chuyển thao tác kéo di chuyển bản đồ sang CHUỘT PHẢI (Right-click drag)
+    // và ngăn menu chuột phải mặc định của trình duyệt
+    const mapContainer = mapContainerRef.current;
+    const handleContextMenu = (e: MouseEvent) => {
+      e.preventDefault();
+    };
+    mapContainer.addEventListener('contextmenu', handleContextMenu);
+
+    const draggable = (map.dragging as any)._draggable;
+    if (draggable) {
+      draggable.disable();
+      const origOnDown = draggable._onDown;
+      draggable._onDown = function (e: any) {
+        // Nếu là chuột trái thông thường (không phải touch) -> bỏ qua, để chuột trái sơn/chọn/nắn ranh giới
+        if (!e.touches && e.button !== 2 && e.which !== 3) {
+          return;
+        }
+        // Nếu là chuột phải -> giả lập để Leaflet Draggable kích hoạt kéo bản đồ
+        if (e.button === 2 || e.which === 3) {
+          const fakeEvent = new Proxy(e, {
+            get(target, prop) {
+              if (prop === 'which' || prop === 'button') return 1;
+              const val = (target as any)[prop];
+              return typeof val === 'function' ? val.bind(target) : val;
+            },
+          });
+          return origOnDown.call(this, fakeEvent);
+        }
+        // Hỗ trợ cảm ứng màn hình
+        return origOnDown.call(this, e);
+      };
+      draggable.enable();
+    }
 
     // Thiết lập tâm và mức zoom khởi tạo ngay lập tức để map._loaded = true
     const initialCenter = percentToLatLng(54.5, 47.5);
@@ -244,6 +311,7 @@ export const WorldMap: React.FC = () => {
 
     return () => {
       isDisposed = true;
+      mapContainer?.removeEventListener('contextmenu', handleContextMenu);
       clearTimeout(initTimer);
       window.removeEventListener('resize', handleResize);
       polygonsMapRef.current.clear();
@@ -347,6 +415,23 @@ export const WorldMap: React.FC = () => {
         if (vertexIndex === newPoly.length - 1) newPoly[0] = [newX, newY];
         return { ...d, polygon: newPoly };
       });
+      try {
+        localStorage.setItem(DISTRICT_STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  };
+
+  // Khôi phục ranh giới của một huyện về mặc định ban đầu
+  const resetSingleDistrict = (districtId: string) => {
+    const defaultDistricts: DistrictInfo[] = (districtData as any).districts || [];
+    const defaultD = defaultDistricts.find(d => d.id === districtId);
+    if (!defaultD) return;
+
+    setDistrictsList(prev => {
+      const next = prev.map(d => (d.id === districtId ? { ...defaultD, polygon: [...defaultD.polygon] } : d));
       try {
         localStorage.setItem(DISTRICT_STORAGE_KEY, JSON.stringify(next));
       } catch {
@@ -883,6 +968,7 @@ export const WorldMap: React.FC = () => {
           onSelectCity={selectCity}
           onToggleEditMode={toggleEditMode}
           storageKey={DISTRICT_STORAGE_KEY}
+          onResetCurrentDistrict={resetSingleDistrict}
         />
       )}
 
@@ -897,7 +983,7 @@ export const WorldMap: React.FC = () => {
               Đang chọn vị trí khai hoang {placementMode.type === 'farm' ? 'Ruộng Lúa Nước (chỉ đất Đồng Bằng)' : 'Lò Rèn Bí Mật (ưu tiên Rừng/Núi)'}
             </div>
             <div className="text-[11px] text-stone-300">
-              Rê chuột trên bản đồ xem kiểm tra địa hình, nhấp chuột để cắm mốc xây dựng.
+              Rê chuột trên bản đồ xem kiểm tra địa hình, nhấp chuột trái để cắm mốc, giữ chuột phải để kéo di chuyển bản đồ.
             </div>
           </div>
           <button

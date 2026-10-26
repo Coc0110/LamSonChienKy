@@ -70,7 +70,7 @@ export const ParchmentControls: React.FC<ParchmentControlsProps> = ({
 
       <div className="h-4 w-[1px] bg-[#a87c4f]/40 mx-1" />
 
-      {/* Nút Bật/Tắt Lưới ô vuông 0.5% (~1km) */}
+      {/* Nút Bật/Tắt Lưới ô vuông (250m) */}
       <button
         onClick={toggleGrid}
         className={`px-2.5 py-1 rounded transition-colors cursor-pointer ${
@@ -78,9 +78,9 @@ export const ParchmentControls: React.FC<ParchmentControlsProps> = ({
             ? 'bg-[#2b4c38] text-[#e6f4ea] border border-[#529b68] font-bold shadow'
             : 'text-[#a3b899] hover:bg-[#1a2e22]'
         }`}
-        title="Bật/tắt lưới tọa độ ô vuông (độ phân giải 0.5% ~ 1km)"
+        title="Bật/tắt lưới tọa độ ô vuông (cạnh 250m, mốc phân vạch 1km và 5km)"
       >
-        Lưới Ô (1km): {showGrid ? 'Bật' : 'Tắt'}
+        Lưới Ô Vuông: {showGrid ? 'Bật' : 'Tắt'}
       </button>
 
       {/* Nút Bật/Tắt Lớp phủ màu Địa Hình */}

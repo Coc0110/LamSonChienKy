@@ -147,6 +147,8 @@ export const GENERAL_PORTRAIT_CONFIG: Record<string, { scale?: number; x?: strin
   dinh_le: { scale: 1.0, x: '0px', y: '10px' },
   luu_nhan_chu: { scale: 1.2, x: '15px', y: '15px' },
   le_van_an: { scale: 1.0, x: '-20px', y: '25px' },
+  bui_quoc_hung: { scale: 1.0, x: '-2px', y: '12px' },
+  le_van_linh: { scale: 1.0, x: '0px', y: '15px' },
 };
 
 export const GENERAL_NAME_CONFIG: Record<string, {
@@ -165,4 +167,6 @@ export const GENERAL_NAME_CONFIG: Record<string, {
   dinh_le:      { left: '14%',  bottom: '67%', x: '0px', y: '0px' },
   luu_nhan_chu: { right: '58%', top: '24%',    x: '0px', y: '0px' },
   le_van_an:    { right: '64%', top: '25%',    x: '0px', y: '0px' },
+  bui_quoc_hung:{ right: '59%', bottom: '61%', x: '0px', y: '0px' },
+  le_van_linh:  { right: '12%', top: '22%',    x: '0px', y: '0px' },
 };

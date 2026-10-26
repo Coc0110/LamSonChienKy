@@ -2,13 +2,20 @@ import type { TerrainType } from '../types/terrain';
 import type { StructureType, CityNode, PlacedStructure, TroopType } from '../types';
 import type { CellBuildValidation, GridPathResult } from '../types/grid';
 import { getTerrainAt, TERRAIN_DEFINITIONS } from './terrainData';
+import { MAP_COORD_W, MAP_COORD_H } from '../utils/mapGeo';
 
-export const GRID_CELL_SIZE = 0.5; // Kích thước mỗi ô là 0.5% (tương đương ~1km)
-export const GRID_COLS = Math.round(100 / GRID_CELL_SIZE); // 200 cột
-export const GRID_ROWS = Math.round(100 / GRID_CELL_SIZE); // 200 hàng
-export const TOTAL_GRID_CELLS = GRID_COLS * GRID_ROWS; // 40,000 ô
+// Ô lưới hình vuông thực sự (Square Grid Cells):
+// Cạnh ô = 1/4 chiều rộng ô cũ (0.5% / 4 = 0.125% theo chiều ngang, tương đương 0.7 đơn vị CRS.Simple)
+export const GRID_CELL_W_PCT = 0.125;
+export const GRID_CELL_SIZE = GRID_CELL_W_PCT; // Giữ tương thích ngược
+export const GRID_CELL_UNITS = (GRID_CELL_W_PCT / 100) * MAP_COORD_W; // 0.7 px ở zoom 0
+export const GRID_CELL_H_PCT = (GRID_CELL_UNITS / MAP_COORD_H) * 100; // ~0.0951087% để ô hiển thị chuẩn hình vuông 1:1
 
-export const TERRAIN_STORAGE_KEY = 'lam_son_terrain_grid_custom_v1';
+export const GRID_COLS = Math.round(100 / GRID_CELL_W_PCT); // 800 cột
+export const GRID_ROWS = Math.ceil(100 / GRID_CELL_H_PCT); // 1052 hàng
+export const TOTAL_GRID_CELLS = GRID_COLS * GRID_ROWS; // 841,600 ô
+
+export const TERRAIN_STORAGE_KEY = 'lam_son_terrain_grid_custom_v2';
 
 // Bảng mã hóa số nguyên cho từng loại địa hình để tối ưu bộ nhớ
 export const TERRAIN_CODES: Record<TerrainType, number> = {
@@ -87,19 +94,19 @@ export function exportTerrainGridJSON(): string {
 
 // Chuyển đổi tọa độ phần trăm % (0..100) sang chỉ số ô (col, row)
 export function coordToCell(x: number, y: number): { col: number; row: number; centerX: number; centerY: number } {
-  const col = Math.max(0, Math.min(GRID_COLS - 1, Math.floor(x / GRID_CELL_SIZE)));
-  const row = Math.max(0, Math.min(GRID_ROWS - 1, Math.floor(y / GRID_CELL_SIZE)));
-  const centerX = Math.round(((col + 0.5) * GRID_CELL_SIZE) * 1000) / 1000;
-  const centerY = Math.round(((row + 0.5) * GRID_CELL_SIZE) * 1000) / 1000;
+  const col = Math.max(0, Math.min(GRID_COLS - 1, Math.floor(x / GRID_CELL_W_PCT)));
+  const row = Math.max(0, Math.min(GRID_ROWS - 1, Math.floor(y / GRID_CELL_H_PCT)));
+  const centerX = Math.round(((col + 0.5) * GRID_CELL_W_PCT) * 10000) / 10000;
+  const centerY = Math.round(((row + 0.5) * GRID_CELL_H_PCT) * 10000) / 10000;
   return { col, row, centerX, centerY };
 }
 
 // Chuyển đổi từ chỉ số ô (col, row) sang tọa độ biên và tâm %
 export function cellToCoord(col: number, row: number) {
-  const minX = col * GRID_CELL_SIZE;
-  const maxX = (col + 1) * GRID_CELL_SIZE;
-  const minY = row * GRID_CELL_SIZE;
-  const maxY = (row + 1) * GRID_CELL_SIZE;
+  const minX = col * GRID_CELL_W_PCT;
+  const maxX = (col + 1) * GRID_CELL_W_PCT;
+  const minY = row * GRID_CELL_H_PCT;
+  const maxY = (row + 1) * GRID_CELL_H_PCT;
   const centerX = (minX + maxX) / 2;
   const centerY = (minY + maxY) / 2;
   return { minX, maxX, minY, maxY, centerX, centerY };
@@ -107,8 +114,8 @@ export function cellToCoord(col: number, row: number) {
 
 // Lấy địa hình mặc định dựa trên hàm getTerrainAt gốc
 export function getDefaultCellTerrain(col: number, row: number): TerrainType {
-  const centerX = (col + 0.5) * GRID_CELL_SIZE;
-  const centerY = (row + 0.5) * GRID_CELL_SIZE;
+  const centerX = (col + 0.5) * GRID_CELL_W_PCT;
+  const centerY = (row + 0.5) * GRID_CELL_H_PCT;
   return getTerrainAt(centerX, centerY).type;
 }
 
@@ -139,8 +146,8 @@ export function setGridTerrain(col: number, row: number, type: TerrainType) {
   }
 }
 
-// Sơn địa hình theo cọ vẽ (1x1, 3x3, 5x5)
-export function paintTerrainBrush(centerCol: number, centerRow: number, type: TerrainType, brushSize: 1 | 3 | 5) {
+// Sơn địa hình theo cọ vẽ (1x1, 3x3, 5x5, 9x9)
+export function paintTerrainBrush(centerCol: number, centerRow: number, type: TerrainType, brushSize: 1 | 3 | 5 | 9) {
   const half = Math.floor(brushSize / 2);
   for (let dy = -half; dy <= half; dy++) {
     for (let dx = -half; dx <= half; dx++) {
@@ -399,7 +406,7 @@ export function findGridAStarPath(
         path,
         cellPath,
         totalCost: Math.round(current.g * 10) / 10,
-        totalDistanceKm: Math.round(cellPath.length * 1.0 * 10) / 10, // ~1km mỗi ô
+        totalDistanceKm: Math.round(cellPath.length * 0.25 * 10) / 10, // ~0.25km (250m) mỗi ô
         terrainBreakdown: breakdown,
       };
     }

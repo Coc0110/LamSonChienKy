@@ -1,8 +1,9 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useCallback } from 'react';
 import L from 'leaflet';
 import { useUIStore } from '../../store/uiStore';
 import {
-  GRID_CELL_SIZE,
+  GRID_CELL_W_PCT,
+  GRID_CELL_H_PCT,
   GRID_COLS,
   GRID_ROWS,
   getGridTerrain,
@@ -40,6 +41,22 @@ export const TerrainGridOverlay: React.FC<TerrainGridOverlayProps> = ({ map }) =
 
   const isMouseDownRef = useRef(false);
 
+  // Đồng bộ kích thước và vị trí của canvas trong Leaflet Pane để khớp 1:1 với màn hình
+  const syncCanvasSizeAndPos = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !map || !(map as any)._loaded) return;
+    const size = map.getSize();
+    if (!size.x || !size.y) return;
+    if (canvas.width !== size.x || canvas.height !== size.y) {
+      canvas.width = size.x;
+      canvas.height = size.y;
+      canvas.style.width = `${size.x}px`;
+      canvas.style.height = `${size.y}px`;
+    }
+    const topLeft = map.containerPointToLayerPoint([0, 0]);
+    L.DomUtil.setPosition(canvas, topLeft);
+  }, [map]);
+
   // 1. Tạo Canvas và đăng ký với Leaflet Pane
   useEffect(() => {
     if (!map) return;
@@ -56,21 +73,12 @@ export const TerrainGridOverlay: React.FC<TerrainGridOverlayProps> = ({ map }) =
     canvas.style.position = 'absolute';
     canvas.style.left = '0';
     canvas.style.top = '0';
-    canvas.style.width = '100%';
-    canvas.style.height = '100%';
     canvas.style.pointerEvents = 'none';
 
     gridPane.appendChild(canvas);
     canvasRef.current = canvas;
 
-    const resizeCanvas = () => {
-      if (!canvas || !map) return;
-      const size = map.getSize();
-      canvas.width = size.x;
-      canvas.height = size.y;
-    };
-
-    resizeCanvas();
+    syncCanvasSizeAndPos();
 
     return () => {
       if (canvas.parentNode) {
@@ -78,21 +86,16 @@ export const TerrainGridOverlay: React.FC<TerrainGridOverlayProps> = ({ map }) =
       }
       canvasRef.current = null;
     };
-  }, [map]);
+  }, [map, syncCanvasSizeAndPos]);
 
   // 2. Hàm vẽ Canvas Lưới và Địa Hình
-  const drawGrid = () => {
+  const drawGrid = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas || !map || !(map as any)._loaded) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    if (canvas.width === 0 || canvas.height === 0) {
-      const size = map.getSize();
-      if (!size.x || !size.y) return;
-      canvas.width = size.x;
-      canvas.height = size.y;
-    }
+    syncCanvasSizeAndPos();
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -115,19 +118,26 @@ export const TerrainGridOverlay: React.FC<TerrainGridOverlayProps> = ({ map }) =
     const minY = Math.min(northEast.y, southWest.y);
     const maxY = Math.max(northEast.y, southWest.y);
 
-    const startCol = Math.max(0, Math.floor(minX / GRID_CELL_SIZE));
-    const endCol = Math.min(GRID_COLS - 1, Math.ceil(maxX / GRID_CELL_SIZE));
-    const startRow = Math.max(0, Math.floor(minY / GRID_CELL_SIZE));
-    const endRow = Math.min(GRID_ROWS - 1, Math.ceil(maxY / GRID_CELL_SIZE));
+    const startCol = Math.max(0, Math.floor(minX / GRID_CELL_W_PCT) - 1);
+    const endCol = Math.min(GRID_COLS - 1, Math.ceil(maxX / GRID_CELL_W_PCT) + 1);
+    const startRow = Math.max(0, Math.floor(minY / GRID_CELL_H_PCT) - 1);
+    const endRow = Math.min(GRID_ROWS - 1, Math.ceil(maxY / GRID_CELL_H_PCT) + 1);
 
     const zoom = map.getZoom();
 
     // 1. Tô màu địa hình từng ô nếu bật showTerrainOverlay hoặc terrainEditMode
     if (showTerrainOverlay || terrainEditMode) {
-      for (let r = startRow; r <= endRow; r++) {
-        for (let c = startCol; c <= endCol; c++) {
+      // Khi zoom xa (< 1.8) và không ở chế độ sơn, tô màu gộp 4 ô (~1km) hoặc 2 ô để tối ưu mượt mà 60fps
+      const fillStep = (zoom < 1.8 && !terrainEditMode) ? 4 : (zoom < 2.2 && !terrainEditMode) ? 2 : 1;
+
+      for (let r = startRow; r <= endRow; r += fillStep) {
+        for (let c = startCol; c <= endCol; c += fillStep) {
           const terrain = getGridTerrain(c, r);
-          const { minX: cMinX, maxX: cMaxX, minY: cMinY, maxY: cMaxY } = cellToCoord(c, r);
+          const { minX: cMinX, minY: cMinY } = cellToCoord(c, r);
+          const { maxX: cMaxX, maxY: cMaxY } = cellToCoord(
+            Math.min(GRID_COLS - 1, c + fillStep - 1),
+            Math.min(GRID_ROWS - 1, r + fillStep - 1)
+          );
 
           const pTopLeft = map.latLngToContainerPoint(percentToLatLng(cMinX, cMinY));
           const pBottomRight = map.latLngToContainerPoint(percentToLatLng(cMaxX, cMaxY));
@@ -141,26 +151,33 @@ export const TerrainGridOverlay: React.FC<TerrainGridOverlayProps> = ({ map }) =
       }
     }
 
-    // 2. Vẽ các đường kẻ lưới ô vuông nếu bật showGrid hoặc đang chỉnh sửa / đặt công trình
+    // 2. Vẽ các đường kẻ lưới ô vuông (Square Grid Lines)
     if (showGrid || terrainEditMode || placementMode) {
-      ctx.lineWidth = 1;
+      // Khi zoom xa (< 1.8) và không ở chế độ sơn/đặt công trình, chỉ vẽ mốc 4 ô (~1km) hoặc 20 ô (~5km)
+      const step = (zoom < 1.8 && !terrainEditMode && !placementMode) ? 4 : 1;
+      const actualStartRow = Math.floor(startRow / step) * step;
+      const actualStartCol = Math.floor(startCol / step) * step;
 
-      // Nét lưới nhẹ
-      ctx.strokeStyle = zoom >= 2.5 ? 'rgba(168, 124, 79, 0.35)' : 'rgba(168, 124, 79, 0.18)';
+      // Đường kẻ ngang (Horizontal lines)
+      for (let r = actualStartRow; r <= endRow + 1; r += step) {
+        const yPct = r * GRID_CELL_H_PCT;
+        const p1 = map.latLngToContainerPoint(percentToLatLng(Math.max(0, startCol * GRID_CELL_W_PCT), yPct));
+        const p2 = map.latLngToContainerPoint(percentToLatLng(Math.min(100, (endCol + 1) * GRID_CELL_W_PCT), yPct));
 
-      for (let r = startRow; r <= endRow + 1; r++) {
-        const yPct = r * GRID_CELL_SIZE;
-        const p1 = map.latLngToContainerPoint(percentToLatLng(startCol * GRID_CELL_SIZE, yPct));
-        const p2 = map.latLngToContainerPoint(percentToLatLng((endCol + 1) * GRID_CELL_SIZE, yPct));
+        const isMajor5km = r % 20 === 0; // Mốc lớn mỗi 5km (20 ô x 250m)
+        const isMajor1km = r % 4 === 0;  // Mốc vừa mỗi 1km (4 ô x 250m)
 
-        // Nhấn đậm nhẹ mỗi 5 ô (2.5%)
-        const isMajor = r % 5 === 0;
-        if (isMajor) {
-          ctx.strokeStyle = 'rgba(168, 124, 79, 0.45)';
-          ctx.lineWidth = 1.2;
+        if (isMajor5km) {
+          ctx.strokeStyle = terrainEditMode ? 'rgba(217, 119, 6, 0.90)' : 'rgba(180, 100, 30, 0.75)';
+          ctx.lineWidth = 1.4;
+        } else if (isMajor1km) {
+          ctx.strokeStyle = terrainEditMode ? 'rgba(217, 119, 6, 0.65)' : 'rgba(170, 115, 60, 0.50)';
+          ctx.lineWidth = 1.0;
         } else {
-          ctx.strokeStyle = zoom >= 2.5 ? 'rgba(168, 124, 79, 0.28)' : 'rgba(168, 124, 79, 0.14)';
-          ctx.lineWidth = 0.8;
+          ctx.strokeStyle = terrainEditMode
+            ? 'rgba(217, 119, 6, 0.35)'
+            : (zoom >= 3.0 ? 'rgba(160, 110, 60, 0.35)' : 'rgba(160, 110, 60, 0.20)');
+          ctx.lineWidth = 0.7;
         }
 
         ctx.beginPath();
@@ -169,18 +186,26 @@ export const TerrainGridOverlay: React.FC<TerrainGridOverlayProps> = ({ map }) =
         ctx.stroke();
       }
 
-      for (let c = startCol; c <= endCol + 1; c++) {
-        const xPct = c * GRID_CELL_SIZE;
-        const p1 = map.latLngToContainerPoint(percentToLatLng(xPct, startRow * GRID_CELL_SIZE));
-        const p2 = map.latLngToContainerPoint(percentToLatLng(xPct, (endRow + 1) * GRID_CELL_SIZE));
+      // Đường kẻ dọc (Vertical lines)
+      for (let c = actualStartCol; c <= endCol + 1; c += step) {
+        const xPct = c * GRID_CELL_W_PCT;
+        const p1 = map.latLngToContainerPoint(percentToLatLng(xPct, Math.max(0, startRow * GRID_CELL_H_PCT)));
+        const p2 = map.latLngToContainerPoint(percentToLatLng(xPct, Math.min(100, (endRow + 1) * GRID_CELL_H_PCT)));
 
-        const isMajor = c % 5 === 0;
-        if (isMajor) {
-          ctx.strokeStyle = 'rgba(168, 124, 79, 0.45)';
-          ctx.lineWidth = 1.2;
+        const isMajor5km = c % 20 === 0; // Mốc lớn mỗi 5km
+        const isMajor1km = c % 4 === 0;  // Mốc vừa mỗi 1km
+
+        if (isMajor5km) {
+          ctx.strokeStyle = terrainEditMode ? 'rgba(217, 119, 6, 0.90)' : 'rgba(180, 100, 30, 0.75)';
+          ctx.lineWidth = 1.4;
+        } else if (isMajor1km) {
+          ctx.strokeStyle = terrainEditMode ? 'rgba(217, 119, 6, 0.65)' : 'rgba(170, 115, 60, 0.50)';
+          ctx.lineWidth = 1.0;
         } else {
-          ctx.strokeStyle = zoom >= 2.5 ? 'rgba(168, 124, 79, 0.28)' : 'rgba(168, 124, 79, 0.14)';
-          ctx.lineWidth = 0.8;
+          ctx.strokeStyle = terrainEditMode
+            ? 'rgba(217, 119, 6, 0.35)'
+            : (zoom >= 3.0 ? 'rgba(160, 110, 60, 0.35)' : 'rgba(160, 110, 60, 0.20)');
+          ctx.lineWidth = 0.7;
         }
 
         ctx.beginPath();
@@ -193,7 +218,7 @@ export const TerrainGridOverlay: React.FC<TerrainGridOverlayProps> = ({ map }) =
     // 3. Highlight ô đang rê chuột (Hover) hoặc vùng cọ vẽ (Brush)
     if (hoveredCell) {
       if (terrainEditMode) {
-        // Vẽ viền phạm vi cọ vẽ (1x1, 3x3, 5x5)
+        // Vẽ viền phạm vi cọ vẽ (1x1, 3x3, 5x5, 9x9)
         const half = Math.floor(brushSize / 2);
         const bStartCol = Math.max(0, hoveredCell.col - half);
         const bEndCol = Math.min(GRID_COLS - 1, hoveredCell.col + half);
@@ -223,27 +248,35 @@ export const TerrainGridOverlay: React.FC<TerrainGridOverlayProps> = ({ map }) =
         ctx.strokeRect(pTL.x, pTL.y, pBR.x - pTL.x, pBR.y - pTL.y);
       }
     }
-  };
+  }, [
+    map,
+    syncCanvasSizeAndPos,
+    showGrid,
+    showTerrainOverlay,
+    terrainEditMode,
+    brushTerrain,
+    brushSize,
+    placementMode,
+    hoveredCell,
+  ]);
+
+  const drawGridRef = useRef<() => void>(drawGrid);
+  useEffect(() => {
+    drawGridRef.current = drawGrid;
+  }, [drawGrid]);
 
   // 3. Lắng nghe sự kiện di chuyển và zoom của bản đồ để vẽ lại
   useEffect(() => {
     if (!map) return;
 
     const handleUpdate = () => {
-      const canvas = canvasRef.current;
-      if (canvas) {
-        const size = map.getSize();
-        if (canvas.width !== size.x || canvas.height !== size.y) {
-          canvas.width = size.x;
-          canvas.height = size.y;
-        }
-      }
-      drawGrid();
+      drawGridRef.current();
     };
 
     map.on('move', handleUpdate);
     map.on('zoom', handleUpdate);
     map.on('resize', handleUpdate);
+    map.on('viewreset', handleUpdate);
 
     handleUpdate();
 
@@ -251,8 +284,14 @@ export const TerrainGridOverlay: React.FC<TerrainGridOverlayProps> = ({ map }) =
       map.off('move', handleUpdate);
       map.off('zoom', handleUpdate);
       map.off('resize', handleUpdate);
+      map.off('viewreset', handleUpdate);
     };
-  }, [map, showGrid, showTerrainOverlay, terrainEditMode, brushTerrain, brushSize, placementMode, hoveredCell]);
+  }, [map]);
+
+  // Cập nhật khi các state UI liên quan thay đổi
+  useEffect(() => {
+    drawGrid();
+  }, [drawGrid]);
 
   // 4. Lắng nghe rê chuột trên bản đồ để cập nhật hoveredCell và Sơn địa hình
   useEffect(() => {
@@ -267,7 +306,7 @@ export const TerrainGridOverlay: React.FC<TerrainGridOverlayProps> = ({ map }) =
       // Nếu đang trong chế độ Sơn Địa Hình và giữ chuột trái -> Sơn liên tục
       if (terrainEditMode && isMouseDownRef.current) {
         paintTerrainBrush(cell.col, cell.row, brushTerrain, brushSize);
-        drawGrid();
+        drawGridRef.current();
       }
     };
 
@@ -279,7 +318,7 @@ export const TerrainGridOverlay: React.FC<TerrainGridOverlayProps> = ({ map }) =
         const { x, y } = latLngToPercent(e.latlng);
         const cell = coordToCell(x, y);
         paintTerrainBrush(cell.col, cell.row, brushTerrain, brushSize);
-        drawGrid();
+        drawGridRef.current();
       }
     };
 

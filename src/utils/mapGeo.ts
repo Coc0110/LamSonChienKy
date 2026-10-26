@@ -14,7 +14,7 @@ export const percentToLatLng = (x: number, y: number): L.LatLng => {
 
 // Chuyển đổi từ Leaflet LatLng ngược lại %
 export const latLngToPercent = (latlng: L.LatLng): { x: number; y: number } => {
-  const x = Math.max(0, Math.min(100, Math.round((latlng.lng / MAP_COORD_W) * 1000) / 1000));
-  const y = Math.max(0, Math.min(100, Math.round((-latlng.lat / MAP_COORD_H) * 1000) / 1000));
+  const x = Math.max(0, Math.min(100, Math.round(((latlng.lng / MAP_COORD_W) * 100) * 1000) / 1000));
+  const y = Math.max(0, Math.min(100, Math.round(((-latlng.lat / MAP_COORD_H) * 100) * 1000) / 1000));
   return { x, y };
 };

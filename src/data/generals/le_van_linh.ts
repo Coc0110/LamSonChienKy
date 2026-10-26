@@ -17,7 +17,7 @@ export const le_van_linh: General = {
   id: 'le_van_linh',
   name: 'Lê Văn Linh',
   hanzi: '黎文靈',
-  portraitUrl: undefined,
+  portraitUrl: '/generals/le_van_linh.png?v=1',
   title: 'THÁI PHÓ',
   epithet: 'Trí Tướng Lũng Nhai',
   group: 'lung_nhai_1416',

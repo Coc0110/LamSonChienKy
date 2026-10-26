@@ -21,7 +21,7 @@ interface UIState {
   showTerrainOverlay: boolean;
   terrainEditMode: boolean;
   brushTerrain: TerrainType;
-  brushSize: 1 | 3 | 5;
+  brushSize: 1 | 3 | 5 | 9;
   hoveredCell: { col: number; row: number } | null;
 
   setActiveModal: (modal: ModalType) => void;
@@ -34,7 +34,7 @@ interface UIState {
   toggleTerrainOverlay: () => void;
   setTerrainEditMode: (active: boolean) => void;
   setBrushTerrain: (type: TerrainType) => void;
-  setBrushSize: (size: 1 | 3 | 5) => void;
+  setBrushSize: (size: 1 | 3 | 5 | 9) => void;
   setHoveredCell: (cell: { col: number; row: number } | null) => void;
 }
 

@@ -10,6 +10,7 @@ interface DistrictEditorBarProps {
   onSelectCity: (id: string) => void;
   onToggleEditMode: () => void;
   storageKey: string;
+  onResetCurrentDistrict?: (districtId: string) => void;
 }
 
 const TERRAIN_PALETTE: { type: TerrainType; label: string; icon: string; color: string }[] = [
@@ -27,6 +28,7 @@ export const DistrictEditorBar: React.FC<DistrictEditorBarProps> = ({
   onSelectCity,
   onToggleEditMode,
   storageKey,
+  onResetCurrentDistrict,
 }) => {
   const [tab, setTab] = useState<'polygon' | 'terrain'>('terrain');
 
@@ -45,6 +47,15 @@ export const DistrictEditorBar: React.FC<DistrictEditorBarProps> = ({
       alert('Đã copy toàn bộ dữ liệu ranh giới huyện thành vào Clipboard!');
     } else {
       alert('Chưa có chỉnh sửa ranh giới mới nào!');
+    }
+  };
+
+  const handleResetCurrentDistrict = () => {
+    if (!selectedCityId || !currentDistrict) return;
+    if (confirm(`Khôi phục ranh giới của riêng huyện "${currentDistrict.name}" về mặc định ban đầu?`)) {
+      if (onResetCurrentDistrict) {
+        onResetCurrentDistrict(selectedCityId);
+      }
     }
   };
 
@@ -144,7 +155,7 @@ export const DistrictEditorBar: React.FC<DistrictEditorBarProps> = ({
             <div className="h-4 w-[1px] bg-stone-700 mx-1" />
 
             <span className="text-[11px] font-bold text-stone-400 mr-1">Cỡ cọ:</span>
-            {([1, 3, 5] as const).map(sz => (
+            {([1, 3, 5, 9] as const).map(sz => (
               <button
                 key={sz}
                 onClick={() => setBrushSize(sz)}
@@ -154,7 +165,7 @@ export const DistrictEditorBar: React.FC<DistrictEditorBarProps> = ({
                     : 'bg-stone-800 text-stone-300 hover:bg-stone-700'
                 }`}
               >
-                {sz}x{sz} {sz === 1 ? '(1km)' : sz === 3 ? '(3km)' : '(5km)'}
+                {sz}x{sz} {sz === 1 ? '(250m)' : sz === 3 ? '(750m)' : sz === 5 ? '(1.25km)' : '(2.25km)'}
               </button>
             ))}
 
@@ -174,7 +185,7 @@ export const DistrictEditorBar: React.FC<DistrictEditorBarProps> = ({
             </button>
           </div>
           <p className="text-[11px] text-stone-300 text-center">
-            ✦ Giữ chuột trái và kéo rê trên bản đồ để sơn địa hình cho từng ô vuông lưới (ô 0.5% ~ 1km).
+            ✦ Giữ chuột trái và kéo rê trên bản đồ để sơn địa hình cho từng ô vuông lưới (ô vuông 250m). Giữ chuột phải để kéo di chuyển bản đồ.
           </p>
         </div>
       )}
@@ -194,6 +205,14 @@ export const DistrictEditorBar: React.FC<DistrictEditorBarProps> = ({
               ))}
             </select>
             <button
+              onClick={handleResetCurrentDistrict}
+              disabled={!selectedCityId}
+              className="px-2.5 py-1 bg-[#854d0e] hover:bg-[#a16207] disabled:opacity-50 text-amber-100 rounded text-xs font-bold border border-[#ca8a04] shadow cursor-pointer transition hover:scale-105 whitespace-nowrap"
+              title="Chỉ khôi phục lại huyện đang chọn về hình dạng mặc định ban đầu"
+            >
+              ↺ Khôi Phục Huyện Này
+            </button>
+            <button
               onClick={handleCopyPolygon}
               className="px-2.5 py-1 bg-[#2f4d66] hover:bg-[#3d6385] text-white rounded text-xs font-bold border border-[#5282ad] shadow cursor-pointer transition hover:scale-105 whitespace-nowrap"
             >
@@ -203,12 +222,12 @@ export const DistrictEditorBar: React.FC<DistrictEditorBarProps> = ({
               onClick={handleResetPolygon}
               className="px-2.5 py-1 bg-[#5c2419] hover:bg-[#783021] text-amber-100 rounded text-xs font-bold border border-[#963e2c] shadow cursor-pointer transition hover:scale-105 whitespace-nowrap"
             >
-              Làm Lại Gốc
+              Làm Lại Toàn Bộ
             </button>
           </div>
           <p className="text-[11px] text-stone-300 text-center">
             {selectedCityId
-              ? `Đang nắn: ${currentDistrict?.name || selectedCityId} — Kéo các nút tròn vàng viền đỏ trên đường ranh giới để nắn hình.`
+              ? `Đang nắn: ${currentDistrict?.name || selectedCityId} — Kéo các nút tròn vàng viền đỏ trên đường ranh giới để nắn hình. Giữ chuột phải để kéo di chuyển bản đồ.`
               : 'Click chọn một huyện thành trên bản đồ hoặc chọn từ danh sách ở trên để bắt đầu nắn ranh giới.'}
           </p>
         </div>

@@ -17,7 +17,7 @@ export const bui_quoc_hung: General = {
   id: 'bui_quoc_hung',
   name: 'Bùi Quốc Hưng',
   hanzi: '裴國興',
-  portraitUrl: undefined,
+  portraitUrl: '/generals/bui_quoc_hung.png?v=1',
   title: 'NHẬP NỘI TƯ ĐỒ',
   epithet: 'Hùng Binh Hữu Bật',
   group: 'lung_nhai_1416',
