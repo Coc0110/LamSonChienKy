@@ -101,6 +101,11 @@ export const WorldMap: React.FC = () => {
       zoomControl: false,
     });
 
+    // Thiết lập tâm và mức zoom khởi tạo ngay lập tức để map._loaded = true
+    const initialCenter = percentToLatLng(54.5, 47.5);
+    const initialZoom = 1.2;
+    map.setView(initialCenter, initialZoom);
+
     const tileLayer = L.tileLayer('/tiles/{z}/{x}/{y}.jpg', {
       minZoom: 0,
       maxZoom: 6,
@@ -544,6 +549,7 @@ export const WorldMap: React.FC = () => {
         const labelMarker = L.marker(centerLatLng, {
           icon: labelIcon,
           interactive: false,
+          pane: 'districtLabelsPane',
         });
 
         labelMarker.addTo(labelsLayer);

@@ -83,9 +83,16 @@ export const TerrainGridOverlay: React.FC<TerrainGridOverlayProps> = ({ map }) =
   // 2. Hàm vẽ Canvas Lưới và Địa Hình
   const drawGrid = () => {
     const canvas = canvasRef.current;
-    if (!canvas || !map) return;
+    if (!canvas || !map || !(map as any)._loaded) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+
+    if (canvas.width === 0 || canvas.height === 0) {
+      const size = map.getSize();
+      if (!size.x || !size.y) return;
+      canvas.width = size.x;
+      canvas.height = size.y;
+    }
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -94,7 +101,12 @@ export const TerrainGridOverlay: React.FC<TerrainGridOverlayProps> = ({ map }) =
       return;
     }
 
-    const bounds = map.getBounds();
+    let bounds: L.LatLngBounds;
+    try {
+      bounds = map.getBounds();
+    } catch {
+      return;
+    }
     const northEast = latLngToPercent(bounds.getNorthEast());
     const southWest = latLngToPercent(bounds.getSouthWest());
 
