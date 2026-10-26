@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { DistrictInfo } from '../../types/map';
 import type { TerrainType } from '../../types/terrain';
 import { useUIStore } from '../../store/uiStore';
@@ -39,6 +39,13 @@ export const DistrictEditorBar: React.FC<DistrictEditorBarProps> = ({
   const setBrushSize = useUIStore(state => state.setBrushSize);
 
   const currentDistrict = districtsList.find(d => d.id === selectedCityId);
+
+  // Đảm bảo khi đóng thanh công cụ (thoát chế độ sửa) thì tắt hẳn chế độ sơn vẽ địa hình
+  useEffect(() => {
+    return () => {
+      setTerrainEditMode(false);
+    };
+  }, [setTerrainEditMode]);
 
   const handleCopyPolygon = () => {
     const custom = localStorage.getItem(storageKey);

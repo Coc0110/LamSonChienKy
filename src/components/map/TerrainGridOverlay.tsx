@@ -302,10 +302,14 @@ export const TerrainGridOverlay: React.FC<TerrainGridOverlayProps> = ({ map }) =
   useEffect(() => {
     if (!map) return;
 
+    if (!terrainEditMode) {
+      isMouseDownRef.current = false;
+    }
+
     const handleMouseMove = (e: L.LeafletMouseEvent) => {
       const isGridActive = showGrid || isEditMode || terrainEditMode || Boolean(placementMode) || showTerrainOverlay;
       if (!isGridActive) {
-        if (hoveredCell) setHoveredCell(null);
+        if (useUIStore.getState().hoveredCell) setHoveredCell(null);
         return;
       }
 
@@ -342,16 +346,22 @@ export const TerrainGridOverlay: React.FC<TerrainGridOverlayProps> = ({ map }) =
       setHoveredCell(null);
     };
 
+    const handleGlobalMouseUp = () => {
+      isMouseDownRef.current = false;
+    };
+
     map.on('mousemove', handleMouseMove);
     map.on('mousedown', handleMouseDown);
     map.on('mouseup', handleMouseUp);
     map.on('mouseout', handleMouseLeave);
+    window.addEventListener('mouseup', handleGlobalMouseUp);
 
     return () => {
       map.off('mousemove', handleMouseMove);
       map.off('mousedown', handleMouseDown);
       map.off('mouseup', handleMouseUp);
       map.off('mouseout', handleMouseLeave);
+      window.removeEventListener('mouseup', handleGlobalMouseUp);
     };
   }, [
     map,
@@ -363,7 +373,6 @@ export const TerrainGridOverlay: React.FC<TerrainGridOverlayProps> = ({ map }) =
     brushTerrain,
     brushSize,
     setHoveredCell,
-    hoveredCell,
   ]);
 
   return null;

@@ -190,12 +190,21 @@ html, body, #root {
 /* ============================================================================
    Chế độ di chuyển bản đồ bằng chuột phải (Right-click map drag)
    ============================================================================ */
+/* Vector ranh giới huyện thành: nhận click 100% trên toàn bộ diện tích bên trong */
+.district-polygon-interactive {
+  pointer-events: all !important;
+  cursor: pointer;
+}
+
+/* ============================================================================
+   Chế độ di chuyển bản đồ (Kéo chuột trái hoặc chuột phải)
+   ============================================================================ */
 .leaflet-container.leaflet-grab {
-  cursor: default;
+  cursor: grab;
 }
 
 .leaflet-container.leaflet-grab:active {
-  cursor: default;
+  cursor: grabbing;
 }
 
 body.leaflet-dragging,

@@ -134,8 +134,9 @@ export const WorldMap: React.FC = () => {
       zoomControl: false,
     });
 
-    // Chuyển thao tác kéo di chuyển bản đồ sang CHUỘT PHẢI (Right-click drag)
-    // và ngăn menu chuột phải mặc định của trình duyệt
+    // Chuyển thao tác kéo di chuyển bản đồ:
+    // - Khi ở chế độ Sơn Địa Hình (terrainEditMode): chuột trái dùng để sơn vẽ ô lưới, chuột phải kéo map
+    // - Bình thường / Nắn ranh giới: Chuột trái hoặc Chuột phải đều kéo di chuyển bản đồ mượt mà
     const mapContainer = mapContainerRef.current;
     const handleContextMenu = (e: MouseEvent) => {
       e.preventDefault();
@@ -147,11 +148,14 @@ export const WorldMap: React.FC = () => {
       draggable.disable();
       const origOnDown = draggable._onDown;
       draggable._onDown = function (e: any) {
-        // Nếu là chuột trái thông thường (không phải touch) -> bỏ qua, để chuột trái sơn/chọn/nắn ranh giới
-        if (!e.touches && e.button !== 2 && e.which !== 3) {
+        const isTerrainPainting = useUIStore.getState().terrainEditMode;
+
+        // Nếu đang trong chế độ Sơn Vẽ Địa Hình và bấm chuột trái -> bỏ qua để chuột trái sơn ô lưới
+        if (isTerrainPainting && !e.touches && (e.button === 0 || e.which === 1)) {
           return;
         }
-        // Nếu là chuột phải -> giả lập để Leaflet Draggable kích hoạt kéo bản đồ
+
+        // Hỗ trợ kéo di chuyển bản đồ bằng chuột phải (Right-click drag)
         if (e.button === 2 || e.which === 3) {
           const fakeEvent = new Proxy(e, {
             get(target, prop) {
@@ -162,7 +166,8 @@ export const WorldMap: React.FC = () => {
           });
           return origOnDown.call(this, fakeEvent);
         }
-        // Hỗ trợ cảm ứng màn hình
+
+        // Chuột trái thông thường và cảm ứng màn hình -> kéo bản đồ bình thường
         return origOnDown.call(this, e);
       };
       draggable.enable();
@@ -452,6 +457,7 @@ export const WorldMap: React.FC = () => {
     districtsList.forEach(district => {
       const latlngs = district.polygon.map(pt => percentToLatLng(pt[0], pt[1]));
       const poly = L.polygon(latlngs, {
+        className: 'district-polygon-interactive',
         fill: true,
         fillColor: '#ffffff',
         fillOpacity: 0.0001,
@@ -473,7 +479,8 @@ export const WorldMap: React.FC = () => {
         setHoveredDistrictId(prev => (prev === district.id ? null : prev));
       });
 
-      poly.on('click', () => {
+      poly.on('click', (e) => {
+        L.DomEvent.stopPropagation(e);
         selectCity(district.id);
       });
 
@@ -569,7 +576,10 @@ export const WorldMap: React.FC = () => {
       handleMarker.on('dragend', (e) => {
         const newPos = e.target.getLatLng();
         const { x, y } = latLngToPercent(newPos);
-        updateDistrictPolygonVertex(currentDistrict.id, idx, x, y);
+        // Trì hoãn nhẹ 1 micro-tick để Leaflet Draggable hoàn tất sự kiện dragend trước khi React render lại handle
+        setTimeout(() => {
+          updateDistrictPolygonVertex(currentDistrict.id, idx, x, y);
+        }, 0);
       });
 
       handleMarker.addTo(handlesLayer);
