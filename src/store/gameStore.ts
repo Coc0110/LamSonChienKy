@@ -28,11 +28,19 @@ const loadSavedCities = (): CityNode[] => {
     const raw = localStorage.getItem(COORDS_STORAGE_KEY);
     if (!raw) return INITIAL_CITIES;
     const savedCoords: Record<string, { x: number; y: number }> = JSON.parse(raw);
-    return INITIAL_CITIES.map(city =>
-      savedCoords[city.id]
-        ? { ...city, x: savedCoords[city.id].x, y: savedCoords[city.id].y }
-        : city
-    );
+    return INITIAL_CITIES.map(city => {
+      const saved = savedCoords[city.id];
+      if (
+        saved &&
+        typeof saved.x === 'number' &&
+        !isNaN(saved.x) &&
+        typeof saved.y === 'number' &&
+        !isNaN(saved.y)
+      ) {
+        return { ...city, x: saved.x, y: saved.y };
+      }
+      return city;
+    });
   } catch {
     return INITIAL_CITIES;
   }

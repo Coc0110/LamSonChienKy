@@ -180,3 +180,9 @@ html, body, #root {
   border-color: #ef4444 !important;
   box-shadow: 0 0 10px rgba(239, 68, 68, 0.95), 0 0 4px #fbbf24 !important;
 }
+
+/* Nhãn tên địa danh huyện thành hiển thị trên cùng mọi layer, không chặn click */
+.district-floating-label {
+  z-index: 1000 !important;
+  pointer-events: none !important;
+}

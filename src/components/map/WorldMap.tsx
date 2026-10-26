@@ -31,13 +31,11 @@ export const WorldMap: React.FC = () => {
   const parchmentCutoutRef = useRef<L.ImageOverlay | null>(null);
   const parchmentSheetRef = useRef<L.ImageOverlay | null>(null);
   const polygonsMapRef = useRef<Map<string, L.Polygon>>(new Map());
-  const nodeMarkersMapRef = useRef<Map<string, { marker: L.Marker; html: string; x: number; y: number }>>(new Map());
-  const structureMarkersMapRef = useRef<Map<string, { marker: L.Marker; html: string; x: number; y: number }>>(new Map());
 
   const [parchmentMode, setParchmentMode] = useState<ParchmentMode>('cutout');
   const [showDistricts, setShowDistricts] = useState<boolean>(true);
   const [hoveredDistrictId, setHoveredDistrictId] = useState<string | null>(null);
-  const [isMapReady, setIsMapReady] = useState<boolean>(false);
+  const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
 
   // Danh sách polygon các huyện (hỗ trợ lưu chỉnh sửa vào localStorage)
   const [districtsList, setDistrictsList] = useState<DistrictInfo[]>(() => {
@@ -219,17 +217,16 @@ export const WorldMap: React.FC = () => {
     structuresLayerRef.current = structuresLayer;
     previewLayerRef.current = previewLayer;
 
-    setIsMapReady(true);
+    setMapInstance(map);
 
     return () => {
       isDisposed = true;
       clearTimeout(initTimer);
       window.removeEventListener('resize', handleResize);
-      nodeMarkersMapRef.current.clear();
-      structureMarkersMapRef.current.clear();
+      polygonsMapRef.current.clear();
       map.remove();
       mapInstanceRef.current = null;
-      setIsMapReady(false);
+      setMapInstance(null);
     };
   }, []);
 
@@ -278,6 +275,7 @@ export const WorldMap: React.FC = () => {
 
   // 2. Cập nhật các đường nối hành quân
   useEffect(() => {
+    if (!mapInstance) return;
     const linesLayer = linesLayerRef.current;
     if (!linesLayer) return;
 
@@ -313,7 +311,7 @@ export const WorldMap: React.FC = () => {
 
       polyline.addTo(linesLayer);
     });
-  }, [isMapReady, connections, cities, selectedCityId]);
+  }, [mapInstance, connections, cities, selectedCityId]);
 
   // Cập nhật tọa độ polygon cho huyện
   const updateDistrictPolygonVertex = (districtId: string, vertexIndex: number, newX: number, newY: number) => {
@@ -336,8 +334,8 @@ export const WorldMap: React.FC = () => {
   };
 
   useEffect(() => {
-    const map = mapInstanceRef.current;
-    if (!map) return;
+    if (!mapInstance) return;
+    const map = mapInstance;
 
     // Xóa các polygon cũ
     polygonsMapRef.current.forEach(p => p.remove());
@@ -380,7 +378,7 @@ export const WorldMap: React.FC = () => {
       currentPolygons.forEach(p => p.remove());
       currentPolygons.clear();
     };
-  }, [districtsList, selectCity]);
+  }, [mapInstance, districtsList, selectCity]);
 
   // Cập nhật Style highlight trực tiếp (0ms latency, không redraw)
   useEffect(() => {
@@ -472,6 +470,7 @@ export const WorldMap: React.FC = () => {
 
   // 5. HIỂN THỊ CHỮ THẺ BÀI NỔI KHI RÊ CHUỘT HOẶC CHỌN HUYỆN
   useEffect(() => {
+    if (!mapInstance) return;
     const labelsLayer = labelsLayerRef.current;
     if (!labelsLayer) return;
 
@@ -511,7 +510,7 @@ export const WorldMap: React.FC = () => {
 
         const labelHtml = `
           <div class="pointer-events-none select-none flex items-center justify-center whitespace-nowrap font-serif font-black tracking-widest ${isSelected ? 'scale-115' : ''} transition-transform duration-150 animate-in fade-in zoom-in-95"
-               style="font-size: 19px; transform: translate(-50%, calc(-60% - 14px)); text-align: center; text-shadow: -1.5px -1.5px 0 #180e06, 1.5px -1.5px 0 #180e06, -1.5px 1.5px 0 #180e06, 1.5px 1.5px 0 #180e06, 0 2px 8px rgba(0,0,0,0.95), 0 0 14px ${glowColor};">
+               style="font-size: 19px; transform: translate(-50%, calc(-70% - 14px)); text-align: center; text-shadow: -1.5px -1.5px 0 #180e06, 1.5px -1.5px 0 #180e06, -1.5px 1.5px 0 #180e06, 1.5px 1.5px 0 #180e06, 0 2px 8px rgba(0,0,0,0.95), 0 0 14px ${glowColor};">
             <span class="${factionColor}">${district.name}</span>
             ${troopsBadge}
           </div>
@@ -527,22 +526,19 @@ export const WorldMap: React.FC = () => {
         const labelMarker = L.marker(centerLatLng, {
           icon: labelIcon,
           interactive: false,
-          pane: 'districtLabelsPane',
         });
 
         labelMarker.addTo(labelsLayer);
       }
     });
-  }, [isMapReady, showDistricts, parchmentMode, selectedCityId, hoveredDistrictId, cities, districtsList]);
+  }, [mapInstance, showDistricts, parchmentMode, selectedCityId, hoveredDistrictId, cities, districtsList]);
 
   // 5.5 HIỂN THỊ CĂN CỨ NGHĨA QUÂN (CHẤM ĐỎ) & CỨ ĐIỂM QUÂN MINH (CHẤM XANH DƯƠNG) & SONG KIẾM LUYỆN BINH
   useEffect(() => {
-    if (!isMapReady) return;
+    if (!mapInstance) return;
     const layer = nodesLayerRef.current;
     if (!layer) return;
-
-    const markersMap = nodeMarkersMapRef.current;
-    const activeIds = new Set<string>();
+    layer.clearLayers();
 
     cities.forEach(city => {
       const pos = percentToLatLng(city.x, city.y);
@@ -551,7 +547,6 @@ export const WorldMap: React.FC = () => {
 
       // 1. Căn Cứ Nghĩa Quân (Chấm Đỏ Lam Sơn)
       if (isLamSonBase) {
-        activeIds.add(city.id);
         const hasTraining = !!(city.training && city.training.remainingDays > 0);
 
         const html = `
@@ -586,48 +581,26 @@ export const WorldMap: React.FC = () => {
           </div>
         `;
 
-        const existing = markersMap.get(city.id);
-        if (existing) {
-          if (existing.x !== city.x || existing.y !== city.y) {
-            existing.marker.setLatLng(pos);
-            existing.x = city.x;
-            existing.y = city.y;
-          }
-          if (existing.html !== html) {
-            existing.marker.setIcon(
-              L.divIcon({
-                className: 'base-node-marker',
-                html,
-                iconSize: [28, 28],
-                iconAnchor: [14, 14],
-              })
-            );
-            existing.html = html;
-          }
-        } else {
-          const marker = L.marker(pos, {
-            icon: L.divIcon({
-              className: 'base-node-marker',
-              html,
-              iconSize: [28, 28],
-              iconAnchor: [14, 14],
-            }),
-            pane: 'structuresPane',
-          });
+        const marker = L.marker(pos, {
+          icon: L.divIcon({
+            className: 'base-node-marker',
+            html,
+            iconSize: [28, 28],
+            iconAnchor: [14, 14],
+          }),
+          pane: 'structuresPane',
+        });
 
-          marker.on('click', (e) => {
-            L.DomEvent.stopPropagation(e);
-            selectCity(city.id);
-          });
+        marker.on('click', (e) => {
+          L.DomEvent.stopPropagation(e);
+          selectCity(city.id);
+        });
 
-          marker.addTo(layer);
-          markersMap.set(city.id, { marker, html, x: city.x, y: city.y });
-        }
+        marker.addTo(layer);
       }
 
       // 2. Cứ Điểm Quân Minh (Chấm Xanh Dương to nhỏ phụ thuộc lượng quân)
       else if (isMing) {
-        activeIds.add(city.id);
         const troops = city.troops;
         const dotSize = Math.max(12, Math.min(28, Math.round(8 + Math.sqrt(troops / 13))));
         const isMainFortress = troops >= 8000;
@@ -651,65 +624,34 @@ export const WorldMap: React.FC = () => {
           </div>
         `;
 
-        const existing = markersMap.get(city.id);
-        if (existing) {
-          if (existing.x !== city.x || existing.y !== city.y) {
-            existing.marker.setLatLng(pos);
-            existing.x = city.x;
-            existing.y = city.y;
-          }
-          if (existing.html !== html) {
-            existing.marker.setIcon(
-              L.divIcon({
-                className: 'ming-node-marker',
-                html,
-                iconSize: [dotSize, dotSize],
-                iconAnchor: [dotSize / 2, dotSize / 2],
-              })
-            );
-            existing.html = html;
-          }
-        } else {
-          const marker = L.marker(pos, {
-            icon: L.divIcon({
-              className: 'ming-node-marker',
-              html,
-              iconSize: [dotSize, dotSize],
-              iconAnchor: [dotSize / 2, dotSize / 2],
-            }),
-            pane: 'structuresPane',
-          });
+        const marker = L.marker(pos, {
+          icon: L.divIcon({
+            className: 'ming-node-marker',
+            html,
+            iconSize: [dotSize, dotSize],
+            iconAnchor: [dotSize / 2, dotSize / 2],
+          }),
+          pane: 'structuresPane',
+        });
 
-          marker.on('click', (e) => {
-            L.DomEvent.stopPropagation(e);
-            selectCity(city.id);
-          });
+        marker.on('click', (e) => {
+          L.DomEvent.stopPropagation(e);
+          selectCity(city.id);
+        });
 
-          marker.addTo(layer);
-          markersMap.set(city.id, { marker, html, x: city.x, y: city.y });
-        }
+        marker.addTo(layer);
       }
     });
-
-    markersMap.forEach((entry, id) => {
-      if (!activeIds.has(id)) {
-        layer.removeLayer(entry.marker);
-        markersMap.delete(id);
-      }
-    });
-  }, [isMapReady, cities, selectCity]);
+  }, [mapInstance, cities, selectCity]);
 
   // 6. HIỂN THỊ CÁC CÔNG TRÌNH: RUỘNG (CHẤM VÀNG) & LÒ RÈN (CHẤM ĐEN)
   useEffect(() => {
-    if (!isMapReady) return;
+    if (!mapInstance) return;
     const layer = structuresLayerRef.current;
     if (!layer) return;
-
-    const markersMap = structureMarkersMapRef.current;
-    const activeIds = new Set<string>();
+    layer.clearLayers();
 
     structures.forEach(structure => {
-      activeIds.add(structure.id);
       const isFarm = structure.type === 'farm';
       const isBuilding = structure.status === 'building';
       const order = structure.activeOrder;
@@ -761,57 +703,29 @@ export const WorldMap: React.FC = () => {
         `;
       }
 
-      const existing = markersMap.get(structure.id);
-      if (existing) {
-        if (existing.x !== structure.x || existing.y !== structure.y) {
-          existing.marker.setLatLng(pos);
-          existing.x = structure.x;
-          existing.y = structure.y;
-        }
-        if (existing.html !== dotHtml) {
-          existing.marker.setIcon(
-            L.divIcon({
-              className: 'placed-dot-marker',
-              html: dotHtml,
-              iconSize: [20, 20],
-              iconAnchor: [10, 10],
-            })
-          );
-          existing.html = dotHtml;
-        }
-      } else {
-        const marker = L.marker(pos, {
-          icon: L.divIcon({
-            className: 'placed-dot-marker',
-            html: dotHtml,
-            iconSize: [20, 20],
-            iconAnchor: [10, 10],
-          }),
-          pane: 'structuresPane',
-        });
+      const marker = L.marker(pos, {
+        icon: L.divIcon({
+          className: 'placed-dot-marker',
+          html: dotHtml,
+          iconSize: [20, 20],
+          iconAnchor: [10, 10],
+        }),
+        pane: 'structuresPane',
+      });
 
-        marker.on('click', (e) => {
-          L.DomEvent.stopPropagation(e);
-          selectCity(structure.cityId);
-        });
+      marker.on('click', (e) => {
+        L.DomEvent.stopPropagation(e);
+        selectCity(structure.cityId);
+      });
 
-        marker.addTo(layer);
-        markersMap.set(structure.id, { marker, html: dotHtml, x: structure.x, y: structure.y });
-      }
+      marker.addTo(layer);
     });
-
-    markersMap.forEach((entry, id) => {
-      if (!activeIds.has(id)) {
-        layer.removeLayer(entry.marker);
-        markersMap.delete(id);
-      }
-    });
-  }, [isMapReady, structures, selectCity]);
+  }, [mapInstance, structures, selectCity]);
 
   // 7. CHẾ ĐỘ CHỌN VỊ TRÍ ĐẶT CÔNG TRÌNH & VÒNG BÁN KÍNH BẢO HỘ 14 DẶM
   useEffect(() => {
-    if (!isMapReady) return;
-    const map = mapInstanceRef.current;
+    if (!mapInstance) return;
+    const map = mapInstance;
     const previewLayer = previewLayerRef.current;
     const controlLayer = controlRadiusLayerRef.current;
     if (!map || !previewLayer || !controlLayer) return;
@@ -948,7 +862,7 @@ export const WorldMap: React.FC = () => {
       previewLayer.clearLayers();
       controlLayer.clearLayers();
     };
-  }, [isMapReady, placementMode, placeStructure, setPlacementMode]);
+  }, [mapInstance, placementMode, placeStructure, setPlacementMode]);
 
   return (
     <div className="absolute inset-0 z-0 bg-[#16171a] overflow-hidden">
