@@ -530,7 +530,7 @@ export const WorldMap: React.FC = () => {
     if (!mapInstance) return;
     const map = mapInstance;
 
-    // Xóa các polygon cũ
+    // Xóa các polygon cũ trước khi vẽ lại
     polygonsMapRef.current.forEach(p => p.remove());
     polygonsMapRef.current.clear();
 
