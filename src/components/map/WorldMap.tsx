@@ -112,6 +112,14 @@ export const WorldMap: React.FC = () => {
       sPane.style.pointerEvents = 'auto';
     }
 
+    // Pane cho nhãn tên địa danh (zIndex: 750 - trên cùng cao hơn cả các node và công trình)
+    map.createPane('districtLabelsPane');
+    const lPane = map.getPane('districtLabelsPane');
+    if (lPane) {
+      lPane.style.zIndex = '750';
+      lPane.style.pointerEvents = 'none';
+    }
+
     const calculateCoverZoom = () => {
       const size = map.getSize();
       if (!size.x || !size.y) return 0;
@@ -502,8 +510,8 @@ export const WorldMap: React.FC = () => {
             : '';
 
         const labelHtml = `
-          <div class="pointer-events-none select-none transform -translate-x-1/2 -translate-y-1/2 flex items-center whitespace-nowrap font-serif font-black tracking-widest ${isSelected ? 'scale-115' : ''} transition-transform duration-150 animate-in fade-in zoom-in-95"
-               style="font-size: 18px; text-shadow: -1.5px -1.5px 0 #180e06, 1.5px -1.5px 0 #180e06, -1.5px 1.5px 0 #180e06, 1.5px 1.5px 0 #180e06, 0 2px 8px rgba(0,0,0,0.95), 0 0 14px ${glowColor};">
+          <div class="pointer-events-none select-none flex items-center justify-center whitespace-nowrap font-serif font-black tracking-widest ${isSelected ? 'scale-115' : ''} transition-transform duration-150 animate-in fade-in zoom-in-95"
+               style="font-size: 19px; transform: translate(-50%, calc(-50% - 14px)); text-align: center; text-shadow: -1.5px -1.5px 0 #180e06, 1.5px -1.5px 0 #180e06, -1.5px 1.5px 0 #180e06, 1.5px 1.5px 0 #180e06, 0 2px 8px rgba(0,0,0,0.95), 0 0 14px ${glowColor};">
             <span class="${factionColor}">${district.name}</span>
             ${troopsBadge}
           </div>
@@ -519,6 +527,7 @@ export const WorldMap: React.FC = () => {
         const labelMarker = L.marker(centerLatLng, {
           icon: labelIcon,
           interactive: false,
+          pane: 'districtLabelsPane',
         });
 
         labelMarker.addTo(labelsLayer);
