@@ -575,13 +575,14 @@ export const useGameStore = create<GameState>((set, get) => ({
     let totalPopulation = 0;
     let suspicionGain = 0;
 
+    let citiesChanged = false;
+    let structuresChanged = false;
+
     // 1. Cập nhật các Cứ điểm Lam Sơn & Nhân khẩu
     const updatedCities = state.cities.map(city => {
       if (city.faction !== 'lam_son' || !city.population) return city;
 
-      let pop = { ...city.population };
-      let training = city.training ? { ...city.training } : null;
-      let cityTroops = city.troops;
+      const pop = city.population;
 
       // Đếm tổng nhân khẩu cứ điểm để tính ăn uống
       const cityTotalPop =
@@ -592,74 +593,86 @@ export const useGameStore = create<GameState>((set, get) => ({
         pop.unfitPopulation;
       totalPopulation += cityTotalPop;
 
+      if (!city.training) {
+        return city;
+      }
+
+      citiesChanged = true;
+      let nextPop = { ...pop };
+      let training: CityNode['training'] = { ...city.training };
+      let cityTroops = city.troops;
+
       // Xử lý đợt thao luyện
-      if (training) {
-        const isMountainOrForest = city.type === 'camp' || city.type === 'chokepoint';
-        const noiseFactor = isMountainOrForest ? 0.3 : 1.0;
-        suspicionGain += training.traineesCount * 0.01 * noiseFactor;
-        training.remainingDays -= 1;
+      const isMountainOrForest = city.type === 'camp' || city.type === 'chokepoint';
+      const noiseFactor = isMountainOrForest ? 0.3 : 1.0;
+      suspicionGain += training.traineesCount * 0.01 * noiseFactor;
+      training.remainingDays -= 1;
 
-        if (training.remainingDays <= 0) {
-          // Thao luyện hoàn tất: Tráng phu tốt nghiệp thành Nghĩa Binh!
-          const newGraduates = training.traineesCount;
-          const coachGeneralId = training.generalId;
-          pop.combatTroops += newGraduates;
-          cityTroops += newGraduates;
+      if (training.remainingDays <= 0) {
+        // Thao luyện hoàn tất: Tráng phu tốt nghiệp thành Nghĩa Binh!
+        const newGraduates = training.traineesCount;
+        const coachGeneralId = training.generalId;
+        nextPop.combatTroops += newGraduates;
+        cityTroops += newGraduates;
 
-          // Trả lại số nghĩa binh thế chỗ về quân ngũ
-          if (pop.swappedCombatants > 0) {
-            pop.farmLaborers += Math.floor(pop.swappedCombatants * 0.7);
-            pop.forgeLaborers += Math.ceil(pop.swappedCombatants * 0.3);
-            pop.swappedCombatants = 0;
-          }
-
-          const coachGeneral = state.generals.find(g => g.id === coachGeneralId);
-          finishedNotice = {
-            id: `train_done_${Date.now()}`,
-            title: 'Thao Luyện Nghĩa Binh Hoàn Tất!',
-            dateStr: `Ngày ${newDay}/${newMonth}/${newYear}`,
-            description: `${coachGeneral ? coachGeneral.name : 'Vị tướng'} đã rèn đúc thành công ${newGraduates} tráng đinh trở thành Nghĩa Binh dũng cảm, sẵn sàng cầm gươm giáo vì đại nghĩa!`,
-            generalIds: coachGeneral ? [coachGeneral.id] : [],
-          };
-
-          training = null;
+        // Trả lại số nghĩa binh thế chỗ về quân ngũ
+        if (nextPop.swappedCombatants > 0) {
+          nextPop.farmLaborers += Math.floor(nextPop.swappedCombatants * 0.7);
+          nextPop.forgeLaborers += Math.ceil(nextPop.swappedCombatants * 0.3);
+          nextPop.swappedCombatants = 0;
         }
+
+        const coachGeneral = state.generals.find(g => g.id === coachGeneralId);
+        finishedNotice = {
+          id: `train_done_${Date.now()}`,
+          title: 'Thao Luyện Nghĩa Binh Hoàn Tất!',
+          dateStr: `Ngày ${newDay}/${newMonth}/${newYear}`,
+          description: `${coachGeneral ? coachGeneral.name : 'Vị tướng'} đã rèn đúc thành công ${newGraduates} tráng đinh trở thành Nghĩa Binh dũng cảm, sẵn sàng cầm gươm giáo vì đại nghĩa!`,
+          generalIds: coachGeneral ? [coachGeneral.id] : [],
+        };
+
+        training = null;
       }
 
       return {
         ...city,
         troops: cityTroops,
-        population: pop,
+        population: nextPop,
         training,
       };
     });
 
     // 2. Xử lý Tiến độ Công trình (Ruộng lúa & Lò rèn)
     const updatedStructures = state.structures.map(structure => {
-      let s = { ...structure };
-
       // Thi công xây dựng công trình mới
-      if (s.status === 'building') {
-        s.buildDaysRemaining -= 1;
+      if (structure.status === 'building') {
+        structuresChanged = true;
+        const s = { ...structure, buildDaysRemaining: structure.buildDaysRemaining - 1 };
         if (s.buildDaysRemaining <= 0) {
           s.status = 'active';
           const workers = s.builderWorkers;
           s.builderWorkers = 0;
 
-          const targetCity = updatedCities.find(c => c.id === s.cityId);
-          if (targetCity && targetCity.population) {
-            targetCity.population.idleLaborers += workers;
-            if (s.type === 'farm') {
-              targetCity.buildings = {
-                farms: (targetCity.buildings?.farms || 0) + 1,
-                forges: targetCity.buildings?.forges || 0,
-              };
-            } else {
-              targetCity.buildings = {
-                farms: targetCity.buildings?.farms || 0,
-                forges: (targetCity.buildings?.forges || 0) + 1,
-              };
-            }
+          const targetCityIdx = updatedCities.findIndex(c => c.id === s.cityId);
+          if (targetCityIdx !== -1 && updatedCities[targetCityIdx].population) {
+            citiesChanged = true;
+            const targetCity = updatedCities[targetCityIdx];
+            updatedCities[targetCityIdx] = {
+              ...targetCity,
+              population: {
+                ...targetCity.population!,
+                idleLaborers: targetCity.population!.idleLaborers + workers,
+              },
+              buildings: s.type === 'farm'
+                ? {
+                    farms: (targetCity.buildings?.farms || 0) + 1,
+                    forges: targetCity.buildings?.forges || 0,
+                  }
+                : {
+                    farms: targetCity.buildings?.farms || 0,
+                    forges: (targetCity.buildings?.forges || 0) + 1,
+                  },
+            };
           }
 
           if (!finishedNotice) {
@@ -678,9 +691,10 @@ export const useGameStore = create<GameState>((set, get) => ({
       }
 
       // Ruộng lúa đang hoạt động: Tích lũy tiến độ vụ mùa (90 ngày ~ 1 quý / vụ)
-      if (s.type === 'farm' && s.status === 'active') {
-        if (s.assignedWorkers > 0) {
-          s.cropDays += 1;
+      if (structure.type === 'farm' && structure.status === 'active') {
+        if (structure.assignedWorkers > 0) {
+          structuresChanged = true;
+          const s = { ...structure, cropDays: structure.cropDays + 1 };
           if (s.cropDays >= s.cropCycleDays) {
             // MÙA THU HOẠCH LƯƠNG THỰC!
             const yieldFood = Math.round(s.assignedWorkers * 90 * 0.22);
@@ -697,13 +711,16 @@ export const useGameStore = create<GameState>((set, get) => ({
               };
             }
           }
+          return s;
         }
-        return s;
+        return structure;
       }
 
       // Lò rèn đang hoạt động: Đang đúc mẻ vũ khí
-      if (s.type === 'forge' && s.status === 'active' && s.activeOrder) {
-        let order = { ...s.activeOrder };
+      if (structure.type === 'forge' && structure.status === 'active' && structure.activeOrder) {
+        structuresChanged = true;
+        const s = { ...structure };
+        const order = { ...structure.activeOrder };
         
         // Tiếng đe búa tạo độ nghi ngờ theo địa hình
         const isQuietTerrain = s.terrain === 'mountain' || s.terrain === 'forest';
@@ -716,10 +733,18 @@ export const useGameStore = create<GameState>((set, get) => ({
           totalWeaponsProduced += order.quantity;
           const smiths = order.assignedSmiths;
 
-          const targetCity = updatedCities.find(c => c.id === s.cityId);
-          if (targetCity && targetCity.population) {
-            targetCity.population.idleLaborers += smiths;
-            targetCity.population.forgeLaborers = Math.max(0, targetCity.population.forgeLaborers - smiths);
+          const targetCityIdx = updatedCities.findIndex(c => c.id === s.cityId);
+          if (targetCityIdx !== -1 && updatedCities[targetCityIdx].population) {
+            citiesChanged = true;
+            const targetCity = updatedCities[targetCityIdx];
+            updatedCities[targetCityIdx] = {
+              ...targetCity,
+              population: {
+                ...targetCity.population!,
+                idleLaborers: targetCity.population!.idleLaborers + smiths,
+                forgeLaborers: Math.max(0, targetCity.population!.forgeLaborers - smiths),
+              },
+            };
           }
 
           if (!finishedNotice) {
@@ -739,7 +764,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         return s;
       }
 
-      return s;
+      return structure;
     });
 
     // 3. Tiêu hao lương thực theo ngày & Cộng thu hoạch mùa vụ
@@ -811,8 +836,8 @@ export const useGameStore = create<GameState>((set, get) => ({
         troops: state.resources.troops + bonusTroops,
         elephants: state.resources.elephants + bonusElephants,
       },
-      cities: updatedCities,
-      structures: updatedStructures,
+      cities: citiesChanged ? updatedCities : state.cities,
+      structures: structuresChanged ? updatedStructures : state.structures,
       generals: updatedGenerals,
       recruitmentNotice: newNotice,
       suspicion: newSuspicion,

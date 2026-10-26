@@ -31,6 +31,8 @@ export const WorldMap: React.FC = () => {
   const parchmentCutoutRef = useRef<L.ImageOverlay | null>(null);
   const parchmentSheetRef = useRef<L.ImageOverlay | null>(null);
   const polygonsMapRef = useRef<Map<string, L.Polygon>>(new Map());
+  const nodeMarkersMapRef = useRef<Map<string, { marker: L.Marker; html: string; x: number; y: number }>>(new Map());
+  const structureMarkersMapRef = useRef<Map<string, { marker: L.Marker; html: string; x: number; y: number }>>(new Map());
 
   const [parchmentMode, setParchmentMode] = useState<ParchmentMode>('cutout');
   const [showDistricts, setShowDistricts] = useState<boolean>(true);
@@ -215,6 +217,8 @@ export const WorldMap: React.FC = () => {
       isDisposed = true;
       clearTimeout(initTimer);
       window.removeEventListener('resize', handleResize);
+      nodeMarkersMapRef.current.clear();
+      structureMarkersMapRef.current.clear();
       map.remove();
       mapInstanceRef.current = null;
       setIsMapReady(false);
@@ -241,7 +245,7 @@ export const WorldMap: React.FC = () => {
 
   const isFirstMountRef = useRef(true);
 
-  // 1.1 Lướt camera tới cứ điểm khi chọn từ danh sách Quân Thư
+  // 1.1 Lướt camera tới cứ điểm khi chọn từ danh sách Quân Thư (chỉ chạy khi đổi selectedCityId, không chạy lại khi dữ liệu cities tick theo ngày)
   useEffect(() => {
     if (isFirstMountRef.current) {
       isFirstMountRef.current = false;
@@ -250,7 +254,8 @@ export const WorldMap: React.FC = () => {
     const map = mapInstanceRef.current;
     if (!selectedCityId || !map) return;
     try {
-      const city = cities.find(c => c.id === selectedCityId);
+      const currentCities = useGameStore.getState().cities;
+      const city = currentCities.find(c => c.id === selectedCityId);
       if (!city) return;
       const targetLatLng = percentToLatLng(city.x, city.y);
       map.panTo(targetLatLng, {
@@ -261,7 +266,7 @@ export const WorldMap: React.FC = () => {
     } catch {
       // ignore
     }
-  }, [selectedCityId, cities]);
+  }, [selectedCityId]);
 
   // 2. Cập nhật các đường nối hành quân
   useEffect(() => {
@@ -479,33 +484,28 @@ export const WorldMap: React.FC = () => {
 
         const factionColor =
           faction === 'lam_son'
-            ? 'text-amber-400 font-black'
+            ? 'text-amber-300'
             : faction === 'ming'
-            ? 'text-sky-400 font-black'
-            : 'text-stone-300';
+            ? 'text-sky-300'
+            : 'text-[#fbf2e3]';
 
-        const badgeBorder =
+        const glowColor =
           faction === 'lam_son'
-            ? 'border-amber-600/80 shadow-[0_0_12px_rgba(245,158,11,0.5)]'
+            ? 'rgba(245, 158, 11, 0.6)'
             : faction === 'ming'
-            ? 'border-blue-600/80 shadow-[0_0_12px_rgba(59,130,246,0.5)]'
-            : 'border-stone-600/60 shadow-[0_0_8px_rgba(0,0,0,0.6)]';
+            ? 'rgba(56, 189, 248, 0.6)'
+            : 'rgba(0, 0, 0, 0.95)';
 
         const troopsBadge =
           troops > 0
-            ? `<span class="ml-1.5 px-1.5 py-0.2 rounded text-[10px] bg-black/50 border border-stone-600/70 text-stone-200 font-mono">${troops.toLocaleString()}</span>`
+            ? `<span class="ml-2 text-xs font-mono font-medium text-amber-200/90 tracking-normal" style="text-shadow: 0 1px 3px #000, 0 0 6px #000;">[${troops.toLocaleString()}]</span>`
             : '';
 
         const labelHtml = `
-          <div class="pointer-events-none transform -translate-x-1/2 -translate-y-full pb-2 animate-in fade-in zoom-in-95 duration-150">
-            <div class="px-3 py-1 rounded-md bg-[#1e130a]/92 border ${badgeBorder} shadow-2xl backdrop-blur-sm flex items-center whitespace-nowrap font-serif font-bold text-xs tracking-wide text-[#f5ebd9]"
-                 style="box-shadow: 0 4px 16px rgba(0,0,0,0.65);">
-              <span class="${factionColor}">${district.name}</span>
-              ${troopsBadge}
-            </div>
-            ${isSelected ? `
-              <div class="w-2.5 h-2.5 bg-[#a87c4f] mx-auto rotate-45 -mt-1.5 shadow-md"></div>
-            ` : ''}
+          <div class="pointer-events-none select-none transform -translate-x-1/2 -translate-y-1/2 flex items-center whitespace-nowrap font-serif font-black tracking-widest ${isSelected ? 'scale-115' : ''} transition-transform duration-150 animate-in fade-in zoom-in-95"
+               style="font-size: 18px; text-shadow: -1.5px -1.5px 0 #180e06, 1.5px -1.5px 0 #180e06, -1.5px 1.5px 0 #180e06, 1.5px 1.5px 0 #180e06, 0 2px 8px rgba(0,0,0,0.95), 0 0 14px ${glowColor};">
+            <span class="${factionColor}">${district.name}</span>
+            ${troopsBadge}
           </div>
         `;
 
@@ -531,7 +531,9 @@ export const WorldMap: React.FC = () => {
     if (!isMapReady) return;
     const layer = nodesLayerRef.current;
     if (!layer) return;
-    layer.clearLayers();
+
+    const markersMap = nodeMarkersMapRef.current;
+    const activeIds = new Set<string>();
 
     cities.forEach(city => {
       const pos = percentToLatLng(city.x, city.y);
@@ -540,6 +542,7 @@ export const WorldMap: React.FC = () => {
 
       // 1. Căn Cứ Nghĩa Quân (Chấm Đỏ Lam Sơn)
       if (isLamSonBase) {
+        activeIds.add(city.id);
         const hasTraining = !!(city.training && city.training.remainingDays > 0);
 
         const html = `
@@ -574,26 +577,48 @@ export const WorldMap: React.FC = () => {
           </div>
         `;
 
-        const marker = L.marker(pos, {
-          icon: L.divIcon({
-            className: 'base-node-marker',
-            html,
-            iconSize: [28, 28],
-            iconAnchor: [14, 14],
-          }),
-          pane: 'structuresPane',
-        });
+        const existing = markersMap.get(city.id);
+        if (existing) {
+          if (existing.x !== city.x || existing.y !== city.y) {
+            existing.marker.setLatLng(pos);
+            existing.x = city.x;
+            existing.y = city.y;
+          }
+          if (existing.html !== html) {
+            existing.marker.setIcon(
+              L.divIcon({
+                className: 'base-node-marker',
+                html,
+                iconSize: [28, 28],
+                iconAnchor: [14, 14],
+              })
+            );
+            existing.html = html;
+          }
+        } else {
+          const marker = L.marker(pos, {
+            icon: L.divIcon({
+              className: 'base-node-marker',
+              html,
+              iconSize: [28, 28],
+              iconAnchor: [14, 14],
+            }),
+            pane: 'structuresPane',
+          });
 
-        marker.on('click', (e) => {
-          L.DomEvent.stopPropagation(e);
-          selectCity(city.id);
-        });
+          marker.on('click', (e) => {
+            L.DomEvent.stopPropagation(e);
+            selectCity(city.id);
+          });
 
-        marker.addTo(layer);
+          marker.addTo(layer);
+          markersMap.set(city.id, { marker, html, x: city.x, y: city.y });
+        }
       }
 
       // 2. Cứ Điểm Quân Minh (Chấm Xanh Dương to nhỏ phụ thuộc lượng quân)
       else if (isMing) {
+        activeIds.add(city.id);
         const troops = city.troops;
         const dotSize = Math.max(12, Math.min(28, Math.round(8 + Math.sqrt(troops / 13))));
         const isMainFortress = troops >= 8000;
@@ -617,22 +642,50 @@ export const WorldMap: React.FC = () => {
           </div>
         `;
 
-        const marker = L.marker(pos, {
-          icon: L.divIcon({
-            className: 'ming-node-marker',
-            html,
-            iconSize: [dotSize, dotSize],
-            iconAnchor: [dotSize / 2, dotSize / 2],
-          }),
-          pane: 'structuresPane',
-        });
+        const existing = markersMap.get(city.id);
+        if (existing) {
+          if (existing.x !== city.x || existing.y !== city.y) {
+            existing.marker.setLatLng(pos);
+            existing.x = city.x;
+            existing.y = city.y;
+          }
+          if (existing.html !== html) {
+            existing.marker.setIcon(
+              L.divIcon({
+                className: 'ming-node-marker',
+                html,
+                iconSize: [dotSize, dotSize],
+                iconAnchor: [dotSize / 2, dotSize / 2],
+              })
+            );
+            existing.html = html;
+          }
+        } else {
+          const marker = L.marker(pos, {
+            icon: L.divIcon({
+              className: 'ming-node-marker',
+              html,
+              iconSize: [dotSize, dotSize],
+              iconAnchor: [dotSize / 2, dotSize / 2],
+            }),
+            pane: 'structuresPane',
+          });
 
-        marker.on('click', (e) => {
-          L.DomEvent.stopPropagation(e);
-          selectCity(city.id);
-        });
+          marker.on('click', (e) => {
+            L.DomEvent.stopPropagation(e);
+            selectCity(city.id);
+          });
 
-        marker.addTo(layer);
+          marker.addTo(layer);
+          markersMap.set(city.id, { marker, html, x: city.x, y: city.y });
+        }
+      }
+    });
+
+    markersMap.forEach((entry, id) => {
+      if (!activeIds.has(id)) {
+        layer.removeLayer(entry.marker);
+        markersMap.delete(id);
       }
     });
   }, [isMapReady, cities, selectCity]);
@@ -642,9 +695,12 @@ export const WorldMap: React.FC = () => {
     if (!isMapReady) return;
     const layer = structuresLayerRef.current;
     if (!layer) return;
-    layer.clearLayers();
+
+    const markersMap = structureMarkersMapRef.current;
+    const activeIds = new Set<string>();
 
     structures.forEach(structure => {
+      activeIds.add(structure.id);
       const isFarm = structure.type === 'farm';
       const isBuilding = structure.status === 'building';
       const order = structure.activeOrder;
@@ -696,22 +752,50 @@ export const WorldMap: React.FC = () => {
         `;
       }
 
-      const marker = L.marker(pos, {
-        icon: L.divIcon({
-          className: 'placed-dot-marker',
-          html: dotHtml,
-          iconSize: [20, 20],
-          iconAnchor: [10, 10],
-        }),
-        pane: 'structuresPane',
-      });
+      const existing = markersMap.get(structure.id);
+      if (existing) {
+        if (existing.x !== structure.x || existing.y !== structure.y) {
+          existing.marker.setLatLng(pos);
+          existing.x = structure.x;
+          existing.y = structure.y;
+        }
+        if (existing.html !== dotHtml) {
+          existing.marker.setIcon(
+            L.divIcon({
+              className: 'placed-dot-marker',
+              html: dotHtml,
+              iconSize: [20, 20],
+              iconAnchor: [10, 10],
+            })
+          );
+          existing.html = dotHtml;
+        }
+      } else {
+        const marker = L.marker(pos, {
+          icon: L.divIcon({
+            className: 'placed-dot-marker',
+            html: dotHtml,
+            iconSize: [20, 20],
+            iconAnchor: [10, 10],
+          }),
+          pane: 'structuresPane',
+        });
 
-      marker.on('click', (e) => {
-        L.DomEvent.stopPropagation(e);
-        selectCity(structure.cityId);
-      });
+        marker.on('click', (e) => {
+          L.DomEvent.stopPropagation(e);
+          selectCity(structure.cityId);
+        });
 
-      marker.addTo(layer);
+        marker.addTo(layer);
+        markersMap.set(structure.id, { marker, html: dotHtml, x: structure.x, y: structure.y });
+      }
+    });
+
+    markersMap.forEach((entry, id) => {
+      if (!activeIds.has(id)) {
+        layer.removeLayer(entry.marker);
+        markersMap.delete(id);
+      }
     });
   }, [isMapReady, structures, selectCity]);
 
@@ -728,7 +812,8 @@ export const WorldMap: React.FC = () => {
 
     if (!placementMode) return;
 
-    const targetCity = cities.find(c => c.id === placementMode.cityId);
+    const currentCities = useGameStore.getState().cities;
+    const targetCity = currentCities.find(c => c.id === placementMode.cityId);
 
     // Vẽ vòng tròn bán kính 14 dặm bao bọc căn cứ
     if (targetCity) {
@@ -757,9 +842,12 @@ export const WorldMap: React.FC = () => {
       let isValid = true;
       let reason = '';
 
+      const latestState = useGameStore.getState();
+      const latestCity = latestState.cities.find(c => c.id === placementMode.cityId);
+
       // Kiểm tra khoảng cách tới cứ điểm (14 dặm)
-      if (targetCity) {
-        const cityDist = Math.hypot(targetCity.x - x, targetCity.y - y);
+      if (latestCity) {
+        const cityDist = Math.hypot(latestCity.x - x, latestCity.y - y);
         if (cityDist > 14.0) {
           isValid = false;
           reason = `Quá xa căn cứ (${cityDist.toFixed(1)} > 14 dặm)`;
@@ -768,7 +856,7 @@ export const WorldMap: React.FC = () => {
 
       // Kiểm tra khoảng cách tới các công trình khác
       if (isValid) {
-        for (const s of structures) {
+        for (const s of latestState.structures) {
           if (Math.hypot(s.x - x, s.y - y) < 2.2) {
             isValid = false;
             reason = `Quá gần ${s.name} (< 2.2 dặm)`;
@@ -851,7 +939,7 @@ export const WorldMap: React.FC = () => {
       previewLayer.clearLayers();
       controlLayer.clearLayers();
     };
-  }, [isMapReady, placementMode, cities, structures, placeStructure, setPlacementMode]);
+  }, [isMapReady, placementMode, placeStructure, setPlacementMode]);
 
   return (
     <div className="absolute inset-0 z-0 bg-[#16171a] overflow-hidden">
