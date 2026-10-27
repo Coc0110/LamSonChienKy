@@ -32,6 +32,7 @@ import {
 import { DistrictEditorBar } from './DistrictEditorBar';
 import { ParchmentControls } from './ParchmentControls';
 import { TerrainGridOverlay } from './TerrainGridOverlay';
+import { StructureDetailModal, cleanStructureName } from './StructureDetailModal';
 
 const TERRAIN_ICONS: Record<TerrainType, string> = {
   plains: '🌾',
@@ -977,12 +978,12 @@ export const WorldMap: React.FC = () => {
       const hasTraining = !!(city.training && city.training.remainingDays > 0);
 
       overlay.bindTooltip(`
-        <div class="px-2.5 py-1.5 rounded-lg bg-[#140e08]/98 border ${isLamSonBase ? 'border-red-500 text-amber-200' : 'border-blue-500 text-sky-200'} shadow-2xl font-serif text-xs whitespace-nowrap">
-          <div class="font-bold text-sm ${isLamSonBase ? 'text-red-400' : 'text-sky-300'}">
-            ${isLamSonBase ? '★ Đại Bản Doanh' : isCity ? '◆ Thành Trì' : '▲ Doanh Trại'} ${city.name} [${gridSize}x${gridSize} ô]
+        <div class="px-3 py-2 rounded shadow-xl font-serif text-xs whitespace-nowrap relative border border-[#8c6b44]/40 bg-[#fbf5e8] text-[#261304] drop-shadow-md">
+          <div class="font-bold text-sm ${isLamSonBase ? 'text-[#8c2d19]' : 'text-[#1d4ed8]'} pb-0.5 border-b border-[#8c6b44]/25">
+            ${isLamSonBase ? '★ Đại Bản Doanh' : isCity ? '◆ Thành Trì' : '▲ Doanh Trại'} ${city.name}
           </div>
-          <div class="text-[10px] text-stone-300">Huyện ${districtName} • ${troops.toLocaleString()} quân</div>
-          ${hasTraining ? `<div class="text-[10px] text-amber-300 font-bold mt-0.5">⚔️ Đang thao luyện ${city.training!.traineesCount} tráng phu (còn ${city.training!.remainingDays} ngày)</div>` : ''}
+          <div class="text-[11px] text-[#5c3e23] pt-1">Huyện ${districtName} • ${troops.toLocaleString()} quân</div>
+          ${hasTraining ? `<div class="text-[10px] text-[#8c2d19] font-bold mt-0.5">⚔️ Đang thao luyện ${city.training!.traineesCount} tráng phu (còn ${city.training!.remainingDays} ngày)</div>` : ''}
         </div>
       `, {
         direction: 'top',
@@ -1053,19 +1054,28 @@ export const WorldMap: React.FC = () => {
         } ${order ? 'filter drop-shadow-[0_0_8px_rgba(239,68,68,0.9)]' : 'filter drop-shadow-[0_1px_3px_rgba(0,0,0,0.6)]'}`,
       });
 
+      const cleanName = cleanStructureName(structure.name);
+      const isMing = cities.find(c => c.id === structure.cityId)?.faction === 'ming';
+      const taxRate = isMing ? 50 : 10;
+      const efficiency = structure.gridSize === 7 ? 0.26 : structure.gridSize === 6 ? 0.24 : 0.22;
+      const weatherMult = structure.seasonCondition === 'bountiful' ? 1.25 : structure.seasonCondition === 'poor' ? 0.70 : 1.0;
+      const expectedYield = Math.max(0, Math.round((structure.assignedWorkers || 0) * 90 * efficiency * weatherMult * (1 - taxRate / 100)));
+      const weatherText = structure.seasonCondition === 'bountiful' ? 'Được mùa +25%' : structure.seasonCondition === 'poor' ? 'Mất mùa -30%' : 'Bình thường';
+
       overlay.bindTooltip(`
-        <div class="px-2.5 py-1.5 rounded-lg bg-[#140e08]/98 border ${isFarm ? 'border-amber-500' : 'border-stone-500'} shadow-2xl font-serif text-xs text-stone-200 whitespace-nowrap">
-          <div class="font-bold text-sm ${isFarm ? 'text-amber-300' : 'text-stone-200'}">
-            ${structure.name} [${gridSize}x${gridSize} ô]
+        <div class="px-3 py-2 rounded shadow-xl font-serif text-xs whitespace-nowrap relative border border-[#8c6b44]/40 bg-[#fbf5e8] text-[#261304] drop-shadow-md">
+          <div class="font-bold text-sm text-[#8c2d19] pb-0.5 border-b border-[#8c6b44]/25">
+            ${cleanName}
           </div>
-          <div class="text-[11px] text-stone-300">
+          <div class="text-[11px] text-[#5c3e23] pt-1 flex flex-col gap-0.5">
             ${isBuilding 
-              ? `🚧 Đang thi công (còn ${structure.buildDaysRemaining} ngày)`
+              ? `<span>🚧 Đang thi công (còn ${structure.buildDaysRemaining} ngày)</span>`
               : isFarm
-              ? `🌾 ${structure.assignedWorkers}/${structure.maxWorkers} nông đinh • Vụ: ${structure.cropDays}/${structure.cropCycleDays} ngày`
+              ? `<span>🌾 ${structure.assignedWorkers}/${structure.maxWorkers} nông đinh • Thuế: ${taxRate}%</span>
+                 <span class="text-[#8c2d19] font-bold">Dự kiến thu: ~${expectedYield.toLocaleString()} thạch (${weatherText})</span>`
               : order
-              ? `🔥 Đang rèn ${order.quantity} ${order.name} (còn ${order.remainingDays} ngày)`
-              : '⚒️ Sẵn sàng nhận lệnh đúc'
+              ? `<span>🔥 Đang rèn ${order.quantity} ${order.name} (còn ${order.remainingDays} ngày)</span>`
+              : '<span>⚒️ Sẵn sàng nhận lệnh đúc</span>'
             }
           </div>
         </div>
@@ -1405,123 +1415,31 @@ export const WorldMap: React.FC = () => {
         );
       })()}
 
-      {/* POPOVER THAO TÁC CƠ QUAN / CÔNG TRÌNH (DI DỜI / PHÁ BỎ) */}
+            {/* MODAL THÔNG TIN CHI TIẾT CÔNG TRÌNH DẠNG GIẤY DÓ */}
       {selectedStructureMenu && (
-        <div className="fixed inset-0 z-[1200] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
-          <div className="relative w-full max-w-sm rounded-2xl bg-[#1e130c] border-2 border-amber-500/80 shadow-[0_15px_40px_rgba(0,0,0,0.85)] p-5 text-stone-200 font-sans space-y-4">
-            
-            {/* Header */}
-            <div className="flex items-start justify-between border-b border-amber-900/60 pb-3">
-              <div className="flex items-center gap-3">
-                <span className="w-10 h-10 rounded-xl bg-amber-950/90 border border-amber-600 flex items-center justify-center p-1 shadow-md">
-                  <img
-                    src={selectedStructureMenu.type === 'farm' ? '/icons/structure_farm.png' : '/icons/structure_forge.png'}
-                    alt="Công trình"
-                    className="w-8 h-8 object-contain"
-                  />
-                </span>
-                <div>
-                  <h3 className="font-serif font-black text-amber-200 text-base leading-tight">
-                    {selectedStructureMenu.name}
-                  </h3>
-                  <div className="text-[11px] text-stone-400 mt-0.5 flex items-center gap-2">
-                    <span className="px-1.5 py-0.5 rounded bg-black/40 text-amber-300 font-mono text-[10px]">
-                      {selectedStructureMenu.type === 'farm' ? 'Ruộng Lúa Nước' : 'Lò Rèn Binh Khí'}
-                    </span>
-                    <span>•</span>
-                    <span>Đất: <strong>{TERRAIN_DEFINITIONS[selectedStructureMenu.terrain]?.name || selectedStructureMenu.terrain}</strong></span>
-                  </div>
-                </div>
-              </div>
-
-              <button
-                onClick={() => setSelectedStructureMenu(null)}
-                className="w-7 h-7 rounded-full bg-stone-800/80 hover:bg-stone-700 text-stone-400 hover:text-white flex items-center justify-center transition cursor-pointer"
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* Thông tin trạng thái */}
-            <div className="p-3 rounded-xl bg-black/40 border border-amber-950 text-xs space-y-1.5">
-              <div className="flex justify-between text-stone-300">
-                <span>Trạng thái:</span>
-                <span className="font-bold text-amber-300">
-                  {selectedStructureMenu.status === 'building'
-                    ? `🚧 Đang thi công (còn ${selectedStructureMenu.buildDaysRemaining} ngày)`
-                    : '🟢 Hoạt động bình thường'}
-                </span>
-              </div>
-              {selectedStructureMenu.type === 'farm' && selectedStructureMenu.status === 'active' && (
-                <div className="flex justify-between text-stone-300">
-                  <span>Nông đinh canh tác:</span>
-                  <span className="font-bold text-emerald-400">
-                    {selectedStructureMenu.assignedWorkers}/{selectedStructureMenu.maxWorkers} người
-                  </span>
-                </div>
-              )}
-              {selectedStructureMenu.type === 'forge' && selectedStructureMenu.status === 'active' && (
-                <div className="flex justify-between text-stone-300">
-                  <span>Mẻ rèn:</span>
-                  <span className="font-bold text-sky-400">
-                    {selectedStructureMenu.activeOrder
-                      ? `🔥 Đang đúc ${selectedStructureMenu.activeOrder.quantity} ${selectedStructureMenu.activeOrder.name}`
-                      : 'Sẵn sàng nhận lệnh'}
-                  </span>
-                </div>
-              )}
-              <div className="flex justify-between text-[11px] text-stone-400 pt-1 border-t border-stone-800/60 font-mono">
-                <span>Tọa độ bản đồ:</span>
-                <span>{selectedStructureMenu.x.toFixed(1)}%, {selectedStructureMenu.y.toFixed(1)}%</span>
-              </div>
-            </div>
-
-            {/* Các nút hành động: Di dời & Phá bỏ */}
-            <div className="grid grid-cols-2 gap-2 pt-1">
-              <button
-                onClick={() => {
-                  const s = selectedStructureMenu;
-                  setSelectedStructureMenu(null);
-                  setPlacementMode({
-                    type: s.type,
-                    cityId: s.cityId,
-                    relocateStructureId: s.id,
-                  });
-                }}
-                className="py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-stone-950 font-bold text-xs shadow-lg transition flex items-center justify-center gap-1.5 cursor-pointer hover:scale-[1.02] active:scale-98"
-              >
-                <span>🚚</span>
-                <span>Di Dời Vị Trí</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  const s = selectedStructureMenu;
-                  if (confirm(`Bạn có chắc chắn muốn phá dỡ [${s.name}]? Bạn sẽ thu hồi 50% vàng phế liệu và giải phóng tráng phu về rảnh rỗi.`)) {
-                    setSelectedStructureMenu(null);
-                    const res = demolishStructure(s.id);
-                    alert(res.message);
-                  }
-                }}
-                className="py-2.5 px-3 rounded-xl bg-gradient-to-r from-red-800 to-red-900 hover:from-red-700 hover:to-red-800 text-red-100 font-bold text-xs shadow-lg transition border border-red-700/60 flex items-center justify-center gap-1.5 cursor-pointer hover:scale-[1.02] active:scale-98"
-              >
-                <span>💥</span>
-                <span>Phá Bỏ (Hồi Vàng)</span>
-              </button>
-            </div>
-
-            {/* Nút phụ: Mở Chiến thư căn cứ */}
-            <button
-              onClick={() => {
-                selectCity(selectedStructureMenu.cityId);
-                setSelectedStructureMenu(null);
-              }}
-              className="w-full py-1.5 rounded-lg bg-stone-900 hover:bg-stone-800 text-stone-400 hover:text-stone-200 text-[11px] font-bold border border-stone-800 transition cursor-pointer"
-            >
-              🏛️ Mở Bảng Quản Lý Căn Cứ
-            </button>
-          </div>
-        </div>
+        <StructureDetailModal
+          structure={selectedStructureMenu}
+          onClose={() => setSelectedStructureMenu(null)}
+          onRelocate={(s) => {
+            setSelectedStructureMenu(null);
+            setPlacementMode({
+              type: s.type,
+              cityId: s.cityId,
+              relocateStructureId: s.id,
+            });
+          }}
+          onDemolish={(s) => {
+            if (confirm(`Bạn có chắc chắn muốn phá dỡ [${cleanStructureName(s.name)}]? Bạn sẽ thu hồi 50% vàng phế liệu và giải phóng tráng phu về rảnh rỗi.`)) {
+              setSelectedStructureMenu(null);
+              const res = demolishStructure(s.id);
+              alert(res.message);
+            }
+          }}
+          onOpenCity={(cityId) => {
+            selectCity(cityId);
+            setSelectedStructureMenu(null);
+          }}
+        />
       )}
 
       {/* Tấm Lưới Ô Địa Hình Canvas (Grid 0.5% & Sơn Địa Hình) */}

@@ -2,7 +2,18 @@ import type { TerrainType } from '../types/terrain';
 import type { StructureType, CityNode, PlacedStructure, TroopType } from '../types';
 import type { CellBuildValidation, GridPathResult } from '../types/grid';
 import { getTerrainAt, TERRAIN_DEFINITIONS } from './terrainData';
-import { MAP_COORD_W, MAP_COORD_H } from '../utils/mapGeo';
+import { MAP_COORD_W, MAP_COORD_H, pointInPolygon } from '../utils/mapGeo';
+import districtData from './districtPolygons.json';
+
+function findExactDistrictId(x: number, y: number): string | null {
+  const districts = (districtData as any).districts || [];
+  for (const d of districts) {
+    if (pointInPolygon(x, y, d.polygon)) {
+      return d.id;
+    }
+  }
+  return null;
+}
 
 // Ô lưới hình vuông thực sự (Square Grid Cells):
 // Cạnh ô = 1/4 chiều rộng ô cũ (0.5% / 4 = 0.125% theo chiều ngang, tương đương 0.7 đơn vị CRS.Simple)
@@ -389,6 +400,65 @@ export function validateCellPlacement(
             gridSize: size,
           };
         }
+      }
+    }
+  }
+
+  // 5. Kiểm tra không để đặt ruộng đè lên đường ranh giới các huyện
+  if (structureType === 'farm') {
+    const minX = startCol * GRID_CELL_W_PCT;
+    const maxX = (endCol + 1) * GRID_CELL_W_PCT;
+    const minY = startRow * GRID_CELL_H_PCT;
+    const maxY = (endRow + 1) * GRID_CELL_H_PCT;
+
+    const testPoints: [number, number][] = [
+      [minX, minY],
+      [maxX, minY],
+      [minX, maxY],
+      [maxX, maxY],
+      [centerX, centerY],
+      [(minX + maxX) / 2, minY],
+      [(minX + maxX) / 2, maxY],
+      [minX, (minY + maxY) / 2],
+      [maxX, (minY + maxY) / 2],
+    ];
+
+    let baseDistrictId: string | null = null;
+    for (const [px, py] of testPoints) {
+      const dId = findExactDistrictId(px, py);
+      if (!dId) {
+        return {
+          canBuild: false,
+          reason: 'Ruộng nương nằm ngoài ranh giới địa hạt!',
+          terrain: centerTerrain,
+          snappedX: centerX,
+          snappedY: centerY,
+          col: startCol,
+          row: startRow,
+          startCol,
+          startRow,
+          endCol,
+          endRow,
+          gridSize: size,
+        };
+      }
+      if (baseDistrictId === null) {
+        baseDistrictId = dId;
+      } else if (baseDistrictId !== dId) {
+        return {
+          canBuild: false,
+          reason: 'Không thể đặt ruộng đè lên đường ranh giới các huyện!',
+          terrain: centerTerrain,
+          snappedX: centerX,
+          snappedY: centerY,
+          col: startCol,
+          row: startRow,
+          startCol,
+          startRow,
+          endCol,
+          endRow,
+          gridSize: size,
+        };
       }
     }
   }

@@ -125,6 +125,18 @@ html, body, #root, * {
 }
 
 /* Tooltip địa hình phong cách Sa bàn Giấy Da Cừu */
+.structure-tooltip-container.leaflet-tooltip,
+.city-tooltip-container.leaflet-tooltip {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+.structure-tooltip-container.leaflet-tooltip::before,
+.city-tooltip-container.leaflet-tooltip::before {
+  display: none !important;
+}
+
 .parchment-tactical-tooltip {
   background: rgba(26, 16, 7, 0.95) !important;
   border: 1px solid #a87c4f !important;

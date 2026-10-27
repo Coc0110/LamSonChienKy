@@ -28,7 +28,7 @@ export interface CityBuildings {
 
 export type StructureType = 'farm' | 'forge';
 
-export type WeaponCraftType = 'spear' | 'sword' | 'crossbow';
+export type WeaponCraftType = 'sword' | 'bow' | 'spear' | 'armor' | 'crossbow';
 
 export interface ForgeOrder {
   id: string;
@@ -66,7 +66,9 @@ export interface PlacedStructure {
   cropCycleDays: number;   // Chu kỳ mùa vụ (90 ngày ~ 1 vụ Chiêm / vụ Mùa)
 
   // Lò rèn đúc
+  seasonCondition?: 'bountiful' | 'normal' | 'poor';
   activeOrder?: ForgeOrder | null;
+  forgeQueue?: ForgeOrder[];
 }
 
 export interface TrainingSession {

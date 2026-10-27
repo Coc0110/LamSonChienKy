@@ -1,7 +1,5 @@
 import React, { useRef, useEffect } from 'react';
 import { 
-  Wheat, 
-  Shirt, 
   Edit3, 
   Check,
 } from 'lucide-react';
@@ -29,6 +27,8 @@ export const TopBar: React.FC = () => {
     toggleMilitaryBook,
     isBuildPaperOpen,
     toggleBuildPaper,
+    activeModal,
+    setActiveModal,
     activeDropdown,
     toggleDropdown,
     setActiveDropdown,
@@ -77,7 +77,7 @@ export const TopBar: React.FC = () => {
     <header className="fixed top-0 left-0 right-0 w-full z-40 pointer-events-none filter drop-shadow-[0_10px_20px_rgba(0,0,0,0.65)] drop-shadow-[0_2px_5px_rgba(0,0,0,0.4)]">
       {/* 1 TỜ GIẤY PHỦ KÍN 3 MẶT (TRÊN, TRÁI, PHẢI), SỨT MẺ DƯỚI */}
       <div 
-        className="relative w-full h-[64px] md:h-[72px] pointer-events-auto select-none flex items-start"
+        className="relative w-full h-[72px] md:h-[78px] pointer-events-auto select-none flex items-start"
       >
         {/* Nền giấy cổ sáng sạch, mép dưới rách sứt mẻ tự nhiên */}
         <img
@@ -88,7 +88,7 @@ export const TopBar: React.FC = () => {
         />
 
         {/* Toàn bộ chữ và số nằm ở vùng giấy sáng sạch phía trên */}
-        <div className="relative z-10 w-full pt-1.5 md:pt-2 px-4 md:px-7 flex items-center justify-between text-xs md:text-sm font-serif font-bold text-[#2a1708]">
+        <div className="relative z-10 w-full pt-1 px-4 md:px-7 flex items-center justify-between text-xs md:text-sm font-serif font-bold text-[#2a1708]">
           
           {/* DÃY CHỈ SỐ QUÂN LƯƠNG & CỤM THỜI GIAN */}
           <div className="flex items-center gap-2 md:gap-3.5 overflow-x-auto no-scrollbar whitespace-nowrap py-0.5">
@@ -165,24 +165,65 @@ export const TopBar: React.FC = () => {
               )}
             </button>
 
+            {/* 0.6. NÚT THẺ TƯỚNG (Icon lệnh bài tướng x1.5, cạnh Xây Dựng) */}
+            <button
+              onClick={() => setActiveModal(activeModal === 'generals' ? null : 'generals')}
+              type="button"
+              className={`relative px-2 py-1 flex items-center justify-center gap-1.5 transition-all cursor-pointer rounded self-center ${
+                activeModal === 'generals' 
+                  ? 'scale-105' 
+                  : 'hover:scale-105 active:scale-95 hover:bg-black/[0.05]'
+              }`}
+              title="Mở Thẻ Tướng (Bảng Lệnh Bài Danh Tướng Lam Sơn)"
+            >
+              {activeModal !== 'generals' && (
+                <img 
+                  src="/icons/general_token.png" 
+                  alt="Thẻ Tướng" 
+                  className="w-6 h-6 object-contain relative z-10 filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.45)]"
+                />
+              )}
+              {activeModal === 'generals' ? (
+                <div className="relative px-3.5 py-1 flex items-center justify-center">
+                  <img
+                    src="/ink_stroke_1.png"
+                    alt="Vết mực"
+                    className="absolute inset-0 w-full h-full object-fill pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]"
+                  />
+                  <span className="relative z-10 font-serif font-black text-xs md:text-sm tracking-wide text-[#fcf4e4] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]">
+                    Thẻ Tướng
+                  </span>
+                </div>
+              ) : (
+                <span className="relative z-10 font-serif font-black text-xs md:text-sm tracking-wide text-[#261304]">
+                  Thẻ Tướng
+                </span>
+              )}
+            </button>
+
             {/* Phân cách */}
             <div className="w-px h-8 bg-[#8c6b44]/40 shrink-0 self-center" />
 
             {/* 1. KHỐI THỜI GIAN VÀ CÁC NÚT TỐC ĐỘ DẠNG VẾT MỰC PHÍA DƯỚI */}
-            <div className="flex flex-col items-start justify-center shrink-0 pr-1">
-              {/* Dòng trên: Ngày / Tháng / Năm + Icon Đồng Hồ Cát x2 (32px, lật theo trục ngang mỗi ngày) */}
+            <div className="flex flex-col items-start justify-center shrink-0 pr-1 -mt-0.5">
+              {/* Dòng trên: Ngày / Tháng / Năm + Icon Đồng Hồ Cát lật theo trục ngang */}
               <button 
                 onClick={handleTimeClick}
-                className="flex items-center gap-2 cursor-pointer py-0.5 px-1 rounded hover:bg-black/[0.04] transition-all text-left"
+                className="flex items-center gap-1.5 py-0 px-1 rounded hover:bg-black/[0.04] transition-all text-left"
                 title="Bấm để Tạm dừng / Tiếp tục"
               >
-                <div className="relative w-8 h-8 shrink-0 flex items-center justify-center">
+                <div 
+                  className="relative w-7 h-7 md:w-8 md:h-8 shrink-0 flex items-center justify-center"
+                  style={{ perspective: '400px' }}
+                >
                   <img
                     src="/icons/hourglass.png"
                     alt="Đồng hồ cát"
                     style={{
-                      transform: day % 2 === 0 ? 'rotate(180deg)' : 'rotate(0deg)',
-                      transition: 'transform 0.6s cubic-bezier(0.4, 0, 0.2, 1)'
+                      transform: `rotateX(${day * 180}deg)`,
+                      transformOrigin: '50% 50%',
+                      transition: 'transform 0.6s cubic-bezier(0.4, 0, 0.2, 1)',
+                      transformStyle: 'preserve-3d'
                     }}
                     className={`w-full h-full object-contain filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)] ${
                       isPaused 
@@ -193,13 +234,13 @@ export const TopBar: React.FC = () => {
                     }`}
                   />
                 </div>
-                <span className="font-serif font-black text-xs md:text-sm tracking-wide text-[#261304]">
+                <span className="font-serif font-black text-xs md:text-sm tracking-wide text-[#261304] leading-none">
                   Ngày {day}/{month}/{year}
                 </span>
               </button>
 
               {/* Dòng dưới: Các nút tốc độ 0x, 1x, 2x, 5x, 10x, 50x dạng vết mực */}
-              <div className="flex items-center gap-1 mt-0.5 pl-0.5">
+              <div className="flex items-center gap-1 mt-0 pl-0.5">
                 {SPEED_OPTIONS.map((speed) => {
                   const isActive = speed === 0 ? isPaused : (!isPaused && gameSpeed === speed);
                   
@@ -207,8 +248,11 @@ export const TopBar: React.FC = () => {
                     <button
                       key={speed}
                       type="button"
-                      onClick={() => setSpeed(speed)}
-                      className={`relative min-w-[21px] h-[19px] px-1.5 flex items-center justify-center transition-all cursor-pointer ${
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSpeed(speed);
+                      }}
+                      className={`relative min-w-[21px] h-[18px] px-1.5 flex items-center justify-center transition-all cursor-pointer ${
                         isActive 
                           ? 'scale-105' 
                           : 'hover:scale-105 active:scale-95'
@@ -368,9 +412,13 @@ export const TopBar: React.FC = () => {
             {/* Phân cách */}
             <div className="w-px h-6 bg-[#8c6b44]/40 shrink-0 self-center" />
 
-            {/* 3. QUÂN LƯƠNG (Icon x2: size 28) */}
+            {/* 3. QUÂN LƯƠNG (Icon Bao Lương Thảo x2: 32px) */}
             <div className="flex items-center gap-1.5 shrink-0 self-center" title="Quân lương dự trữ">
-              <Wheat size={28} className={resources.food <= 0 ? "text-[#a82415] animate-pulse" : "text-[#7a481c]"} />
+              <img 
+                src="/icons/food.png" 
+                alt="Lương" 
+                className="w-8 h-8 object-contain filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]"
+              />
               <span className={resources.food <= 0 ? "text-[#8a180b] font-black" : ""}>
                 Lương: {Math.floor(resources.food).toLocaleString()}
               </span>
@@ -379,7 +427,7 @@ export const TopBar: React.FC = () => {
             {/* Phân cách */}
             <div className="w-px h-6 bg-[#8c6b44]/40 shrink-0 self-center" />
 
-            {/* 4. KHÍ GIỚI (Icon Kiếm x2, khi chọn chỉ tô đen phần chữ và ẩn icon, nhấn để mở giấy chi tiết) */}
+            {/* 4. KHÍ GIỚI (Cây thương chéo đè lên cây kiếm, khi chọn chỉ tô đen phần chữ và ẩn icon, nhấn để mở giấy chi tiết) */}
             <div className="relative topbar-dropdown-container shrink-0 self-center">
               <button
                 type="button"
@@ -396,7 +444,7 @@ export const TopBar: React.FC = () => {
               >
                 {activeDropdown !== 'weapons' && (
                   <img 
-                    src="/icons/weapon_sword.png" 
+                    src="/icons/weapon_crossed.png" 
                     alt="Khí giới" 
                     className="w-8 h-8 object-contain relative z-10 filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]"
                   />
@@ -493,16 +541,7 @@ export const TopBar: React.FC = () => {
             {/* Phân cách */}
             <div className="w-px h-6 bg-[#8c6b44]/40 shrink-0 self-center" />
 
-            {/* 5. NHU YẾU (Icon x2: size 28) */}
-            <div className="flex items-center gap-1.5 shrink-0 self-center" title="Quân trang & Nhu yếu phẩm">
-              <Shirt size={28} className="text-[#384852]" />
-              <span>Nhu yếu: {Math.floor(resources.clothes).toLocaleString()}</span>
-            </div>
-
-            {/* Phân cách */}
-            <div className="w-px h-6 bg-[#8c6b44]/40 shrink-0 self-center" />
-
-            {/* 6. VÀNG (NGÂN KHỐ - Icon Vàng x2: 32px) */}
+            {/* 5. VÀNG (NGÂN KHỐ - Icon Vàng x2: 32px) */}
             <div className="flex items-center gap-1.5 shrink-0 self-center" title="Ngân quỹ vàng">
               <img 
                 src="/icons/gold.png" 
@@ -515,7 +554,7 @@ export const TopBar: React.FC = () => {
             {/* Phân cách */}
             <div className="w-px h-6 bg-[#8c6b44]/40 shrink-0 self-center" />
 
-            {/* 7. SĨ KHÍ (Icon Cờ Khởi Nghĩa x2: 32px) */}
+            {/* 6. SĨ KHÍ (Icon Cờ Khởi Nghĩa x2: 32px) */}
             <div className="flex items-center gap-1.5 shrink-0 self-center" title="Sĩ khí nghĩa quân">
               <img 
                 src="/icons/flag.png" 
@@ -526,7 +565,7 @@ export const TopBar: React.FC = () => {
             </div>
           </div>
 
-          {/* 8. NÚT SỬA MAP (Ngay trên tờ giấy phía bên phải) */}
+          {/* 7. NÚT SỬA MAP (Ngay trên tờ giấy phía bên phải) */}
           <div className="shrink-0 pl-2 self-center">
             <button
               onClick={toggleEditMode}

@@ -146,7 +146,12 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   togglePause: () => set((state) => ({ isPaused: !state.isPaused })),
   
-  setSpeed: (speed) => set({ gameSpeed: speed, isPaused: false }),
+  setSpeed: (speed) => set(() => {
+    if (speed === 0) {
+      return { isPaused: true };
+    }
+    return { gameSpeed: speed, isPaused: false };
+  }),
 
   updateCityPosition: (id, x, y) => set((state) => {
     const updatedCities = state.cities.map(city => city.id === id ? { ...city, x, y } : city);
@@ -318,7 +323,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       id: `${type}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       cityId,
       type,
-      name: `${tierName} ${city.name} ${sameTypeCount} (${gridSize}x${gridSize})`,
+      name: `${tierName} ${city.name} ${sameTypeCount}`,
       x: val.snappedX,
       y: val.snappedY,
       gridSize,
@@ -333,7 +338,9 @@ export const useGameStore = create<GameState>((set, get) => ({
       maxWorkers,
       cropDays: 0,
       cropCycleDays: 90,
+      seasonCondition: Math.random() < 0.25 ? 'bountiful' : Math.random() < 0.2 ? 'poor' : 'normal',
       activeOrder: null,
+      forgeQueue: [],
     };
 
     set(state => ({
@@ -676,7 +683,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       return { success: false, message: 'Không tìm thấy căn cứ!' };
     }
 
-    const costPerItem = order.weaponType === 'spear' ? 1.0 : order.weaponType === 'sword' ? 2.0 : 1.5;
+    const costPerItem = order.weaponType === 'spear' ? 1.0 : order.weaponType === 'sword' ? 2.0 : order.weaponType === 'armor' ? 3.0 : 1.5;
     const totalGold = Math.ceil(order.quantity * costPerItem);
     const smiths = Math.max(1, Math.min(15, order.smiths));
 
@@ -684,29 +691,52 @@ export const useGameStore = create<GameState>((set, get) => ({
       return { success: false, message: `Ngân khố không đủ! Cần ${totalGold} Vàng để mua quặng và than củi cho ${order.quantity} khí giới.` };
     }
 
-    if (city.population.idleLaborers < smiths) {
+    if (!structure.activeOrder && city.population.idleLaborers < smiths) {
       return { success: false, message: `Không đủ thợ rèn! Cần điều động ${smiths} tráng phu rảnh rỗi vào lò rèn.` };
     }
 
-    const workFactor = order.weaponType === 'spear' ? 1.0 : order.weaponType === 'sword' ? 1.8 : 1.4;
+    const workFactor = order.weaponType === 'spear' ? 1.0 : order.weaponType === 'sword' ? 1.8 : order.weaponType === 'armor' ? 2.2 : 1.4;
     const totalDays = Math.max(4, Math.ceil((order.quantity * workFactor * 1.5) / smiths));
 
     const weaponNames: Record<WeaponCraftType, string> = {
-      spear: 'Giáo Mác Thao Thiết',
       sword: 'Kiếm Thép Lam Sơn',
+      bow: 'Cung Nỏ Lam Sơn',
+      spear: 'Giáo Mác Thao Thiết',
+      armor: 'Thiết Giáp Nghĩa Binh',
       crossbow: 'Nỏ Ngắm Hẻm Núi',
     };
 
     const forgeOrder: ForgeOrder = {
       id: `order_${Date.now()}`,
       weaponType: order.weaponType,
-      name: weaponNames[order.weaponType],
+      name: weaponNames[order.weaponType] || 'Khí Giới Lam Sơn',
       quantity: order.quantity,
       totalDays,
       remainingDays: totalDays,
       assignedSmiths: smiths,
       goldCost: totalGold,
     };
+
+    if (structure.activeOrder) {
+      set(state => ({
+        resources: {
+          ...state.resources,
+          gold: state.resources.gold - totalGold,
+        },
+        structures: state.structures.map(s => {
+          if (s.id !== structureId) return s;
+          return {
+            ...s,
+            forgeQueue: [...(s.forgeQueue || []), forgeOrder],
+          };
+        }),
+      }));
+
+      return {
+        success: true,
+        message: `Đã xếp ${order.quantity} ${forgeOrder.name} vào hàng chờ của lò rèn!`,
+      };
+    }
 
     set(state => ({
       resources: {
@@ -762,6 +792,10 @@ export const useGameStore = create<GameState>((set, get) => ({
       }),
       structures: state.structures.map(s => {
         if (s.id !== structureId) return s;
+        if (s.forgeQueue && s.forgeQueue.length > 0) {
+          const [next, ...rest] = s.forgeQueue;
+          return { ...s, activeOrder: next, forgeQueue: rest };
+        }
         return { ...s, activeOrder: null };
       }),
     }));
@@ -968,16 +1002,26 @@ export const useGameStore = create<GameState>((set, get) => ({
             // MÙA THU HOẠCH LƯƠNG THỰC!
             // Năng suất theo mốc ruộng: 5x5: 0.22/người (~297L), 6x6: 0.24/người (~648L), 7x7: 0.26/người (~1,170L)
             const efficiency = s.gridSize === 7 ? 0.26 : s.gridSize === 6 ? 0.24 : 0.22;
-            const yieldFood = Math.round(s.assignedWorkers * 90 * efficiency);
+            const weatherMult = s.seasonCondition === 'bountiful' ? 1.25 : s.seasonCondition === 'poor' ? 0.70 : 1.0;
+            const baseFood = Math.round(s.assignedWorkers * 90 * efficiency * weatherMult);
+
+            const matchedCity = updatedCities.find(c => c.id === s.cityId);
+            const isMing = matchedCity?.faction === 'ming';
+            const taxRate = isMing ? 0.50 : 0.10;
+            const taxAmount = Math.round(baseFood * taxRate);
+            const yieldFood = Math.max(0, baseFood - taxAmount);
+
             seasonalFoodHarvested += yieldFood;
             s.cropDays = 0;
+            s.seasonCondition = Math.random() < 0.25 ? 'bountiful' : Math.random() < 0.20 ? 'poor' : 'normal';
 
             if (!finishedNotice) {
+              const condText = s.seasonCondition === 'bountiful' ? 'Được mùa (+25%)' : s.seasonCondition === 'poor' ? 'Mất mùa (-30%)' : 'Mưa thuận gió hòa';
               finishedNotice = {
                 id: `harvest_${Date.now()}_${s.id}`,
-                title: '🌾 Vụ Mùa Gặt Bội Thu Lương Thảo!',
+                title: '🌾 Vụ Mùa Gặt Lương Thảo!',
                 dateStr: `Ngày ${newDay}/${newMonth}/${newYear}`,
-                description: `Đồn điền [${s.name}] đã đến kỳ gặt lúa! ${s.assignedWorkers} nông đinh đã thu hoạch ${yieldFood.toLocaleString()} thạch thóc lúa nhập thẳng vào kho lương nghĩa quân!`,
+                description: `Đồn điền [${s.name}] đã gặt xong (${condText})! Thuế: ${taxAmount.toLocaleString()} thạch (${taxRate * 100}%). Thực thu nhập kho: ${yieldFood.toLocaleString()} thạch thóc!`,
                 generalIds: [],
               };
             }
@@ -1028,7 +1072,13 @@ export const useGameStore = create<GameState>((set, get) => ({
             };
           }
 
-          s.activeOrder = null;
+          if (s.forgeQueue && s.forgeQueue.length > 0) {
+            const [nextOrder, ...remainingQueue] = s.forgeQueue;
+            s.activeOrder = nextOrder;
+            s.forgeQueue = remainingQueue;
+          } else {
+            s.activeOrder = null;
+          }
         } else {
           s.activeOrder = order;
         }
