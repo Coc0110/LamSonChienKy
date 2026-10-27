@@ -48,6 +48,9 @@ export interface PlacedStructure {
   name: string;
   x: number;               // Tọa độ % (0..100) trên bản đồ
   y: number;               // Tọa độ % (0..100) trên bản đồ
+  gridSize?: number;       // Kích thước ô lưới (3 cho lò rèn; 5, 6, 7 cho ruộng)
+  startCol?: number;       // Cột bắt đầu trên bản đồ ô vuông
+  startRow?: number;       // Hàng bắt đầu trên bản đồ ô vuông
   terrain: 'plains' | 'forest' | 'mountain' | 'cliff' | 'swamp' | 'water';
   status: 'building' | 'active';
   
@@ -81,6 +84,9 @@ export interface CityNode {
   districtId?: string;
   x: number;
   y: number;
+  gridSize?: number;       // Kích thước ô lưới (Doanh trại: 3..6, Thành trì: 4..7)
+  startCol?: number;       // Cột bắt đầu
+  startRow?: number;       // Hàng bắt đầu
   faction: Faction;
   troops: number;
   hasBase?: boolean;          // Đã xây dựng căn cứ chỉ huy (Lam Sơn có sẵn)

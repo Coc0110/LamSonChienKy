@@ -30,22 +30,22 @@ export const GeneralsModal: React.FC = () => {
   const CARDS_PER_PAGE = 10;
   const totalPages = Math.max(1, Math.ceil(unlockedGenerals.length / CARDS_PER_PAGE));
 
-  // Lật bảng 1 vòng theo trục ngang khi đổi mặt bảng (Nhanh và mượt 60fps)
+  // Lật bảng đúng 1 lần (180 độ) theo trục ngang khi đổi mặt bảng (Nhanh, mượt 60fps)
   const handleSelectBoard = (newIndex: number) => {
     if (newIndex === currentPage || isFlipping) return;
     setIsFlipping(true);
     setFlipDirection(newIndex > currentPage ? 'forward' : 'backward');
 
-    // Đúng điểm xoay 180 độ (210ms): đổi mặt bảng mới trong chớp mắt
+    // Đúng điểm xoay 90 độ mỏng nhất (190ms): đổi trang thẻ bài mới trong chớp mắt
     setTimeout(() => {
       setDisplayedPage(newIndex);
       setCurrentPage(newIndex);
-    }, 210);
+    }, 190);
 
-    // Hoàn tất 1 vòng lật (sau 450ms)
+    // Hoàn tất 1 lần lật duy nhất (sau 380ms)
     setTimeout(() => {
       setIsFlipping(false);
-    }, 450);
+    }, 380);
   };
 
   const handleCardClick = (genId: string) => {
@@ -59,9 +59,26 @@ export const GeneralsModal: React.FC = () => {
     }
   };
 
-  // 1. POPUP SỰ KIỆN LỊCH SỬ: DANH TƯỚNG ĐẦU QUÂN TỤ NGHĨA
+  // Bắt phím điều hướng (← / → để chuyển mặt bảng, Esc để đóng)
+  useEffect(() => {
+    if (activeModal !== 'generals') return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft') {
+        if (currentPage > 0 && !isFlipping) handleSelectBoard(currentPage - 1);
+      } else if (e.key === 'ArrowRight') {
+        if (currentPage < totalPages - 1 && !isFlipping) handleSelectBoard(currentPage + 1);
+      } else if (e.key === 'Escape') {
+        setActiveModal(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeModal, currentPage, totalPages, isFlipping, setActiveModal]);
+
+  // 1. POPUP SỰ KIỆN LỊCH SỬ / MÙA VỤ THU HOẠCH / HOÀN TẤT CÔNG TRÌNH
   if (recruitmentNotice) {
     const joinedGenerals = generals.filter(g => recruitmentNotice.generalIds.includes(g.id));
+    const isGeneralRecruit = joinedGenerals.length > 0;
 
     return (
       <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 pointer-events-auto">
@@ -71,7 +88,7 @@ export const GeneralsModal: React.FC = () => {
               <Sparkles className="text-amber-400 animate-pulse" size={24} />
               <div>
                 <div className="text-xs uppercase tracking-widest text-amber-300/90 font-bold">
-                  Sự Kiện Lịch Sử • {recruitmentNotice.dateStr}
+                  {isGeneralRecruit ? 'Sự Kiện Lịch Sử' : 'Tin Mừng Quân Cơ'} • {recruitmentNotice.dateStr}
                 </div>
                 <h2 className="text-xl md:text-2xl font-serif font-black text-[#fff3db] tracking-wide">
                   {recruitmentNotice.title}
@@ -91,33 +108,35 @@ export const GeneralsModal: React.FC = () => {
               {recruitmentNotice.description}
             </p>
 
-            <div className="flex flex-wrap items-center justify-center gap-6 py-4 px-3 bg-black/35 rounded-xl border border-[#6e4e2e]/50">
-              {joinedGenerals.map(gen => (
-                <div key={gen.id} className="flex flex-col items-center">
-                  <BronzePlaqueCard
-                    general={gen}
-                    size="md"
-                    selected={true}
-                    flipped={!!popupFlippedIds[gen.id]}
-                    cities={lamSonCities}
-                    onAssignCity={cityId => assignGeneralToCity(gen.id, cityId)}
-                    onClick={() =>
-                      setPopupFlippedIds(prev => ({ ...prev, [gen.id]: !prev[gen.id] }))
-                    }
-                  />
-                  <span className="mt-3 text-xs text-amber-300/90 font-sans italic max-w-44 text-center">
-                    {gen.epithet}
-                  </span>
-                </div>
-              ))}
-            </div>
+            {isGeneralRecruit && (
+              <div className="flex flex-wrap items-center justify-center gap-6 py-4 px-3 bg-black/35 rounded-xl border border-[#6e4e2e]/50">
+                {joinedGenerals.map(gen => (
+                  <div key={gen.id} className="flex flex-col items-center">
+                    <BronzePlaqueCard
+                      general={gen}
+                      size="md"
+                      selected={true}
+                      flipped={!!popupFlippedIds[gen.id]}
+                      cities={lamSonCities}
+                      onAssignCity={cityId => assignGeneralToCity(gen.id, cityId)}
+                      onClick={() =>
+                        setPopupFlippedIds(prev => ({ ...prev, [gen.id]: !prev[gen.id] }))
+                      }
+                    />
+                    <span className="mt-3 text-xs text-amber-300/90 font-sans italic max-w-44 text-center">
+                      {gen.epithet}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
 
             <div className="flex justify-center pt-2">
               <button
                 onClick={dismissRecruitmentNotice}
                 className="px-8 py-3 rounded-lg bg-gradient-to-b from-[#b33622] to-[#7d1e0e] border border-[#e07058] text-[#fff5e4] font-sans font-bold text-base tracking-wider uppercase shadow-lg hover:brightness-110 active:scale-95 transition cursor-pointer"
               >
-                Ban Lệnh Bài — Thu Nhận Vào Đại Quân
+                {isGeneralRecruit ? 'Ban Lệnh Bài — Thu Nhận Vào Đại Quân' : 'Tiếp Tục Đại Nghiệp'}
               </button>
             </div>
           </div>
@@ -126,28 +145,12 @@ export const GeneralsModal: React.FC = () => {
     );
   }
 
-  // Bắt phím điều hướng (← / → để chuyển mặt bảng, Esc để đóng)
-  useEffect(() => {
-    if (activeModal !== 'generals') return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowLeft') {
-        if (currentPage > 0 && !isFlipping) handleSelectBoard(currentPage - 1);
-      } else if (e.key === 'ArrowRight') {
-        if (currentPage < totalPages - 1 && !isFlipping) handleSelectBoard(currentPage + 1);
-      } else if (e.key === 'Escape') {
-        setActiveModal(null);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeModal, currentPage, totalPages, isFlipping, setActiveModal]);
-
   // 2. TẤM BẢNG ĐỒNG NGUYÊN BẢN (CHỮ DỌC BÊN TRÁI, 10 THẺ/MẶT BẢNG, LẬT 1 VÒNG THEO TRỤC NGANG KHI ĐỔI MẶT)
   if (activeModal !== 'generals') return null;
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex flex-col items-center justify-center p-2 sm:p-4 md:p-6 pointer-events-auto animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 bg-black/55 backdrop-blur-xs flex flex-col items-center justify-center p-2 sm:p-4 md:p-6 pointer-events-auto animate-in fade-in duration-200"
       onClick={() => setActiveModal(null)}
       style={{ perspective: '1600px' }}
     >

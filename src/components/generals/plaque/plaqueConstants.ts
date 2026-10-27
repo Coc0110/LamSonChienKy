@@ -159,7 +159,7 @@ export const GENERAL_NAME_CONFIG: Record<string, {
   x?: string;
   y?: string;
 }> = {
-  le_loi:       { left: '13%',  top: '30%',    x: '0px', y: '0px' },
+  le_loi:       { left: '13%',  top: '27%',    x: '0px', y: '0px' },
   le_lai:       { right: '14%', bottom: '17%', x: '0px', y: '0px' },
   le_sat:       { left: '16%',  bottom: '23%', x: '0px', y: '0px' },
   trinh_kha:    { right: '14%', bottom: '13%', x: '0px', y: '0px' },

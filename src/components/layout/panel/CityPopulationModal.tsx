@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Users, Swords, Wheat, Hammer, Clock, X, AlertCircle } from 'lucide-react';
+import { Users, Swords, Clock, X, AlertCircle } from 'lucide-react';
 import type { CityNode, General } from '../../../types';
 import { TrainingSlider } from './TrainingSlider';
 
@@ -107,14 +107,14 @@ export const CityPopulationModal: React.FC<CityPopulationModalProps> = ({
               </div>
               <div className="flex justify-between text-stone-300">
                 <span className="flex items-center gap-1">
-                  <Wheat size={12} className="text-amber-500" />
+                  <img src="/icons/structure_farm.png" alt="Ruộng" className="w-3.5 h-3.5 object-contain inline-block" />
                   Cày cấy đồn điền:
                 </span>
                 <strong className="text-amber-300">{pop.farmLaborers} người</strong>
               </div>
               <div className="flex justify-between text-stone-300">
                 <span className="flex items-center gap-1">
-                  <Hammer size={12} className="text-sky-400" />
+                  <img src="/icons/structure_forge.png" alt="Lò rèn" className="w-3.5 h-3.5 object-contain inline-block" />
                   Rèn đúc vũ khí:
                 </span>
                 <strong className="text-sky-300">{pop.forgeLaborers} người</strong>

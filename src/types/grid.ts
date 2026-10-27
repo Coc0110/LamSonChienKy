@@ -30,4 +30,9 @@ export interface CellBuildValidation {
   snappedY: number;
   col: number;
   row: number;
+  startCol: number;
+  startRow: number;
+  endCol: number;
+  endRow: number;
+  gridSize: number;
 }

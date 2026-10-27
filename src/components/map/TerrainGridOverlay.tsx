@@ -244,8 +244,44 @@ export const TerrainGridOverlay: React.FC<TerrainGridOverlayProps> = ({ map }) =
         ctx.strokeStyle = '#fbbf24';
         ctx.lineWidth = 2.5;
         ctx.strokeRect(pTL.x, pTL.y, pBR.x - pTL.x, pBR.y - pTL.y);
-      } else if (!placementMode) {
-        // Chỉ highlight viền ô đơn lẻ khi rê chuột xem
+      } else if (placementMode) {
+        // Vẽ viền phạm vi công trình NxN ô
+        const size = placementMode.gridSize || (placementMode.type === 'forge' ? 3 : (placementMode.farmTier === 50 ? 7 : placementMode.farmTier === 30 ? 6 : 5));
+        const half = Math.floor(size / 2);
+        const bStartCol = Math.max(0, Math.min(GRID_COLS - size, hoveredCell.col - half));
+        const bEndCol = bStartCol + size - 1;
+        const bStartRow = Math.max(0, Math.min(GRID_ROWS - size, hoveredCell.row - half));
+        const bEndRow = bStartRow + size - 1;
+
+        const { minX: bMinX, minY: bMinY } = cellToCoord(bStartCol, bStartRow);
+        const { maxX: bMaxX, maxY: bMaxY } = cellToCoord(bEndCol, bEndRow);
+
+        const pTL = map.latLngToContainerPoint(percentToLatLng(bMinX, bMinY));
+        const pBR = map.latLngToContainerPoint(percentToLatLng(bMaxX, bMaxY));
+
+        ctx.strokeStyle = '#22c55e';
+        ctx.lineWidth = 2.5;
+        ctx.strokeRect(pTL.x, pTL.y, pBR.x - pTL.x, pBR.y - pTL.y);
+      } else if (baseRelocateMode) {
+        // Vẽ viền phạm vi căn cứ 3x3..6x6 ô
+        const size = 3;
+        const half = Math.floor(size / 2);
+        const bStartCol = Math.max(0, Math.min(GRID_COLS - size, hoveredCell.col - half));
+        const bEndCol = bStartCol + size - 1;
+        const bStartRow = Math.max(0, Math.min(GRID_ROWS - size, hoveredCell.row - half));
+        const bEndRow = bStartRow + size - 1;
+
+        const { minX: bMinX, minY: bMinY } = cellToCoord(bStartCol, bStartRow);
+        const { maxX: bMaxX, maxY: bMaxY } = cellToCoord(bEndCol, bEndRow);
+
+        const pTL = map.latLngToContainerPoint(percentToLatLng(bMinX, bMinY));
+        const pBR = map.latLngToContainerPoint(percentToLatLng(bMaxX, bMaxY));
+
+        ctx.strokeStyle = '#eab308';
+        ctx.lineWidth = 2.5;
+        ctx.strokeRect(pTL.x, pTL.y, pBR.x - pTL.x, pBR.y - pTL.y);
+      } else if (isEditMode) {
+        // Chỉ highlight viền ô đơn lẻ khi đang ở chế độ chỉnh sửa địa hình / sửa map
         const { minX: hMinX, maxX: hMaxX, minY: hMinY, maxY: hMaxY } = cellToCoord(hoveredCell.col, hoveredCell.row);
         const pTL = map.latLngToContainerPoint(percentToLatLng(hMinX, hMinY));
         const pBR = map.latLngToContainerPoint(percentToLatLng(hMaxX, hMaxY));

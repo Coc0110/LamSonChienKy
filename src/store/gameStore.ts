@@ -21,7 +21,7 @@ import {
 } from '../data/mapData';
 import { INITIAL_GENERALS } from '../data/generalsData';
 import { TERRAIN_DEFINITIONS } from '../data/terrainData';
-import { getGridTerrainAt } from '../data/terrainGrid';
+import { getGridTerrainAt, validateCellPlacement, validateBaseRelocate } from '../data/terrainGrid';
 
 const COORDS_STORAGE_KEY = 'lam_son_coords_v3_districts';
 
@@ -91,7 +91,7 @@ interface GameState {
   cancelTraining: (cityId: string) => void;
 
   // Quản lý Xây Dựng & Đồn Điền & Lò Rèn
-  placeStructure: (cityId: string, type: StructureType, x: number, y: number) => { success: boolean; message: string };
+  placeStructure: (cityId: string, type: StructureType, x: number, y: number, gridSize?: number, maxWorkers?: number) => { success: boolean; message: string };
   relocateStructure: (structureId: string, newX: number, newY: number) => { success: boolean; message: string };
   demolishStructure: (structureId: string) => { success: boolean; message: string };
   relocateBase: (baseId: string, newX: number, newY: number, newDistrictId?: string) => { success: boolean; message: string };
@@ -261,72 +261,76 @@ export const useGameStore = create<GameState>((set, get) => ({
     };
   }),
 
-  // 1. KÉO THẢ / ĐẶT CÔNG TRÌNH LÊN BẢN ĐỒ
-  placeStructure: (cityId, type, x, y) => {
+  // 1. KÉO THẢ / ĐẶT CÔNG TRÌNH LÊN BẢN ĐỒ (CƠ CHẾ Ô LƯỚI KHÔNG TRÙNG LẤN)
+  placeStructure: (cityId, type, x, y, customGridSize, customMaxWorkers) => {
     const city = get().cities.find(c => c.id === cityId);
     if (!city) {
       return { success: false, message: 'Không tìm thấy căn cứ sở tại!' };
     }
 
-    // Kiểm tra khoảng cách đến căn cứ (nới rộng lên 14.0 dặm để bao quát toàn bộ vùng đồng bằng bãi bồi ven Lam Sơn)
-    const distToCity = Math.hypot(city.x - x, city.y - y);
-    if (distToCity > 14.0) {
-      return { success: false, message: `Vị trí quá xa căn cứ ${city.name} (khoảng cách: ${distToCity.toFixed(1)} dặm, giới hạn bảo hộ: 14 dặm)! Nghĩa quân chưa thể quản lý ngoài phạm vi này.` };
+    const gridSize = customGridSize || (type === 'forge' ? 3 : (customMaxWorkers === 50 ? 7 : customMaxWorkers === 30 ? 6 : 5));
+    const maxWorkers = type === 'farm' ? (customMaxWorkers || (gridSize === 7 ? 50 : gridSize === 6 ? 30 : 15)) : 15;
+
+    // Kiểm tra hợp lệ vị trí theo khối ô lưới không trùng lấn
+    const val = validateCellPlacement(x, y, type, cityId, get().cities, get().structures, undefined, gridSize);
+    if (!val.canBuild) {
+      return { success: false, message: val.reason };
     }
 
-    // Kiểm tra khoảng cách tối thiểu giữa các công trình (tránh spam)
-    const existingStructures = get().structures;
-    for (const s of existingStructures) {
-      const dist = Math.hypot(s.x - x, s.y - y);
-      if (dist < 2.2) {
-        return { success: false, message: `Vị trí này quá gần '${s.name}' (cần cách tối thiểu 2.2 dặm)! Vui lòng chọn địa điểm thoáng đãng hơn.` };
+    // Chi phí và nhân lực thi công theo từng mốc công trình
+    let goldCost = 80;
+    let reqWorkers = 10;
+    let buildDays = 12;
+
+    if (type === 'forge') {
+      goldCost = 120;
+      reqWorkers = 15;
+      buildDays = 18;
+    } else if (type === 'farm') {
+      if (gridSize === 7) {
+        goldCost = 240;
+        reqWorkers = 25;
+        buildDays = 20;
+      } else if (gridSize === 6) {
+        goldCost = 150;
+        reqWorkers = 18;
+        buildDays = 16;
+      } else {
+        goldCost = 80;
+        reqWorkers = 10;
+        buildDays = 12;
       }
     }
-
-    // Kiểm tra tính phù hợp của địa hình
-    const terrainType = getGridTerrainAt(x, y);
-    const terrainInfo = TERRAIN_DEFINITIONS[terrainType];
-    if (type === 'farm') {
-      if (terrainType !== 'plains') {
-        return { success: false, message: `Ruộng lúa nước bắt buộc phải khai hoang tại đất bãi phù sa Đồng Bằng! Địa hình nơi đây là ${terrainInfo.name}, không thể cày cấy.` };
-      }
-    } else if (type === 'forge') {
-      if (terrainType === 'water') {
-        return { success: false, message: 'Không thể dựng lò rèn trên sông ngòi, dòng chảy!' };
-      }
-      if (terrainType === 'cliff') {
-        return { success: false, message: 'Vách đá dốc đứng hiểm trở, không có mặt bằng dựng lò rèn!' };
-      }
-    }
-
-    // Chi phí và nhân lực thi công
-    const goldCost = type === 'farm' ? 80 : 120;
-    const reqWorkers = type === 'farm' ? 10 : 15;
-    const buildDays = type === 'farm' ? 12 : 18;
 
     if (get().resources.gold < goldCost) {
-      return { success: false, message: `Ngân khố không đủ! Cần ${goldCost} Vàng để khai hoang/dựng lò.` };
+      return { success: false, message: `Ngân khố không đủ! Cần ${goldCost} Vàng để thi công.` };
     }
 
     if (!city.population || city.population.idleLaborers < reqWorkers) {
       return { success: false, message: `Thiếu tráng phu rảnh rỗi! Cần điều động ${reqWorkers} tráng phu tham gia thi công công trình.` };
     }
 
+    const existingStructures = get().structures;
     const sameTypeCount = existingStructures.filter(s => s.cityId === cityId && s.type === type).length + 1;
+    const tierName = type === 'farm' ? (gridSize === 7 ? 'Đại Điền' : gridSize === 6 ? 'Trung Điền' : 'Tiểu Điền') : 'Lò Rèn';
+
     const newStructure: PlacedStructure = {
       id: `${type}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       cityId,
       type,
-      name: type === 'farm' ? `Đồn Điền ${city.name} ${sameTypeCount}` : `Lò Rèn ${city.name} ${sameTypeCount}`,
-      x,
-      y,
-      terrain: terrainType,
+      name: `${tierName} ${city.name} ${sameTypeCount} (${gridSize}x${gridSize})`,
+      x: val.snappedX,
+      y: val.snappedY,
+      gridSize,
+      startCol: val.startCol,
+      startRow: val.startRow,
+      terrain: val.terrain,
       status: 'building',
       buildDaysTotal: buildDays,
       buildDaysRemaining: buildDays,
       builderWorkers: reqWorkers,
       assignedWorkers: 0,
-      maxWorkers: 15,
+      maxWorkers,
       cropDays: 0,
       cropCycleDays: 90,
       activeOrder: null,
@@ -353,8 +357,8 @@ export const useGameStore = create<GameState>((set, get) => ({
     return {
       success: true,
       message: type === 'farm'
-        ? `Đã cắm mốc khai hoang [${newStructure.name}] tại đồng bằng. Cần 12 ngày thi công!`
-        : `Đã khởi công dựng [${newStructure.name}] tại ${terrainInfo.name}. Cần 18 ngày thi công!`,
+        ? `Đã cắm mốc khai hoang [${newStructure.name}] (${gridSize}x${gridSize}). Cần ${buildDays} ngày thi công!`
+        : `Đã khởi công dựng [${newStructure.name}] (3x3). Cần ${buildDays} ngày thi công!`,
     };
   },
 
@@ -460,24 +464,16 @@ export const useGameStore = create<GameState>((set, get) => ({
     };
   },
 
-  // 1.3 DI DỜI CĂN CỨ SANG VỊ TRÍ MỚI
+  // 1.3 DI DỜI CĂN CỨ SANG VỊ TRÍ MỚI (CƠ CHẾ Ô LƯỚI KHÔNG TRÙNG LẤN)
   relocateBase: (baseId: string, newX: number, newY: number, newDistrictId?: string) => {
     const base = get().cities.find(c => c.id === baseId);
     if (!base) {
       return { success: false, message: 'Căn cứ không tồn tại!' };
     }
 
-    const terrain = getGridTerrainAt(newX, newY);
-    if (terrain === 'water' || terrain === 'cliff') {
-      return { success: false, message: 'Không thể đóng quân trên sông nước sâu hoặc vách đá hiểm trở!' };
-    }
-
-    // Kiểm tra cự ly với các cứ điểm khác (cần cách ít nhất 2.5 dặm)
-    for (const c of get().cities) {
-      if (c.id === baseId) continue;
-      if (Math.hypot(c.x - newX, c.y - newY) < 2.5) {
-        return { success: false, message: `Vị trí quá gần cứ điểm [${c.name}] (cần cách ít nhất 2.5 dặm)!` };
-      }
+    const val = validateBaseRelocate(baseId, newX, newY, get().cities, get().structures);
+    if (!val.canBuild) {
+      return { success: false, message: val.reason };
     }
 
     set(state => ({
@@ -485,8 +481,11 @@ export const useGameStore = create<GameState>((set, get) => ({
         if (c.id !== baseId) return c;
         return {
           ...c,
-          x: newX,
-          y: newY,
+          x: val.snappedX,
+          y: val.snappedY,
+          gridSize: val.gridSize,
+          startCol: val.startCol,
+          startRow: val.startRow,
           districtId: newDistrictId || c.districtId,
         };
       }),
@@ -496,7 +495,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     try {
       const saved = localStorage.getItem(COORDS_STORAGE_KEY);
       const parsed = saved ? JSON.parse(saved) : {};
-      parsed[baseId] = { x: newX, y: newY };
+      parsed[baseId] = { x: val.snappedX, y: val.snappedY, gridSize: val.gridSize, startCol: val.startCol, startRow: val.startRow };
       localStorage.setItem(COORDS_STORAGE_KEY, JSON.stringify(parsed));
     } catch {
       // ignore
@@ -504,7 +503,7 @@ export const useGameStore = create<GameState>((set, get) => ({
 
     return {
       success: true,
-      message: `Đã di dời thành công Căn cứ [${base.name}] sang vị trí mới!`,
+      message: `Đã di dời thành công Căn cứ [${base.name}] sang vị trí mới (${val.gridSize}x${val.gridSize} ô)!`,
     };
   },
 
@@ -967,7 +966,9 @@ export const useGameStore = create<GameState>((set, get) => ({
           const s = { ...structure, cropDays: structure.cropDays + 1 };
           if (s.cropDays >= s.cropCycleDays) {
             // MÙA THU HOẠCH LƯƠNG THỰC!
-            const yieldFood = Math.round(s.assignedWorkers * 90 * 0.22);
+            // Năng suất theo mốc ruộng: 5x5: 0.22/người (~297L), 6x6: 0.24/người (~648L), 7x7: 0.26/người (~1,170L)
+            const efficiency = s.gridSize === 7 ? 0.26 : s.gridSize === 6 ? 0.24 : 0.22;
+            const yieldFood = Math.round(s.assignedWorkers * 90 * efficiency);
             seasonalFoodHarvested += yieldFood;
             s.cropDays = 0;
 

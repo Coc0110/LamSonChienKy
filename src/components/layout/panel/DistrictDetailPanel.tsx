@@ -1,16 +1,5 @@
 import React from 'react';
-import { 
-  MapPin, 
-  Users, 
-  Heart, 
-  Mountain, 
-  Wheat, 
-  Castle, 
-  Compass, 
-  X,
-  ChevronRight,
-  Truck
-} from 'lucide-react';
+import { X } from 'lucide-react';
 import { useGameStore } from '../../../store/gameStore';
 import { useUIStore } from '../../../store/uiStore';
 import districtData from '../../../data/districtPolygons.json';
@@ -106,12 +95,6 @@ export const DistrictDetailPanel: React.FC<DistrictDetailPanelProps> = ({ distri
   const hasLamSonBase = basesInDistrict.some(b => b.faction === 'lam_son' && (b.hasBase || b.troops > 0));
   const hasMingBase = basesInDistrict.some(b => b.faction === 'ming' && b.troops > 0);
 
-  const controlStatus = hasLamSonBase && !hasMingBase
-    ? { title: 'Nghĩa Quân Giải Phóng', color: 'text-amber-800 bg-amber-100 border-amber-500/70', badge: '★ Lam Sơn kiểm soát' }
-    : hasMingBase
-    ? { title: 'Giặc Minh Chiếm Đóng', color: 'text-blue-900 bg-blue-100 border-blue-600/70', badge: '◆ Quân Minh khống chế' }
-    : { title: 'Bản Làng Tự Trị', color: 'text-stone-800 bg-stone-200 border-stone-400', badge: '▲ Vùng Trung Lập' };
-
   // Dữ liệu mô tả bổ trợ
   const lore = DISTRICT_LORE[district.id] || {
     desc: `Địa hạt ${district.name} thuộc ${district.chau}, địa thế trọng yếu trong thế trận công thủ toàn cục xứ Thanh Hoa.`,
@@ -125,122 +108,101 @@ export const DistrictDetailPanel: React.FC<DistrictDetailPanelProps> = ({ distri
   const lamSonBases = cities.filter(c => c.faction === 'lam_son' && (c.hasBase || c.type === 'camp'));
 
   return (
-    <div className="relative flex flex-col h-full bg-[#f4ede1] text-[#2c1d11]">
-      {/* Header Địa Hạt Huyện */}
-      <div className="relative z-10 px-4 pt-3.5 pb-2.5 border-b border-[#c2a67e]/80 flex items-start justify-between bg-[#ebdcc2]/60">
+    <div className="relative flex flex-col h-full bg-transparent text-[#2c1d11]">
+      {/* Header Địa Hạt Huyện: Không khung viền, không đường kẻ, không icon, không tọa độ */}
+      <div className="relative z-10 px-6 pt-5 pb-1 flex items-start justify-between">
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-1">
-            <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-serif font-black uppercase tracking-wider border shadow-xs ${controlStatus.color}`}>
-              {controlStatus.badge}
-            </span>
+            {hasLamSonBase && !hasMingBase ? (
+              <span className="font-serif font-bold text-xs uppercase tracking-wider text-[#991b1b]">
+                ★ Lam Sơn kiểm soát
+              </span>
+            ) : hasMingBase ? (
+              <span className="font-serif font-bold text-xs uppercase tracking-wider text-[#1e3a8a]">
+                ◆ Quân Minh khống chế
+              </span>
+            ) : (
+              <span className="font-serif font-bold text-xs uppercase tracking-wider text-[#5c3c1e]">
+                ▲ Vùng Trung Lập
+              </span>
+            )}
             <span className="text-xs font-serif font-bold text-[#754f2a]">
               • {district.chau}
             </span>
           </div>
 
-          <h1 className="font-serif font-black text-[#261304] text-2xl md:text-3xl tracking-wide leading-tight">
+          <h1 className="font-serif font-bold text-[#261304] text-2xl md:text-3xl tracking-wide leading-tight">
             Huyện {district.name}
           </h1>
-
-          <div className="flex items-center gap-2 text-xs font-sans text-[#66462c] font-bold mt-0.5">
-            <MapPin size={13} className="text-[#8c2d19]" />
-            <span>Địa hạt hành chính Thanh Hóa TK XV</span>
-            <span>•</span>
-            <span>Tọa độ tâm: {district.center[0].toFixed(1)}°, {district.center[1].toFixed(1)}°</span>
-          </div>
         </div>
 
         <button 
           onClick={onClose}
-          className="p-1.5 rounded-full hover:bg-[#d8c29d]/70 text-[#593922] transition ml-2 shrink-0 cursor-pointer"
+          className="p-1 text-[#593922] hover:text-[#8c2d19] transition ml-2 shrink-0 cursor-pointer"
           title="Đóng Quân Thư Địa Hạt"
         >
           <X size={20} />
         </button>
       </div>
 
-      {/* Nội dung chi tiết Địa Hạt */}
-      <div className="relative z-10 p-4 overflow-y-auto space-y-3.5 no-scrollbar flex-1">
+      {/* Nội dung chi tiết Địa Hạt: Thuần chữ trên giấy cổ, tinh giản tối đa */}
+      <div className="relative z-10 px-6 py-3 overflow-y-auto space-y-3.5 no-scrollbar flex-1 pb-14">
         
         {/* 1. Lịch sử & Bối cảnh địa bàn */}
-        <div className="p-3 rounded-lg bg-[#faf5eb] border border-[#d2bea0] shadow-xs">
-          <div className="flex items-center gap-1.5 text-xs font-serif font-bold text-[#8c2d19] uppercase tracking-wider mb-1.5">
-            <Compass size={14} />
-            <span>Hình Thế Bản Địa</span>
+        <div>
+          <div className="text-xs font-serif font-bold text-[#8c2d19] uppercase tracking-wider mb-1">
+            Hình Thế Bản Địa
           </div>
-          <p className="text-xs leading-relaxed text-[#402a16] font-serif italic">
+          <p className="text-xs leading-relaxed text-[#3d2714] font-serif italic">
             "{lore.desc}"
           </p>
         </div>
 
-        {/* 2. Chỉ số Địa Bàn: Dân Cư & Lòng Dân */}
-        <div className="grid grid-cols-2 gap-2.5">
-          <div className="p-3 rounded-lg bg-[#faf5eb] border border-[#d2bea0] shadow-xs">
-            <div className="flex items-center gap-1.5 text-xs font-bold text-[#704d2e]">
-              <Users size={14} className="text-[#8c2d19]" />
-              <span>Dân chúng bản hạt</span>
-            </div>
-            <div className="mt-1 font-sans font-bold text-xl text-[#2a1708]">
-              {lore.pop.toLocaleString()}
-              <span className="text-xs font-normal text-[#6b4725] ml-1">nhân khẩu</span>
-            </div>
-            <div className="text-[10px] text-[#855e38] mt-0.5">Dân cư địa phương sinh sống</div>
+        {/* 2. Chỉ số Địa Bàn: Nét chữ thường thanh mảnh, không in đậm */}
+        <div className="space-y-1.5 text-xs text-[#3d2714] font-serif">
+          <div>
+            <span className="font-serif font-bold text-[#452b14]">Dân chúng: </span>
+            <span className="font-serif text-[#2a1708]">{lore.pop.toLocaleString()} nhân khẩu</span>
           </div>
 
-          <div className="p-3 rounded-lg bg-[#faf5eb] border border-[#d2bea0] shadow-xs">
-            <div className="flex items-center gap-1.5 text-xs font-bold text-[#704d2e]">
-              <Heart size={14} className="text-[#b91c1c]" />
-              <span>Lòng dân ủng hộ</span>
-            </div>
-            <div className="mt-1 font-sans font-bold text-xl text-[#b91c1c]">
-              {lore.support}%
-            </div>
-            <div className="text-[10px] text-[#855e38] mt-0.5">Mức độ hướng về khởi nghĩa</div>
+          <div>
+            <span className="font-serif font-bold text-[#452b14]">Lòng dân: </span>
+            <span className="font-serif text-[#991b1b]">{lore.support}%</span>
+          </div>
+
+          <div>
+            <span className="font-serif font-bold text-[#452b14]">Địa thế: </span>
+            <span className="font-serif text-[#3d2714]">{lore.terrain}</span>
           </div>
         </div>
 
-        {/* 3. Địa thế tự nhiên & Sản vật */}
-        <div className="p-3 rounded-lg bg-[#faf5eb] border border-[#d2bea0] shadow-xs space-y-2">
-          <div className="flex items-start gap-2 text-xs">
-            <Mountain size={15} className="text-[#654321] shrink-0 mt-0.5" />
-            <div>
-              <span className="font-bold text-[#452b14]">Địa thế: </span>
-              <span className="text-[#593922]">{lore.terrain}</span>
-            </div>
-          </div>
-          <div className="flex items-start gap-2 text-xs border-t border-[#e2d2bb] pt-2">
-            <Wheat size={15} className="text-[#854d0e] shrink-0 mt-0.5" />
-            <div>
-              <span className="font-bold text-[#452b14]">Sản vật & Tiếp tế: </span>
-              <span className="text-[#593922]">{lore.produce}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* 4. CĂN CỨ & ĐỒN TRẠI QUÂN SỰ TRÊN ĐỊA BÀN */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between text-xs font-serif font-black text-[#69421f] uppercase tracking-wider">
-            <div className="flex items-center gap-1.5">
-              <Castle size={14} className="text-[#8c2d19]" />
-              <span>Căn Cứ Quân Sự Trong Huyện ({basesInDistrict.length})</span>
-            </div>
+        {/* 3. CĂN CỨ & ĐỒN TRẠI QUÂN SỰ TRÊN ĐỊA BÀN */}
+        <div className="space-y-2 pt-1">
+          <div className="text-xs font-serif font-bold text-[#69421f] uppercase tracking-wider">
+            Căn Cứ Quân Sự Trong Huyện ({basesInDistrict.length})
           </div>
 
           {basesInDistrict.length === 0 ? (
-            <div className="p-3.5 rounded-lg bg-[#f0e4d0]/60 border border-dashed border-[#be9e77] text-center text-xs text-[#735032]">
-              <p>Hiện chưa có căn cứ hay đồn trại nào đóng quân trên địa hạt này.</p>
+            <div className="py-2 text-xs text-[#735032] font-serif">
+              <p className="italic">Hiện chưa có căn cứ hay đồn trại nào đóng quân trên địa hạt này.</p>
               {lamSonBases.length > 0 && (
                 <button
                   onClick={() => setBaseRelocateMode({ baseId: lamSonBases[0].id })}
-                  className="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1.5 rounded bg-[#8c2d19] text-[#fbebd0] font-serif font-bold hover:bg-[#a8351e] transition shadow-xs cursor-pointer"
+                  className="relative group mt-2.5 px-4 py-1.5 inline-flex items-center justify-center transition-transform hover:scale-105 active:scale-95 cursor-pointer"
                 >
-                  <Truck size={14} />
-                  <span>Di dời Căn cứ về huyện này</span>
+                  <img
+                    src="/ink_stroke_1.png"
+                    alt="Vết mực"
+                    className="absolute inset-0 w-full h-full object-fill pointer-events-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.35)] group-hover:brightness-125 transition-all"
+                  />
+                  <span className="relative z-10 font-serif font-bold text-xs text-[#fcf4e4] tracking-wider uppercase drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
+                    Di dời Căn cứ về huyện này
+                  </span>
                 </button>
               )}
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-2.5">
               {basesInDistrict.map(b => {
                 const isLamSon = b.faction === 'lam_son';
                 const isMing = b.faction === 'ming';
@@ -248,33 +210,39 @@ export const DistrictDetailPanel: React.FC<DistrictDetailPanelProps> = ({ distri
                 return (
                   <div
                     key={b.id}
-                    className={`p-3 rounded-lg border shadow-xs transition flex items-center justify-between ${
-                      isLamSon 
-                        ? 'bg-[#fdf9f2] border-amber-500/80 hover:border-red-600' 
-                        : isMing
-                        ? 'bg-[#f0f4fd] border-blue-400 hover:border-blue-600'
-                        : 'bg-[#faf6ee] border-[#cbb18d]'
-                    }`}
+                    className="flex items-center justify-between py-1"
                   >
-                    <div className="flex-1">
-                      <div className="flex items-center gap-1.5">
-                        <span className={`w-2.5 h-2.5 rounded-full ${isLamSon ? 'bg-red-600 animate-pulse' : isMing ? 'bg-blue-600' : 'bg-stone-500'}`} />
-                        <span className="font-serif font-bold text-sm text-[#261304]">{b.name}</span>
-                      </div>
-                      <div className="text-xs text-[#6e4927] mt-0.5 flex items-center gap-2">
-                        <span>{isLamSon ? '★ Bản Doanh Nghĩa Quân' : isMing ? '◆ Đồn Binh Quân Minh' : 'Cứ điểm trung lập'}</span>
-                        <span>•</span>
-                        <span className="font-mono font-bold text-[#8c2d19]">{b.troops.toLocaleString()} binh</span>
+                    <div className="flex items-center gap-2.5 flex-1">
+                      <img
+                        src={b.type === 'city' ? '/icons/structure_city.png' : '/icons/structure_camp.png'}
+                        alt={b.type === 'city' ? 'Thành' : 'Doanh'}
+                        className="w-5 h-5 object-contain shrink-0 filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]"
+                      />
+                      <div>
+                        <div className="font-serif font-bold text-sm text-[#261304]">
+                          {b.name}
+                        </div>
+                        <div className="text-xs text-[#6e4927] mt-0.5 flex items-center gap-1.5 font-serif">
+                          <span>{isLamSon ? '★ Bản Doanh Nghĩa Quân' : isMing ? '◆ Đồn Binh Quân Minh' : 'Cứ điểm trung lập'}</span>
+                          <span>•</span>
+                          <span className="font-mono font-bold text-[#8c2d19]">{b.troops.toLocaleString()} binh</span>
+                        </div>
                       </div>
                     </div>
 
                     <button
                       onClick={() => selectBase(b.id)}
-                      className="px-2.5 py-1.5 rounded bg-[#8c2d19] hover:bg-[#a63721] text-[#fbebd0] text-xs font-serif font-bold flex items-center gap-1 shadow-xs transition cursor-pointer"
+                      className="relative group px-3.5 py-1.5 min-w-[105px] h-[32px] flex items-center justify-center transition-transform hover:scale-105 active:scale-95 cursor-pointer shrink-0"
                       title="Mở bảng chỉ huy căn cứ này"
                     >
-                      <span>Vào Căn Cứ</span>
-                      <ChevronRight size={13} />
+                      <img
+                        src="/ink_stroke_1.png"
+                        alt="Vết mực"
+                        className="absolute inset-0 w-full h-full object-fill pointer-events-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.35)] group-hover:brightness-125 transition-all"
+                      />
+                      <span className="relative z-10 font-serif font-bold text-xs text-[#fcf4e4] tracking-wider uppercase drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
+                        Vào Căn Cứ
+                      </span>
                     </button>
                   </div>
                 );

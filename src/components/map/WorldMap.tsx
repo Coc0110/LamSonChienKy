@@ -17,10 +17,17 @@ import districtData from '../../data/districtPolygons.json';
 import { TERRAIN_DEFINITIONS } from '../../data/terrainData';
 import type { TerrainType } from '../../types/terrain';
 import {
+  GRID_CELL_W_PCT,
+  GRID_CELL_H_PCT,
   validateCellPlacement,
+  validateBaseRelocate,
   coordToCell,
   getGridTerrain,
   cellToCoord,
+  getCampGridSize,
+  getCityGridSize,
+  getStructureGridSize,
+  getEntityCellBounds,
 } from '../../data/terrainGrid';
 import { DistrictEditorBar } from './DistrictEditorBar';
 import { ParchmentControls } from './ParchmentControls';
@@ -931,7 +938,7 @@ export const WorldMap: React.FC = () => {
     });
   }, [mapInstance, showDistricts, parchmentMode, selectedCityId, hoveredDistrictId, cities, districtsList]);
 
-  // 5.5 HIỂN THỊ CĂN CỨ NGHĨA QUÂN (CHẤM ĐỎ) & CỨ ĐIỂM QUÂN MINH (CHẤM XANH DƯƠNG) & SONG KIẾM LUYỆN BINH
+  // 5.5 HIỂN THỊ CĂN CỨ NGHĨA QUÂN & CỨ ĐIỂM QUÂN MINH (GÁN CỨNG 1:1 VÀO KHỐI Ô LƯỚI)
   useEffect(() => {
     if (!mapInstance) return;
     const layer = nodesLayerRef.current;
@@ -939,135 +946,85 @@ export const WorldMap: React.FC = () => {
     layer.clearLayers();
 
     cities.forEach(city => {
-      const pos = percentToLatLng(city.x, city.y);
+      const troops = city.troops;
       const isLamSonBase = city.faction === 'lam_son' && (city.hasBase || city.id === 'lam_son');
-      const isMing = city.faction === 'ming';
+      const isCity = city.type === 'city';
 
-      // 1. Căn Cứ Nghĩa Quân (Chấm Đỏ Lam Sơn - Kích thước to nhỏ theo số quân)
-      if (isLamSonBase) {
-        const hasTraining = !!(city.training && city.training.remainingDays > 0);
-        const troops = city.troops;
+      // Quy tắc gán cứng kích thước ô lưới:
+      // Doanh trại: 3x3 (<300), 4x4 (300-1000), 5x5 (1000-10000), 6x6 (>10000)
+      // Thành trì: 4x4 (<1000), 5x5 (1000-10000), 6x6 (10000-50000), 7x7 (>50000)
+      const gridSize = isCity ? getCityGridSize(troops) : getCampGridSize(troops);
+      const bounds = getEntityCellBounds(city.x, city.y, gridSize, city.startCol, city.startRow);
 
-        // Tỉ lệ kích thước hạt nhân và hào quang tương ứng với lượng quân đồn trú
-        const baseSize = Math.max(22, Math.min(52, Math.round(18 + Math.sqrt(Math.max(0, troops)) * 1.05)));
-        const pingSize = Math.round(baseSize * 1.8);
-        const pulseSize = Math.round(baseSize * 1.4);
-        const coreDotSize = Math.max(3, Math.min(8, Math.round(baseSize * 0.2)));
+      // Bounding box chuẩn xác khớp từng ô lưới (Leaflet CRS.Simple: y tăng từ trên xuống, lat âm)
+      const sw = percentToLatLng(bounds.minX, bounds.maxY);
+      const ne = percentToLatLng(bounds.maxX, bounds.minY);
+      const imgBounds = L.latLngBounds(sw, ne);
 
-        const matchedDistrict = findDistrictForCoord(city.x, city.y, districtsList);
-        const districtName = matchedDistrict?.name || city.name;
+      const iconUrl = isCity || troops >= 8000 ? '/icons/structure_city.png' : '/icons/structure_camp.png';
 
-        const html = `
-          <div class="relative w-full h-full flex items-center justify-center cursor-pointer select-none group">
-            <!-- Vòng sóng nhấp nháy phát quang căn cứ Lam Sơn -->
-            <div style="width: ${pingSize}px; height: ${pingSize}px;" class="absolute rounded-full bg-red-600/35 animate-ping pointer-events-none"></div>
-            <div style="width: ${pulseSize}px; height: ${pulseSize}px;" class="absolute rounded-full bg-red-500/30 animate-pulse pointer-events-none"></div>
+      // 1. DÙNG L.imageOverlay ĐỂ ICON TỰ ĐỘNG PHÓNG TO / THU NHỎ CHUẨN XÁC THEO Ô LƯỚI
+      const overlay = L.imageOverlay(iconUrl, imgBounds, {
+        interactive: true,
+        pane: 'structuresPane',
+        className: `city-grid-overlay cursor-pointer select-none transition-all ${
+          isLamSonBase ? 'filter drop-shadow-[0_0_8px_rgba(239,68,68,0.85)]' : 'filter drop-shadow-[0_0_8px_rgba(37,99,235,0.85)]'
+        }`,
+      });
 
-            <!-- Chấm đỏ căn cứ trung tâm (to nhỏ linh hoạt theo quân số) -->
-            <div style="width: ${baseSize}px; height: ${baseSize}px;" class="rounded-full bg-red-600 border-2 border-amber-200 shadow-[0_0_16px_rgba(239,68,68,1)] flex items-center justify-center transform group-hover:scale-120 transition-all duration-150 z-10">
-              <div style="width: ${coreDotSize}px; height: ${coreDotSize}px;" class="rounded-full bg-white shadow-xs"></div>
-            </div>
+      const matchedDistrict = findDistrictForCoord(bounds.centerX, bounds.centerY, districtsList);
+      const districtName = matchedDistrict?.name || city.name;
+      const hasTraining = !!(city.training && city.training.remainingDays > 0);
 
-            <!-- Huy hiệu quân số đồn trú -->
-            <div class="absolute -top-3 -right-3 px-1.5 py-0.2 rounded-full bg-[#1c0f06] border border-amber-400 text-[10px] font-mono font-bold text-amber-300 shadow-md pointer-events-none z-20">
-              ${troops}
-            </div>
-
-            <!-- Icon Song Kiếm khi đang thao luyện -->
-            ${hasTraining ? `
-              <div class="absolute -top-7 left-1/2 -translate-x-1/2 bg-[#2d1508] border-2 border-amber-400 rounded-full w-7 h-7 flex items-center justify-center shadow-xl animate-bounce z-20" title="Đang thao luyện nghĩa binh">
-                <span class="text-xs">⚔️</span>
-              </div>
-            ` : ''}
-
-            <!-- Nhãn tên Căn Cứ -->
-            <div class="absolute top-full mt-1.5 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded bg-black/95 border border-red-500 text-[11px] font-serif font-black text-amber-200 whitespace-nowrap shadow-xl pointer-events-none z-20">
-              Căn cứ ${city.name}
-            </div>
-
-            <!-- Tooltip chi tiết khi rê chuột -->
-            <div class="hidden group-hover:block absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 rounded-lg bg-[#1a0f08]/98 border border-red-500 shadow-2xl text-stone-200 text-xs whitespace-nowrap pointer-events-none z-30">
-              <div class="font-serif font-bold text-red-400">Đại Bản Doanh ${city.name}</div>
-              <div class="text-[10px] text-amber-300/90 font-serif">Thuộc địa bàn: Huyện ${districtName}</div>
-              <div class="text-[11px] text-stone-300 mt-0.5">Quân đồn trú: ${city.troops} nghĩa binh</div>
-              ${hasTraining ? `<div class="text-[11px] text-amber-300 font-bold mt-0.5">⚔️ Đang thao luyện ${city.training!.traineesCount} tráng phu (còn ${city.training!.remainingDays} ngày)</div>` : ''}
-            </div>
+      overlay.bindTooltip(`
+        <div class="px-2.5 py-1.5 rounded-lg bg-[#140e08]/98 border ${isLamSonBase ? 'border-red-500 text-amber-200' : 'border-blue-500 text-sky-200'} shadow-2xl font-serif text-xs whitespace-nowrap">
+          <div class="font-bold text-sm ${isLamSonBase ? 'text-red-400' : 'text-sky-300'}">
+            ${isLamSonBase ? '★ Đại Bản Doanh' : isCity ? '◆ Thành Trì' : '▲ Doanh Trại'} ${city.name} [${gridSize}x${gridSize} ô]
           </div>
-        `;
+          <div class="text-[10px] text-stone-300">Huyện ${districtName} • ${troops.toLocaleString()} quân</div>
+          ${hasTraining ? `<div class="text-[10px] text-amber-300 font-bold mt-0.5">⚔️ Đang thao luyện ${city.training!.traineesCount} tráng phu (còn ${city.training!.remainingDays} ngày)</div>` : ''}
+        </div>
+      `, {
+        direction: 'top',
+        className: 'city-tooltip-container',
+        sticky: true,
+      });
 
-        const totalIconSize = baseSize + 14;
-        const marker = L.marker(pos, {
-          icon: L.divIcon({
-            className: 'base-node-marker',
-            html,
-            iconSize: [totalIconSize, totalIconSize],
-            iconAnchor: [totalIconSize / 2, totalIconSize / 2],
-          }),
-          pane: 'structuresPane',
-        });
+      overlay.on('click', (e) => {
+        L.DomEvent.stopPropagation(e);
+        if (useUIStore.getState().placementMode || useUIStore.getState().baseRelocateMode) {
+          handlePlacementAtRef.current(e.latlng);
+          return;
+        }
+        selectBase(city.id);
+      });
 
-        marker.on('click', (e) => {
-          L.DomEvent.stopPropagation(e);
-          if (useUIStore.getState().placementMode || useUIStore.getState().baseRelocateMode) {
-            handlePlacementAtRef.current(e.latlng);
-            return;
-          }
-          selectBase(city.id);
-        });
+      overlay.addTo(layer);
 
-        marker.addTo(layer);
-      }
-
-      // 2. Cứ Điểm Quân Minh (Chấm Xanh Dương to nhỏ phụ thuộc lượng quân)
-      else if (isMing) {
-        const troops = city.troops;
-        const dotSize = Math.max(12, Math.min(28, Math.round(8 + Math.sqrt(troops / 13))));
-        const isMainFortress = troops >= 8000;
-
-        const html = `
-          <div class="relative w-full h-full flex items-center justify-center cursor-pointer select-none group">
-            ${isMainFortress ? `
-              <div style="width: ${dotSize + 10}px; height: ${dotSize + 10}px;" class="absolute rounded-full bg-blue-500/35 animate-pulse pointer-events-none"></div>
-            ` : ''}
-            
-            <div style="width: ${dotSize}px; height: ${dotSize}px;" 
-                 class="rounded-full bg-blue-600 border-2 border-sky-300 shadow-[0_0_12px_rgba(37,99,235,0.9)] flex items-center justify-center hover:scale-130 transition-transform duration-150 z-10">
-              ${dotSize >= 20 ? `<div class="w-2 h-2 rounded-full bg-white/90"></div>` : ''}
-            </div>
-
-            <!-- Tooltip chi tiết cứ điểm giặc Minh -->
-            <div class="hidden group-hover:block absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 rounded bg-[#0b1329]/98 border border-blue-500 shadow-2xl text-stone-200 text-xs whitespace-nowrap pointer-events-none z-30">
-              <div class="font-serif font-bold text-sky-300">${city.name}</div>
-              <div class="text-[11px] text-sky-200 font-mono">${troops.toLocaleString()} quân Minh đồn trú</div>
-            </div>
+      // 2. Huy hiệu quân số nhỏ gọn ở góc trên bên phải
+      const badgeHtml = `
+        <div class="pointer-events-none select-none -translate-x-1/2 -translate-y-1/2 flex items-center gap-1">
+          <div class="px-1.5 py-0.2 rounded-full ${isLamSonBase ? 'bg-[#1c0f06] border-amber-400 text-amber-300' : 'bg-[#0a1128] border-sky-400 text-sky-200'} border text-[8px] font-mono font-bold shadow-md whitespace-nowrap">
+            ${troops >= 1000 ? (troops/1000).toFixed(1) + 'k' : troops}
           </div>
-        `;
+        </div>
+      `;
 
-        const marker = L.marker(pos, {
-          icon: L.divIcon({
-            className: 'ming-node-marker',
-            html,
-            iconSize: [dotSize, dotSize],
-            iconAnchor: [dotSize / 2, dotSize / 2],
-          }),
-          pane: 'structuresPane',
-        });
+      const badgeMarker = L.marker(percentToLatLng(bounds.maxX, bounds.minY), {
+        icon: L.divIcon({
+          className: 'city-badge-marker',
+          html: badgeHtml,
+          iconSize: [20, 20],
+          iconAnchor: [0, 0],
+        }),
+        pane: 'structuresPane',
+        interactive: false,
+      });
 
-        marker.on('click', (e) => {
-          L.DomEvent.stopPropagation(e);
-          if (useUIStore.getState().placementMode || useUIStore.getState().baseRelocateMode) {
-            handlePlacementAtRef.current(e.latlng);
-            return;
-          }
-          selectBase(city.id);
-        });
-
-        marker.addTo(layer);
-      }
+      badgeMarker.addTo(layer);
     });
   }, [mapInstance, cities, selectCity]);
-
-  // 6. HIỂN THỊ CÁC CÔNG TRÌNH: RUỘNG (CHẤM VÀNG) & LÒ RÈN (CHẤM ĐEN)
+  // 6. HIỂN THỊ CÁC CÔNG TRÌNH: RUỘNG (5x5, 6x6, 7x7) & LÒ RÈN (3x3) - GÁN CỨNG 1:1 VÀO Ô LƯỚI
   useEffect(() => {
     if (!mapInstance) return;
     const layer = structuresLayerRef.current;
@@ -1078,77 +1035,58 @@ export const WorldMap: React.FC = () => {
       const isFarm = structure.type === 'farm';
       const isBuilding = structure.status === 'building';
       const order = structure.activeOrder;
-      const pos = percentToLatLng(structure.x, structure.y);
+      const gridSize = getStructureGridSize(structure);
+      const bounds = getEntityCellBounds(structure.x, structure.y, gridSize, structure.startCol, structure.startRow);
 
-      let dotHtml = '';
+      const sw = percentToLatLng(bounds.minX, bounds.maxY);
+      const ne = percentToLatLng(bounds.maxX, bounds.minY);
+      const imgBounds = L.latLngBounds(sw, ne);
 
-      if (isFarm) {
-        // Ruộng là chấm màu vàng
-        dotHtml = `
-          <div class="relative w-full h-full flex items-center justify-center cursor-pointer select-none group">
-            <div class="w-4 h-4 rounded-full bg-amber-400 border-2 border-[#78350f] shadow-[0_0_10px_rgba(251,191,36,1)] hover:scale-140 transition-transform duration-150 z-10 ${isBuilding ? 'animate-pulse' : ''}">
-              <div class="w-1.5 h-1.5 rounded-full bg-amber-100 mx-auto mt-0.5"></div>
-            </div>
+      const iconUrl = isFarm ? '/icons/structure_farm.png' : '/icons/structure_forge.png';
 
-            <!-- Tooltip -->
-            <div class="hidden group-hover:block absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2.5 py-1.5 rounded-lg bg-[#1a1208]/98 border border-amber-500 shadow-2xl text-stone-200 text-[11px] whitespace-nowrap pointer-events-none z-30">
-              <div class="font-serif font-bold text-amber-300">🌾 ${structure.name} (Ruộng lúa)</div>
-              <div class="text-stone-300">
-                ${isBuilding 
-                  ? `Đang khai hoang (còn ${structure.buildDaysRemaining} ngày)`
-                  : `${structure.assignedWorkers}/${structure.maxWorkers} nông đinh • Vụ lúa: ${structure.cropDays}/${structure.cropCycleDays} ngày`
-                }
-              </div>
-            </div>
-          </div>
-        `;
-      } else {
-        // Lò rèn là chấm màu đen
-        dotHtml = `
-          <div class="relative w-full h-full flex items-center justify-center cursor-pointer select-none group">
-            <div class="w-4 h-4 rounded-full bg-[#0a0a0c] border-2 ${order ? 'border-red-500 shadow-[0_0_12px_rgba(239,68,68,1)] ring-2 ring-red-500/50' : 'border-stone-300 shadow-[0_0_8px_rgba(0,0,0,0.9)]'} hover:scale-140 transition-transform duration-150 z-10">
-              ${order ? '<div class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse mx-auto mt-0.5"></div>' : ''}
-            </div>
-
-            <!-- Tooltip -->
-            <div class="hidden group-hover:block absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2.5 py-1.5 rounded-lg bg-[#141416]/98 border border-stone-500 shadow-2xl text-stone-200 text-[11px] whitespace-nowrap pointer-events-none z-30">
-              <div class="font-serif font-bold text-stone-200">⚒️ ${structure.name} (Lò rèn)</div>
-              <div class="text-stone-300">
-                ${isBuilding 
-                  ? `Đang dựng lò (còn ${structure.buildDaysRemaining} ngày)`
-                  : order 
-                  ? `Đang rèn ${order.quantity} ${order.name} (còn ${order.remainingDays} ngày)` 
-                  : 'Lò rèn sẵn sàng nhận lệnh đúc'
-                }
-              </div>
-            </div>
-          </div>
-        `;
-      }
-
-      const marker = L.marker(pos, {
-        icon: L.divIcon({
-          className: 'placed-dot-marker',
-          html: dotHtml,
-          iconSize: [20, 20],
-          iconAnchor: [10, 10],
-        }),
+      // 1. DÙNG L.imageOverlay ĐỂ ICON TỰ ĐỘNG PHÓNG TO / THU NHỎ CHUẨN XÁC THEO Ô LƯỚI
+      const overlay = L.imageOverlay(iconUrl, imgBounds, {
+        interactive: true,
         pane: 'structuresPane',
+        className: `structure-grid-overlay cursor-pointer select-none transition-all ${
+          isBuilding ? 'opacity-70 animate-pulse' : ''
+        } ${order ? 'filter drop-shadow-[0_0_8px_rgba(239,68,68,0.9)]' : 'filter drop-shadow-[0_1px_3px_rgba(0,0,0,0.6)]'}`,
       });
 
-      marker.on('click', (e) => {
+      overlay.bindTooltip(`
+        <div class="px-2.5 py-1.5 rounded-lg bg-[#140e08]/98 border ${isFarm ? 'border-amber-500' : 'border-stone-500'} shadow-2xl font-serif text-xs text-stone-200 whitespace-nowrap">
+          <div class="font-bold text-sm ${isFarm ? 'text-amber-300' : 'text-stone-200'}">
+            ${structure.name} [${gridSize}x${gridSize} ô]
+          </div>
+          <div class="text-[11px] text-stone-300">
+            ${isBuilding 
+              ? `🚧 Đang thi công (còn ${structure.buildDaysRemaining} ngày)`
+              : isFarm
+              ? `🌾 ${structure.assignedWorkers}/${structure.maxWorkers} nông đinh • Vụ: ${structure.cropDays}/${structure.cropCycleDays} ngày`
+              : order
+              ? `🔥 Đang rèn ${order.quantity} ${order.name} (còn ${order.remainingDays} ngày)`
+              : '⚒️ Sẵn sàng nhận lệnh đúc'
+            }
+          </div>
+        </div>
+      `, {
+        direction: 'top',
+        className: 'structure-tooltip-container',
+        sticky: true,
+      });
+
+      overlay.on('click', (e) => {
         L.DomEvent.stopPropagation(e);
-        if (useUIStore.getState().placementMode) {
+        if (useUIStore.getState().placementMode || useUIStore.getState().baseRelocateMode) {
           handlePlacementAtRef.current(e.latlng);
           return;
         }
         setSelectedStructureMenu(structure);
       });
 
-      marker.addTo(layer);
+      overlay.addTo(layer);
     });
-  }, [mapInstance, structures, selectCity]);
-
+  }, [mapInstance, structures]);
   // 7. CHẾ ĐỘ CHỌN VỊ TRÍ ĐẶT CÔNG TRÌNH & VÒNG BÁN KÍNH BẢO HỘ 14 DẶM
   useEffect(() => {
     if (!mapInstance) return;
@@ -1189,48 +1127,74 @@ export const WorldMap: React.FC = () => {
     const handleMouseMove = (e: L.LeafletMouseEvent) => {
       previewLayer.clearLayers();
       const { x, y } = latLngToPercent(e.latlng);
+      const latestState = useGameStore.getState();
 
       if (baseRelocateMode) {
-        const cell = coordToCell(x, y);
-        const { minX, minY, maxX, maxY } = cellToCoord(cell.col, cell.row);
-        const snappedX = Math.round(((minX + maxX) / 2) * 100) / 100;
-        const snappedY = Math.round(((minY + maxY) / 2) * 100) / 100;
-        const terrain = getGridTerrain(cell.col, cell.row);
-        const terrainInfo = TERRAIN_DEFINITIONS[terrain];
-        const isValid = terrain !== 'water' && terrain !== 'cliff';
-        const color = isValid ? '#22c55e' : '#ef4444';
-        const matchedDistrict = findDistrictForCoord(snappedX, snappedY, districtsList);
+        const currentBase = latestState.cities.find(c => c.id === baseRelocateMode.baseId);
+        const troops = currentBase ? currentBase.troops : 50;
+        const gridSize = getCampGridSize(troops);
 
-        const iconHtml = `
-          <div class="pointer-events-none -translate-x-1/2 -translate-y-1/2 flex flex-col items-center">
-            <div class="w-9 h-9 rounded-full border-2 flex items-center justify-center text-xs shadow-xl animate-pulse"
-                 style="border-color: ${color}; background: ${isValid ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'};">
-              <span class="text-sm">🚚</span>
-            </div>
-            <div class="mt-1 px-2.5 py-0.5 rounded text-[10px] font-serif font-bold text-white shadow whitespace-nowrap"
-                 style="background: ${isValid ? '#15803d' : '#b91c1c'};">
-              ${isValid ? `✓ Đóng quân tại [Ô ${cell.col},${cell.row}] (${terrainInfo.name}) - Huyện ${matchedDistrict?.name || ''}` : `✗ Địa hình hiểm trở (${terrainInfo.name})`}
-            </div>
-          </div>
-        `;
+        const validation = validateBaseRelocate(
+          baseRelocateMode.baseId,
+          x,
+          y,
+          latestState.cities,
+          latestState.structures
+        );
 
-        const previewMarker = L.marker(percentToLatLng(snappedX, snappedY), {
-          icon: L.divIcon({
-            className: 'base-relocate-preview-marker',
-            html: iconHtml,
-            iconSize: [40, 40],
-            iconAnchor: [20, 20],
-          }),
+        const isValid = validation.canBuild;
+        const matchedDistrict = findDistrictForCoord(validation.snappedX, validation.snappedY, districtsList);
+
+        const minX = validation.startCol * GRID_CELL_W_PCT;
+        const maxX = (validation.endCol + 1) * GRID_CELL_W_PCT;
+        const minY = validation.startRow * GRID_CELL_H_PCT;
+        const maxY = (validation.endRow + 1) * GRID_CELL_H_PCT;
+
+        const sw = percentToLatLng(minX, maxY);
+        const ne = percentToLatLng(maxX, minY);
+        const imgBounds = L.latLngBounds(sw, ne);
+
+        // Khung viền hình chữ nhật bao chuẩn xác khối NxN ô
+        const rect = L.rectangle(imgBounds, {
+          color: isValid ? '#22c55e' : '#ef4444',
+          weight: 2,
+          fillColor: isValid ? '#22c55e' : '#ef4444',
+          fillOpacity: 0.25,
+          interactive: false,
           pane: 'structuresPane',
+        });
+        rect.addTo(previewLayer);
+
+        // Icon doanh trại phủ chuẩn khối ô
+        const previewOverlay = L.imageOverlay('/icons/structure_camp.png', imgBounds, {
+          interactive: false,
+          pane: 'structuresPane',
+          className: 'pointer-events-none opacity-90',
+        });
+        previewOverlay.addTo(previewLayer);
+
+        const tipMarker = L.marker(percentToLatLng((minX + maxX) / 2, (minY + maxY) / 2), {
+          icon: L.divIcon({
+            className: 'pointer-events-none',
+            html: `
+              <div class="pointer-events-none -translate-x-1/2 -translate-y-1/2 whitespace-nowrap mt-6">
+                <span class="px-2 py-0.5 rounded text-[10px] font-bold text-white shadow-lg ${isValid ? 'bg-emerald-700' : 'bg-red-700'}">
+                  ${isValid ? `✓ Doanh trại [${gridSize}x${gridSize} ô] - Huyện ${matchedDistrict?.name || '...'}` : `✗ ${validation.reason}`}
+                </span>
+              </div>
+            `,
+            iconSize: [1, 1],
+          }),
           interactive: false,
         });
-
-        previewMarker.addTo(previewLayer);
+        tipMarker.addTo(previewLayer);
         return;
       }
 
       if (!placementMode) return;
-      const latestState = useGameStore.getState();
+
+      const gridSize = placementMode.gridSize || (placementMode.type === 'forge' ? 3 : (placementMode.farmTier === 50 ? 7 : placementMode.farmTier === 30 ? 6 : 5));
+      const isRelocating = Boolean(placementMode.relocateStructureId);
 
       const validation = validateCellPlacement(
         x,
@@ -1239,45 +1203,57 @@ export const WorldMap: React.FC = () => {
         placementMode.cityId,
         latestState.cities,
         latestState.structures,
-        placementMode.relocateStructureId
+        placementMode.relocateStructureId,
+        gridSize
       );
 
       const isValid = validation.canBuild;
-      const terrainInfo = TERRAIN_DEFINITIONS[validation.terrain];
-      const color = isValid ? '#22c55e' : '#ef4444';
-      const isRelocating = Boolean(placementMode.relocateStructureId);
-      const dotColor = placementMode.type === 'farm' ? 'bg-amber-400' : 'bg-stone-950 border-stone-400';
+      const previewIcon = placementMode.type === 'farm' ? '/icons/structure_farm.png' : '/icons/structure_forge.png';
 
-      const iconHtml = `
-        <div class="pointer-events-none -translate-x-1/2 -translate-y-1/2 flex flex-col items-center">
-          <div class="w-8 h-8 rounded-full border-2 flex items-center justify-center text-xs shadow-xl"
-               style="border-color: ${color}; background: ${isValid ? 'rgba(34, 197, 94, 0.25)' : 'rgba(239, 68, 68, 0.25)'};">
-            <div class="w-3.5 h-3.5 rounded-full ${dotColor} border"></div>
-          </div>
-          <div class="mt-1 px-2 py-0.5 rounded text-[10px] font-bold text-white shadow whitespace-nowrap"
-               style="background: ${isValid ? '#15803d' : '#b91c1c'};">
-            ${isValid ? `✓ ${isRelocating ? 'Di dời tới' : 'Cắm mốc'} [Ô ${validation.col},${validation.row}] (${terrainInfo.name})` : `✗ ${validation.reason}`}
-          </div>
-        </div>
-      `;
+      const minX = validation.startCol * GRID_CELL_W_PCT;
+      const maxX = (validation.endCol + 1) * GRID_CELL_W_PCT;
+      const minY = validation.startRow * GRID_CELL_H_PCT;
+      const maxY = (validation.endRow + 1) * GRID_CELL_H_PCT;
 
-      // Hút chặt vào tâm của ô vuông lưới (0.5% x 0.5%)
-      const snappedPos = percentToLatLng(validation.snappedX, validation.snappedY);
+      const sw = percentToLatLng(minX, maxY);
+      const ne = percentToLatLng(maxX, minY);
+      const imgBounds = L.latLngBounds(sw, ne);
 
-      const previewMarker = L.marker(snappedPos, {
-        icon: L.divIcon({
-          className: 'placement-preview-marker',
-          html: iconHtml,
-          iconSize: [36, 36],
-          iconAnchor: [18, 18],
-        }),
+      // Khung viền hình chữ nhật bao chuẩn xác khối NxN ô
+      const rect = L.rectangle(imgBounds, {
+        color: isValid ? '#22c55e' : '#ef4444',
+        weight: 2,
+        fillColor: isValid ? '#22c55e' : '#ef4444',
+        fillOpacity: 0.25,
+        interactive: false,
         pane: 'structuresPane',
+      });
+      rect.addTo(previewLayer);
+
+      // Icon công trình phủ chuẩn khối ô
+      const previewOverlay = L.imageOverlay(previewIcon, imgBounds, {
+        interactive: false,
+        pane: 'structuresPane',
+        className: 'pointer-events-none opacity-90',
+      });
+      previewOverlay.addTo(previewLayer);
+
+      const tipMarker = L.marker(percentToLatLng((minX + maxX) / 2, (minY + maxY) / 2), {
+        icon: L.divIcon({
+          className: 'pointer-events-none',
+          html: `
+            <div class="pointer-events-none -translate-x-1/2 -translate-y-1/2 whitespace-nowrap mt-6">
+              <span class="px-2 py-0.5 rounded text-[10px] font-bold text-white shadow-lg ${isValid ? 'bg-emerald-700' : 'bg-red-700'}">
+                ${isValid ? `✓ [${gridSize}x${gridSize} ô] ${isRelocating ? 'Di dời' : 'Cắm mốc'} tại Ô (${validation.startCol},${validation.startRow})` : `✗ ${validation.reason}`}
+              </span>
+            </div>
+          `,
+          iconSize: [1, 1],
+        }),
         interactive: false,
       });
-
-      previewMarker.addTo(previewLayer);
+      tipMarker.addTo(previewLayer);
     };
-
     const handleClick = (e: L.LeafletMouseEvent) => {
       handlePlacementAtRef.current(e.latlng);
     };
@@ -1358,23 +1334,62 @@ export const WorldMap: React.FC = () => {
         return (
           <div className="absolute top-20 left-1/2 -translate-x-1/2 z-[1000] w-[95vw] max-w-2xl bg-[#1e130c]/98 text-[#f5ebd7] px-4 py-3 rounded-2xl border-2 border-amber-500 shadow-[0_10px_35px_rgba(0,0,0,0.85)] backdrop-blur-md flex items-center justify-between gap-4 animate-in fade-in slide-in-from-top-4 pointer-events-auto">
             <div className="flex items-center gap-3">
-              <span className="text-2xl animate-bounce shrink-0">
-                {isRelocating ? '🚚' : isFarm ? '🌾' : '⚒️'}
+              <span className="w-8 h-8 shrink-0 flex items-center justify-center">
+                {isRelocating ? (
+                  <span className="text-2xl animate-bounce">🚚</span>
+                ) : (
+                  <img
+                    src={isFarm ? '/icons/structure_farm.png' : '/icons/structure_forge.png'}
+                    alt="Công trình"
+                    className="w-8 h-8 object-contain filter drop-shadow-md"
+                  />
+                )}
               </span>
               <div>
-                <div className="font-serif font-black text-amber-300 text-sm flex items-center gap-2">
+                <div className="font-serif font-black text-amber-300 text-sm flex items-center gap-2 flex-wrap">
                   <span>
                     {isRelocating 
                       ? `Đang Di Dời: ${relocatingStructure?.name || 'Công trình'}`
-                      : `Chế Độ Xây Dựng: ${isFarm ? 'Ruộng Lúa Nước' : 'Lò Rèn Bí Mật'}`
+                      : `Chế Độ Xây Dựng: ${isFarm ? 'Ruộng Lúa Nước' : 'Lò Rèn Bí Mật (3x3)'}`
                     }
                   </span>
                   <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-950/80 text-amber-200 border border-amber-600/70 font-sans font-bold">
-                    {isFarm ? 'Chỉ đất Đồng Bằng' : 'Ưu tiên Rừng / Núi'}
+                    {isFarm ? 'Đất Đồng Bằng' : 'Tránh Sông & Vách đá'}
                   </span>
+
+                  {/* Chọn 3 mốc quy mô Ruộng (5x5, 6x6, 7x7) */}
+                  {isFarm && !isRelocating && (
+                    <div className="flex items-center gap-1.5 ml-1">
+                      {[
+                        { size: 5, workers: 15, label: '5x5 (15 người)' },
+                        { size: 6, workers: 30, label: '6x6 (30 người)' },
+                        { size: 7, workers: 50, label: '7x7 (50 người)' },
+                      ].map(tier => {
+                        const isSelected = (placementMode.gridSize || 5) === tier.size;
+                        return (
+                          <button
+                            key={tier.size}
+                            type="button"
+                            onClick={() => setPlacementMode({
+                              ...placementMode,
+                              gridSize: tier.size,
+                              farmTier: tier.workers as any,
+                            })}
+                            className={`px-2 py-0.5 rounded text-[11px] font-serif font-bold transition cursor-pointer ${
+                              isSelected
+                                ? 'bg-amber-500 text-stone-950 shadow ring-1 ring-amber-300'
+                                : 'bg-[#2b170c] text-amber-300/80 hover:bg-[#3f2212] border border-amber-700/60'
+                            }`}
+                          >
+                            {tier.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
                 <div className="text-[11px] text-stone-300 mt-0.5">
-                  👉 Rê chuột xem ô đất (viền xanh hợp lệ). Nhấp chuột trái để cắm mốc đặt. Bán kính bảo hộ: 14 dặm (vòng vàng đứt nét).
+                  👉 Di chuyển chuột để xem khung ${placementMode.gridSize || (isFarm ? 5 : 3)}x${placementMode.gridSize || (isFarm ? 5 : 3)} ô (xanh = hợp lệ không trùng). Bấm chuột trái để cắm mốc xây.
                 </div>
               </div>
             </div>
@@ -1398,8 +1413,12 @@ export const WorldMap: React.FC = () => {
             {/* Header */}
             <div className="flex items-start justify-between border-b border-amber-900/60 pb-3">
               <div className="flex items-center gap-3">
-                <span className="w-10 h-10 rounded-xl bg-amber-950/90 border border-amber-600 flex items-center justify-center text-xl shadow-md">
-                  {selectedStructureMenu.type === 'farm' ? '🌾' : '⚒️'}
+                <span className="w-10 h-10 rounded-xl bg-amber-950/90 border border-amber-600 flex items-center justify-center p-1 shadow-md">
+                  <img
+                    src={selectedStructureMenu.type === 'farm' ? '/icons/structure_farm.png' : '/icons/structure_forge.png'}
+                    alt="Công trình"
+                    className="w-8 h-8 object-contain"
+                  />
                 </span>
                 <div>
                   <h3 className="font-serif font-black text-amber-200 text-base leading-tight">

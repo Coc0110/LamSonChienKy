@@ -163,132 +163,384 @@ export function paintTerrainBrush(centerCol: number, centerRow: number, type: Te
 loadCustomTerrainGrid();
 
 // ============================================================================
-// KIỂM SOÁT XÂY DỰNG THEO Ô LƯỚI (CELL-BASED PLACEMENT VALIDATION)
+// HỆ THỐNG KÍCH THƯỚC Ô LƯỚI & XÁC ĐỊNH PHẠM VI (GRID SIZING & BOUNDS)
+// ============================================================================
+
+// 1. Doanh trại: 3x3 (<300), 4x4 (300-1000), 5x5 (1000-10000), 6x6 (>10000)
+export function getCampGridSize(troops: number): number {
+  if (troops < 300) return 3;
+  if (troops <= 1000) return 4;
+  if (troops <= 10000) return 5;
+  return 6;
+}
+
+// 2. Thành trì: 4x4 (<1000), 5x5 (1000-10000), 6x6 (10000-50000), 7x7 (>50000)
+export function getCityGridSize(troops: number): number {
+  if (troops < 1000) return 4;
+  if (troops <= 10000) return 5;
+  if (troops <= 50000) return 6;
+  return 7;
+}
+
+// 3. Công trình: Lò rèn 3x3, Ruộng 5x5 (15 người), 6x6 (30 người), 7x7 (50 người)
+export function getStructureGridSize(structure: { type: StructureType; gridSize?: number; maxWorkers?: number }): number {
+  if (structure.type === 'forge') return 3;
+  if (structure.type === 'farm') {
+    if (structure.gridSize) return structure.gridSize;
+    if (structure.maxWorkers === 50) return 7;
+    if (structure.maxWorkers === 30) return 6;
+    return 5;
+  }
+  return 3;
+}
+
+// Lấy phạm vi các ô [startCol..endCol, startRow..endRow] và tâm chuẩn [centerX, centerY]
+export function getEntityCellBounds(
+  x: number,
+  y: number,
+  size: number,
+  existingStartCol?: number,
+  existingStartRow?: number
+): {
+  startCol: number;
+  startRow: number;
+  endCol: number;
+  endRow: number;
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+  centerX: number;
+  centerY: number;
+} {
+  let startCol: number;
+  let startRow: number;
+
+  if (existingStartCol !== undefined && existingStartRow !== undefined) {
+    startCol = existingStartCol;
+    startRow = existingStartRow;
+  } else {
+    const center = coordToCell(x, y);
+    const half = Math.floor(size / 2);
+    startCol = Math.max(0, Math.min(GRID_COLS - size, center.col - half));
+    startRow = Math.max(0, Math.min(GRID_ROWS - size, center.row - half));
+  }
+
+  const endCol = startCol + size - 1;
+  const endRow = startRow + size - 1;
+
+  const minX = startCol * GRID_CELL_W_PCT;
+  const maxX = (endCol + 1) * GRID_CELL_W_PCT;
+  const minY = startRow * GRID_CELL_H_PCT;
+  const maxY = (endRow + 1) * GRID_CELL_H_PCT;
+
+  const centerX = Math.round(((minX + maxX) / 2) * 10000) / 10000;
+  const centerY = Math.round(((minY + maxY) / 2) * 10000) / 10000;
+
+  return {
+    startCol,
+    startRow,
+    endCol,
+    endRow,
+    minX,
+    maxX,
+    minY,
+    maxY,
+    centerX,
+    centerY,
+  };
+}
+
+// ============================================================================
+// KIỂM SOÁT XÂY DỰNG THEO KHỐI Ô LƯỚI KHÔNG TRÙNG LẤN (OVERLAP-FREE PLACEMENT)
 // ============================================================================
 export function validateCellPlacement(
   rawX: number,
   rawY: number,
   structureType: StructureType,
-  targetCityId: string,
+  _targetCityId: string,
   cities: CityNode[],
   structures: PlacedStructure[],
-  ignoreStructureId?: string
+  ignoreStructureId?: string,
+  customGridSize?: number
 ): CellBuildValidation {
-  const { col, row, centerX, centerY } = coordToCell(rawX, rawY);
-  const terrain = getGridTerrain(col, row);
-  const terrainInfo = TERRAIN_DEFINITIONS[terrain];
+  const size = customGridSize || (structureType === 'forge' ? 3 : 5);
+  const bounds = getEntityCellBounds(rawX, rawY, size);
+  const { startCol, startRow, endCol, endRow, centerX, centerY } = bounds;
 
-  const targetCity = cities.find(c => c.id === targetCityId);
+  const centerTerrain = getGridTerrain(coordToCell(rawX, rawY).col, coordToCell(rawX, rawY).row);
 
-  // 1. Kiểm tra cự ly bảo hộ tới căn cứ (tối đa 14 dặm ~ 14%)
-  if (targetCity) {
-    const dist = Math.hypot(targetCity.x - centerX, targetCity.y - centerY);
-    if (dist > 14.0) {
-      return {
-        canBuild: false,
-        reason: `Quá xa căn cứ (${dist.toFixed(1)} > 14 dặm)`,
-        terrain,
-        snappedX: centerX,
-        snappedY: centerY,
-        col,
-        row,
-      };
-    }
+  // 1. Kiểm tra không vượt quá ranh giới bản đồ
+  if (startCol < 0 || endCol >= GRID_COLS || startRow < 0 || endRow >= GRID_ROWS) {
+    return {
+      canBuild: false,
+      reason: 'Vượt ra ngoài ranh giới bản đồ!',
+      terrain: centerTerrain,
+      snappedX: centerX,
+      snappedY: centerY,
+      col: startCol,
+      row: startRow,
+      startCol,
+      startRow,
+      endCol,
+      endRow,
+      gridSize: size,
+    };
   }
 
-  // 2. Kiểm tra ô đã bị chiếm dụng bởi công trình khác chưa
+  // 2. Kiểm tra không đè trùng lên bất kỳ công trình nào khác
   for (const s of structures) {
-    if (ignoreStructureId && s.id === ignoreStructureId) {
-      continue;
-    }
-    const sCell = coordToCell(s.x, s.y);
-    if (sCell.col === col && sCell.row === row) {
+    if (ignoreStructureId && s.id === ignoreStructureId) continue;
+    const sSize = getStructureGridSize(s);
+    const sBounds = getEntityCellBounds(s.x, s.y, sSize, s.startCol, s.startRow);
+    const overlaps = !(endCol < sBounds.startCol || sBounds.endCol < startCol || endRow < sBounds.startRow || sBounds.endRow < startRow);
+    if (overlaps) {
       return {
         canBuild: false,
-        reason: `Ô này đã có [${s.name}] đang chiếm giữ!`,
-        terrain,
+        reason: `Trùng lấn vào khu vực của [${s.name}] (${sSize}x${sSize})!`,
+        terrain: centerTerrain,
         snappedX: centerX,
         snappedY: centerY,
-        col,
-        row,
-      };
-    }
-    // Giãn cách an toàn tối thiểu giữa các công trình (1.5 dặm)
-    if (Math.hypot(s.x - centerX, s.y - centerY) < 1.5) {
-      return {
-        canBuild: false,
-        reason: `Quá gần [${s.name}] (cần cách ít nhất 3 ô)`,
-        terrain,
-        snappedX: centerX,
-        snappedY: centerY,
-        col,
-        row,
+        col: startCol,
+        row: startRow,
+        startCol,
+        startRow,
+        endCol,
+        endRow,
+        gridSize: size,
       };
     }
   }
 
-  // 3. Kiểm tra ô đã bị chiếm bởi cứ điểm/thành trì
+  // 3. Kiểm tra không đè trùng lên cứ điểm / thành trì
   for (const c of cities) {
-    const cCell = coordToCell(c.x, c.y);
-    if (cCell.col === col && cCell.row === row) {
+    const cSize = c.type === 'city' ? getCityGridSize(c.troops) : getCampGridSize(c.troops);
+    const cBounds = getEntityCellBounds(c.x, c.y, cSize, c.startCol, c.startRow);
+    const overlaps = !(endCol < cBounds.startCol || cBounds.endCol < startCol || endRow < cBounds.startRow || cBounds.endRow < startRow);
+    if (overlaps) {
       return {
         canBuild: false,
-        reason: `Tâm cứ điểm [${c.name}] không thể đặt công trình!`,
-        terrain,
+        reason: `Trùng lấn vào ${c.type === 'city' ? 'Thành Trì' : 'Doanh Trại'} [${c.name}] (${cSize}x${cSize})!`,
+        terrain: centerTerrain,
         snappedX: centerX,
         snappedY: centerY,
-        col,
-        row,
+        col: startCol,
+        row: startRow,
+        startCol,
+        startRow,
+        endCol,
+        endRow,
+        gridSize: size,
       };
     }
   }
 
-  // 4. Kiểm tra điều kiện địa hình cho từng loại công trình
-  if (structureType === 'farm') {
-    if (terrain !== 'plains') {
-      return {
-        canBuild: false,
-        reason: `Địa hình ${terrainInfo.name} (Ruộng lúa nước chỉ cấy được trên ô Đồng Bằng)`,
-        terrain,
-        snappedX: centerX,
-        snappedY: centerY,
-        col,
-        row,
-      };
-    }
-  } else if (structureType === 'forge') {
-    if (terrain === 'water') {
-      return {
-        canBuild: false,
-        reason: 'Không thể dựng lò rèn chìm dưới lòng sông ngòi!',
-        terrain,
-        snappedX: centerX,
-        snappedY: centerY,
-        col,
-        row,
-      };
-    }
-    if (terrain === 'cliff') {
-      return {
-        canBuild: false,
-        reason: 'Vách đá dốc đứng không có mặt bằng dựng bễ đúc!',
-        terrain,
-        snappedX: centerX,
-        snappedY: centerY,
-        col,
-        row,
-      };
+  // 4. Kiểm tra điều kiện địa hình cho toàn bộ khối NxN ô
+  for (let r = startRow; r <= endRow; r++) {
+    for (let c = startCol; c <= endCol; c++) {
+      const cellTerrain = getGridTerrain(c, r);
+      if (structureType === 'farm') {
+        if (cellTerrain !== 'plains') {
+          return {
+            canBuild: false,
+            reason: `Ô [${c},${r}] là ${TERRAIN_DEFINITIONS[cellTerrain]?.name || cellTerrain} (Ruộng lúa bắt buộc toàn bộ là đất Đồng Bằng)!`,
+            terrain: cellTerrain,
+            snappedX: centerX,
+            snappedY: centerY,
+            col: startCol,
+            row: startRow,
+            startCol,
+            startRow,
+            endCol,
+            endRow,
+            gridSize: size,
+          };
+        }
+      } else if (structureType === 'forge') {
+        if (cellTerrain === 'water') {
+          return {
+            canBuild: false,
+            reason: `Ô [${c},${r}] là Sông Nước (không thể dựng lò rèn dưới lòng sông)!`,
+            terrain: cellTerrain,
+            snappedX: centerX,
+            snappedY: centerY,
+            col: startCol,
+            row: startRow,
+            startCol,
+            startRow,
+            endCol,
+            endRow,
+            gridSize: size,
+          };
+        }
+        if (cellTerrain === 'cliff') {
+          return {
+            canBuild: false,
+            reason: `Ô [${c},${r}] là Vách Đá dốc đứng (không có mặt bằng dựng bễ đúc)!`,
+            terrain: cellTerrain,
+            snappedX: centerX,
+            snappedY: centerY,
+            col: startCol,
+            row: startRow,
+            startCol,
+            startRow,
+            endCol,
+            endRow,
+            gridSize: size,
+          };
+        }
+      }
     }
   }
 
   return {
     canBuild: true,
-    reason: `Hợp lệ! Ô địa hình: ${terrainInfo.name}`,
-    terrain,
+    reason: `Hợp lệ! Diện tích ${size}x${size} ô`,
+    terrain: centerTerrain,
     snappedX: centerX,
     snappedY: centerY,
-    col,
-    row,
+    col: startCol,
+    row: startRow,
+    startCol,
+    startRow,
+    endCol,
+    endRow,
+    gridSize: size,
+  };
+}
+
+// 5. Kiểm tra di dời Bản Doanh (Doanh Trại)
+export function validateBaseRelocate(
+  baseId: string,
+  rawX: number,
+  rawY: number,
+  cities: CityNode[],
+  structures: PlacedStructure[]
+): CellBuildValidation {
+  const currentBase = cities.find(c => c.id === baseId);
+  const troops = currentBase ? currentBase.troops : 50;
+  const size = getCampGridSize(troops);
+  const bounds = getEntityCellBounds(rawX, rawY, size);
+  const { startCol, startRow, endCol, endRow, centerX, centerY } = bounds;
+
+  const centerTerrain = getGridTerrain(coordToCell(rawX, rawY).col, coordToCell(rawX, rawY).row);
+
+  if (startCol < 0 || endCol >= GRID_COLS || startRow < 0 || endRow >= GRID_ROWS) {
+    return {
+      canBuild: false,
+      reason: 'Vượt ra ngoài ranh giới bản đồ!',
+      terrain: centerTerrain,
+      snappedX: centerX,
+      snappedY: centerY,
+      col: startCol,
+      row: startRow,
+      startCol,
+      startRow,
+      endCol,
+      endRow,
+      gridSize: size,
+    };
+  }
+
+  // Trùng công trình
+  for (const s of structures) {
+    const sSize = getStructureGridSize(s);
+    const sBounds = getEntityCellBounds(s.x, s.y, sSize, s.startCol, s.startRow);
+    const overlaps = !(endCol < sBounds.startCol || sBounds.endCol < startCol || endRow < sBounds.startRow || sBounds.endRow < startRow);
+    if (overlaps) {
+      return {
+        canBuild: false,
+        reason: `Trùng lấn vào công trình [${s.name}] (${sSize}x${sSize})!`,
+        terrain: centerTerrain,
+        snappedX: centerX,
+        snappedY: centerY,
+        col: startCol,
+        row: startRow,
+        startCol,
+        startRow,
+        endCol,
+        endRow,
+        gridSize: size,
+      };
+    }
+  }
+
+  // Trùng thành hoặc căn cứ khác
+  for (const c of cities) {
+    if (c.id === baseId) continue;
+    const cSize = c.type === 'city' ? getCityGridSize(c.troops) : getCampGridSize(c.troops);
+    const cBounds = getEntityCellBounds(c.x, c.y, cSize, c.startCol, c.startRow);
+    const overlaps = !(endCol < cBounds.startCol || cBounds.endCol < startCol || endRow < cBounds.startRow || cBounds.endRow < startRow);
+    if (overlaps) {
+      return {
+        canBuild: false,
+        reason: `Trùng lấn vào [${c.name}] (${cSize}x${cSize})!`,
+        terrain: centerTerrain,
+        snappedX: centerX,
+        snappedY: centerY,
+        col: startCol,
+        row: startRow,
+        startCol,
+        startRow,
+        endCol,
+        endRow,
+        gridSize: size,
+      };
+    }
+  }
+
+  // Không đặt doanh trại trên sông nước hoặc vách đá
+  for (let r = startRow; r <= endRow; r++) {
+    for (let c = startCol; c <= endCol; c++) {
+      const cellTerrain = getGridTerrain(c, r);
+      if (cellTerrain === 'water') {
+        return {
+          canBuild: false,
+          reason: `Ô [${c},${r}] là Sông Nước!`,
+          terrain: cellTerrain,
+          snappedX: centerX,
+          snappedY: centerY,
+          col: startCol,
+          row: startRow,
+          startCol,
+          startRow,
+          endCol,
+          endRow,
+          gridSize: size,
+        };
+      }
+      if (cellTerrain === 'cliff') {
+        return {
+          canBuild: false,
+          reason: `Ô [${c},${r}] là Vách Đá dốc đứng!`,
+          terrain: cellTerrain,
+          snappedX: centerX,
+          snappedY: centerY,
+          col: startCol,
+          row: startRow,
+          startCol,
+          startRow,
+          endCol,
+          endRow,
+          gridSize: size,
+        };
+      }
+    }
+  }
+
+  return {
+    canBuild: true,
+    reason: `Hợp lệ! Doanh trại ${size}x${size} ô`,
+    terrain: centerTerrain,
+    snappedX: centerX,
+    snappedY: centerY,
+    col: startCol,
+    row: startRow,
+    startCol,
+    startRow,
+    endCol,
+    endRow,
+    gridSize: size,
   };
 }
 

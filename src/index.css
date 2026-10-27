@@ -2,7 +2,7 @@
 
 /* ============================================================================
    1. FONT HÁN TỰ / THƯ PHÁP CỔ VIỆT HÓA (HanZiVH)
-   Dùng cho các "TÊN": Tên tướng, Tên địa danh, Tên các thẻ buff, Tiêu đề cổ trang
+   Được áp dụng cho TOÀN BỘ: Tên, Mô tả, Chỉ số, Giao diện, Quân thư, v.v.
    ============================================================================ */
 @font-face {
   font-family: 'HanZiVH';
@@ -14,9 +14,17 @@
 }
 
 /* ============================================================================
-   2. FONT CASTER VIỆT HÓA (Caster)
-   Dùng cho toàn bộ Mô tả, Nội dung diễn giải, Chỉ số, Lệnh bài, Trích dẫn sử thi
+   2. CÁC FONT DỰ PHÒNG KHÁC (Finch, Caster, Supa Mega, Brushwell, Product Sans)
    ============================================================================ */
+@font-face {
+  font-family: 'Finch';
+  src: url('/fonts/iCiel_Finch.otf') format('opentype'),
+       url('/fonts/iCiel Finch.otf') format('opentype');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 @font-face {
   font-family: 'Caster';
   src: url('/fonts/Caster.otf') format('opentype');
@@ -25,9 +33,6 @@
   font-display: swap;
 }
 
-/* ============================================================================
-   3. CÁC FONT DỰ PHÒNG KHÁC (Supa Mega, Brushwell, Product Sans)
-   ============================================================================ */
 @font-face {
   font-family: 'SupaMegaFantastic';
   src: url('/fonts/iCielSupaMegaFantastic-Regular.otf') format('opentype');
@@ -53,34 +58,36 @@
 }
 
 @theme {
-  --font-sans: 'Caster', cursive, sans-serif;
-  --font-desc: 'Caster', cursive, sans-serif;
-  --font-brush: 'Caster', cursive, sans-serif;
-  --font-scroll: 'Caster', cursive, sans-serif;
   --font-serif: 'HanZiVH', Georgia, 'Times New Roman', serif;
+  --font-sans: 'HanZiVH', Georgia, 'Times New Roman', serif;
+  --font-desc: 'HanZiVH', Georgia, 'Times New Roman', serif;
+  --font-brush: 'HanZiVH', Georgia, 'Times New Roman', serif;
+  --font-scroll: 'HanZiVH', Georgia, 'Times New Roman', serif;
   --font-title: 'HanZiVH', Georgia, 'Times New Roman', serif;
 }
 
-/* Thiết lập font mặc định cho toàn bộ mô tả và giao diện là Caster */
-html, body, #root {
-  font-family: 'Caster', cursive, sans-serif;
-}
-
-/* Các lớp tiện ích bổ trợ phân định font chữ rõ ràng */
-.font-name,
-.font-hanzi,
-.font-title {
+/* Áp dụng font HanZi cho toàn bộ ứng dụng */
+html, body, #root, * {
   font-family: 'HanZiVH', Georgia, 'Times New Roman', serif;
 }
 
+/* Các lớp tiện ích đồng bộ font HanZi */
+.font-name,
+.font-hanzi,
+.font-title,
 .font-desc,
 .font-brush,
-.font-scroll {
-  font-family: 'Caster', cursive, sans-serif;
+.font-scroll,
+.font-sans,
+.font-serif {
+  font-family: 'HanZiVH', Georgia, 'Times New Roman', serif;
 }
 
-.font-product {
-  font-family: 'ProductSans', system-ui, -apple-system, sans-serif;
+.font-product,
+.font-standard,
+.font-normal-text,
+.font-standard-bold {
+  font-family: 'HanZiVH', Georgia, 'Times New Roman', serif !important;
 }
 
 /* Hiệu ứng nhấp nháy nhè nhẹ cho texture Lửa */
@@ -126,7 +133,7 @@ html, body, #root {
   color: #ebd0a7 !important;
   padding: 8px 12px !important;
   backdrop-filter: blur(6px);
-  font-family: 'Caster', cursive, sans-serif !important;
+  font-family: 'HanZiVH', Georgia, 'Times New Roman', serif !important;
 }
 .parchment-tactical-tooltip .leaflet-tooltip-pane {
   z-index: 900;
@@ -149,13 +156,19 @@ html, body, #root {
   animation: marchLineAnim 2.4s linear infinite;
 }
 
-/* Hiệu ứng lật 3D cả tấm bảng đồng theo trục ngang: Nhanh, mượt mà 60fps, không khựng */
+/* Hiệu ứng lật 3D cả tấm bảng đồng: Lật đúng 1 lần (180 độ qua điểm cạnh 90 độ), mượt mà 60fps không khựng, không lật kép */
 @keyframes boardFlipHorizontalForward {
   0% {
     transform: rotateX(0deg) scale(1);
+    animation-timing-function: cubic-bezier(0.4, 0, 0.8, 0.8);
+  }
+  49.9% {
+    transform: rotateX(90deg) scale(0.96);
+    animation-timing-function: step-end;
   }
   50% {
-    transform: rotateX(180deg) scale(0.95);
+    transform: rotateX(270deg) scale(0.96);
+    animation-timing-function: cubic-bezier(0.2, 0.8, 0.4, 1);
   }
   100% {
     transform: rotateX(360deg) scale(1);
@@ -164,23 +177,29 @@ html, body, #root {
 
 @keyframes boardFlipHorizontalBackward {
   0% {
-    transform: rotateX(0deg) scale(1);
+    transform: rotateX(360deg) scale(1);
+    animation-timing-function: cubic-bezier(0.4, 0, 0.8, 0.8);
+  }
+  49.9% {
+    transform: rotateX(270deg) scale(0.96);
+    animation-timing-function: step-end;
   }
   50% {
-    transform: rotateX(-180deg) scale(0.95);
+    transform: rotateX(90deg) scale(0.96);
+    animation-timing-function: cubic-bezier(0.2, 0.8, 0.4, 1);
   }
   100% {
-    transform: rotateX(-360deg) scale(1);
+    transform: rotateX(0deg) scale(1);
   }
 }
 
 .animate-board-flip-forward {
-  animation: boardFlipHorizontalForward 0.45s cubic-bezier(0.35, 0, 0.25, 1) forwards;
+  animation: boardFlipHorizontalForward 0.65s cubic-bezier(0.25, 1, 0.5, 1) forwards !important;
   will-change: transform;
 }
 
 .animate-board-flip-backward {
-  animation: boardFlipHorizontalBackward 0.45s cubic-bezier(0.35, 0, 0.25, 1) forwards;
+  animation: boardFlipHorizontalBackward 0.65s cubic-bezier(0.25, 1, 0.5, 1) forwards !important;
   will-change: transform;
 }
 
@@ -214,68 +233,4 @@ html, body, #root {
   background-color: #fef08a !important;
   border-color: #ef4444 !important;
   box-shadow: 0 0 10px rgba(239, 68, 68, 0.95), 0 0 4px #fbbf24 !important;
-}
-
-/* Nhãn tên địa danh huyện thành hiển thị trên cùng mọi layer, không chặn click */
-.district-floating-label {
-  z-index: 1000 !important;
-  pointer-events: none !important;
-}
-
-/* ============================================================================
-   Chế độ di chuyển bản đồ bằng chuột phải (Right-click map drag)
-   ============================================================================ */
-/* Vector ranh giới huyện thành: nhận click 100% trên toàn bộ diện tích bên trong */
-.district-polygon-interactive {
-  pointer-events: all !important;
-  cursor: pointer;
-}
-
-/* ============================================================================
-   Chế độ di chuyển bản đồ (Kéo chuột phải) & Thao tác ranh giới
-   ============================================================================ */
-.leaflet-container.leaflet-grab {
-  cursor: default;
-}
-
-.leaflet-container.leaflet-grab:active {
-  cursor: default;
-}
-
-body.leaflet-dragging,
-.leaflet-dragging .leaflet-grab,
-.leaflet-container.leaflet-drag-target {
-  cursor: grabbing !important;
-}
-
-/* Hit-box bẻ gãy đường ranh giới và thêm đỉnh mới */
-.district-line-add-vertex-hit {
-  cursor: copy !important;
-}
-
-.district-add-vertex-tooltip {
-  background-color: #1c110a !important;
-  color: #fbbf24 !important;
-  border: 1px solid #d97706 !important;
-  font-family: inherit !important;
-  font-size: 11px !important;
-  font-weight: bold !important;
-  border-radius: 6px !important;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.8) !important;
-  padding: 3px 8px !important;
-}
-
-.district-add-vertex-tooltip::before {
-  border-top-color: #d97706 !important;
-}
-
-/* Nút chồng lên nhau để Gộp và Xóa đỉnh */
-@keyframes pulseMerge {
-  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.8); }
-  50% { transform: scale(1.35); box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
-  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
-}
-
-.district-vertex-handle-marker-merge div {
-  animation: pulseMerge 0.5s infinite !important;
 }

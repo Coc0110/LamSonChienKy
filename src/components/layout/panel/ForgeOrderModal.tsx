@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Hammer, ShieldAlert, Clock, Coins, Users, Flame } from 'lucide-react';
+import { X, ShieldAlert, Clock, Coins, Users, Flame } from 'lucide-react';
 import type { WeaponCraftType, PlacedStructure } from '../../../types';
 import { useGameStore } from '../../../store/gameStore';
 
@@ -239,7 +239,7 @@ export const ForgeOrderModal: React.FC<ForgeOrderModalProps> = ({
                 : 'bg-stone-800 text-stone-500 cursor-not-allowed border border-stone-700'
             }`}
           >
-            <Hammer size={14} />
+            <img src="/icons/structure_forge.png" alt="Lò rèn" className="w-4 h-4 object-contain inline-block brightness-125" />
             <span>Nổi Lửa Rèn Đúc ({totalGold} V)</span>
           </button>
         </div>

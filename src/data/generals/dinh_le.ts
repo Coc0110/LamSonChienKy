@@ -28,8 +28,8 @@ export const dinh_le: General = {
   stars: 5,
   starTier: 'red',
   stats: {
-    command: 86,   // Thống Lĩnh (1 - 100)
-    martial: 89,   // Võ Nghệ   (1 - 100)
+    command: 78,   // Thống Lĩnh (1 - 100)
+    martial: 90,   // Võ Nghệ   (1 - 100)
     intellect: 78, // Mưu Lược  (1 - 100)
   },
 

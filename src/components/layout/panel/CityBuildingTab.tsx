@@ -1,7 +1,5 @@
 import React, { useState } from 'react';
 import {
-  Wheat,
-  Hammer,
   Eye,
   Coins,
   ShieldCheck,
@@ -60,11 +58,16 @@ export const CityBuildingTab: React.FC<CityBuildingTabProps> = ({
 
   const isSuspicionHigh = suspicion >= 75;
 
-  const handleStartPlacement = (type: 'farm' | 'forge') => {
-    if (placementMode && placementMode.type === type) {
+  const handleStartPlacement = (type: 'farm' | 'forge', gridSize?: number, farmTier?: 15 | 30 | 50) => {
+    if (placementMode && placementMode.type === type && (gridSize ? placementMode.gridSize === gridSize : true)) {
       setPlacementMode(null);
     } else {
-      setPlacementMode({ type, cityId: city.id });
+      setPlacementMode({
+        type,
+        cityId: city.id,
+        gridSize: gridSize || (type === 'forge' ? 3 : 5),
+        farmTier: farmTier || 15,
+      });
     }
   };
 
@@ -202,11 +205,9 @@ export const CityBuildingTab: React.FC<CityBuildingTabProps> = ({
 
         <div className="grid grid-cols-2 gap-2">
           
-          {/* Card Ruộng */}
+          {/* Card Ruộng (3 mốc: 5x5, 6x6, 7x7) */}
           <div
-            draggable
-            onDragStart={(e) => handleDragStart(e, 'farm')}
-            className={`p-2.5 rounded-xl border transition cursor-grab active:cursor-grabbing select-none flex flex-col justify-between ${
+            className={`p-2.5 rounded-xl border transition select-none flex flex-col justify-between ${
               placementMode?.type === 'farm'
                 ? 'bg-amber-950/90 border-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.5)]'
                 : 'bg-[#3b2313] border-[#8a5d35] hover:border-amber-500'
@@ -214,27 +215,53 @@ export const CityBuildingTab: React.FC<CityBuildingTabProps> = ({
           >
             <div>
               <div className="flex items-center justify-between">
-                <span className="w-7 h-7 rounded-lg bg-amber-900/60 border border-amber-600 flex items-center justify-center text-amber-300 text-sm">
-                  🌾
+                <span className="w-7 h-7 rounded-lg bg-amber-900/60 border border-amber-600 flex items-center justify-center p-1">
+                  <img src="/icons/structure_farm.png" alt="Ruộng" className="w-full h-full object-contain" />
                 </span>
-                <span className="text-[10px] font-mono text-amber-300 font-bold">80 Vàng</span>
+                <span className="text-[10px] font-mono text-amber-300 font-bold">80 - 240 Vàng</span>
               </div>
               <div className="font-serif font-black text-xs text-[#f5ebd7] mt-1.5">Ruộng Lúa Nước</div>
               <div className="text-[10px] text-stone-300 leading-tight mt-0.5">
-                Chỉ đặt ở <strong>Đồng Bằng</strong>. 10 thợ xây trong 12 ngày.
+                Chỉ cấy ở <strong>Đồng Bằng</strong>. Có 3 mốc quy mô ô:
+              </div>
+
+              {/* 3 mốc lựa chọn */}
+              <div className="grid grid-cols-3 gap-1 mt-1.5">
+                {[
+                  { size: 5, workers: 15, label: '5x5', cost: '80V' },
+                  { size: 6, workers: 30, label: '6x6', cost: '150V' },
+                  { size: 7, workers: 50, label: '7x7', cost: '240V' },
+                ].map(t => {
+                  const isSel = placementMode?.type === 'farm' && (placementMode.gridSize || 5) === t.size;
+                  return (
+                    <button
+                      key={t.size}
+                      type="button"
+                      onClick={() => handleStartPlacement('farm', t.size, t.workers as any)}
+                      className={`py-1 rounded text-[10px] font-bold border transition cursor-pointer flex flex-col items-center ${
+                        isSel
+                          ? 'bg-amber-500 text-stone-950 border-amber-300 shadow'
+                          : 'bg-[#24150a] text-amber-300 border-amber-800/80 hover:bg-[#3d2210]'
+                      }`}
+                    >
+                      <span>{t.label}</span>
+                      <span className="text-[8px] opacity-80">{t.workers} đinh</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
             <button
               type="button"
-              onClick={() => handleStartPlacement('farm')}
+              onClick={() => handleStartPlacement('farm', placementMode?.gridSize || 5, placementMode?.farmTier || 15)}
               className={`mt-2 py-1 px-2 rounded text-[10px] font-bold text-center transition cursor-pointer ${
                 placementMode?.type === 'farm'
                   ? 'bg-amber-500 text-stone-950'
                   : 'bg-[#29170b] hover:bg-[#4a2b16] text-amber-300 border border-[#8a5d35]'
               }`}
             >
-              {placementMode?.type === 'farm' ? 'Đang chọn vị trí...' : 'Kéo hoặc Bấm đặt'}
+              {placementMode?.type === 'farm' ? `Đang đặt [${placementMode.gridSize || 5}x${placementMode.gridSize || 5}]...` : 'Bấm chọn đặt Ruộng'}
             </button>
           </div>
 
@@ -250,12 +277,12 @@ export const CityBuildingTab: React.FC<CityBuildingTabProps> = ({
           >
             <div>
               <div className="flex items-center justify-between">
-                <span className="w-7 h-7 rounded-lg bg-sky-950 border border-sky-600 flex items-center justify-center text-sky-300 text-sm">
-                  ⚒️
+                <span className="w-7 h-7 rounded-lg bg-sky-950 border border-sky-600 flex items-center justify-center p-1">
+                  <img src="/icons/structure_forge.png" alt="Lò rèn" className="w-full h-full object-contain" />
                 </span>
                 <span className="text-[10px] font-mono text-sky-300 font-bold">120 Vàng</span>
               </div>
-              <div className="font-serif font-black text-xs text-[#f5ebd7] mt-1.5">Lò Rèn Bí Mật</div>
+              <div className="font-serif font-black text-xs text-[#f5ebd7] mt-1.5">Lò Rèn Bí Mật (3x3)</div>
               <div className="text-[10px] text-stone-300 leading-tight mt-0.5">
                 Nên đặt ở <strong>Rừng / Núi</strong>. 15 thợ xây trong 18 ngày.
               </div>
@@ -292,7 +319,7 @@ export const CityBuildingTab: React.FC<CityBuildingTabProps> = ({
       <div className="space-y-2">
         <div className="flex items-center justify-between text-xs font-bold text-amber-300">
           <span className="flex items-center gap-1.5">
-            <Wheat size={14} />
+            <img src="/icons/structure_farm.png" alt="Ruộng" className="w-4 h-4 object-contain inline-block" />
             <span>Đồn Điền Ruộng Lúa ({farms.length} khu)</span>
           </span>
           <span className="text-[10px] text-stone-400">Thu hoạch theo vụ (90 ngày)</span>
@@ -409,7 +436,7 @@ export const CityBuildingTab: React.FC<CityBuildingTabProps> = ({
       <div className="space-y-2">
         <div className="flex items-center justify-between text-xs font-bold text-sky-300">
           <span className="flex items-center gap-1.5">
-            <Hammer size={14} />
+            <img src="/icons/structure_forge.png" alt="Lò rèn" className="w-4 h-4 object-contain inline-block" />
             <span>Lò Rèn Binh Khí ({forges.length} lò)</span>
           </span>
           <span className="text-[10px] text-stone-400">Chỉ rèn theo lệnh mẻ</span>
