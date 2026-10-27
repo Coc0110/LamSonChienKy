@@ -153,7 +153,7 @@ export const GeneralsModal: React.FC = () => {
     >
       {/* Tấm bảng đồng thô mộc không viền từ asset người chơi */}
       <div
-        className={`relative w-full max-w-6xl aspect-[916/509] max-h-[76vh] min-h-[420px] md:min-h-0 flex flex-col select-none pointer-events-auto filter drop-shadow-[0_25px_50px_rgba(0,0,0,0.95)] ${
+        className={`relative w-full max-w-[1240px] aspect-[916/509] max-h-[92vh] min-h-[460px] md:min-h-0 flex flex-col select-none pointer-events-auto filter drop-shadow-[0_25px_50px_rgba(0,0,0,0.95)] ${
           isFlipping
             ? flipDirection === 'forward'
               ? 'animate-board-flip-forward'
@@ -297,8 +297,8 @@ export const GeneralsModal: React.FC = () => {
           </div>
         )}
 
-        {/* Không gian trưng bày 10 lệnh bài: CÁC MẶT BẢNG ĐƯỢC CACHE SẴN TRONG DOM ĐỂ KHÔNG BỊ KHỰNG KHI LẬT */}
-        <div className="relative z-10 flex-1 ml-[5.5%] sm:ml-[6.8%] mr-[5.5%] sm:mr-[6.8%] my-[1%] sm:my-[1.5%] px-1 sm:px-2 flex items-center justify-center">
+        {/* Không gian trưng bày 10 lệnh bài: KÍCH THƯỚC NGUYÊN GỐC CHUẨN BAN ĐẦU (size="md") */}
+        <div className="relative z-10 flex-1 ml-[5.5%] sm:ml-[6.5%] mr-[5.5%] sm:mr-[6.5%] my-[0.5%] sm:my-[1%] px-1 sm:px-2 flex items-center justify-center">
           {Array.from({ length: totalPages }).map((_, pIdx) => {
             const isThisPage = pIdx === displayedPage;
             const pageGenerals = unlockedGenerals.slice(pIdx * CARDS_PER_PAGE, (pIdx + 1) * CARDS_PER_PAGE);
@@ -306,25 +306,21 @@ export const GeneralsModal: React.FC = () => {
             return (
               <div
                 key={pIdx}
-                className={`w-full grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-y-2 sm:gap-y-3 md:gap-y-4 gap-x-2 sm:gap-x-4 md:gap-x-6 justify-items-center items-center py-1 ${
+                className={`w-full grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-y-1 sm:gap-y-1.5 md:gap-y-2 gap-x-2 sm:gap-x-3 md:gap-x-5 justify-items-center items-center ${
                   isThisPage ? 'relative' : 'hidden'
                 }`}
               >
                 {pageGenerals.map(gen => (
-                  <div
+                  <BronzePlaqueCard
                     key={gen.id}
-                    className="transform scale-[1.08] sm:scale-[1.12] md:scale-[1.15] transition-transform duration-200"
-                  >
-                    <BronzePlaqueCard
-                      general={gen}
-                      size="sm"
-                      selected={selectedGeneralId === gen.id}
-                      flipped={flippedGeneralId === gen.id}
-                      cities={lamSonCities}
-                      onAssignCity={cityId => assignGeneralToCity(gen.id, cityId)}
-                      onClick={() => handleCardClick(gen.id)}
-                    />
-                  </div>
+                    general={gen}
+                    size="md"
+                    selected={selectedGeneralId === gen.id}
+                    flipped={flippedGeneralId === gen.id}
+                    cities={lamSonCities}
+                    onAssignCity={cityId => assignGeneralToCity(gen.id, cityId)}
+                    onClick={() => handleCardClick(gen.id)}
+                  />
                 ))}
               </div>
             );
