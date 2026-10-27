@@ -149,6 +149,41 @@ html, body, #root {
   animation: marchLineAnim 2.4s linear infinite;
 }
 
+/* Hiệu ứng lật 3D cả tấm bảng đồng theo trục ngang: Nhanh, mượt mà 60fps, không khựng */
+@keyframes boardFlipHorizontalForward {
+  0% {
+    transform: rotateX(0deg) scale(1);
+  }
+  50% {
+    transform: rotateX(180deg) scale(0.95);
+  }
+  100% {
+    transform: rotateX(360deg) scale(1);
+  }
+}
+
+@keyframes boardFlipHorizontalBackward {
+  0% {
+    transform: rotateX(0deg) scale(1);
+  }
+  50% {
+    transform: rotateX(-180deg) scale(0.95);
+  }
+  100% {
+    transform: rotateX(-360deg) scale(1);
+  }
+}
+
+.animate-board-flip-forward {
+  animation: boardFlipHorizontalForward 0.45s cubic-bezier(0.35, 0, 0.25, 1) forwards;
+  will-change: transform;
+}
+
+.animate-board-flip-backward {
+  animation: boardFlipHorizontalBackward 0.45s cubic-bezier(0.35, 0, 0.25, 1) forwards;
+  will-change: transform;
+}
+
 /* Tương tác địa bàn Huyện Thành thế kỷ XV */
 .district-polygon-interactive {
   cursor: pointer !important;
@@ -197,18 +232,50 @@ html, body, #root {
 }
 
 /* ============================================================================
-   Chế độ di chuyển bản đồ (Kéo chuột trái hoặc chuột phải)
+   Chế độ di chuyển bản đồ (Kéo chuột phải) & Thao tác ranh giới
    ============================================================================ */
 .leaflet-container.leaflet-grab {
-  cursor: grab;
+  cursor: default;
 }
 
 .leaflet-container.leaflet-grab:active {
-  cursor: grabbing;
+  cursor: default;
 }
 
 body.leaflet-dragging,
 .leaflet-dragging .leaflet-grab,
 .leaflet-container.leaflet-drag-target {
   cursor: grabbing !important;
+}
+
+/* Hit-box bẻ gãy đường ranh giới và thêm đỉnh mới */
+.district-line-add-vertex-hit {
+  cursor: copy !important;
+}
+
+.district-add-vertex-tooltip {
+  background-color: #1c110a !important;
+  color: #fbbf24 !important;
+  border: 1px solid #d97706 !important;
+  font-family: inherit !important;
+  font-size: 11px !important;
+  font-weight: bold !important;
+  border-radius: 6px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.8) !important;
+  padding: 3px 8px !important;
+}
+
+.district-add-vertex-tooltip::before {
+  border-top-color: #d97706 !important;
+}
+
+/* Nút chồng lên nhau để Gộp và Xóa đỉnh */
+@keyframes pulseMerge {
+  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.8); }
+  50% { transform: scale(1.35); box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+}
+
+.district-vertex-handle-marker-merge div {
+  animation: pulseMerge 0.5s infinite !important;
 }

@@ -526,6 +526,100 @@ export const WorldMap: React.FC = () => {
     });
   };
 
+  // Thêm đỉnh mới khi nhấp chuột lên đoạn đường viền ranh giới (bẻ gãy đường kẻ)
+  const insertDistrictPolygonVertex = (districtId: string, clickX: number, clickY: number) => {
+    setDistrictsList(prev => {
+      const next = prev.map(d => {
+        if (d.id !== districtId) return d;
+        const poly = d.polygon;
+        if (poly.length < 2) return d;
+
+        let bestSegIdx = 0;
+        let minDistance = Infinity;
+        let bestProjectedPt: [number, number] = [clickX, clickY];
+
+        for (let i = 0; i < poly.length - 1; i++) {
+          const a = poly[i];
+          const b = poly[i + 1];
+
+          const abX = b[0] - a[0];
+          const abY = b[1] - a[1];
+          const lenSq = abX * abX + abY * abY;
+
+          let t = lenSq === 0 ? 0 : ((clickX - a[0]) * abX + (clickY - a[1]) * abY) / lenSq;
+          t = Math.max(0, Math.min(1, t));
+
+          const projX = a[0] + t * abX;
+          const projY = a[1] + t * abY;
+          const dist = Math.hypot(clickX - projX, clickY - projY);
+
+          if (dist < minDistance) {
+            minDistance = dist;
+            bestSegIdx = i;
+            bestProjectedPt = [
+              Math.round(projX * 1000) / 1000,
+              Math.round(projY * 1000) / 1000,
+            ];
+          }
+        }
+
+        const newPoly = [...poly];
+        newPoly.splice(bestSegIdx + 1, 0, bestProjectedPt);
+        return { ...d, polygon: newPoly };
+      });
+
+      try {
+        localStorage.setItem(DISTRICT_STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  };
+
+  // Xóa / Gộp đỉnh khi kéo chồng 2 nút lên nhau
+  const deleteDistrictPolygonVertex = (districtId: string, vertexIndex: number) => {
+    setDistrictsList(prev => {
+      const next = prev.map(d => {
+        if (d.id !== districtId) return d;
+        if (d.polygon.length <= 4) {
+          // Cần tối thiểu 3 đỉnh duy nhất + 1 đỉnh khép vòng
+          alert('Không thể gộp: Đa giác cần có tối thiểu 3 đỉnh!');
+          return d;
+        }
+
+        let newPoly = [...d.polygon];
+        const lastIdx = newPoly.length - 1;
+
+        if (vertexIndex === 0 || vertexIndex === lastIdx) {
+          newPoly.splice(0, 1);
+          newPoly[newPoly.length - 1] = [...newPoly[0]];
+        } else {
+          newPoly.splice(vertexIndex, 1);
+        }
+
+        return { ...d, polygon: newPoly };
+      });
+
+      try {
+        localStorage.setItem(DISTRICT_STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  };
+
+  // Nhập dữ liệu ranh giới từ JSON (mang từ máy khác sang)
+  const importDistrictsList = (importedData: DistrictInfo[]) => {
+    setDistrictsList(importedData);
+    try {
+      localStorage.setItem(DISTRICT_STORAGE_KEY, JSON.stringify(importedData));
+    } catch {
+      // ignore
+    }
+  };
+
   useEffect(() => {
     if (!mapInstance) return;
     const map = mapInstance;
@@ -627,25 +721,111 @@ export const WorldMap: React.FC = () => {
     const currentDistrict = districtsList.find(d => d.id === selectedCityId);
     if (!currentDistrict) return;
 
+    const boundaryLatLngs = currentDistrict.polygon.map(pt => percentToLatLng(pt[0], pt[1]));
+
+    // 1. Đường viền nét đứt vàng nổi bật báo hiệu đa giác đang được chỉnh sửa
+    const visualLine = L.polyline(boundaryLatLngs, {
+      color: '#f59e0b',
+      weight: 3.5,
+      opacity: 0.95,
+      dashArray: '6, 6',
+      pane: 'districtsPane',
+      interactive: false,
+    });
+    visualLine.addTo(handlesLayer);
+
+    // 2. Vùng bấm vô hình (hit-box dày 22px) để nhấp chuột bẻ gãy đường và sinh đỉnh mới
+    const hitLine = L.polyline(boundaryLatLngs, {
+      color: '#ffffff',
+      weight: 22,
+      opacity: 0.0001,
+      pane: 'districtsPane',
+      interactive: true,
+      className: 'district-line-add-vertex-hit',
+    });
+
+    hitLine.bindTooltip('✦ Nhấp chuột trái để thêm đỉnh mới (bẻ gãy đường)', {
+      sticky: true,
+      direction: 'top',
+      className: 'district-add-vertex-tooltip',
+    });
+
+    hitLine.on('click', (e: L.LeafletMouseEvent) => {
+      L.DomEvent.stopPropagation(e);
+      const { x, y } = latLngToPercent(e.latlng);
+      insertDistrictPolygonVertex(currentDistrict.id, x, y);
+    });
+
+    hitLine.addTo(handlesLayer);
+
+    // 3. Các nút đỉnh (vertex handle markers) & Hỗ trợ kéo chồng lên nhau để Gộp/Xóa
+    const defaultIcon = L.divIcon({
+      className: 'district-vertex-handle-marker',
+      html: '<div style="width: 14px; height: 14px; background: #fbbf24; border: 2.5px solid #991b1b; border-radius: 50%; box-shadow: 0 0 6px rgba(0,0,0,0.9); cursor: crosshair; touch-action: none; transition: transform 0.15s ease, background-color 0.15s ease;"></div>',
+      iconSize: [14, 14],
+      iconAnchor: [7, 7],
+    });
+
     currentDistrict.polygon.forEach((pt, idx) => {
       if (idx === currentDistrict.polygon.length - 1 && idx > 0) return;
 
       const latlng = percentToLatLng(pt[0], pt[1]);
 
-      const handleIcon = L.divIcon({
-        className: 'district-vertex-handle-marker',
-        html: '<div style="width: 14px; height: 14px; background: #fbbf24; border: 2.5px solid #991b1b; border-radius: 50%; box-shadow: 0 0 6px rgba(0,0,0,0.9); cursor: crosshair; touch-action: none;"></div>',
-        iconSize: [14, 14],
-        iconAnchor: [7, 7],
-      });
-
       const handleMarker = L.marker(latlng, {
-        icon: handleIcon,
+        icon: defaultIcon,
         draggable: true,
       });
 
+      let snapTargetIdx: number | null = null;
+      let isMergingState = false;
+
       handleMarker.on('drag', (e) => {
         const newPos = e.target.getLatLng();
+        snapTargetIdx = null;
+
+        // Kiểm tra xem vị trí mới có đang chồng lên đỉnh nào khác không (ngưỡng 16 pixel trên màn hình)
+        if (mapInstance) {
+          const pCurrent = mapInstance.latLngToContainerPoint(newPos);
+
+          for (let j = 0; j < currentDistrict.polygon.length - 1; j++) {
+            if (j === idx) continue;
+            const otherPt = currentDistrict.polygon[j];
+            const pOther = mapInstance.latLngToContainerPoint(percentToLatLng(otherPt[0], otherPt[1]));
+            const pixelDist = Math.hypot(pCurrent.x - pOther.x, pCurrent.y - pOther.y);
+
+            if (pixelDist <= 16) {
+              snapTargetIdx = j;
+              break;
+            }
+          }
+        }
+
+        // Đổi giao diện nút mượt mà bằng cách cập nhật style trực tiếp, KHÔNG gọi setIcon()
+        // vì setIcon() sẽ hủy và tạo lại DOM node làm đứt đoạn thao tác kéo chuột
+        const shouldMerge = snapTargetIdx !== null && currentDistrict.polygon.length > 4;
+        if (shouldMerge !== isMergingState) {
+          isMergingState = shouldMerge;
+          const markerEl = handleMarker.getElement();
+          if (markerEl) {
+            const inner = markerEl.firstElementChild as HTMLElement;
+            if (inner) {
+              if (shouldMerge) {
+                inner.style.background = '#ef4444';
+                inner.style.borderColor = '#ffffff';
+                inner.style.boxShadow = '0 0 14px #ef4444';
+                inner.style.transform = 'scale(1.35)';
+                inner.innerHTML = '<span style="color:#fff;font-size:10px;font-weight:900;display:flex;align-items:center;justify-content:center;height:100%;line-height:1;">✕</span>';
+              } else {
+                inner.style.background = '#fbbf24';
+                inner.style.borderColor = '#991b1b';
+                inner.style.boxShadow = '0 0 6px rgba(0,0,0,0.9)';
+                inner.style.transform = 'scale(1)';
+                inner.innerHTML = '';
+              }
+            }
+          }
+        }
+
         const poly = polygonsMapRef.current.get(currentDistrict.id);
         if (poly) {
           const currentLatLngs = poly.getLatLngs()[0] as L.LatLng[];
@@ -655,20 +835,35 @@ export const WorldMap: React.FC = () => {
             poly.setLatLngs([currentLatLngs]);
           }
         }
+
+        if (visualLine) {
+          const lineLatLngs = visualLine.getLatLngs() as L.LatLng[];
+          if (lineLatLngs && lineLatLngs[idx]) {
+            lineLatLngs[idx] = newPos;
+            if (idx === 0) lineLatLngs[lineLatLngs.length - 1] = newPos;
+            visualLine.setLatLngs(lineLatLngs);
+          }
+        }
       });
 
       handleMarker.on('dragend', (e) => {
-        const newPos = e.target.getLatLng();
-        const { x, y } = latLngToPercent(newPos);
-        // Trì hoãn nhẹ 1 micro-tick để Leaflet Draggable hoàn tất sự kiện dragend trước khi React render lại handle
-        setTimeout(() => {
-          updateDistrictPolygonVertex(currentDistrict.id, idx, x, y);
-        }, 0);
+        if (snapTargetIdx !== null && currentDistrict.polygon.length > 4) {
+          // Người chơi thả chuột khi 2 nút đang chồng lên nhau -> GỘP VÀ XÓA NÚT!
+          setTimeout(() => {
+            deleteDistrictPolygonVertex(currentDistrict.id, idx);
+          }, 0);
+        } else {
+          const newPos = e.target.getLatLng();
+          const { x, y } = latLngToPercent(newPos);
+          setTimeout(() => {
+            updateDistrictPolygonVertex(currentDistrict.id, idx, x, y);
+          }, 0);
+        }
       });
 
       handleMarker.addTo(handlesLayer);
     });
-  }, [isEditMode, selectedCityId, districtsList]);
+  }, [isEditMode, selectedCityId, districtsList, mapInstance]);
 
   // 5. HIỂN THỊ CHỮ THẺ BÀI NỔI KHI RÊ CHUỘT HOẶC CHỌN HUYỆN
   useEffect(() => {
@@ -1118,6 +1313,7 @@ export const WorldMap: React.FC = () => {
           onToggleEditMode={toggleEditMode}
           storageKey={DISTRICT_STORAGE_KEY}
           onResetCurrentDistrict={resetSingleDistrict}
+          onImportDistricts={importDistrictsList}
         />
       )}
 

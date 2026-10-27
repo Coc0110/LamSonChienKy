@@ -1,9 +1,8 @@
-import React, { useState, useMemo } from 'react';
-import { X, Sparkles, Award, RotateCw } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { X, Sparkles } from 'lucide-react';
 import { useGameStore } from '../../store/gameStore';
 import { useUIStore } from '../../store/uiStore';
 import { BronzePlaqueCard } from './BronzePlaqueCard';
-import type { GeneralGroup } from '../../types';
 
 export const GeneralsModal: React.FC = () => {
   const activeModal = useUIStore(state => state.activeModal);
@@ -15,29 +14,39 @@ export const GeneralsModal: React.FC = () => {
   const recruitmentNotice = useGameStore(state => state.recruitmentNotice);
   const dismissRecruitmentNotice = useGameStore(state => state.dismissRecruitmentNotice);
 
-  const [selectedFilter, setSelectedFilter] = useState<'all' | GeneralGroup>('all');
   const [selectedGeneralId, setSelectedGeneralId] = useState<string>('le_loi');
   const [flippedGeneralId, setFlippedGeneralId] = useState<string | null>(null);
   const [popupFlippedIds, setPopupFlippedIds] = useState<Record<string, boolean>>({});
+  const [currentPage, setCurrentPage] = useState<number>(0);
+  const [displayedPage, setDisplayedPage] = useState<number>(0);
+  const [isFlipping, setIsFlipping] = useState<boolean>(false);
+  const [flipDirection, setFlipDirection] = useState<'forward' | 'backward'>('forward');
 
-  // Chỉ hiển thị các vị tướng đã đầu quân (tạm ẩn các tướng chưa đầu quân theo yêu cầu)
+  // Chỉ hiển thị các vị tướng đã đầu quân
   const unlockedGenerals = useMemo(() => generals.filter(g => g.unlocked), [generals]);
-
-  const filteredGenerals = useMemo(() => {
-    if (selectedFilter === 'all') return unlockedGenerals;
-    return unlockedGenerals.filter(g => g.group === selectedFilter);
-  }, [unlockedGenerals, selectedFilter]);
-
-  const groupCounts = useMemo(
-    () => ({
-      lung_nhai_1416: unlockedGenerals.filter(g => g.group === 'lung_nhai_1416').length,
-      khoi_nghia_1418: unlockedGenerals.filter(g => g.group === 'khoi_nghia_1418').length,
-      quy_tu_1420_1426: unlockedGenerals.filter(g => g.group === 'quy_tu_1420_1426').length,
-    }),
-    [unlockedGenerals]
-  );
-
   const lamSonCities = useMemo(() => cities.filter(c => c.faction === 'lam_son'), [cities]);
+
+  // Mỗi mặt bảng hiển thị đúng 10 lệnh bài (2 hàng × 5 thẻ)
+  const CARDS_PER_PAGE = 10;
+  const totalPages = Math.max(1, Math.ceil(unlockedGenerals.length / CARDS_PER_PAGE));
+
+  // Lật bảng 1 vòng theo trục ngang khi đổi mặt bảng (Nhanh và mượt 60fps)
+  const handleSelectBoard = (newIndex: number) => {
+    if (newIndex === currentPage || isFlipping) return;
+    setIsFlipping(true);
+    setFlipDirection(newIndex > currentPage ? 'forward' : 'backward');
+
+    // Đúng điểm xoay 180 độ (210ms): đổi mặt bảng mới trong chớp mắt
+    setTimeout(() => {
+      setDisplayedPage(newIndex);
+      setCurrentPage(newIndex);
+    }, 210);
+
+    // Hoàn tất 1 vòng lật (sau 450ms)
+    setTimeout(() => {
+      setIsFlipping(false);
+    }, 450);
+  };
 
   const handleCardClick = (genId: string) => {
     if (selectedGeneralId === genId) {
@@ -57,7 +66,6 @@ export const GeneralsModal: React.FC = () => {
     return (
       <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 pointer-events-auto">
         <div className="relative w-full max-w-4xl rounded-2xl overflow-hidden border-2 border-[#b89158] shadow-[0_20px_60px_rgba(0,0,0,0.85)] bg-gradient-to-br from-[#302014] via-[#22160c] to-[#170e07] text-[#f5e6cc]">
-          {/* Viền hoa văn đồng cổ trên đầu */}
           <div className="px-6 py-4 bg-gradient-to-r from-[#4a2e16] via-[#6b4422] to-[#4a2e16] border-b border-[#b89158]/60 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Sparkles className="text-amber-400 animate-pulse" size={24} />
@@ -78,13 +86,11 @@ export const GeneralsModal: React.FC = () => {
             </button>
           </div>
 
-          {/* Nội dung Chiếu thư & Trưng bày Thẻ Bài Đồng mới nhận */}
           <div className="p-6 space-y-5 max-h-[80vh] overflow-y-auto no-scrollbar">
             <p className="text-center font-sans text-base md:text-lg text-[#edd8b4] max-w-2xl mx-auto leading-relaxed">
               {recruitmentNotice.description}
             </p>
 
-            {/* Hàng thẻ bài đồng của các tướng mới gia nhập */}
             <div className="flex flex-wrap items-center justify-center gap-6 py-4 px-3 bg-black/35 rounded-xl border border-[#6e4e2e]/50">
               {joinedGenerals.map(gen => (
                 <div key={gen.id} className="flex flex-col items-center">
@@ -120,106 +126,209 @@ export const GeneralsModal: React.FC = () => {
     );
   }
 
-  // 2. KHAY TỔNG QUẢN THẺ BÀI DANH TƯỚNG LAM SƠN
+  // Bắt phím điều hướng (← / → để chuyển mặt bảng, Esc để đóng)
+  useEffect(() => {
+    if (activeModal !== 'generals') return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft') {
+        if (currentPage > 0 && !isFlipping) handleSelectBoard(currentPage - 1);
+      } else if (e.key === 'ArrowRight') {
+        if (currentPage < totalPages - 1 && !isFlipping) handleSelectBoard(currentPage + 1);
+      } else if (e.key === 'Escape') {
+        setActiveModal(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeModal, currentPage, totalPages, isFlipping, setActiveModal]);
+
+  // 2. TẤM BẢNG ĐỒNG NGUYÊN BẢN (CHỮ DỌC BÊN TRÁI, 10 THẺ/MẶT BẢNG, LẬT 1 VÒNG THEO TRỤC NGANG KHI ĐỔI MẶT)
   if (activeModal !== 'generals') return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-3 md:p-6 pointer-events-auto">
-      <div className="relative w-full max-w-6xl h-[88vh] rounded-2xl overflow-hidden border-2 border-[#a88252] shadow-[0_25px_70px_rgba(0,0,0,0.9)] flex flex-col bg-gradient-to-br from-[#281b10] via-[#1e140b] to-[#140d07]">
-        
-        {/* Header Khay Lệnh Bài */}
-        <div className="px-5 py-3.5 bg-gradient-to-r from-[#3d2714] via-[#57381d] to-[#3d2714] border-b border-[#9c7648] flex flex-wrap items-center justify-between gap-3 shrink-0">
-          <div className="flex items-center gap-3">
-            <Award className="text-[#f0c475]" size={26} />
-            <div>
-              <h2 className="font-serif font-black text-xl md:text-2xl text-[#f7e7c8] tracking-wide">
-                Lệnh Bài Danh Tướng Lam Sơn
-              </h2>
-              <p className="text-xs text-[#d4b687] flex items-center gap-2">
-                <span>
-                  Hiện diện dưới trướng: <strong className="text-amber-300">{unlockedGenerals.length}</strong> vị tướng
-                </span>
-                <span className="text-[#9c7648]">•</span>
-                <span className="inline-flex items-center gap-1 text-amber-200/90 italic">
-                  <RotateCw size={11} /> Nhấp chọn thẻ, nhấp thêm lần nữa để lật xem chi tiết mặt sau
-                </span>
-              </p>
-            </div>
-          </div>
+    <div
+      className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex flex-col items-center justify-center p-2 sm:p-4 md:p-6 pointer-events-auto animate-in fade-in duration-200"
+      onClick={() => setActiveModal(null)}
+      style={{ perspective: '1600px' }}
+    >
+      {/* Tấm bảng đồng thô mộc không viền từ asset người chơi */}
+      <div
+        className={`relative w-full max-w-6xl aspect-[916/509] max-h-[76vh] min-h-[420px] md:min-h-0 flex flex-col select-none pointer-events-auto filter drop-shadow-[0_25px_50px_rgba(0,0,0,0.95)] ${
+          isFlipping
+            ? flipDirection === 'forward'
+              ? 'animate-board-flip-forward'
+              : 'animate-board-flip-backward'
+            : ''
+        }`}
+        style={{ transformStyle: 'preserve-3d' }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Nền ảnh bảng đồng nguyên bản không viền */}
+        <img
+          src="/raw_bronze_slab.png"
+          alt="Bảng đồng lệnh bài danh tướng"
+          className="absolute inset-0 w-full h-full object-fill pointer-events-none select-none z-0"
+          draggable={false}
+        />
 
-          {/* Các nút lọc theo Nhóm Lịch Sử (chỉ hiện nhóm đã có tướng đầu quân) */}
-          <div className="flex flex-wrap items-center gap-1.5">
-            <button
-              onClick={() => setSelectedFilter('all')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-sans font-bold transition cursor-pointer border ${
-                selectedFilter === 'all'
-                  ? 'bg-[#b38248] text-[#1c1006] border-[#f2d09b]'
-                  : 'bg-[#2a1b0e] text-[#d6ba8f] border-[#634629] hover:bg-[#3b2715]'
-              }`}
-            >
-              Tất Cả ({unlockedGenerals.length})
-            </button>
-            <button
-              onClick={() => setSelectedFilter('lung_nhai_1416')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-sans font-bold transition cursor-pointer border ${
-                selectedFilter === 'lung_nhai_1416'
-                  ? 'bg-[#b38248] text-[#1c1006] border-[#f2d09b]'
-                  : 'bg-[#2a1b0e] text-[#d6ba8f] border-[#634629] hover:bg-[#3b2715]'
-              }`}
-            >
-              Hội Thề Lũng Nhai 1416 ({groupCounts.lung_nhai_1416})
-            </button>
-            {groupCounts.khoi_nghia_1418 > 0 && (
-              <button
-                onClick={() => setSelectedFilter('khoi_nghia_1418')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-sans font-bold transition cursor-pointer border ${
-                  selectedFilter === 'khoi_nghia_1418'
-                    ? 'bg-[#b38248] text-[#1c1006] border-[#f2d09b]'
-                    : 'bg-[#2a1b0e] text-[#d6ba8f] border-[#634629] hover:bg-[#3b2715]'
-                }`}
-              >
-                Dũng Tướng Buổi Đầu 1418 ({groupCounts.khoi_nghia_1418})
-              </button>
-            )}
-            {groupCounts.quy_tu_1420_1426 > 0 && (
-              <button
-                onClick={() => setSelectedFilter('quy_tu_1420_1426')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-sans font-bold transition cursor-pointer border ${
-                  selectedFilter === 'quy_tu_1420_1426'
-                    ? 'bg-[#b38248] text-[#1c1006] border-[#f2d09b]'
-                    : 'bg-[#2a1b0e] text-[#d6ba8f] border-[#634629] hover:bg-[#3b2715]'
-                }`}
-              >
-                Đại Tài Lượt Sau 1420–1426 ({groupCounts.quy_tu_1420_1426})
-              </button>
-            )}
-          </div>
-
-          <button
-            onClick={() => setActiveModal(null)}
-            className="p-1.5 rounded-lg bg-black/30 hover:bg-black/60 text-[#ebd2ab] border border-[#785735] transition cursor-pointer"
-            title="Đóng khay lệnh bài"
+        {/* Nút đóng "✕" dạng nét dao đục KHẮC CHÌM vào góc trên bên phải mặt đồng */}
+        <button
+          onClick={() => setActiveModal(null)}
+          className="absolute right-[2%] sm:right-[2.5%] top-[2%] sm:top-[2.5%] p-2 rounded transition cursor-pointer group z-30"
+          title="Đóng bảng lệnh bài (Esc)"
+        >
+          <span
+            className="font-serif font-black text-2xl sm:text-3xl block transition transform group-hover:scale-125 group-hover:text-[#ffca85] select-none"
+            style={{
+              color: '#2a150a',
+              textShadow:
+                '0 1px 1px rgba(240, 180, 130, 0.45), 0 -1px 2px rgba(0, 0, 0, 0.95)',
+            }}
           >
-            <X size={20} />
-          </button>
+            ✕
+          </span>
+        </button>
+
+        {/* Tiêu đề "LỆNH BÀI DANH TƯỚNG" XẾP HÀNG DỌC DÁT VÀNG KHẮC CHÌM & PHÁT SÁNG SANG PHÍA BÊN TRÁI */}
+        <div className="absolute left-[2%] sm:left-[2.8%] top-[4%] bottom-[4%] w-8 sm:w-10 flex flex-col items-center justify-between pointer-events-none select-none z-20">
+          <span
+            className="text-[#ffd058] text-sm sm:text-base font-serif"
+            style={{ filter: 'drop-shadow(0 0 6px rgba(245, 158, 11, 0.8))' }}
+          >
+            ❖
+          </span>
+          <div
+            className="flex flex-col items-center justify-center font-['HanZiVH',serif] font-black text-sm sm:text-base md:text-lg tracking-wider"
+            style={{
+              color: '#ffd058',
+              textShadow: `
+                0 -1px 2px rgba(0, 0, 0, 0.95),
+                0 1px 1px rgba(255, 215, 130, 0.5),
+                0 0 10px rgba(245, 158, 11, 0.65),
+                0 0 20px rgba(217, 119, 6, 0.35)
+              `,
+              filter: 'drop-shadow(0 0 4px rgba(245, 158, 11, 0.45))',
+            }}
+          >
+            <span>L</span>
+            <span>Ệ</span>
+            <span>N</span>
+            <span>H</span>
+            <span className="h-1.5 sm:h-2.5"></span>
+            <span>B</span>
+            <span>À</span>
+            <span>I</span>
+            <span className="h-1.5 sm:h-2.5"></span>
+            <span>D</span>
+            <span>A</span>
+            <span>N</span>
+            <span>H</span>
+            <span className="h-1.5 sm:h-2.5"></span>
+            <span>T</span>
+            <span>Ư</span>
+            <span>Ớ</span>
+            <span>N</span>
+            <span>G</span>
+          </div>
+          <span
+            className="text-[#ffd058] text-sm sm:text-base font-serif"
+            style={{ filter: 'drop-shadow(0 0 6px rgba(245, 158, 11, 0.8))' }}
+          >
+            ❖
+          </span>
         </div>
 
-        {/* Khay trưng bày các Thẻ Bài Đồng Cổ (Click lần 1 để chọn, Click lần 2 để lật mặt sau) */}
-        <div className="flex-1 p-6 overflow-y-auto no-scrollbar bg-[radial-gradient(ellipse_at_top,rgba(90,58,28,0.28),transparent_75%)]">
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-y-8 gap-x-5 justify-items-center pb-6">
-            {filteredGenerals.map(gen => (
-              <BronzePlaqueCard
-                key={gen.id}
-                general={gen}
-                size="md"
-                selected={selectedGeneralId === gen.id}
-                flipped={flippedGeneralId === gen.id}
-                cities={lamSonCities}
-                onAssignCity={cityId => assignGeneralToCity(gen.id, cityId)}
-                onClick={() => handleCardClick(gen.id)}
-              />
-            ))}
+        {/* Cột các nút bấm đúc đồng chọn Bảng "1", "2" nằm trong rãnh khoét chìm phía bên phải tấm bảng */}
+        {totalPages > 1 && (
+          <div
+            className="absolute right-[1.6%] sm:right-[2.2%] top-[15%] bottom-[8%] w-10 sm:w-12 flex flex-col items-center justify-center gap-3.5 z-30 select-none"
+            onClick={e => e.stopPropagation()}
+          >
+            {Array.from({ length: totalPages }).map((_, idx) => {
+              const isSelected = idx === currentPage;
+              return (
+                <div
+                  key={idx}
+                  className={`p-[2.5px] sm:p-[3px] rounded-md transition-all duration-200 ${
+                    isSelected
+                      ? 'bg-[#120803] border border-[#0d0502] shadow-[inset_0_3px_6px_rgba(0,0,0,0.95),inset_0_-1px_1px_rgba(255,180,120,0.2),0_1px_1px_rgba(255,200,150,0.25)]'
+                      : 'bg-[#180b05] border border-[#1a0c06] shadow-[inset_0_2px_5px_rgba(0,0,0,0.9),inset_0_-1px_1px_rgba(255,180,120,0.15),0_1px_1px_rgba(255,200,150,0.2)]'
+                  }`}
+                  title={`Lật sang Mặt Bảng ${idx + 1}`}
+                >
+                  {/* Phím bấm đồng lọt trong lòng rãnh khoét: Khi chọn sẽ thụt sâu xuống */}
+                  <button
+                    onClick={() => handleSelectBoard(idx)}
+                    disabled={isFlipping}
+                    className={`w-8 sm:w-9 md:w-10 h-5 sm:h-6 md:h-6.5 rounded-[4px] flex items-center justify-center font-['HanZiVH',serif] font-black text-xs sm:text-sm cursor-pointer transition-all duration-150 ${
+                      isSelected
+                        ? 'translate-y-[2px] scale-[0.93]'
+                        : 'hover:-translate-y-[0.5px] active:translate-y-[1.5px]'
+                    }`}
+                    style={
+                      isSelected
+                        ? {
+                            background:
+                              'linear-gradient(180deg, #180c05 0%, #241107 45%, #33170a 100%)',
+                            border: '1px solid #3d1c0b',
+                            boxShadow:
+                              'inset 0 3px 6px rgba(0, 0, 0, 0.95), inset 0 0 6px rgba(0, 0, 0, 0.9), 0 1px 1px rgba(255, 180, 120, 0.15)',
+                            color: '#ffd058',
+                            textShadow:
+                              '0 0 8px rgba(245, 158, 11, 0.85), 0 1px 1px rgba(0, 0, 0, 0.95)',
+                          }
+                        : {
+                            background:
+                              'linear-gradient(180deg, #582f19 0%, #3d2010 55%, #291409 100%)',
+                            border: '1px solid #734022',
+                            borderTop: '1px solid #9e5b32',
+                            boxShadow:
+                              '0 2px 4px rgba(0, 0, 0, 0.85), inset 0 1px 1px rgba(255, 210, 150, 0.45), inset 0 -1px 2px rgba(0, 0, 0, 0.7)',
+                            color: '#cfa075',
+                            textShadow: '0 -1px 1px rgba(0, 0, 0, 0.9)',
+                          }
+                    }
+                  >
+                    {idx + 1}
+                  </button>
+                </div>
+              );
+            })}
           </div>
+        )}
+
+        {/* Không gian trưng bày 10 lệnh bài: CÁC MẶT BẢNG ĐƯỢC CACHE SẴN TRONG DOM ĐỂ KHÔNG BỊ KHỰNG KHI LẬT */}
+        <div className="relative z-10 flex-1 ml-[5.5%] sm:ml-[6.8%] mr-[5.5%] sm:mr-[6.8%] my-[1%] sm:my-[1.5%] px-1 sm:px-2 flex items-center justify-center">
+          {Array.from({ length: totalPages }).map((_, pIdx) => {
+            const isThisPage = pIdx === displayedPage;
+            const pageGenerals = unlockedGenerals.slice(pIdx * CARDS_PER_PAGE, (pIdx + 1) * CARDS_PER_PAGE);
+
+            return (
+              <div
+                key={pIdx}
+                className={`w-full grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-y-2 sm:gap-y-3 md:gap-y-4 gap-x-2 sm:gap-x-4 md:gap-x-6 justify-items-center items-center py-1 ${
+                  isThisPage ? 'relative' : 'hidden'
+                }`}
+              >
+                {pageGenerals.map(gen => (
+                  <div
+                    key={gen.id}
+                    className="transform scale-[1.08] sm:scale-[1.12] md:scale-[1.15] transition-transform duration-200"
+                  >
+                    <BronzePlaqueCard
+                      general={gen}
+                      size="sm"
+                      selected={selectedGeneralId === gen.id}
+                      flipped={flippedGeneralId === gen.id}
+                      cities={lamSonCities}
+                      onAssignCity={cityId => assignGeneralToCity(gen.id, cityId)}
+                      onClick={() => handleCardClick(gen.id)}
+                    />
+                  </div>
+                ))}
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
