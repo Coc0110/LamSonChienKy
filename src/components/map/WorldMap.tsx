@@ -111,7 +111,7 @@ export const WorldMap: React.FC = () => {
   });
 
   const cities = useGameStore(state => state.cities);
-  const connections = useGameStore(state => state.connections);
+  // const connections = useGameStore(state => state.connections);
   const structures = useGameStore(state => state.structures);
   const placeStructure = useGameStore(state => state.placeStructure);
   const demolishStructure = useGameStore(state => state.demolishStructure);
@@ -457,45 +457,14 @@ export const WorldMap: React.FC = () => {
     }
   }, [selectedCityId]);
 
-  // 2. Cập nhật các đường nối hành quân
+    // 2. Đường nối hành quân (Đã loại bỏ theo yêu cầu người dùng)
   useEffect(() => {
     if (!mapInstance) return;
     const linesLayer = linesLayerRef.current;
     if (!linesLayer) return;
 
     linesLayer.clearLayers();
-
-    connections.forEach(conn => {
-      const c1 = cities.find(c => c.id === conn.from);
-      const c2 = cities.find(c => c.id === conn.to);
-      if (!c1 || !c2) return;
-
-      const p1 = percentToLatLng(c1.x, c1.y);
-      const p2 = percentToLatLng(c2.x, c2.y);
-
-      const latlngs: L.LatLng[] = [p1];
-      if (conn.waypoints && conn.waypoints.length > 0) {
-        conn.waypoints.forEach(wp => {
-          latlngs.push(percentToLatLng(wp[0], wp[1]));
-        });
-      }
-      latlngs.push(p2);
-
-      const isConnectedToSelected = selectedCityId === conn.from || selectedCityId === conn.to;
-
-      const polyline = L.polyline(latlngs, {
-        color: isConnectedToSelected ? '#f59e0b' : '#a87c4f',
-        weight: isConnectedToSelected ? 2.5 : 1.5,
-        dashArray: isConnectedToSelected ? '6, 6' : '4, 4',
-        opacity: isConnectedToSelected ? 0.85 : 0.45,
-        lineCap: 'round',
-        lineJoin: 'round',
-        interactive: false,
-      });
-
-      polyline.addTo(linesLayer);
-    });
-  }, [mapInstance, connections, cities, selectedCityId]);
+  }, [mapInstance]);
 
   // Cập nhật tọa độ polygon cho huyện
   const updateDistrictPolygonVertex = (districtId: string, vertexIndex: number, newX: number, newY: number) => {
