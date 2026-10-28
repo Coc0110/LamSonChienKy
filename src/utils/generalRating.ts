@@ -30,12 +30,12 @@ export const STAT_THRESHOLDS = {
  *    - Không có sao đỏ VÀ AVG >= 80 => VIỀN VÀNG (gold)
  *    - Còn lại (AVG < 80 và 0 sao đỏ) => VIỀN TRẮNG (silver)
  *
- * 2. CƠ CHẾ SAO ĐỎ (Dựa trên số lượng chỉ số Đỏ và Vàng):
- *    - 1 Đỏ, 0 Vàng           => 1* Đỏ
- *    - 1 Đỏ, 1 Vàng           => 2* Đỏ
- *    - 1 Đỏ, 2 Vàng HOẶC 2 Đỏ => 3* Đỏ
- *    - 2 Đỏ, 1 Vàng           => 4* Đỏ
- *    - 3 Đỏ                   => 5* Đỏ
+ * 2. CƠ CHẾ SAO ĐỎ (Dựa trên số lượng chỉ số Đỏ, Vàng và AVG):
+ *    - 1 Đỏ, 0 Vàng hoặc 1 Đỏ, 1 Vàng => 1* Đỏ (1 đỏ 1 vàng vẫn chỉ là 1 sao đỏ)
+ *    - 1 Đỏ, 2 Vàng                   => 2* Đỏ (1 đỏ 2 vàng mới được 2 sao đỏ)
+ *    - 2 Đỏ                           => 3* Đỏ (2 đỏ là 3 sao đỏ)
+ *    - 3 Đỏ (AVG < 95.0)              => 4* Đỏ (3 đỏ là 4 sao đỏ)
+ *    - 3 Đỏ (AVG >= 95.0)             => 5* Đỏ (3 đỏ AVG >= 95 mới được 5 sao đỏ)
  *
  * 3. CƠ CHẾ SAO VÀNG (Khi AVG >= 80 và 0 chỉ số Đỏ):
  *    Vì không có chỉ số Đỏ (mọi chỉ số < 90), dải AVG thực tế của nhóm này là từ 80.0 đến ~86.5.
@@ -75,15 +75,13 @@ export const calculateGeneralRating = (stats: {
     tier = 'red';
 
     if (redStatsCount === 3) {
-      stars = 5; // 3 chỉ số đều đỏ => 5* đỏ
-    } else if (redStatsCount === 2 && goldStatsCount >= 1) {
-      stars = 4; // 2 đỏ 1 vàng => 4* đỏ (Ví dụ: Lê Lợi 95, 85, 93)
-    } else if ((redStatsCount === 1 && goldStatsCount === 2) || (redStatsCount === 2 && goldStatsCount === 0)) {
-      stars = 3; // 1 đỏ 2 vàng HOẶC 2 đỏ => 3* đỏ
-    } else if (redStatsCount === 1 && goldStatsCount === 1) {
-      stars = 2; // 1 đỏ 1 vàng => 2* đỏ (Ví dụ: Lê Lai 88, 92, 78; Lê Thạch 87, 95, 74)
+      stars = avg >= 95.0 ? 5 : 4; // 3 đỏ avg >= 95 mới được 5* đỏ, còn lại 3 đỏ là 4* đỏ
+    } else if (redStatsCount === 2) {
+      stars = 3; // 2 đỏ là 3* đỏ
+    } else if (redStatsCount === 1 && goldStatsCount === 2) {
+      stars = 2; // 1 đỏ 2 vàng mới được 2* đỏ
     } else {
-      stars = 1; // 1 đỏ (Ví dụ: Nguyễn Trãi 72, 45, 94)
+      stars = 1; // 1 đỏ 1 vàng hoặc 1 đỏ 0 vàng vẫn chỉ là 1* đỏ
     }
   }
   // --- TRƯỜNG HỢP 2: KHÔNG CÓ ĐỎ, NHƯNG AVG >= 80 => VIỀN VÀNG & SAO VÀNG ---
