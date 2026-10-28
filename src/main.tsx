@@ -5,10 +5,12 @@ import 'leaflet/dist/leaflet.css'
 import App from './App.tsx'
 import { useGameStore } from './store/gameStore'
 import { useUIStore } from './store/uiStore'
+import * as terrainGrid from './data/terrainGrid'
 
 if (typeof window !== 'undefined') {
   (window as any).useGameStore = useGameStore;
   (window as any).useUIStore = useUIStore;
+  (window as any).terrainGrid = terrainGrid;
 }
 
 createRoot(document.getElementById('root')!).render(

@@ -36,6 +36,7 @@ export const DistrictEditorBar: React.FC<DistrictEditorBarProps> = ({
   const [showImportModal, setShowImportModal] = useState<boolean>(false);
   const [importText, setImportText] = useState<string>('');
   const [isSavingOfficial, setIsSavingOfficial] = useState<boolean>(false);
+  const [isSavingTerrainOfficial, setIsSavingTerrainOfficial] = useState<boolean>(false);
 
   const setTerrainEditMode = useUIStore(state => state.setTerrainEditMode);
   const brushTerrain = useUIStore(state => state.brushTerrain);
@@ -161,6 +162,34 @@ export const DistrictEditorBar: React.FC<DistrictEditorBarProps> = ({
     }
   };
 
+  const handleSaveTerrainAsOfficial = async () => {
+    try {
+      setIsSavingTerrainOfficial(true);
+      const jsonStr = exportTerrainGridJSON();
+      const payload = JSON.parse(jsonStr);
+      const res = await fetch('/api/save-terrain', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        throw new Error(`Mã lỗi HTTP: ${res.status}`);
+      }
+
+      const result = await res.json();
+      if (result.success) {
+        alert(`🎉 ĐÃ LƯU BẢN ĐỒ ĐỊA HÌNH CHÍNH THỨC THÀNH CÔNG!\n\nToàn bộ ${Object.keys(payload).length} ô địa hình đã được ghi đè trực tiếp vào file "src/data/terrainGridData.json".\n\nTừ bây giờ, cấu hình này sẽ là bản mặc định chính thức cho dự án trên mọi máy tính và khi deploy lên Vercel!`);
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (err: any) {
+      alert(`Chưa lưu được tự động qua server: ${err?.message}\nBạn có thể bấm nút "Copy JSON" và gửi vào khung chat.`);
+    } finally {
+      setIsSavingTerrainOfficial(false);
+    }
+  };
+
   const handleCopyTerrain = () => {
     const json = exportTerrainGridJSON();
     navigator.clipboard.writeText(json);
@@ -267,6 +296,15 @@ export const DistrictEditorBar: React.FC<DistrictEditorBarProps> = ({
 
               <div className="h-4 w-[1px] bg-stone-700 mx-1" />
 
+              <button
+                onClick={handleSaveTerrainAsOfficial}
+                disabled={isSavingTerrainOfficial}
+                className="px-2.5 py-1 bg-[#15803d] hover:bg-[#16a34a] text-white rounded text-xs font-bold border border-[#22c55e] shadow cursor-pointer transition whitespace-nowrap flex items-center gap-1"
+                title="Lưu trực tiếp vào file src/data/terrainGridData.json của dự án"
+              >
+                <span>💾</span>
+                <span>{isSavingTerrainOfficial ? 'Đang lưu...' : 'Lưu Vào Dự Án'}</span>
+              </button>
               <button
                 onClick={handleCopyTerrain}
                 className="px-2 py-1 bg-[#2f4d66] hover:bg-[#3d6385] text-white rounded text-xs font-bold border border-[#5282ad] shadow cursor-pointer transition whitespace-nowrap"

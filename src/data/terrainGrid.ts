@@ -4,6 +4,7 @@ import type { CellBuildValidation, GridPathResult } from '../types/grid';
 import { getTerrainAt, TERRAIN_DEFINITIONS } from './terrainData';
 import { MAP_COORD_W, MAP_COORD_H, pointInPolygon } from '../utils/mapGeo';
 import districtData from './districtPolygons.json';
+import defaultTerrainGridData from './terrainGridData.json';
 
 function findExactDistrictId(x: number, y: number): string | null {
   const districts = (districtData as any).districts || [];
@@ -50,13 +51,26 @@ export const CODE_TO_TERRAIN: Record<number, TerrainType> = {
 // Lưu các ô tùy biến đã sơn (sparse map: cellIndex -> TerrainType)
 let customTerrainMap = new Map<number, TerrainType>();
 
-// Khởi tạo và đọc dữ liệu đã lưu từ localStorage
+// Khởi tạo và đọc dữ liệu đã lưu: Nạp dữ liệu mặc định chính thức từ terrainGridData.json, sau đó ghi đè nếu có thay đổi trong localStorage
 export function loadCustomTerrainGrid(): Map<number, TerrainType> {
+  customTerrainMap.clear();
+
+  // 1. Nạp bản đồ địa hình gốc chính thức của dự án từ file terrainGridData.json
+  if (defaultTerrainGridData && typeof defaultTerrainGridData === 'object') {
+    for (const key in defaultTerrainGridData) {
+      const idx = Number(key);
+      const code = (defaultTerrainGridData as Record<string, number>)[key];
+      if (CODE_TO_TERRAIN[code]) {
+        customTerrainMap.set(idx, CODE_TO_TERRAIN[code]);
+      }
+    }
+  }
+
+  // 2. Nếu có chỉnh sửa mới hơn được lưu tạm trong localStorage của trình duyệt, áp dụng đè lên
   try {
     const raw = localStorage.getItem(TERRAIN_STORAGE_KEY);
     if (raw) {
       const parsed: Record<string, number> = JSON.parse(raw);
-      customTerrainMap.clear();
       for (const key in parsed) {
         const idx = Number(key);
         const code = parsed[key];
@@ -84,14 +98,14 @@ export function saveCustomTerrainGrid() {
   }
 }
 
-// Reset toàn bộ về mặc định
+// Reset toàn bộ về mặc định của dự án (terrainGridData.json)
 export function resetCustomTerrainGrid() {
-  customTerrainMap.clear();
   try {
     localStorage.removeItem(TERRAIN_STORAGE_KEY);
   } catch {
     // Ignore
   }
+  loadCustomTerrainGrid();
 }
 
 // Export JSON
