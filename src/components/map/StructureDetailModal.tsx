@@ -447,7 +447,7 @@ export const StructureDetailModal: React.FC<StructureDetailModalProps> = ({
                               </div>
                             </div>
                             <div className="flex items-center gap-1 font-mono text-xs font-bold text-[#8c2d19]">
-                                <img src="/icons/gold.png" alt="Vàng" className="w-5 h-5 object-contain inline-block filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]" />
+                                <img src="/icons/gold.png" alt="Vàng" className="w-7 h-7 object-contain inline-block filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]" />
                                 <span>{item.goldCost}</span>
                               </div>
                           </div>
@@ -474,7 +474,7 @@ export const StructureDetailModal: React.FC<StructureDetailModalProps> = ({
                           key={w.type}
                           type="button"
                           onClick={() => setSelectedWeaponType(w.type)}
-                          className={`relative group px-4 py-2 min-h-[38px] flex items-center justify-between transition-transform hover:scale-[1.02] active:scale-98 cursor-pointer rounded ${
+                          className={`relative group px-4 py-2 min-h-[44px] flex items-center justify-between transition-transform hover:scale-[1.02] active:scale-98 cursor-pointer rounded ${
                             isSel ? '' : 'border border-[#8c6b44]/20 hover:border-[#8c6b44]/40 hover:bg-black/[0.03]'
                           }`}
                         >
@@ -501,13 +501,13 @@ export const StructureDetailModal: React.FC<StructureDetailModalProps> = ({
                             <img 
                               src={isSel ? "/icons/gold_light.png" : "/icons/gold.png"} 
                               alt="Vàng" 
-                              className={`w-5 h-5 object-contain inline-block ${
+                              className={`w-7 h-7 object-contain inline-block translate-y-[2.5px] ${
                                 isSel 
                                   ? 'filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]' 
                                   : 'filter drop-shadow-[0_1px_1px_rgba(0,0,0,0.35)]'
                               }`}
                             />
-                            <span className={isSel ? 'drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]' : ''}>
+                            <span className={`leading-none ${isSel ? 'drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]' : ''}`}>
                               {w.cost}
                             </span>
                           </div>
@@ -581,7 +581,7 @@ export const StructureDetailModal: React.FC<StructureDetailModalProps> = ({
                   <div className="flex justify-between items-center px-1 text-xs">
                     <div>
                       <span className="text-[#5c3e23]">Cần: </span>
-                      <img src="/icons/gold.png" alt="Vàng" className="w-5 h-5 object-contain inline-block mx-0.5 filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]" />
+                      <img src="/icons/gold.png" alt="Vàng" className="w-7 h-7 object-contain inline-block mx-0.5 filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]" />
                       <span className="font-mono font-bold text-[#8c2d19]">{totalGoldCost}</span>
                       <span className="text-[#704d2e] text-[10px]"> (Có {Math.floor(resources.gold)})</span>
                     </div>

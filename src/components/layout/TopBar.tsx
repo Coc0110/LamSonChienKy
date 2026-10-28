@@ -90,10 +90,10 @@ export const TopBar: React.FC = () => {
         />
 
         {/* Toàn bộ chữ và số nằm ở vùng giấy sáng sạch phía trên */}
-        <div className="relative z-10 w-full pt-1 px-4 md:px-7 flex items-center justify-between text-xs md:text-sm font-serif font-bold text-[#2a1708]">
+        <div className="relative z-10 w-full pt-1 px-3 md:px-5 flex items-center justify-between text-xs md:text-sm font-serif font-bold text-[#2a1708]">
           
           {/* DÃY CHỈ SỐ QUÂN LƯƠNG & CỤM THỜI GIAN */}
-          <div className="flex items-center gap-2 md:gap-3.5 overflow-x-auto no-scrollbar whitespace-nowrap py-0.5">
+          <div className="flex items-center gap-1.5 md:gap-2.5 overflow-x-auto no-scrollbar whitespace-nowrap py-0.5">
             
             {/* 0. NÚT QUÂN THƯ (Icon cuộn giấy trúc x1.5, khi chọn chỉ tô đen phần chữ và ẩn icon) */}
             <button
@@ -565,9 +565,9 @@ export const TopBar: React.FC = () => {
               <img 
                 src="/icons/gold.png" 
                 alt="Ngân khố" 
-                className="w-8 h-8 object-contain filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]"
+                className="w-7 h-7 object-contain translate-y-[3px] filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]"
               />
-              <span>Vàng: {Math.floor(resources.gold).toLocaleString()}</span>
+              <span className="leading-none">Ngân khố: {Math.floor(resources.gold).toLocaleString()}</span>
             </div>
 
             {/* Phân cách */}
