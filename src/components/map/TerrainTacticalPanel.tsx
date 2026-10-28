@@ -24,7 +24,7 @@ const TROOP_LABELS: Record<TroopType, { name: string; icon: string }> = {
   navy: { name: 'Thủy Quân', icon: '⛵' }
 };
 
-export const TerrainTacticalPanel: React.FC<TerrainTacticalPanelProps> = ({
+export const TerrainTacticalPanel: React.FC<TerrainTacticalPanelProps> = React.memo(({
   selectedCity,
   allCities,
   showTerrainZones,
@@ -341,4 +341,6 @@ export const TerrainTacticalPanel: React.FC<TerrainTacticalPanelProps> = ({
       )}
     </div>
   );
-};
+});
+
+TerrainTacticalPanel.displayName = 'TerrainTacticalPanel';

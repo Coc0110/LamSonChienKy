@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import type { DistrictInfo } from '../../types/map';
 import type { TerrainType } from '../../types/terrain';
 import { useUIStore } from '../../store/uiStore';
+import { notify } from '../../store/dialogStore';
 import { exportTerrainGridJSON, resetCustomTerrainGrid } from '../../data/terrainGrid';
 
 interface DistrictEditorBarProps {
@@ -70,12 +71,12 @@ export const DistrictEditorBar: React.FC<DistrictEditorBarProps> = ({
 
       const result = await res.json();
       if (result.success) {
-        alert(`🎉 ĐÃ LƯU BẢN CHÍNH THỨC THÀNH CÔNG!\n\nToàn bộ ranh giới mới của ${districtsList.length} huyện thành đã được ghi đè trực tiếp vào file "src/data/districtPolygons.json".\n\nTừ bây giờ, dữ liệu này sẽ là bản mặc định chính thức cho dự án trên mọi máy tính!`);
+        notify.success(`🎉 Đã lưu bản chính thức thành công! Toàn bộ ranh giới mới của ${districtsList.length} huyện thành đã được cập nhật.`);
       } else {
         throw new Error(result.error);
       }
     } catch (err: any) {
-      alert(`Chưa lưu được tự động qua server: ${err?.message}\nBạn có thể bấm nút "📋 Copy Ranh Giới" và gửi nội dung vào khung chat để AI lưu giúp.`);
+      notify.error(`Chưa lưu được tự động qua server: ${err?.message}\nBạn có thể bấm nút "📋 Copy Ranh Giới" và gửi nội dung vào khung chat.`);
     } finally {
       setIsSavingOfficial(false);
     }
@@ -85,7 +86,7 @@ export const DistrictEditorBar: React.FC<DistrictEditorBarProps> = ({
     const custom = localStorage.getItem(storageKey);
     const textToCopy = custom || JSON.stringify(districtsList, null, 2);
     navigator.clipboard.writeText(textToCopy);
-    alert('Đã copy toàn bộ dữ liệu ranh giới huyện thành vào Clipboard!\nBạn có thể mang sang máy khác dán vào ô "Nhập JSON".');
+    notify.info('Đã copy toàn bộ dữ liệu ranh giới huyện thành vào Clipboard!');
   };
 
   const handleDownloadPolygonFile = () => {
@@ -103,7 +104,7 @@ export const DistrictEditorBar: React.FC<DistrictEditorBarProps> = ({
 
   const handleApplyImport = () => {
     if (!importText.trim()) {
-      alert('Vui lòng dán nội dung JSON hoặc chọn file .json!');
+      notify.warning('Vui lòng dán nội dung JSON hoặc chọn file .json!');
       return;
     }
     try {
@@ -111,13 +112,13 @@ export const DistrictEditorBar: React.FC<DistrictEditorBarProps> = ({
       const data: DistrictInfo[] = Array.isArray(parsed) ? parsed : parsed.districts;
 
       if (!Array.isArray(data) || data.length === 0) {
-        alert('Cấu trúc JSON không hợp lệ! Cần danh sách các huyện chứa polygon.');
+        notify.error('Cấu trúc JSON không hợp lệ! Cần danh sách các huyện chứa polygon.');
         return;
       }
 
       const isValid = data.every(d => d.id && Array.isArray(d.polygon) && d.polygon.length >= 3);
       if (!isValid) {
-        alert('Dữ liệu chứa huyện có cấu trúc polygon không hợp lệ!');
+        notify.error('Dữ liệu chứa huyện có cấu trúc polygon không hợp lệ!');
         return;
       }
 
@@ -127,9 +128,9 @@ export const DistrictEditorBar: React.FC<DistrictEditorBarProps> = ({
       }
       setShowImportModal(false);
       setImportText('');
-      alert(`Đã nhập thành công ${data.length} huyện thành vào bản đồ!`);
+      notify.success(`Đã nhập thành công ${data.length} huyện thành vào bản đồ!`);
     } catch (err: any) {
-      alert(`Lỗi cú pháp JSON: ${err?.message || 'Không thể đọc dữ liệu'}`);
+      notify.error(`Lỗi cú pháp JSON: ${err?.message || 'Không thể đọc dữ liệu'}`);
     }
   };
 
@@ -148,18 +149,31 @@ export const DistrictEditorBar: React.FC<DistrictEditorBarProps> = ({
 
   const handleResetCurrentDistrict = () => {
     if (!selectedCityId || !currentDistrict) return;
-    if (confirm(`Khôi phục ranh giới của riêng huyện "${currentDistrict.name}" về mặc định ban đầu?`)) {
-      if (onResetCurrentDistrict) {
-        onResetCurrentDistrict(selectedCityId);
-      }
-    }
+    notify.confirm({
+      title: 'Khôi Phục Huyện',
+      message: `Khôi phục ranh giới của riêng huyện "${currentDistrict.name}" về mặc định ban đầu?`,
+      confirmText: 'Khôi Phục',
+      cancelText: 'Hủy',
+      onConfirm: () => {
+        if (onResetCurrentDistrict) {
+          onResetCurrentDistrict(selectedCityId);
+        }
+        notify.info(`Đã khôi phục ranh giới huyện "${currentDistrict.name}".`);
+      },
+    });
   };
 
   const handleResetPolygon = () => {
-    if (confirm('Khôi phục lại toàn bộ ranh giới huyện thành về mặc định ban đầu?')) {
-      localStorage.removeItem(storageKey);
-      window.location.reload();
-    }
+    notify.confirm({
+      title: 'Khôi Phục Toàn Bộ Ranh Giới',
+      message: 'Khôi phục lại toàn bộ ranh giới huyện thành về mặc định ban đầu?',
+      confirmText: 'Khôi Phục Tất Cả',
+      cancelText: 'Hủy',
+      onConfirm: () => {
+        localStorage.removeItem(storageKey);
+        window.location.reload();
+      },
+    });
   };
 
   const handleSaveTerrainAsOfficial = async () => {
@@ -179,12 +193,12 @@ export const DistrictEditorBar: React.FC<DistrictEditorBarProps> = ({
 
       const result = await res.json();
       if (result.success) {
-        alert(`🎉 ĐÃ LƯU BẢN ĐỒ ĐỊA HÌNH CHÍNH THỨC THÀNH CÔNG!\n\nToàn bộ ${Object.keys(payload).length} ô địa hình đã được ghi đè trực tiếp vào file "src/data/terrainGridData.json".\n\nTừ bây giờ, cấu hình này sẽ là bản mặc định chính thức cho dự án trên mọi máy tính và khi deploy lên Vercel!`);
+        notify.success(`🎉 Đã lưu bản đồ địa hình chính thức thành công (${Object.keys(payload).length} ô)!`);
       } else {
         throw new Error(result.error);
       }
     } catch (err: any) {
-      alert(`Chưa lưu được tự động qua server: ${err?.message}\nBạn có thể bấm nút "Copy JSON" và gửi vào khung chat.`);
+      notify.error(`Chưa lưu được tự động qua server: ${err?.message}`);
     } finally {
       setIsSavingTerrainOfficial(false);
     }
@@ -193,14 +207,20 @@ export const DistrictEditorBar: React.FC<DistrictEditorBarProps> = ({
   const handleCopyTerrain = () => {
     const json = exportTerrainGridJSON();
     navigator.clipboard.writeText(json);
-    alert('Đã copy toàn bộ dữ liệu sơn địa hình lưới vào Clipboard!');
+    notify.info('Đã copy toàn bộ dữ liệu sơn địa hình lưới vào Clipboard!');
   };
 
   const handleResetTerrain = () => {
-    if (confirm('Khôi phục lại toàn bộ lưới địa hình về cấu hình mặc định ban đầu?')) {
-      resetCustomTerrainGrid();
-      window.location.reload();
-    }
+    notify.confirm({
+      title: 'Khôi Phục Lưới Địa Hình',
+      message: 'Khôi phục lại toàn bộ lưới địa hình về cấu hình mặc định ban đầu?',
+      confirmText: 'Khôi Phục Lưới',
+      cancelText: 'Hủy',
+      onConfirm: () => {
+        resetCustomTerrainGrid();
+        window.location.reload();
+      },
+    });
   };
 
   return (

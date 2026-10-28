@@ -1,10 +1,10 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { X, Sparkles } from 'lucide-react';
 import { useGameStore } from '../../store/gameStore';
 import { useUIStore } from '../../store/uiStore';
 import { BronzePlaqueCard } from './BronzePlaqueCard';
 
-export const GeneralsModal: React.FC = () => {
+export const GeneralsModal: React.FC = React.memo(() => {
   const activeModal = useUIStore(state => state.activeModal);
   const setActiveModal = useUIStore(state => state.setActiveModal);
 
@@ -31,7 +31,7 @@ export const GeneralsModal: React.FC = () => {
   const totalPages = Math.max(1, Math.ceil(unlockedGenerals.length / CARDS_PER_PAGE));
 
   // Lật bảng đúng 1 lần (180 độ) theo trục ngang khi đổi mặt bảng (Nhanh, mượt 60fps)
-  const handleSelectBoard = (newIndex: number) => {
+  const handleSelectBoard = useCallback((newIndex: number) => {
     if (newIndex === currentPage || isFlipping) return;
     setIsFlipping(true);
     setFlipDirection(newIndex > currentPage ? 'forward' : 'backward');
@@ -46,7 +46,7 @@ export const GeneralsModal: React.FC = () => {
     setTimeout(() => {
       setIsFlipping(false);
     }, 380);
-  };
+  }, [currentPage, isFlipping]);
 
   const handleCardClick = (genId: string) => {
     if (selectedGeneralId === genId) {
@@ -73,7 +73,7 @@ export const GeneralsModal: React.FC = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeModal, currentPage, totalPages, isFlipping, setActiveModal]);
+  }, [activeModal, currentPage, totalPages, isFlipping, setActiveModal, handleSelectBoard]);
 
   // 1. POPUP SỰ KIỆN LỊCH SỬ / MÙA VỤ THU HOẠCH / HOÀN TẤT CÔNG TRÌNH
   if (recruitmentNotice) {
@@ -332,4 +332,6 @@ export const GeneralsModal: React.FC = () => {
       </div>
     </div>
   );
-};
+});
+
+GeneralsModal.displayName = 'GeneralsModal';

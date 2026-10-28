@@ -1,10 +1,15 @@
-import React, { useState, useMemo } from 'react';
-import { X, Wrench, Trash2, Castle, Plus, Minus} from 'lucide-react';
-import type { PlacedStructure, WeaponCraftType } from '../../types';
+import React, { useMemo } from 'react';
+import { X, Wrench, Trash2, Castle } from 'lucide-react';
+import type { PlacedStructure } from '../../types';
 import { TERRAIN_DEFINITIONS } from '../../data/terrainData';
 import { useGameStore } from '../../store/gameStore';
 import districtData from '../../data/districtPolygons.json';
 import { findDistrictForCoord } from '../../utils/mapGeo';
+import { cleanStructureName } from '../../utils/formatters';
+import { FarmDetailSection } from './structure/FarmDetailSection';
+import { ForgeDetailSection } from './structure/ForgeDetailSection';
+
+const DEFAULT_DISTRICTS = (districtData as any).districts || [];
 
 interface StructureDetailModalProps {
   structure: PlacedStructure;
@@ -14,42 +19,6 @@ interface StructureDetailModalProps {
   onOpenCity: (cityId: string) => void;
 }
 
-export const cleanStructureName = (name: string): string => {
-  return name.replace(/\s*[\(\[]\d+x\d+.*?[\)\]]/gi, '').trim();
-};
-
-const WEAPONS_CATALOG: {
-  type: WeaponCraftType;
-  name: string;
-  cost: number;
-  workDaysPerUnit: number;
-}[] = [
-  {
-    type: 'sword',
-    name: 'Kiếm',
-    cost: 2.0,
-    workDaysPerUnit: 1.8,
-  },
-  {
-    type: 'bow',
-    name: 'Cung',
-    cost: 1.5,
-    workDaysPerUnit: 1.4,
-  },
-  {
-    type: 'spear',
-    name: 'Giáo',
-    cost: 1.0,
-    workDaysPerUnit: 1.0,
-  },
-  {
-    type: 'armor',
-    name: 'Giáp',
-    cost: 3.0,
-    workDaysPerUnit: 2.2,
-  },
-];
-
 export const StructureDetailModal: React.FC<StructureDetailModalProps> = ({
   structure,
   onClose,
@@ -58,24 +27,12 @@ export const StructureDetailModal: React.FC<StructureDetailModalProps> = ({
   onOpenCity,
 }) => {
   const cities = useGameStore(state => state.cities);
-  const resources = useGameStore(state => state.resources);
-  const assignFarmWorkers = useGameStore(state => state.assignFarmWorkers);
-  const startForgeOrder = useGameStore(state => state.startForgeOrder);
-  const cancelForgeOrder = useGameStore(state => state.cancelForgeOrder);
   const liveStructure = useGameStore(state => state.structures.find(s => s.id === structure.id)) || structure;
 
-  const [forgeTab, setForgeTab] = useState<'progress' | 'craft'>(
-    liveStructure.activeOrder ? 'progress' : 'craft'
-  );
-  const [selectedWeaponType, setSelectedWeaponType] = useState<WeaponCraftType>('sword');
-  const [craftQuantity, setCraftQuantity] = useState<number>(25);
-  const [craftSmiths, setCraftSmiths] = useState<number>(5);
-
   const city = useMemo(() => cities.find(c => c.id === structure.cityId), [cities, structure.cityId]);
-  const defaultDistricts = (districtData as any).districts || [];
   const matchedDistrict = useMemo(
-    () => findDistrictForCoord(structure.x, structure.y, defaultDistricts),
-    [structure.x, structure.y, defaultDistricts]
+    () => findDistrictForCoord(structure.x, structure.y, DEFAULT_DISTRICTS),
+    [structure.x, structure.y]
   );
 
   // Kiểm tra địa hạt có quân Minh chiếm đóng hay không
@@ -88,35 +45,7 @@ export const StructureDetailModal: React.FC<StructureDetailModalProps> = ({
 
   const taxRatePercent = isMingOccupied ? 50 : 10;
   const cleanedName = cleanStructureName(structure.name);
-
-  // Tính toán sản lượng ruộng nương
-  const efficiency = structure.gridSize === 7 ? 0.26 : structure.gridSize === 6 ? 0.24 : 0.22;
-  const weatherMult = structure.seasonCondition === 'bountiful' ? 1.25 : structure.seasonCondition === 'poor' ? 0.70 : 1.0;
-  const workers = structure.assignedWorkers || 0;
-  const expectedTotalFood = Math.round(workers * 90 * efficiency * weatherMult);
-  const expectedTax = Math.round(expectedTotalFood * (taxRatePercent / 100));
-  const expectedNetHarvest = Math.max(0, expectedTotalFood - expectedTax);
-
-  // Tính toán đặt rèn
-  const selectedWeapon = WEAPONS_CATALOG.find(w => w.type === selectedWeaponType) || WEAPONS_CATALOG[0];
-  const totalGoldCost = Math.ceil(craftQuantity * selectedWeapon.cost);
-  const estimatedDays = Math.max(4, Math.ceil((craftQuantity * selectedWeapon.workDaysPerUnit * 1.5) / Math.max(1, craftSmiths)));
   const maxAvailableSmiths = city?.population?.idleLaborers || 0;
-
-  const handleStartForge = () => {
-    const res = startForgeOrder(structure.id, {
-      weaponType: selectedWeaponType,
-      quantity: craftQuantity,
-      smiths: craftSmiths,
-    });
-    alert(res.message);
-    if (res.success) {
-      setForgeTab('progress');
-    }
-    if (res.success) {
-      setForgeTab('progress');
-    }
-  };
 
   const structureIcon = 
     structure.type === 'farm' 
@@ -196,422 +125,20 @@ export const StructureDetailModal: React.FC<StructureDetailModalProps> = ({
 
           {/* TRƯỜNG HỢP 1: RUỘNG NƯƠNG (ĐỒN ĐIỀN) */}
           {structure.type === 'farm' && (
-            <div className="space-y-3 text-xs text-[#2a1708]">
-              {/* Trạng thái thi công / hoạt động */}
-              <div className="p-2.5 rounded bg-black/[0.04] border border-[#8c6b44]/25 space-y-1.5">
-                <div className="flex justify-between items-center">
-                  <span className="text-[#5c3e23] font-bold">Trạng thái:</span>
-                  <span className={`font-bold ${structure.status === 'building' ? 'text-[#b45309]' : 'text-[#15803d]'}`}>
-                    {structure.status === 'building'
-                      ? `🚧 Đang thi công (còn ${structure.buildDaysRemaining} ngày)`
-                      : '🟢 Canh tác bình thường'}
-                  </span>
-                </div>
-
-                {/* Điều động nông đinh canh tác với nút quẹt mực - / + */}
-                {structure.status === 'active' && (
-                  <div className="flex justify-between items-center pt-1 border-t border-[#8c6b44]/20">
-                    <span className="text-[#5c3e23] font-bold">Nông đinh canh tác:</span>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => assignFarmWorkers(structure.id, -1)}
-                        className="relative group w-7 h-7 flex items-center justify-center transition-transform hover:scale-110 active:scale-95 cursor-pointer"
-                        title="Bớt 1 nông đinh"
-                      >
-                        <img
-                          src="/ink_blot.png"
-                          alt="Chấm mực"
-                          className="absolute inset-0 w-full h-full object-contain pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)] group-hover:brightness-125 transition-all"
-                        />
-                        <span className="relative z-10 text-[#fcf4e4] font-bold">
-                          <Minus size={13} strokeWidth={2.8} />
-                        </span>
-                      </button>
-                      <span className="font-mono font-bold text-sm min-w-[50px] text-center text-[#8c2d19]">
-                        {structure.assignedWorkers}/{structure.maxWorkers}
-                      </span>
-                      <button
-                        onClick={() => assignFarmWorkers(structure.id, 1)}
-                        className="relative group w-7 h-7 flex items-center justify-center transition-transform hover:scale-110 active:scale-95 cursor-pointer"
-                        title="Thêm 1 nông đinh"
-                      >
-                        <img
-                          src="/ink_blot.png"
-                          alt="Chấm mực"
-                          className="absolute inset-0 w-full h-full object-contain pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)] group-hover:brightness-125 transition-all"
-                        />
-                        <span className="relative z-10 text-[#fcf4e4] font-bold">
-                          <Plus size={13} strokeWidth={2.8} />
-                        </span>
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Tình trạng mùa màng & Sản lượng dự kiến */}
-              {structure.status === 'active' && (
-                <div className="p-3 rounded bg-black/[0.04] border border-[#8c6b44]/25 space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-[#5c3e23] font-bold">Thời tiết vụ mùa:</span>
-                    <span className={`font-bold px-2 py-0.5 rounded text-[11px] ${
-                      structure.seasonCondition === 'bountiful' 
-                        ? 'bg-emerald-100 text-emerald-800' 
-                        : structure.seasonCondition === 'poor'
-                        ? 'bg-red-100 text-red-800'
-                        : 'bg-amber-100 text-amber-800'
-                    }`}>
-                      {structure.seasonCondition === 'bountiful' 
-                        ? '🌾 Được mùa bội thu (+25%)' 
-                        : structure.seasonCondition === 'poor'
-                        ? '🍂 Mất mùa / Hạn hán (-30%)'
-                        : '🌧️ Mưa thuận gió hòa (100%)'}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between items-center">
-                    <span className="text-[#5c3e23]">Tiến độ vụ mùa:</span>
-                    <span className="font-mono font-bold text-[#261304]">
-                      Ngày {structure.cropDays}/{structure.cropCycleDays} (~{Math.round((structure.cropDays/structure.cropCycleDays)*100)}%)
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between items-center">
-                    <span className="text-[#5c3e23]">Tổng sản lượng dự kiến:</span>
-                    <span className="font-mono font-bold text-[#8c2d19]">
-                      ~{expectedTotalFood.toLocaleString()} thạch thóc
-                    </span>
-                  </div>
-
-                  {/* Thuế suất & Ảnh hưởng quân Minh */}
-                  <div className="pt-1.5 border-t border-[#8c6b44]/25 flex justify-between items-center">
-                    <div>
-                      <span className="font-bold text-[#5c3e23]">Sưu thuế nộp: </span>
-                      <span className={`font-bold ${isMingOccupied ? 'text-red-700' : 'text-emerald-700'}`}>
-                        {taxRatePercent}% ({isMingOccupied ? 'Giặc Minh chiếm đóng' : 'Nuôi nghĩa quân'})
-                      </span>
-                    </div>
-                    <span className="font-mono font-bold text-red-700">
-                      -{expectedTax.toLocaleString()} thạch
-                    </span>
-                  </div>
-
-                  {/* Thực thu nhập kho */}
-                  <div className="pt-1 border-t border-[#8c6b44]/25 flex justify-between items-center text-sm font-bold">
-                    <span className="text-[#261304]">Thực thu nhập kho lương:</span>
-                    <span className="font-mono text-[#15803d]">
-                      +{expectedNetHarvest.toLocaleString()} thạch
-                    </span>
-                  </div>
-                </div>
-              )}
-            </div>
+            <FarmDetailSection
+              structure={liveStructure}
+              isMingOccupied={isMingOccupied}
+              taxRatePercent={taxRatePercent}
+            />
           )}
 
-          {/* TRƯỜNG HỢP 2: LÒ RÈN (CHIA LÀM 2 TAB: ĐANG RÈN & ĐẶT RÈN) */}
+          {/* TRƯỜNG HỢP 2: LÒ RÈN VŨ KHÍ */}
           {structure.type === 'forge' && (
-            <div className="space-y-3">
-              {/* Thanh chuyển 2 Tab: Đang Rèn vs Đặt Rèn dạng vệt mực */}
-              <div className="flex border-b border-[#8c6b44]/30 pb-1.5 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setForgeTab('progress')}
-                  className="relative group flex-1 py-1.5 min-h-[34px] flex items-center justify-center transition-transform hover:scale-[1.02] active:scale-98 cursor-pointer"
-                >
-                  {forgeTab === 'progress' ? (
-                    <>
-                      <img
-                        src="/ink_stroke_red.png"
-                        alt="Vệt mực đỏ"
-                        className="absolute inset-0 w-full h-full object-fill pointer-events-none drop-shadow-[0_2px_3px_rgba(0,0,0,0.25)]"
-                      />
-                      <span className="relative z-10 text-xs font-serif font-black text-[#fcf4e4] tracking-wide flex items-center gap-1.5 drop-shadow-[0_1px_1px_rgba(0,0,0,0.6)]">
-                        Đang Rèn & Hàng Chờ
-                      </span>
-                    </>
-                  ) : (
-                    <span className="relative z-10 text-xs font-serif font-bold text-[#6b4a2e] hover:text-[#261304] transition-colors flex items-center gap-1.5">
-                      Đang Rèn & Hàng Chờ
-                    </span>
-                  )}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setForgeTab('craft')}
-                  className="relative group flex-1 py-1.5 min-h-[34px] flex items-center justify-center transition-transform hover:scale-[1.02] active:scale-98 cursor-pointer"
-                >
-                  {forgeTab === 'craft' ? (
-                    <>
-                      <img
-                        src="/ink_stroke_red.png"
-                        alt="Vệt mực đỏ"
-                        className="absolute inset-0 w-full h-full object-fill pointer-events-none drop-shadow-[0_2px_3px_rgba(0,0,0,0.25)]"
-                      />
-                      <span className="relative z-10 text-xs font-serif font-black text-[#fcf4e4] tracking-wide flex items-center gap-1.5 drop-shadow-[0_1px_1px_rgba(0,0,0,0.6)]">
-                        Đặt Rèn
-                      </span>
-                    </>
-                  ) : (
-                    <span className="relative z-10 text-xs font-serif font-bold text-[#6b4a2e] hover:text-[#261304] transition-colors flex items-center gap-1.5">
-                      Đặt Rèn
-                    </span>
-                  )}
-                </button>
-              </div>
-
-              {/* TAB 1: ĐANG RÈN & HÀNG CHỜ */}
-              {forgeTab === 'progress' && (
-                <div className="space-y-2 text-xs text-[#2a1708]">
-                  {/* Tiến trình mẻ rèn hiện tại */}
-                  {liveStructure.activeOrder ? (
-                    <div className="p-3 rounded bg-black/[0.04] border border-[#8c6b44]/25 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-[#8c2d19] text-sm">
-                            Đang đúc: {liveStructure.activeOrder.name}
-                          </span>
-                        </div>
-                        <span className="font-mono font-bold text-xs bg-red-100 text-red-800 px-2 py-0.5 rounded">
-                          {liveStructure.activeOrder.quantity} món
-                        </span>
-                      </div>
-
-                      <div className="space-y-1 pt-1">
-                        <div className="flex justify-between text-[11px] text-[#5c3e23]">
-                          <span>Tiến độ đúc:</span>
-                          <span className="font-mono font-bold">
-                            Còn {liveStructure.activeOrder.remainingDays}/{liveStructure.activeOrder.totalDays} ngày
-                          </span>
-                        </div>
-                        {/* Thanh mực tiến độ */}
-                        <div className="w-full h-2 rounded-full bg-black/10 overflow-hidden">
-                          <div 
-                            className="h-full bg-gradient-to-r from-amber-600 to-red-600 transition-all duration-300"
-                            style={{
-                              width: `${Math.round(((liveStructure.activeOrder.totalDays - liveStructure.activeOrder.remainingDays) / liveStructure.activeOrder.totalDays) * 100)}%`
-                            }}
-                          />
-                        </div>
-                      </div>
-
-                      <div className="flex justify-between items-center text-[11px] text-[#5c3e23] pt-1">
-                        <span>Thợ rèn tham gia:</span>
-                        <span className="font-bold text-[#261304]">
-                          {liveStructure.activeOrder.assignedSmiths} thợ rèn
-                        </span>
-                      </div>
-
-                      {/* Nút hủy mẻ rèn dạng quẹt mực */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (confirm('Hủy đơn đúc này? Bạn sẽ chỉ thu hồi 50% vàng chi phí.')) {
-                            cancelForgeOrder(structure.id);
-                          }
-                        }}
-                        className="relative group w-full py-1.5 min-h-[30px] flex items-center justify-center transition-transform hover:scale-[1.02] active:scale-95 cursor-pointer mt-2"
-                      >
-                        <img
-                          src="/ink_stroke_red.png"
-                          alt="Vệt mực đỏ"
-                          className="absolute inset-0 w-full h-full object-fill pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.25)] opacity-90 group-hover:opacity-100 transition-opacity"
-                        />
-                        <span className="relative z-10 text-[#fcf4e4] font-serif font-bold text-xs tracking-wide">
-                          Hủy Mẻ Rèn (Hoàn 50% Vàng)
-                        </span>
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="p-4 rounded bg-black/[0.04] border border-[#8c6b44]/25 text-center text-[#704d2e] italic">
-                      Lò rèn hiện đang tắt lửa. Hãy chuyển sang tab "Đặt Rèn" bên cạnh để bắt đầu đúc binh khí!
-                    </div>
-                  )}
-
-                  {/* Hàng chờ các mẻ rèn tiếp theo */}
-                  <div className="space-y-1.5 pt-1">
-                    <span className="font-bold text-xs text-[#5c3e23] uppercase tracking-wider">
-                      Hàng Chờ Đúc ({liveStructure.forgeQueue?.length || 0})
-                    </span>
-
-                    {liveStructure.forgeQueue && liveStructure.forgeQueue.length > 0 ? (
-                      <div className="space-y-1">
-                        {liveStructure.forgeQueue.map((item, idx) => (
-                          <div key={item.id} className="p-2 rounded bg-black/[0.03] border border-[#8c6b44]/20 flex items-center justify-between">
-                            <div>
-                              <span className="font-bold text-[#261304]">
-                                #{idx + 1}. {item.name}
-                              </span>
-                              <div className="text-[10px] text-[#704d2e]">
-                                {item.quantity} món • Cần {item.totalDays} ngày
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-1 font-mono text-xs font-bold text-[#8c2d19]">
-                                <img src="/icons/gold.png" alt="Vàng" className="w-7 h-7 object-contain inline-block filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]" />
-                                <span>{item.goldCost}</span>
-                              </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-[11px] text-[#704d2e] italic">
-                        Chưa có mẻ rèn nào trong hàng chờ.
-                      </p>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* TAB 2: ĐẶT RÈN (DANH SÁCH VẬT PHẨM: KIẾM, CUNG, GIÁO, GIÁP) */}
-              {forgeTab === 'craft' && (
-                <div className="space-y-2.5 text-xs text-[#2a1708]">
-                  {/* Danh sách 4 loại vũ khí */}
-                  <div className="grid grid-cols-2 gap-2">
-                    {WEAPONS_CATALOG.map(w => {
-                      const isSel = selectedWeaponType === w.type;
-                      return (
-                        <button
-                          key={w.type}
-                          type="button"
-                          onClick={() => setSelectedWeaponType(w.type)}
-                          className={`relative group px-4 py-2 min-h-[44px] flex items-center justify-between transition-transform hover:scale-[1.02] active:scale-98 cursor-pointer rounded ${
-                            isSel ? '' : 'border border-[#8c6b44]/20 hover:border-[#8c6b44]/40 hover:bg-black/[0.03]'
-                          }`}
-                        >
-                          {/* Khi được chọn: Vết mực thư pháp thật sự làm nền */}
-                          {isSel && (
-                            <img
-                              src="/ink_stroke_1.png"
-                              alt="Vệt mực chọn"
-                              className="absolute inset-0 w-full h-full object-fill pointer-events-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.35)]"
-                            />
-                          )}
-
-                          {/* Tên vũ khí */}
-                          <span className={`font-serif font-black text-sm relative z-10 tracking-wide transition-colors ${
-                            isSel ? 'text-[#fff5ea] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]' : 'text-[#261304]'
-                          }`}>
-                            {w.name}
-                          </span>
-
-                          {/* Icon Vàng & Số lượng vàng: Đổi sang gold_light.png màu vàng kim sáng rực trên nền mực đen */}
-                          <div className={`flex items-center gap-1.5 relative z-10 font-mono font-bold text-sm transition-colors ${
-                            isSel ? 'text-[#ffea9f]' : 'text-[#8c2d19]'
-                          }`}>
-                            <img 
-                              src={isSel ? "/icons/gold_light.png" : "/icons/gold.png"} 
-                              alt="Vàng" 
-                              className={`w-7 h-7 object-contain inline-block translate-y-[2.5px] ${
-                                isSel 
-                                  ? 'filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]' 
-                                  : 'filter drop-shadow-[0_1px_1px_rgba(0,0,0,0.35)]'
-                              }`}
-                            />
-                            <span className={`leading-none ${isSel ? 'drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]' : ''}`}>
-                              {w.cost}
-                            </span>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {/* Tùy chỉnh Số Lượng dạng vệt mực */}
-                  <div className="p-2.5 rounded bg-black/[0.04] border border-[#8c6b44]/25 space-y-1.5">
-                    <div className="flex justify-between items-center">
-                      <span className="text-[#5c3e23] font-bold">Số lượng đặt rèn:</span>
-                      <span className="font-mono font-bold text-sm text-[#8c2d19]">
-                        {craftQuantity} món
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      {[10, 25, 50, 100].map(q => {
-                        const isChosen = craftQuantity === q;
-                        return (
-                          <button
-                            key={q}
-                            type="button"
-                            onClick={() => setCraftQuantity(q)}
-                            className="relative group flex-1 py-1 min-h-[28px] flex items-center justify-center transition-transform hover:scale-105 active:scale-95 cursor-pointer"
-                          >
-                            {isChosen ? (
-                              <>
-                                <img
-                                  src="/ink_stroke_red.png"
-                                  alt="Vệt mực đỏ"
-                                  className="absolute inset-0 w-full h-full object-fill pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]"
-                                />
-                                <span className="relative z-10 text-xs font-serif font-black text-[#fcf4e4] drop-shadow-[0_1px_1px_rgba(0,0,0,0.8)]">
-                                  {q}
-                                </span>
-                              </>
-                            ) : (
-                              <span className="relative z-10 text-xs font-serif font-bold text-[#3d2714] hover:text-[#8c2d19] transition-colors">
-                                {q}
-                              </span>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Tùy chỉnh Thợ Rèn Điều Động */}
-                  <div className="p-2.5 rounded bg-black/[0.04] border border-[#8c6b44]/25 space-y-1.5">
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <span className="text-[#5c3e23] font-bold">Thợ rèn điều động: </span>
-                        <span className="text-[10px] text-[#704d2e]">(Rảnh rỗi: {maxAvailableSmiths})</span>
-                      </div>
-                      <span className="font-mono font-bold text-sm text-[#261304]">
-                        {craftSmiths} thợ
-                      </span>
-                    </div>
-                    <input
-                      type="range"
-                      min={1}
-                      max={15}
-                      value={craftSmiths}
-                      onChange={(e) => setCraftSmiths(parseInt(e.target.value) || 1)}
-                      className="w-full accent-[#8c2d19] cursor-pointer"
-                    />
-                  </div>
-
-                  {/* Tóm tắt chi phí & thời gian */}
-                  <div className="flex justify-between items-center px-1 text-xs">
-                    <div>
-                      <span className="text-[#5c3e23]">Cần: </span>
-                      <img src="/icons/gold.png" alt="Vàng" className="w-7 h-7 object-contain inline-block mx-0.5 filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]" />
-                      <span className="font-mono font-bold text-[#8c2d19]">{totalGoldCost}</span>
-                      <span className="text-[#704d2e] text-[10px]"> (Có {Math.floor(resources.gold)})</span>
-                    </div>
-                    <div>
-                      <span className="text-[#5c3e23]">Thời gian: </span>
-                      <span className="font-mono font-bold text-[#261304]">{estimatedDays} ngày</span>
-                    </div>
-                  </div>
-
-                  {/* Nút Đặt Rèn dạng vệt mực đỏ lớn */}
-                  <button
-                    type="button"
-                    onClick={handleStartForge}
-                    disabled={resources.gold < totalGoldCost}
-                    className="relative group w-full py-2 min-h-[42px] flex items-center justify-center transition-transform hover:scale-[1.02] active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-                  >
-                    <img
-                      src="/ink_stroke_red.png"
-                      alt="Vệt mực đỏ"
-                      className="absolute inset-0 w-full h-full object-fill pointer-events-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.35)] group-hover:brightness-110 transition-all"
-                    />
-                    <span className="relative z-10 font-serif font-bold text-sm text-[#fcf4e4] flex items-center justify-center gap-2 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
-                      <span>
-                        {liveStructure.activeOrder ? 'Xếp Thêm Vào Hàng Chờ' : 'Bắt Đầu Nổi Lửa Rèn'}
-                      </span>
-                    </span>
-                  </button>
-                </div>
-              )}
-            </div>
+            <ForgeDetailSection
+              structure={structure}
+              liveStructure={liveStructure}
+              maxAvailableSmiths={maxAvailableSmiths}
+            />
           )}
 
           {/* CÁC NÚT THAO TÁC CƠ SỞ: DI DỜI, PHÁ BỎ, MỞ CĂN CỨ DẠNG QUẸT MỰC */}

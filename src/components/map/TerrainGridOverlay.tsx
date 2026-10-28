@@ -301,6 +301,7 @@ export const TerrainGridOverlay: React.FC<TerrainGridOverlayProps> = ({ map }) =
     brushTerrain,
     brushSize,
     placementMode,
+    baseRelocateMode,
     hoveredCell,
   ]);
 
@@ -309,12 +310,17 @@ export const TerrainGridOverlay: React.FC<TerrainGridOverlayProps> = ({ map }) =
     drawGridRef.current = drawGrid;
   }, [drawGrid]);
 
-  // 3. Lắng nghe sự kiện di chuyển và zoom của bản đồ để vẽ lại
+  // 3. Lắng nghe sự kiện di chuyển và zoom của bản đồ để vẽ lại (dùng requestAnimationFrame chống giật lag)
   useEffect(() => {
     if (!map) return;
 
+    let rafId: number | null = null;
     const handleUpdate = () => {
-      drawGridRef.current();
+      if (rafId !== null) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        drawGridRef.current();
+      });
     };
 
     map.on('move', handleUpdate);
@@ -325,6 +331,9 @@ export const TerrainGridOverlay: React.FC<TerrainGridOverlayProps> = ({ map }) =
     handleUpdate();
 
     return () => {
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+      }
       map.off('move', handleUpdate);
       map.off('zoom', handleUpdate);
       map.off('resize', handleUpdate);

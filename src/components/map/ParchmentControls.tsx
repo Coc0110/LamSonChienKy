@@ -7,6 +7,8 @@ interface ParchmentControlsProps {
   onChangeMode: (mode: ParchmentMode) => void;
   showDistricts: boolean;
   onToggleDistricts: () => void;
+  showTacticalPanel?: boolean;
+  onToggleTacticalPanel?: () => void;
 }
 
 export const ParchmentControls: React.FC<ParchmentControlsProps> = ({
@@ -14,6 +16,8 @@ export const ParchmentControls: React.FC<ParchmentControlsProps> = ({
   onChangeMode,
   showDistricts,
   onToggleDistricts,
+  showTacticalPanel,
+  onToggleTacticalPanel,
 }) => {
   const showGrid = useUIStore(state => state.showGrid);
   const toggleGrid = useUIStore(state => state.toggleGrid);
@@ -95,6 +99,23 @@ export const ParchmentControls: React.FC<ParchmentControlsProps> = ({
       >
         Màu Địa Hình: {showTerrainOverlay ? 'Bật' : 'Tắt'}
       </button>
+
+      {onToggleTacticalPanel && (
+        <>
+          <div className="h-4 w-[1px] bg-[#a87c4f]/40 mx-1" />
+          <button
+            onClick={onToggleTacticalPanel}
+            className={`px-2.5 py-1 rounded transition-colors cursor-pointer ${
+              showTacticalPanel
+                ? 'bg-[#8c2d19] text-[#fff3db] border border-[#f87171] font-bold shadow'
+                : 'text-[#fca5a5] hover:bg-[#331010]'
+            }`}
+            title="Mở bảng tính toán hành quân và phân tích chiến thuật"
+          >
+            Hành Quân: {showTacticalPanel ? 'Mở' : 'Đóng'}
+          </button>
+        </>
+      )}
     </div>
   );
 };

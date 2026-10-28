@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Swords, AlertTriangle, Shield, Check, X } from 'lucide-react';
+import { notify } from '../../../store/dialogStore';
 import type { CityPopulation, General } from '../../../types';
 
 interface TrainingSliderProps {
@@ -196,7 +197,7 @@ export const TrainingSlider: React.FC<TrainingSliderProps> = ({
         <button
           onClick={() => {
             if (isWeaponShortage) {
-              alert('Khí giới trong kho không đủ để trang bị cho đợt thao luyện này!');
+              notify.error('Khí giới trong kho không đủ để trang bị cho đợt thao luyện này!');
               return;
             }
             onConfirm(selectedGeneralId, trainCount, swappedCombatantsNeeded, trainingDays);

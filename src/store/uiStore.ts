@@ -115,5 +115,11 @@ export const useUIStore = create<UIState>((set) => ({
   setTerrainEditMode: (active) => set({ terrainEditMode: active }),
   setBrushTerrain: (type) => set({ brushTerrain: type }),
   setBrushSize: (size) => set({ brushSize: size }),
-  setHoveredCell: (cell) => set({ hoveredCell: cell }),
+  setHoveredCell: (cell) => set((state) => {
+    if (!cell && !state.hoveredCell) return state;
+    if (cell && state.hoveredCell && cell.col === state.hoveredCell.col && cell.row === state.hoveredCell.row) {
+      return state;
+    }
+    return { hoveredCell: cell };
+  }),
 }));

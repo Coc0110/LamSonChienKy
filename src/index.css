@@ -59,35 +59,42 @@
 
 @theme {
   --font-serif: 'HanZiVH', Georgia, 'Times New Roman', serif;
-  --font-sans: 'HanZiVH', Georgia, 'Times New Roman', serif;
-  --font-desc: 'HanZiVH', Georgia, 'Times New Roman', serif;
-  --font-brush: 'HanZiVH', Georgia, 'Times New Roman', serif;
-  --font-scroll: 'HanZiVH', Georgia, 'Times New Roman', serif;
-  --font-title: 'HanZiVH', Georgia, 'Times New Roman', serif;
+  --font-sans: 'ProductSans', system-ui, -apple-system, sans-serif;
+  --font-desc: 'ProductSans', system-ui, -apple-system, sans-serif;
+  --font-brush: 'Brushwell', cursive;
+  --font-scroll: 'Finch', Georgia, serif;
+  --font-title: 'HanZiVH', Georgia, serif;
 }
 
-/* Áp dụng font HanZi cho toàn bộ ứng dụng */
-html, body, #root, * {
+/* Mặc định nền tảng mang phong cách thư pháp Hán tự cổ phong */
+html, body, #root {
   font-family: 'HanZiVH', Georgia, 'Times New Roman', serif;
 }
 
-/* Các lớp tiện ích đồng bộ font HanZi */
+/* Các lớp tiện ích font chữ */
 .font-name,
 .font-hanzi,
-.font-title,
-.font-desc,
-.font-brush,
-.font-scroll,
-.font-sans,
-.font-serif {
+.font-title {
   font-family: 'HanZiVH', Georgia, 'Times New Roman', serif;
+}
+
+.font-brush {
+  font-family: 'Brushwell', cursive, sans-serif;
+}
+
+.font-scroll {
+  font-family: 'Finch', Georgia, serif;
 }
 
 .font-product,
 .font-standard,
-.font-normal-text,
+.font-normal-text {
+  font-family: 'ProductSans', system-ui, -apple-system, sans-serif !important;
+}
+
 .font-standard-bold {
-  font-family: 'HanZiVH', Georgia, 'Times New Roman', serif !important;
+  font-family: 'ProductSans', system-ui, -apple-system, sans-serif !important;
+  font-weight: 700;
 }
 
 /* Hiệu ứng nhấp nháy nhè nhẹ cho texture Lửa */
