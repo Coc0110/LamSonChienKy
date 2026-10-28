@@ -148,3 +148,16 @@ export interface RecruitmentEventNotice {
   description: string;
   generalIds: string[];
 }
+
+export type NoticeType = 'harvest' | 'forge' | 'build' | 'general';
+
+export interface MilitaryNotice {
+  id: string;
+  type: NoticeType;
+  weaponType?: WeaponCraftType;
+  title: string;
+  dateStr: string;
+  description: string;
+  read: boolean;
+  timestamp: number;
+}

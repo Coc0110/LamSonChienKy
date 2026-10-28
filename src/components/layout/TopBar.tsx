@@ -17,7 +17,8 @@ export const TopBar: React.FC = () => {
     gameSpeed, 
     togglePause, 
     setSpeed, 
-    resources 
+    resources,
+    militaryNotices,
   } = useGameStore();
 
   const { 
@@ -34,6 +35,7 @@ export const TopBar: React.FC = () => {
     setActiveDropdown,
   } = useUIStore();
 
+  const unreadNoticesCount = (militaryNotices || []).filter(n => !n.read).length;
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -126,6 +128,23 @@ export const TopBar: React.FC = () => {
                 <span className="relative z-10 font-serif font-black text-xs md:text-sm tracking-wide text-[#261304]">
                   Quân Thư
                 </span>
+              )}
+
+              {/* Vết mực đỏ đề số lượng tin báo quân sự chưa đọc */}
+              {unreadNoticesCount > 0 && (
+                <div 
+                  className="absolute -top-1.5 -right-2 z-20 min-w-[22px] h-[20px] px-1 flex items-center justify-center animate-pulse pointer-events-none select-none"
+                  title={`${unreadNoticesCount} tin báo quân sự mới`}
+                >
+                  <img
+                    src="/ink_stroke_red.png"
+                    alt="Vết mực đỏ"
+                    className="absolute inset-0 w-full h-full object-fill pointer-events-none drop-shadow-[0_1px_3px_rgba(0,0,0,0.6)]"
+                  />
+                  <span className="relative z-10 text-[#fff5ea] text-[10px] font-serif font-black leading-none drop-shadow-[0_1px_1px_rgba(0,0,0,0.9)]">
+                    {unreadNoticesCount > 99 ? '99+' : unreadNoticesCount}
+                  </span>
+                </div>
               )}
             </button>
 

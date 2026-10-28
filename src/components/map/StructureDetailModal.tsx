@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { X, Wrench, Trash2, Castle, Plus, Minus, Flame, Hammer } from 'lucide-react';
+import { X, Wrench, Trash2, Castle, Plus, Minus} from 'lucide-react';
 import type { PlacedStructure, WeaponCraftType } from '../../types';
 import { TERRAIN_DEFINITIONS } from '../../data/terrainData';
 import { useGameStore } from '../../store/gameStore';
@@ -23,40 +23,30 @@ const WEAPONS_CATALOG: {
   name: string;
   cost: number;
   workDaysPerUnit: number;
-  desc: string;
-  icon: string;
 }[] = [
   {
     type: 'sword',
-    name: 'Kiếm Thép Lam Sơn',
+    name: 'Kiếm',
     cost: 2.0,
     workDaysPerUnit: 1.8,
-    desc: 'Thép tôi lửa sắc bén, chuyên dùng giáp lá cà',
-    icon: '/icons/weapon_sword.png',
   },
   {
     type: 'bow',
-    name: 'Cung Nỏ Lam Sơn',
+    name: 'Cung',
     cost: 1.5,
     workDaysPerUnit: 1.4,
-    desc: 'Cung tiễn tầm xa, tên tẩm độc mai phục hẻm núi',
-    icon: '/icons/weapon_bow.png',
   },
   {
     type: 'spear',
-    name: 'Giáo Mác Thao Thiết',
+    name: 'Giáo',
     cost: 1.0,
     workDaysPerUnit: 1.0,
-    desc: 'Ngọn giáo dài chống kỵ binh giặc Minh',
-    icon: '/icons/weapon_spear.png',
   },
   {
     type: 'armor',
-    name: 'Thiết Giáp Nghĩa Binh',
+    name: 'Giáp',
     cost: 3.0,
     workDaysPerUnit: 2.2,
-    desc: 'Giáp tấm liên kết, phòng hộ cung tên và đao thương',
-    icon: '/icons/weapon_armor.png',
   },
 ];
 
@@ -72,9 +62,10 @@ export const StructureDetailModal: React.FC<StructureDetailModalProps> = ({
   const assignFarmWorkers = useGameStore(state => state.assignFarmWorkers);
   const startForgeOrder = useGameStore(state => state.startForgeOrder);
   const cancelForgeOrder = useGameStore(state => state.cancelForgeOrder);
+  const liveStructure = useGameStore(state => state.structures.find(s => s.id === structure.id)) || structure;
 
   const [forgeTab, setForgeTab] = useState<'progress' | 'craft'>(
-    structure.activeOrder ? 'progress' : 'craft'
+    liveStructure.activeOrder ? 'progress' : 'craft'
   );
   const [selectedWeaponType, setSelectedWeaponType] = useState<WeaponCraftType>('sword');
   const [craftQuantity, setCraftQuantity] = useState<number>(25);
@@ -119,6 +110,9 @@ export const StructureDetailModal: React.FC<StructureDetailModalProps> = ({
       smiths: craftSmiths,
     });
     alert(res.message);
+    if (res.success) {
+      setForgeTab('progress');
+    }
     if (res.success) {
       setForgeTab('progress');
     }
@@ -332,12 +326,12 @@ export const StructureDetailModal: React.FC<StructureDetailModalProps> = ({
                         className="absolute inset-0 w-full h-full object-fill pointer-events-none drop-shadow-[0_2px_3px_rgba(0,0,0,0.25)]"
                       />
                       <span className="relative z-10 text-xs font-serif font-black text-[#fcf4e4] tracking-wide flex items-center gap-1.5 drop-shadow-[0_1px_1px_rgba(0,0,0,0.6)]">
-                        🔥 Đang Rèn & Hàng Chờ
+                        Đang Rèn & Hàng Chờ
                       </span>
                     </>
                   ) : (
                     <span className="relative z-10 text-xs font-serif font-bold text-[#6b4a2e] hover:text-[#261304] transition-colors flex items-center gap-1.5">
-                      🔥 Đang Rèn & Hàng Chờ
+                      Đang Rèn & Hàng Chờ
                     </span>
                   )}
                 </button>
@@ -355,12 +349,12 @@ export const StructureDetailModal: React.FC<StructureDetailModalProps> = ({
                         className="absolute inset-0 w-full h-full object-fill pointer-events-none drop-shadow-[0_2px_3px_rgba(0,0,0,0.25)]"
                       />
                       <span className="relative z-10 text-xs font-serif font-black text-[#fcf4e4] tracking-wide flex items-center gap-1.5 drop-shadow-[0_1px_1px_rgba(0,0,0,0.6)]">
-                        ⚒️ Đặt Rèn Khí Giới
+                        Đặt Rèn
                       </span>
                     </>
                   ) : (
                     <span className="relative z-10 text-xs font-serif font-bold text-[#6b4a2e] hover:text-[#261304] transition-colors flex items-center gap-1.5">
-                      ⚒️ Đặt Rèn Khí Giới
+                      Đặt Rèn
                     </span>
                   )}
                 </button>
@@ -370,17 +364,16 @@ export const StructureDetailModal: React.FC<StructureDetailModalProps> = ({
               {forgeTab === 'progress' && (
                 <div className="space-y-2 text-xs text-[#2a1708]">
                   {/* Tiến trình mẻ rèn hiện tại */}
-                  {structure.activeOrder ? (
+                  {liveStructure.activeOrder ? (
                     <div className="p-3 rounded bg-black/[0.04] border border-[#8c6b44]/25 space-y-2">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <Flame size={16} className="text-[#dc2626] animate-pulse" />
                           <span className="font-bold text-[#8c2d19] text-sm">
-                            Đang đúc: {structure.activeOrder.name}
+                            Đang đúc: {liveStructure.activeOrder.name}
                           </span>
                         </div>
                         <span className="font-mono font-bold text-xs bg-red-100 text-red-800 px-2 py-0.5 rounded">
-                          {structure.activeOrder.quantity} món
+                          {liveStructure.activeOrder.quantity} món
                         </span>
                       </div>
 
@@ -388,7 +381,7 @@ export const StructureDetailModal: React.FC<StructureDetailModalProps> = ({
                         <div className="flex justify-between text-[11px] text-[#5c3e23]">
                           <span>Tiến độ đúc:</span>
                           <span className="font-mono font-bold">
-                            Còn {structure.activeOrder.remainingDays}/{structure.activeOrder.totalDays} ngày
+                            Còn {liveStructure.activeOrder.remainingDays}/{liveStructure.activeOrder.totalDays} ngày
                           </span>
                         </div>
                         {/* Thanh mực tiến độ */}
@@ -396,7 +389,7 @@ export const StructureDetailModal: React.FC<StructureDetailModalProps> = ({
                           <div 
                             className="h-full bg-gradient-to-r from-amber-600 to-red-600 transition-all duration-300"
                             style={{
-                              width: `${Math.round(((structure.activeOrder.totalDays - structure.activeOrder.remainingDays) / structure.activeOrder.totalDays) * 100)}%`
+                              width: `${Math.round(((liveStructure.activeOrder.totalDays - liveStructure.activeOrder.remainingDays) / liveStructure.activeOrder.totalDays) * 100)}%`
                             }}
                           />
                         </div>
@@ -405,7 +398,7 @@ export const StructureDetailModal: React.FC<StructureDetailModalProps> = ({
                       <div className="flex justify-between items-center text-[11px] text-[#5c3e23] pt-1">
                         <span>Thợ rèn tham gia:</span>
                         <span className="font-bold text-[#261304]">
-                          {structure.activeOrder.assignedSmiths} thợ rèn
+                          {liveStructure.activeOrder.assignedSmiths} thợ rèn
                         </span>
                       </div>
 
@@ -438,12 +431,12 @@ export const StructureDetailModal: React.FC<StructureDetailModalProps> = ({
                   {/* Hàng chờ các mẻ rèn tiếp theo */}
                   <div className="space-y-1.5 pt-1">
                     <span className="font-bold text-xs text-[#5c3e23] uppercase tracking-wider">
-                      Hàng Chờ Đúc ({structure.forgeQueue?.length || 0})
+                      Hàng Chờ Đúc ({liveStructure.forgeQueue?.length || 0})
                     </span>
 
-                    {structure.forgeQueue && structure.forgeQueue.length > 0 ? (
+                    {liveStructure.forgeQueue && liveStructure.forgeQueue.length > 0 ? (
                       <div className="space-y-1">
-                        {structure.forgeQueue.map((item, idx) => (
+                        {liveStructure.forgeQueue.map((item, idx) => (
                           <div key={item.id} className="p-2 rounded bg-black/[0.03] border border-[#8c6b44]/20 flex items-center justify-between">
                             <div>
                               <span className="font-bold text-[#261304]">
@@ -453,9 +446,10 @@ export const StructureDetailModal: React.FC<StructureDetailModalProps> = ({
                                 {item.quantity} món • Cần {item.totalDays} ngày
                               </div>
                             </div>
-                            <span className="font-mono text-xs font-bold text-[#8c2d19]">
-                              {item.goldCost} Vàng
-                            </span>
+                            <div className="flex items-center gap-1 font-mono text-xs font-bold text-[#8c2d19]">
+                                <img src="/icons/gold.png" alt="Vàng" className="w-3.5 h-3.5 object-contain inline-block" />
+                                <span>{item.goldCost}</span>
+                              </div>
                           </div>
                         ))}
                       </div>
@@ -480,7 +474,7 @@ export const StructureDetailModal: React.FC<StructureDetailModalProps> = ({
                           key={w.type}
                           type="button"
                           onClick={() => setSelectedWeaponType(w.type)}
-                          className={`relative group p-2 min-h-[46px] rounded flex items-start gap-2 transition cursor-pointer overflow-hidden ${
+                          className={`relative group px-3.5 py-2 min-h-[40px] rounded flex items-center justify-between transition cursor-pointer overflow-hidden ${
                             isSel
                               ? 'shadow-sm'
                               : 'bg-black/[0.03] border border-[#8c6b44]/25 hover:bg-black/[0.06]'
@@ -493,18 +487,20 @@ export const StructureDetailModal: React.FC<StructureDetailModalProps> = ({
                               className="absolute inset-0 w-full h-full object-fill pointer-events-none opacity-90"
                             />
                           )}
-                          <img 
-                            src={w.icon} 
-                            alt={w.name} 
-                            className={`w-6 h-6 object-contain shrink-0 mt-0.5 relative z-10 ${isSel ? 'brightness-125 filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]' : ''}`} 
-                          />
-                          <div className="min-w-0 relative z-10 text-left">
-                            <div className={`font-serif font-bold text-xs truncate ${isSel ? 'text-[#fcf4e4] drop-shadow-[0_1px_1px_rgba(0,0,0,0.9)]' : 'text-[#261304]'}`}>
-                              {w.name}
-                            </div>
-                            <div className={`text-[10px] font-bold ${isSel ? 'text-[#f6d289]' : 'text-[#8c2d19]'}`}>
-                              {w.cost} Vàng/món
-                            </div>
+                          <span className={`font-serif font-bold text-sm relative z-10 ${
+                            isSel ? 'text-[#fcf4e4] drop-shadow-[0_1px_1px_rgba(0,0,0,0.9)]' : 'text-[#261304]'
+                          }`}>
+                            {w.name}
+                          </span>
+                          <div className={`flex items-center gap-1 relative z-10 font-mono font-bold text-xs ${
+                            isSel ? 'text-[#f6d289]' : 'text-[#8c2d19]'
+                          }`}>
+                            <img 
+                              src="/icons/gold.png" 
+                              alt="Vàng" 
+                              className="w-3.5 h-3.5 object-contain inline-block" 
+                            />
+                            <span>{w.cost}</span>
                           </div>
                         </button>
                       );
@@ -575,8 +571,9 @@ export const StructureDetailModal: React.FC<StructureDetailModalProps> = ({
                   {/* Tóm tắt chi phí & thời gian */}
                   <div className="flex justify-between items-center px-1 text-xs">
                     <div>
-                      <span className="text-[#5c3e23]">Cần Vàng: </span>
-                      <span className="font-mono font-bold text-[#8c2d19]">{totalGoldCost} Vàng</span>
+                      <span className="text-[#5c3e23]">Cần: </span>
+                      <img src="/icons/gold.png" alt="Vàng" className="w-3.5 h-3.5 object-contain inline-block mx-0.5" />
+                      <span className="font-mono font-bold text-[#8c2d19]">{totalGoldCost}</span>
                       <span className="text-[#704d2e] text-[10px]"> (Có {Math.floor(resources.gold)})</span>
                     </div>
                     <div>
@@ -598,9 +595,8 @@ export const StructureDetailModal: React.FC<StructureDetailModalProps> = ({
                       className="absolute inset-0 w-full h-full object-fill pointer-events-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.35)] group-hover:brightness-110 transition-all"
                     />
                     <span className="relative z-10 font-serif font-bold text-sm text-[#fcf4e4] flex items-center justify-center gap-2 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
-                      <Hammer size={16} />
                       <span>
-                        {structure.activeOrder ? 'Xếp Thêm Vào Hàng Chờ' : 'Bắt Đầu Nổi Lửa Rèn'}
+                        {liveStructure.activeOrder ? 'Xếp Thêm Vào Hàng Chờ' : 'Bắt Đầu Nổi Lửa Rèn'}
                       </span>
                     </span>
                   </button>

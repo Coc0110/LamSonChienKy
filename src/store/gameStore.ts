@@ -6,7 +6,8 @@ import type {
   Connection,
   General,
   RecruitmentEventNotice,
-  StructureType,
+  MilitaryNotice,
+    StructureType,
   WeaponCraftType,
   ForgeOrder,
   PlacedStructure,
@@ -74,6 +75,7 @@ interface GameState {
   generals: General[];
   structures: PlacedStructure[];
   recruitmentNotice: RecruitmentEventNotice | null;
+  militaryNotices: MilitaryNotice[];
 
   // Chỉ số cảnh giác của giặc Minh (0 - 100%)
   suspicion: number;
@@ -85,6 +87,9 @@ interface GameState {
   assignGeneralToCity: (generalId: string, cityId: string) => void;
   unlockGeneralManual: (generalId: string) => void;
   dismissRecruitmentNotice: () => void;
+  addMilitaryNotice: (notice: Omit<MilitaryNotice, 'id' | 'read' | 'timestamp'>) => void;
+  markNoticesAsRead: () => void;
+  clearMilitaryNotices: () => void;
 
   // Quản lý Thao Luyện
   startTraining: (cityId: string, generalId: string, traineesCount: number, swappedCount: number, totalDays: number) => void;
@@ -142,6 +147,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   generals: INITIAL_GENERALS,
   structures: INITIAL_STRUCTURES,
   recruitmentNotice: null,
+  militaryNotices: [],
   suspicion: 15,          // Mức nghi ngờ ban đầu của quan quân giặc Minh (15%)
 
   togglePause: () => set((state) => ({ isPaused: !state.isPaused })),
@@ -177,6 +183,24 @@ export const useGameStore = create<GameState>((set, get) => ({
   })),
 
   dismissRecruitmentNotice: () => set({ recruitmentNotice: null }),
+
+  addMilitaryNotice: (notice) => set((state) => ({
+    militaryNotices: [
+      {
+        ...notice,
+        id: `notice_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        read: false,
+        timestamp: Date.now(),
+      },
+      ...state.militaryNotices,
+    ].slice(0, 100),
+  })),
+
+  markNoticesAsRead: () => set((state) => ({
+    militaryNotices: state.militaryNotices.map((n) => ({ ...n, read: true })),
+  })),
+
+  clearMilitaryNotices: () => set({ militaryNotices: [] }),
 
   // Bắt đầu đợt thao luyện
   startTraining: (cityId, generalId, traineesCount, swappedCount, totalDays) => set((state) => {
@@ -674,9 +698,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       return { success: false, message: 'Lò rèn chưa sẵn sàng!' };
     }
 
-    if (structure.activeOrder) {
-      return { success: false, message: 'Lò rèn đang đỏ lửa mẻ đúc khác, chưa thể nhận đơn mới!' };
-    }
+    // Cho phép xếp vào hàng chờ forgeQueue
 
     const city = get().cities.find(c => c.id === structure.cityId);
     if (!city || !city.population) {
@@ -872,80 +894,54 @@ export const useGameStore = create<GameState>((set, get) => ({
       }
     }
 
-    let finishedNotice: RecruitmentEventNotice | null = null;
-    let seasonalFoodHarvested = 0;
-    let totalWeaponsProduced = 0;
-    let totalPopulation = 0;
-    let suspicionGain = 0;
+    const newNotices: MilitaryNotice[] = [];
 
+    // 1. Cập nhật tiến độ thao luyện võ nghệ & tính tổng dân số
     let citiesChanged = false;
-    let structuresChanged = false;
-
-    // 1. Cập nhật các Cứ điểm Lam Sơn & Nhân khẩu
+    let totalPopulation = 0;
     const updatedCities = state.cities.map(city => {
-      if (city.faction !== 'lam_son' || !city.population) return city;
+      if (!city.population) return city;
 
-      const pop = city.population;
+      totalPopulation += (city.population.combatTroops || 0) +
+        (city.population.idleLaborers || 0) +
+        (city.population.farmLaborers || 0) +
+        (city.population.forgeLaborers || 0) +
+        (city.population.swappedCombatants || 0) +
+        (city.population.unfitPopulation || 0);
 
-      // Đếm tổng nhân khẩu cứ điểm để tính ăn uống
-      const cityTotalPop =
-        pop.combatTroops +
-        pop.idleLaborers +
-        pop.farmLaborers +
-        pop.forgeLaborers +
-        pop.unfitPopulation;
-      totalPopulation += cityTotalPop;
-
-      if (!city.training) {
-        return city;
-      }
-
-      citiesChanged = true;
-      let nextPop = { ...pop };
-      let training: CityNode['training'] = { ...city.training };
-      let cityTroops = city.troops;
-
-      // Xử lý đợt thao luyện
-      const isMountainOrForest = city.type === 'camp' || city.type === 'chokepoint';
-      const noiseFactor = isMountainOrForest ? 0.3 : 1.0;
-      suspicionGain += training.traineesCount * 0.01 * noiseFactor;
-      training.remainingDays -= 1;
-
-      if (training.remainingDays <= 0) {
-        // Thao luyện hoàn tất: Tráng phu tốt nghiệp thành Nghĩa Binh!
-        const newGraduates = training.traineesCount;
-        const coachGeneralId = training.generalId;
-        nextPop.combatTroops += newGraduates;
-        cityTroops += newGraduates;
-
-        // Trả lại số nghĩa binh thế chỗ về quân ngũ
-        if (nextPop.swappedCombatants > 0) {
-          nextPop.farmLaborers += Math.floor(nextPop.swappedCombatants * 0.7);
-          nextPop.forgeLaborers += Math.ceil(nextPop.swappedCombatants * 0.3);
-          nextPop.swappedCombatants = 0;
+      if (city.training) {
+        citiesChanged = true;
+        const newRemaining = city.training.remainingDays - 1;
+        if (newRemaining <= 0) {
+          return {
+            ...city,
+            population: {
+              ...city.population,
+              combatTroops: city.population.combatTroops + city.training.traineesCount,
+              swappedCombatants: Math.max(0, city.population.swappedCombatants - city.training.swappedCount),
+            },
+            troops: city.troops + city.training.traineesCount,
+            training: undefined,
+          };
+        } else {
+          return {
+            ...city,
+            training: {
+              ...city.training,
+              remainingDays: newRemaining,
+            },
+          };
         }
-
-        const coachGeneral = state.generals.find(g => g.id === coachGeneralId);
-        finishedNotice = {
-          id: `train_done_${Date.now()}`,
-          title: 'Thao Luyện Nghĩa Binh Hoàn Tất!',
-          dateStr: `Ngày ${newDay}/${newMonth}/${newYear}`,
-          description: `${coachGeneral ? coachGeneral.name : 'Vị tướng'} đã rèn đúc thành công ${newGraduates} tráng đinh trở thành Nghĩa Binh dũng cảm, sẵn sàng cầm gươm giáo vì đại nghĩa!`,
-          generalIds: coachGeneral ? [coachGeneral.id] : [],
-        };
-
-        training = null;
       }
-
-      return {
-        ...city,
-        troops: cityTroops,
-        population: nextPop,
-        training,
-      };
+      return city;
     });
 
-    // 2. Xử lý Tiến độ Công trình (Ruộng lúa & Lò rèn)
+    // 2. Cập nhật tiến độ đồn điền & lò rèn theo ngày
+    let structuresChanged = false;
+    let seasonalFoodHarvested = 0;
+    let totalWeaponsProduced = 0;
+    let suspicionGain = 0;
+
     const updatedStructures = state.structures.map(structure => {
       // Thi công xây dựng công trình mới
       if (structure.status === 'building') {
@@ -978,17 +974,17 @@ export const useGameStore = create<GameState>((set, get) => ({
             };
           }
 
-          if (!finishedNotice) {
-            finishedNotice = {
-              id: `build_done_${Date.now()}_${s.id}`,
-              title: s.type === 'farm' ? 'Đồn Điền Khai Hoang Hoàn Tất!' : 'Lò Rèn Binh Khí Đã Dựng Xong!',
-              dateStr: `Ngày ${newDay}/${newMonth}/${newYear}`,
-              description: s.type === 'farm'
-                ? `Khu ruộng [${s.name}] đã khai hoang xong trên vùng bãi bồi, sẵn sàng đón nông đinh vào cày cấy vụ lúa!`
-                : `Lò rèn [${s.name}] đã dựng xong bễ đúc và đe búa, sẵn sàng nhận lệnh rèn vũ khí!`,
-              generalIds: [],
-            };
-          }
+          newNotices.push({
+            id: `build_${Date.now()}_${s.id}_${Math.random().toString(36).substring(2, 6)}`,
+            type: 'build',
+            title: s.type === 'farm' ? 'Đồn Điền Khai Hoang Hoàn Tất' : 'Lò Rèn Binh Khí Đã Dựng Xong',
+            dateStr: `Ngày ${newDay}/${newMonth}/${newYear}`,
+            description: s.type === 'farm'
+              ? `Khu ruộng [${s.name}] đã khai hoang xong trên bãi bồi, sẵn sàng đón nông đinh vào cày cấy!`
+              : `Lò rèn [${s.name}] đã dựng xong bễ đúc và đe búa, sẵn sàng nhận lệnh rèn đúc!`,
+            read: false,
+            timestamp: Date.now(),
+          });
         }
         return s;
       }
@@ -1000,7 +996,6 @@ export const useGameStore = create<GameState>((set, get) => ({
           const s = { ...structure, cropDays: structure.cropDays + 1 };
           if (s.cropDays >= s.cropCycleDays) {
             // MÙA THU HOẠCH LƯƠNG THỰC!
-            // Năng suất theo mốc ruộng: 5x5: 0.22/người (~297L), 6x6: 0.24/người (~648L), 7x7: 0.26/người (~1,170L)
             const efficiency = s.gridSize === 7 ? 0.26 : s.gridSize === 6 ? 0.24 : 0.22;
             const weatherMult = s.seasonCondition === 'bountiful' ? 1.25 : s.seasonCondition === 'poor' ? 0.70 : 1.0;
             const baseFood = Math.round(s.assignedWorkers * 90 * efficiency * weatherMult);
@@ -1013,18 +1008,19 @@ export const useGameStore = create<GameState>((set, get) => ({
 
             seasonalFoodHarvested += yieldFood;
             s.cropDays = 0;
-            s.seasonCondition = Math.random() < 0.25 ? 'bountiful' : Math.random() < 0.20 ? 'poor' : 'normal';
+            const condText = s.seasonCondition === 'bountiful' ? 'Được mùa (+25%)' : s.seasonCondition === 'poor' ? 'Mất mùa (-30%)' : 'Mưa thuận gió hòa';
 
-            if (!finishedNotice) {
-              const condText = s.seasonCondition === 'bountiful' ? 'Được mùa (+25%)' : s.seasonCondition === 'poor' ? 'Mất mùa (-30%)' : 'Mưa thuận gió hòa';
-              finishedNotice = {
-                id: `harvest_${Date.now()}_${s.id}`,
-                title: '🌾 Vụ Mùa Gặt Lương Thảo!',
-                dateStr: `Ngày ${newDay}/${newMonth}/${newYear}`,
-                description: `Đồn điền [${s.name}] đã gặt xong (${condText})! Thuế: ${taxAmount.toLocaleString()} thạch (${taxRate * 100}%). Thực thu nhập kho: ${yieldFood.toLocaleString()} thạch thóc!`,
-                generalIds: [],
-              };
-            }
+            newNotices.push({
+              id: `harvest_${Date.now()}_${s.id}_${Math.random().toString(36).substring(2, 6)}`,
+              type: 'harvest',
+              title: 'Vụ Mùa Gặt Lương Thảo',
+              dateStr: `Ngày ${newDay}/${newMonth}/${newYear}`,
+              description: `Đồn điền [${s.name}] đã gặt xong (${condText})! Thuế: ${taxAmount.toLocaleString()} thạch (${taxRate * 100}%). Thực thu nhập kho: ${yieldFood.toLocaleString()} thạch thóc!`,
+              read: false,
+              timestamp: Date.now(),
+            });
+
+            s.seasonCondition = Math.random() < 0.25 ? 'bountiful' : Math.random() < 0.20 ? 'poor' : 'normal';
           }
           return s;
         }
@@ -1062,15 +1058,16 @@ export const useGameStore = create<GameState>((set, get) => ({
             };
           }
 
-          if (!finishedNotice) {
-            finishedNotice = {
-              id: `craft_done_${Date.now()}_${s.id}`,
-              title: '⚒️ Hoàn Tất Mẻ Rèn Khí Giới!',
-              dateStr: `Ngày ${newDay}/${newMonth}/${newYear}`,
-              description: `Lò rèn [${s.name}] đã hoàn tất đúc ${order.quantity} ${order.name}. Vũ khí đã được nhập kho, sẵn sàng trang bị xung trận!`,
-              generalIds: [],
-            };
-          }
+          newNotices.push({
+            id: `forge_${Date.now()}_${s.id}_${Math.random().toString(36).substring(2, 6)}`,
+            type: 'forge',
+            title: 'Hoàn Tất Mẻ Rèn Khí Giới',
+            weaponType: order.weaponType,
+            dateStr: `Ngày ${newDay}/${newMonth}/${newYear}`,
+            description: `Lò rèn [${s.name}] đã hoàn tất đúc ${order.quantity} ${order.name}. Khí giới đã nhập kho bí mật!`,
+            read: false,
+            timestamp: Date.now(),
+          });
 
           if (s.forgeQueue && s.forgeQueue.length > 0) {
             const [nextOrder, ...remainingQueue] = s.forgeQueue;
@@ -1113,8 +1110,8 @@ export const useGameStore = create<GameState>((set, get) => ({
     );
 
     let updatedGenerals = state.generals;
-    let newNotice = finishedNotice || state.recruitmentNotice;
-    let shouldPause = finishedNotice ? true : false;
+    let newNotice = state.recruitmentNotice;
+    let shouldPause = false;
     let bonusTroops = 0;
     let bonusElephants = 0;
 
@@ -1142,6 +1139,16 @@ export const useGameStore = create<GameState>((set, get) => ({
         generalIds: newlyJoined.map(g => g.id),
       };
       shouldPause = true;
+
+      newNotices.push({
+        id: `general_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        type: 'general',
+        title: 'Danh Tướng Tụ Nghĩa',
+        dateStr: `Ngày ${newDay}/${newMonth}/${newYear}`,
+        description: `Danh tướng ${generalNames} đã quy tụ về cờ nghĩa Lam Sơn!`,
+        read: false,
+        timestamp: Date.now(),
+      });
     }
 
     return {
@@ -1161,6 +1168,9 @@ export const useGameStore = create<GameState>((set, get) => ({
       structures: structuresChanged ? updatedStructures : state.structures,
       generals: updatedGenerals,
       recruitmentNotice: newNotice,
+      militaryNotices: newNotices.length > 0
+        ? [...newNotices, ...state.militaryNotices].slice(0, 100)
+        : state.militaryNotices,
       suspicion: newSuspicion,
     };
   })

@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import {
-  X,
-  Scroll,
+  X
 } from 'lucide-react';
 import { useGameStore } from '../../store/gameStore';
 import { useUIStore } from '../../store/uiStore';
@@ -25,6 +24,9 @@ export const LeftPanel: React.FC = () => {
   const cities = useGameStore(state => state.cities);
   const generals = useGameStore(state => state.generals);
   const resources = useGameStore(state => state.resources);
+  const militaryNotices = useGameStore(state => state.militaryNotices);
+  const markNoticesAsRead = useGameStore(state => state.markNoticesAsRead);
+  const clearMilitaryNotices = useGameStore(state => state.clearMilitaryNotices);
 
   const startTraining = useGameStore(state => state.startTraining);
   const cancelTraining = useGameStore(state => state.cancelTraining);
@@ -32,7 +34,8 @@ export const LeftPanel: React.FC = () => {
 
   const isListOpen = useUIStore(state => state.isMilitaryBookOpen);
   const setIsListOpen = useUIStore(state => state.setMilitaryBookOpen);
-  const [listTab, setListTab] = useState<'bases' | 'districts'>('bases');
+  const [listTab, setListTab] = useState<'bases' | 'districts' | 'notices'>('bases');
+  const unreadNoticesCount = useMemo(() => (militaryNotices || []).filter(n => !n.read).length, [militaryNotices]);
   const isBuildPaperOpen = useUIStore(state => state.isBuildPaperOpen);
   const setIsBuildPaperOpen = useUIStore(state => state.setBuildPaperOpen);
 
@@ -79,7 +82,7 @@ export const LeftPanel: React.FC = () => {
           {/* Header tờ giấy Quân Thư: Thuần chữ trên giấy, không viền nhân tạo */}
           <div className="relative z-10 px-7 pt-6 pb-2 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Scroll size={18} className="text-[#8c2d19]" />
+              <img src="/icons/scroll.png" alt="Quân Thư" className="w-5 h-5 object-contain filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.45)]" />
               <h2 className="font-serif font-bold text-[#261304] text-lg tracking-wide">
                 Quân Cơ Bản Đồ
               </h2>
@@ -97,7 +100,7 @@ export const LeftPanel: React.FC = () => {
           <div className="relative z-10 flex border-b border-[#8c6b44]/25 px-7">
             <button
               onClick={() => setListTab('bases')}
-              className={`pb-2 text-xs font-serif font-bold transition cursor-pointer mr-6 ${
+              className={`pb-2 text-xs font-serif font-bold transition cursor-pointer mr-4 ${
                 listTab === 'bases' 
                   ? 'text-[#8c2d19] border-b-2 border-[#8c2d19]' 
                   : 'text-[#6b4a2e] hover:text-[#2d1e13]'
@@ -107,13 +110,35 @@ export const LeftPanel: React.FC = () => {
             </button>
             <button
               onClick={() => setListTab('districts')}
-              className={`pb-2 text-xs font-serif font-bold transition cursor-pointer ${
+              className={`pb-2 text-xs font-serif font-bold transition cursor-pointer mr-4 ${
                 listTab === 'districts' 
                   ? 'text-[#8c2d19] border-b-2 border-[#8c2d19]' 
                   : 'text-[#6b4a2e] hover:text-[#2d1e13]'
               }`}
             >
               Địa Hạt ({defaultDistricts.length})
+            </button>
+            <button
+              onClick={() => {
+                setListTab('notices');
+                markNoticesAsRead();
+              }}
+              className={`pb-2 text-xs font-serif font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                listTab === 'notices' 
+                  ? 'text-[#8c2d19] border-b-2 border-[#8c2d19]' 
+                  : 'text-[#6b4a2e] hover:text-[#2d1e13]'
+              }`}
+            >
+              <span>Tin Báo</span>
+              {unreadNoticesCount > 0 ? (
+                <span className="px-1.5 py-0.2 rounded-full bg-[#8c1d18] text-[#fff5ea] text-[10px] font-mono font-black animate-pulse">
+                  {unreadNoticesCount}
+                </span>
+              ) : (
+                <span className="text-[10px] font-mono text-[#8c6b44]">
+                  ({militaryNotices.length})
+                </span>
+              )}
             </button>
           </div>
 
@@ -159,7 +184,7 @@ export const LeftPanel: React.FC = () => {
                     </button>
                   );
                 })
-            ) : (
+            ) : listTab === 'districts' ? (
               defaultDistricts.map(d => {
                 const hasLamSon = cities.some(c => (c.districtId === d.id || c.id === d.id) && c.faction === 'lam_son' && c.troops > 0);
                 const hasMing = cities.some(c => (c.districtId === d.id || c.id === d.id) && c.faction === 'ming' && c.troops > 0);
@@ -192,6 +217,113 @@ export const LeftPanel: React.FC = () => {
                   </button>
                 );
               })
+            ) : (
+              /* TAB 3: TIN BÁO QUÂN SỰ (MÙA VỤ, LÒ RÈN, CÔNG TRÌNH) */
+              <div className="space-y-2">
+                {militaryNotices.length > 0 && (
+                  <div className="flex items-center justify-between pb-1.5 border-b border-[#8c6b44]/20 text-[11px] font-serif">
+                    <span className="text-[#704d2e]">Tổng cộng {militaryNotices.length} tin tức quân cơ</span>
+                    <button
+                      onClick={clearMilitaryNotices}
+                      className="text-[#8c2d19] hover:underline cursor-pointer font-bold"
+                    >
+                      Dọn sạch tin
+                    </button>
+                  </div>
+                )}
+
+                {militaryNotices.length === 0 ? (
+                  <div className="text-center py-10 text-[#785934] font-serif text-sm">
+                    <p className="italic">Bờ cõi thanh bình, quân tình yên ả.</p>
+                    <p className="text-xs text-[#a07e5c] mt-1">Chưa có tin tức vụ thu lương thảo hay rèn khí giới mới.</p>
+                  </div>
+                ) : (
+                  militaryNotices.map((notice) => {
+                    const cleanTitle = notice.title.replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '').trim();
+
+                    let noticeIconNode = null;
+                    if (notice.type === 'harvest') {
+                      noticeIconNode = (
+                        <img 
+                          src="/icons/rice_basket.png" 
+                          alt="Vại lúa" 
+                          className="w-6 h-6 object-contain mix-blend-multiply shrink-0 filter drop-shadow-[0_1px_1px_rgba(0,0,0,0.25)]" 
+                        />
+                      );
+                    } else if (notice.type === 'forge') {
+                      let weaponIcon = '/icons/weapon_sword.png';
+                      if (notice.weaponType === 'bow' || notice.weaponType === 'crossbow' || notice.description.includes('Cung') || notice.description.includes('Nỏ')) {
+                        weaponIcon = '/icons/weapon_bow.png';
+                      } else if (notice.weaponType === 'spear' || notice.description.includes('Giáo')) {
+                        weaponIcon = '/icons/weapon_spear.png';
+                      } else if (notice.weaponType === 'armor' || notice.description.includes('Giáp')) {
+                        weaponIcon = '/icons/weapon_armor.png';
+                      }
+                      noticeIconNode = (
+                        <img 
+                          src={weaponIcon} 
+                          alt="Vũ khí rèn" 
+                          className="w-5 h-5 object-contain shrink-0 filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]" 
+                        />
+                      );
+                    } else if (notice.type === 'general') {
+                      noticeIconNode = (
+                        <img 
+                          src="/icons/scroll.png" 
+                          alt="Tướng tụ nghĩa" 
+                          className="w-5 h-5 object-contain shrink-0 filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]" 
+                        />
+                      );
+                    } else {
+                      noticeIconNode = (
+                        <img 
+                          src="/icons/structure_camp.png" 
+                          alt="Công trình" 
+                          className="w-5 h-5 object-contain shrink-0 filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]" 
+                        />
+                      );
+                    }
+
+                    const typeBadgeText = notice.type === 'harvest'
+                      ? 'Thu hoạch vụ mùa'
+                      : notice.type === 'forge'
+                        ? 'Lò rèn hoàn tất'
+                        : notice.type === 'general'
+                          ? 'Tướng tụ nghĩa'
+                          : 'Công trình khai hoang';
+
+                    return (
+                      <div 
+                        key={notice.id}
+                        className="p-2.5 rounded bg-black/[0.03] hover:bg-black/[0.06] border border-[#8c6b44]/15 transition flex flex-col gap-1 text-left"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            {noticeIconNode}
+                            <span className="font-serif font-bold text-sm text-[#261304] leading-tight">
+                              {cleanTitle}
+                            </span>
+                          </div>
+                          <span className="text-[10px] font-mono text-[#8c6b44] shrink-0 font-bold">
+                            {notice.dateStr}
+                          </span>
+                        </div>
+
+                        <p className="font-serif text-xs text-[#4a2e18] leading-relaxed pl-7">
+                          {notice.description}
+                        </p>
+
+                        <div className="pl-7 pt-0.5 flex items-center justify-between text-[10px] font-serif text-[#8c6b44]">
+                          <span className="italic">{typeBadgeText}</span>
+                          {!notice.read && (
+                            <span className="text-[#8c2d19] font-bold">Mới</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
             )}
           </div>
         </div>

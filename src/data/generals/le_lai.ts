@@ -30,7 +30,7 @@ export const le_lai: General = {
   stats: {
     command: 88,   // Thống Lĩnh (1 - 100)
     martial: 92,   // Võ Nghệ   (1 - 100)
-    intellect: 78, // Mưu Lược  (1 - 100)
+    intellect: 84, // Mưu Lược  (1 - 100)
   },
 
   // --- 3. BINH CHỦNG & ĐẶC KỸ CHIẾN TRẬN ---
