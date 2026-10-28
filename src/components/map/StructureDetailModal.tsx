@@ -447,7 +447,7 @@ export const StructureDetailModal: React.FC<StructureDetailModalProps> = ({
                               </div>
                             </div>
                             <div className="flex items-center gap-1 font-mono text-xs font-bold text-[#8c2d19]">
-                                <img src="/icons/gold.png" alt="Vàng" className="w-3.5 h-3.5 object-contain inline-block" />
+                                <img src="/icons/gold.png" alt="Vàng" className="w-5 h-5 object-contain inline-block filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]" />
                                 <span>{item.goldCost}</span>
                               </div>
                           </div>
@@ -474,33 +474,42 @@ export const StructureDetailModal: React.FC<StructureDetailModalProps> = ({
                           key={w.type}
                           type="button"
                           onClick={() => setSelectedWeaponType(w.type)}
-                          className={`relative group px-3.5 py-2 min-h-[40px] rounded flex items-center justify-between transition cursor-pointer overflow-hidden ${
-                            isSel
-                              ? 'shadow-sm'
-                              : 'bg-black/[0.03] border border-[#8c6b44]/25 hover:bg-black/[0.06]'
+                          className={`relative group px-4 py-2 min-h-[38px] flex items-center justify-between transition-transform hover:scale-[1.02] active:scale-98 cursor-pointer rounded ${
+                            isSel ? '' : 'border border-[#8c6b44]/20 hover:border-[#8c6b44]/40 hover:bg-black/[0.03]'
                           }`}
                         >
+                          {/* Khi được chọn: Vết mực thư pháp thật sự làm nền */}
                           {isSel && (
                             <img
                               src="/ink_stroke_1.png"
                               alt="Vệt mực chọn"
-                              className="absolute inset-0 w-full h-full object-fill pointer-events-none opacity-90"
+                              className="absolute inset-0 w-full h-full object-fill pointer-events-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.35)]"
                             />
                           )}
-                          <span className={`font-serif font-bold text-sm relative z-10 ${
-                            isSel ? 'text-[#fcf4e4] drop-shadow-[0_1px_1px_rgba(0,0,0,0.9)]' : 'text-[#261304]'
+
+                          {/* Tên vũ khí */}
+                          <span className={`font-serif font-black text-sm relative z-10 tracking-wide transition-colors ${
+                            isSel ? 'text-[#fff5ea] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]' : 'text-[#261304]'
                           }`}>
                             {w.name}
                           </span>
-                          <div className={`flex items-center gap-1 relative z-10 font-mono font-bold text-xs ${
-                            isSel ? 'text-[#f6d289]' : 'text-[#8c2d19]'
+
+                          {/* Icon Vàng & Số lượng vàng: Đổi sang gold_light.png màu vàng kim sáng rực trên nền mực đen */}
+                          <div className={`flex items-center gap-1.5 relative z-10 font-mono font-bold text-sm transition-colors ${
+                            isSel ? 'text-[#ffea9f]' : 'text-[#8c2d19]'
                           }`}>
                             <img 
-                              src="/icons/gold.png" 
+                              src={isSel ? "/icons/gold_light.png" : "/icons/gold.png"} 
                               alt="Vàng" 
-                              className="w-3.5 h-3.5 object-contain inline-block" 
+                              className={`w-5 h-5 object-contain inline-block ${
+                                isSel 
+                                  ? 'filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]' 
+                                  : 'filter drop-shadow-[0_1px_1px_rgba(0,0,0,0.35)]'
+                              }`}
                             />
-                            <span>{w.cost}</span>
+                            <span className={isSel ? 'drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]' : ''}>
+                              {w.cost}
+                            </span>
                           </div>
                         </button>
                       );
@@ -572,7 +581,7 @@ export const StructureDetailModal: React.FC<StructureDetailModalProps> = ({
                   <div className="flex justify-between items-center px-1 text-xs">
                     <div>
                       <span className="text-[#5c3e23]">Cần: </span>
-                      <img src="/icons/gold.png" alt="Vàng" className="w-3.5 h-3.5 object-contain inline-block mx-0.5" />
+                      <img src="/icons/gold.png" alt="Vàng" className="w-5 h-5 object-contain inline-block mx-0.5 filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]" />
                       <span className="font-mono font-bold text-[#8c2d19]">{totalGoldCost}</span>
                       <span className="text-[#704d2e] text-[10px]"> (Có {Math.floor(resources.gold)})</span>
                     </div>

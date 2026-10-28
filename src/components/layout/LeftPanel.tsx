@@ -247,7 +247,7 @@ export const LeftPanel: React.FC = () => {
                         <img 
                           src="/icons/rice_basket.png" 
                           alt="Vại lúa" 
-                          className="w-6 h-6 object-contain mix-blend-multiply shrink-0 filter drop-shadow-[0_1px_1px_rgba(0,0,0,0.25)]" 
+                          className="w-9 h-9 object-contain shrink-0 filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]" 
                         />
                       );
                     } else if (notice.type === 'forge') {
