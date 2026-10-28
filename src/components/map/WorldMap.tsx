@@ -157,6 +157,21 @@ export const WorldMap: React.FC = () => {
 
     const { x, y } = latLngToPercent(latlng);
     const latestState = useGameStore.getState();
+    // Xác định chuẩn xác gridSize và farmTier
+    let gridSize = currentPlacement.gridSize;
+    let farmTier = currentPlacement.farmTier;
+
+    if (currentPlacement.relocateStructureId) {
+      const relocating = latestState.structures.find(s => s.id === currentPlacement.relocateStructureId);
+      if (relocating) {
+        gridSize = gridSize || relocating.gridSize || (relocating.type === 'forge' ? 3 : (relocating.maxWorkers === 50 ? 7 : relocating.maxWorkers === 30 ? 6 : 5));
+        farmTier = farmTier || (relocating.type === 'farm' ? (relocating.maxWorkers as 15 | 30 | 50) : undefined);
+      }
+    } else {
+      gridSize = gridSize || (currentPlacement.type === 'forge' ? 3 : (currentPlacement.farmTier === 50 ? 7 : currentPlacement.farmTier === 30 ? 6 : 5));
+      farmTier = farmTier || (currentPlacement.type === 'farm' ? (gridSize === 7 ? 50 : gridSize === 6 ? 30 : 15) : undefined);
+    }
+
     const validation = validateCellPlacement(
       x,
       y,
@@ -164,7 +179,8 @@ export const WorldMap: React.FC = () => {
       currentPlacement.cityId,
       latestState.cities,
       latestState.structures,
-      currentPlacement.relocateStructureId
+      currentPlacement.relocateStructureId,
+      gridSize
     );
 
     if (!validation.canBuild) {
@@ -187,7 +203,9 @@ export const WorldMap: React.FC = () => {
         currentPlacement.cityId,
         currentPlacement.type,
         validation.snappedX,
-        validation.snappedY
+        validation.snappedY,
+        gridSize,
+        farmTier
       );
       if (res.success) {
         setPlacementMode(null);
@@ -1394,6 +1412,8 @@ export const WorldMap: React.FC = () => {
             setPlacementMode({
               type: s.type,
               cityId: s.cityId,
+              gridSize: s.gridSize || (s.type === 'forge' ? 3 : (s.maxWorkers === 50 ? 7 : s.maxWorkers === 30 ? 6 : 5)),
+              farmTier: s.type === 'farm' ? (s.maxWorkers as 15 | 30 | 50) : undefined,
               relocateStructureId: s.id,
             });
           }}
@@ -1496,13 +1516,18 @@ export const WorldMap: React.FC = () => {
             const { x, y } = latLngToPercent(latlng);
 
             const latestState = useGameStore.getState();
+            const gridSize = data.gridSize || (data.type === 'forge' ? 3 : (data.farmTier === 50 ? 7 : data.farmTier === 30 ? 6 : 5));
+            const farmTier = data.farmTier || (data.type === 'farm' ? (gridSize === 7 ? 50 : gridSize === 6 ? 30 : 15) : undefined);
+
             const validation = validateCellPlacement(
               x,
               y,
               data.type,
               data.cityId,
               latestState.cities,
-              latestState.structures
+              latestState.structures,
+              undefined,
+              gridSize
             );
 
             if (!validation.canBuild) {
@@ -1510,7 +1535,7 @@ export const WorldMap: React.FC = () => {
               return;
             }
 
-            const res = placeStructure(data.cityId, data.type, validation.snappedX, validation.snappedY);
+            const res = placeStructure(data.cityId, data.type, validation.snappedX, validation.snappedY, gridSize, farmTier);
             alert(res.message);
           } catch {
             // ignore

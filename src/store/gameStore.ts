@@ -22,7 +22,7 @@ import {
 } from '../data/mapData';
 import { INITIAL_GENERALS } from '../data/generalsData';
 import { TERRAIN_DEFINITIONS } from '../data/terrainData';
-import { getGridTerrainAt, validateCellPlacement, validateBaseRelocate } from '../data/terrainGrid';
+import { validateCellPlacement, validateBaseRelocate } from '../data/terrainGrid';
 
 const COORDS_STORAGE_KEY = 'lam_son_coords_v3_districts';
 
@@ -393,7 +393,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     };
   },
 
-  // 1.1 DI DỜI CƠ QUAN / CÔNG TRÌNH SANG VỊ TRÍ MỚI
+  // 1.1 DI DỜI CƠ QUAN / CÔNG TRÌNH SANG VỊ TRÍ MỚI (THEO TẤM LƯỚI Ô ĐỊA HÌNH KHÔNG TRÙNG LẤN)
   relocateStructure: (structureId, newX, newY) => {
     const structure = get().structures.find(s => s.id === structureId);
     if (!structure) {
@@ -405,37 +405,44 @@ export const useGameStore = create<GameState>((set, get) => ({
       return { success: false, message: 'Không tìm thấy căn cứ sở tại!' };
     }
 
-    // Kiểm tra cự ly bảo hộ 14 dặm
+    // 1. Kiểm tra cự ly bảo hộ 14 dặm tới căn cứ quản hạt
     const dist = Math.hypot(city.x - newX, city.y - newY);
     if (dist > 14.0) {
       return { success: false, message: `Vị trí mới quá xa căn cứ ${city.name} (${dist.toFixed(1)} > 14 dặm)!` };
     }
 
-    // Kiểm tra khoảng cách với các công trình khác
-    for (const s of get().structures) {
-      if (s.id === structureId) continue;
-      if (Math.hypot(s.x - newX, s.y - newY) < 1.5) {
-        return { success: false, message: `Vị trí quá gần [${s.name}] (cần cách ít nhất 1.5 dặm)!` };
-      }
+    // 2. Xác định kích thước ô lưới của công trình cần di dời
+    const gridSize = structure.gridSize || (structure.type === 'forge' ? 3 : (structure.maxWorkers === 50 ? 7 : structure.maxWorkers === 30 ? 6 : 5));
+
+    // 3. Kiểm tra tính hợp lệ trên lưới địa hình (không đè lấn công trình/cứ điểm khác, đúng địa hình)
+    const val = validateCellPlacement(
+      newX,
+      newY,
+      structure.type,
+      structure.cityId,
+      get().cities,
+      get().structures,
+      structureId, // Bỏ qua chính nó khi kiểm tra va chạm ô lưới
+      gridSize
+    );
+
+    if (!val.canBuild) {
+      return { success: false, message: val.reason || 'Vị trí này không hợp lệ để di dời công trình!' };
     }
 
-    const terrain = getGridTerrainAt(newX, newY);
-    const terrainInfo = TERRAIN_DEFINITIONS[terrain];
-    if (structure.type === 'farm' && terrain !== 'plains') {
-      return { success: false, message: `Ruộng lúa nước chỉ có thể canh tác trên đất Đồng Bằng! Vị trí này là ${terrainInfo.name}.` };
-    }
-    if (structure.type === 'forge' && (terrain === 'water' || terrain === 'cliff')) {
-      return { success: false, message: 'Không thể di dời lò rèn vào vùng sông nước hoặc vách đá!' };
-    }
+    const terrainInfo = TERRAIN_DEFINITIONS[val.terrain] || { name: 'Đất' };
 
     set(state => ({
       structures: state.structures.map(s => {
         if (s.id !== structureId) return s;
         return {
           ...s,
-          x: newX,
-          y: newY,
-          terrain,
+          x: val.snappedX,
+          y: val.snappedY,
+          startCol: val.startCol,
+          startRow: val.startRow,
+          gridSize,
+          terrain: val.terrain,
         };
       }),
     }));

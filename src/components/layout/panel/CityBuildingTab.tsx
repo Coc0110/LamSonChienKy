@@ -411,7 +411,13 @@ export const CityBuildingTab: React.FC<CityBuildingTabProps> = ({
 
                 <div className="flex items-center gap-2 pt-1.5 border-t border-stone-800/80 justify-end">
                   <button
-                    onClick={() => setPlacementMode({ type: 'farm', cityId: city.id, relocateStructureId: farm.id })}
+                    onClick={() => setPlacementMode({
+                      type: 'farm',
+                      cityId: city.id,
+                      gridSize: farm.gridSize || (farm.maxWorkers === 50 ? 7 : farm.maxWorkers === 30 ? 6 : 5),
+                      farmTier: farm.maxWorkers as (15 | 30 | 50),
+                      relocateStructureId: farm.id
+                    })}
                     className="px-2 py-0.5 rounded bg-stone-800 hover:bg-amber-900/60 text-amber-300 text-[10px] font-bold border border-stone-700 hover:border-amber-600 transition flex items-center gap-1 cursor-pointer"
                     title="Di dời ruộng lúa sang ô đồng bằng khác"
                   >
@@ -502,7 +508,12 @@ export const CityBuildingTab: React.FC<CityBuildingTabProps> = ({
 
                 <div className="flex items-center gap-2 pt-1.5 border-t border-stone-800/80 justify-end">
                   <button
-                    onClick={() => setPlacementMode({ type: 'forge', cityId: city.id, relocateStructureId: forge.id })}
+                    onClick={() => setPlacementMode({
+                      type: 'forge',
+                      cityId: city.id,
+                      gridSize: forge.gridSize || 3,
+                      relocateStructureId: forge.id
+                    })}
                     className="px-2 py-0.5 rounded bg-stone-800 hover:bg-sky-900/60 text-sky-300 text-[10px] font-bold border border-stone-700 hover:border-sky-600 transition flex items-center gap-1 cursor-pointer"
                     title="Di dời lò rèn sang ô rừng/núi khác"
                   >
