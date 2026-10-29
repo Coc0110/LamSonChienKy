@@ -69,12 +69,10 @@ export const LeftPanel: React.FC = React.memo(() => {
       )}
 
       {/* 3. TỜ GIẤY CÔNG TRÌNH XÂY DỰNG */}
-      {activeLamSonBase && (
-        <BuildPaperPanel
-          activeLamSonBase={activeLamSonBase}
-          selectedCity={selectedCity || null}
-        />
-      )}
+      <BuildPaperPanel
+        activeLamSonBase={activeLamSonBase}
+        selectedCity={selectedCity || null}
+      />
 
       {/* 4. MODAL ĐIỀU CHỈNH DÂN SỐ & THAO LUYỆN NGHĨA BINH */}
       {isPopulationModalOpen && selectedCity && (

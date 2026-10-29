@@ -94,16 +94,18 @@ export const useUIStore = create<UIState>((set) => ({
   setActiveForgeModalStructureId: (id) => set({ activeForgeModalStructureId: id }),
   toggleMilitaryBook: () => set((state) => ({ isMilitaryBookOpen: !state.isMilitaryBookOpen })),
   setMilitaryBookOpen: (open) => set({ isMilitaryBookOpen: open }),
-  toggleBuildPaper: () => set((state) => ({
-    isBuildPaperOpen: !state.isBuildPaperOpen,
-    isMilitaryBookOpen: false,
-    selectedCityId: state.selectedCityId || 'lam_son',
-    selectionType: 'base',
-    showGrid: !state.isBuildPaperOpen ? true : state.showGrid,
-  })),
-  setBuildPaperOpen: (open) => set((state) => ({
+  toggleBuildPaper: () => set((state) => {
+    const nextOpen = !state.isBuildPaperOpen;
+    return {
+      isBuildPaperOpen: nextOpen,
+      showGrid: nextOpen,
+      ...(nextOpen ? {} : { placementMode: null, baseRelocateMode: null }),
+    };
+  }),
+  setBuildPaperOpen: (open) => set(() => ({
     isBuildPaperOpen: open,
-    ...(open ? { isMilitaryBookOpen: false, selectedCityId: state.selectedCityId || 'lam_son', selectionType: 'base', showGrid: true } : {})
+    showGrid: open,
+    ...(open ? {} : { placementMode: null, baseRelocateMode: null }),
   })),
   toggleDropdown: (dropdown) => set((state) => ({
     activeDropdown: state.activeDropdown === dropdown ? null : dropdown
