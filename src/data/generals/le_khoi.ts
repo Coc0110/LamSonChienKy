@@ -17,7 +17,7 @@ export const le_khoi: General = {
   id: 'le_khoi',
   name: 'Lê Khôi',
   hanzi: '黎魁',
-  portraitUrl: undefined,
+  portraitUrl: '/generals/le_khoi.png?v=1',
   title: 'CHIÊU TRƯNG VƯƠNG',
   epithet: 'Bàn Tay Thép Bắt Sống Hoàng Phúc',
   group: 'khoi_nghia_1418',

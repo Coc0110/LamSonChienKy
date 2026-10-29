@@ -149,6 +149,10 @@ export const GENERAL_PORTRAIT_CONFIG: Record<string, { scale?: number; x?: strin
   le_van_an: { scale: 1.0, x: '-20px', y: '25px' },
   bui_quoc_hung: { scale: 1.0, x: '-2px', y: '12px' },
   le_van_linh: { scale: 1.0, x: '0px', y: '15px' },
+  dinh_liet: { scale: 1.0, x: '-5px', y: '13px' },
+  tran_nguyen_han: { scale: 1.0, x: '0px', y: '33px' },
+  nguyen_chich: { scale: 1.0, x: '12px', y: '11px' },
+  le_khoi: { scale: 1.0, x: '15px', y: '15px' },
 };
 
 export const GENERAL_NAME_CONFIG: Record<string, {
@@ -159,14 +163,18 @@ export const GENERAL_NAME_CONFIG: Record<string, {
   x?: string;
   y?: string;
 }> = {
-  le_loi:       { left: '13%',  top: '27%',    x: '0px', y: '0px' },
-  le_lai:       { right: '14%', bottom: '17%', x: '0px', y: '0px' },
-  le_sat:       { left: '16%',  bottom: '23%', x: '0px', y: '0px' },
-  trinh_kha:    { right: '14%', bottom: '13%', x: '0px', y: '0px' },
-  le_than:      { right: '11%', top: '23%',    x: '0px', y: '0px' },
-  dinh_le:      { left: '14%',  bottom: '67%', x: '0px', y: '0px' },
-  luu_nhan_chu: { right: '58%', top: '24%',    x: '0px', y: '0px' },
-  le_van_an:    { right: '64%', top: '25%',    x: '0px', y: '0px' },
-  bui_quoc_hung:{ right: '59%', bottom: '61%', x: '0px', y: '0px' },
-  le_van_linh:  { right: '12%', top: '22%',    x: '0px', y: '0px' },
+  le_loi:          { left: '13%',  top: '27%',    x: '0px', y: '0px' },
+  le_lai:          { right: '14%', bottom: '17%', x: '0px', y: '0px' },
+  le_sat:          { left: '16%',  bottom: '23%', x: '0px', y: '0px' },
+  trinh_kha:       { right: '14%', bottom: '13%', x: '0px', y: '0px' },
+  le_than:         { right: '11%', top: '23%',    x: '0px', y: '0px' },
+  dinh_le:         { left: '14%',  bottom: '67%', x: '0px', y: '0px' },
+  luu_nhan_chu:    { right: '58%', top: '24%',    x: '0px', y: '0px' },
+  le_van_an:       { right: '64%', top: '25%',    x: '0px', y: '0px' },
+  bui_quoc_hung:   { right: '59%', bottom: '61%', x: '0px', y: '0px' },
+  le_van_linh:     { right: '12%', top: '22%',    x: '0px', y: '0px' },
+  dinh_liet:       { left: '53%',  top: '22%',    x: '0px', y: '0px' },
+  tran_nguyen_han: { left: '12%',  bottom: '63%', x: '0px', y: '0px' },
+  nguyen_chich:    { left: '12%',  bottom: '63%', x: '0px', y: '0px' },
+  le_khoi:         { right: '11%', bottom: '60%', x: '0px', y: '0px' },
 };

@@ -28,7 +28,7 @@ export const TopBar: React.FC = React.memo(() => {
   useEffect(() => {
     const handleOutsideClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
-      if (!target.closest('.topbar-dropdown-container')) {
+      if (!target.closest('.topbar-dropdown-container') && !target.closest('.topbar-paper-panel')) {
         setActiveDropdown(null);
       }
     };

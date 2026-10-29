@@ -17,7 +17,7 @@ export const tran_nguyen_han: General = {
   id: 'tran_nguyen_han',
   name: 'Trần Nguyên Hãn',
   hanzi: '陳元扞',
-  portraitUrl: undefined,
+  portraitUrl: '/generals/tran_nguyen_han.png?v=1',
   title: 'TẢ TƯỚNG QUỐC',
   epithet: 'Trung Liệt Vương / Thủy Lục Tịnh Tiến',
   group: 'quy_tu_1420_1426',

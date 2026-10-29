@@ -17,7 +17,7 @@ export const dinh_liet: General = {
   id: 'dinh_liet',
   name: 'Đinh Liệt',
   hanzi: '丁列',
-  portraitUrl: undefined,
+  portraitUrl: '/generals/dinh_liet.png?v=1',
   title: 'LÂN QUỐC CÔNG',
   epithet: 'Trường Thương Đinh Liệt',
   group: 'khoi_nghia_1418',

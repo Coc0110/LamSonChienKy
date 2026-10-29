@@ -17,7 +17,7 @@ export const nguyen_chich: General = {
   id: 'nguyen_chich',
   name: 'Nguyễn Chích',
   hanzi: '阮隻',
-  portraitUrl: undefined,
+  portraitUrl: '/generals/nguyen_chich.png?v=1',
   title: 'ĐÌNH THƯỢNG HẦU',
   epithet: 'Định Quốc Phá Địch - Hiến Kế Đánh Nghệ An',
   group: 'quy_tu_1420_1426',
