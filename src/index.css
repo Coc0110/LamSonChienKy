@@ -66,6 +66,12 @@
   --font-title: 'HanZiVH', Georgia, serif;
 }
 
+/* Chống trình duyệt tự ý đảo màu sang Dark Mode làm trắng chữ trên nền giấy vàng */
+:root {
+  color-scheme: light only;
+  supported-color-schemes: light;
+}
+
 /* Mặc định nền tảng mang phong cách thư pháp Hán tự cổ phong */
 html, body, #root {
   font-family: 'HanZiVH', Georgia, 'Times New Roman', serif;
