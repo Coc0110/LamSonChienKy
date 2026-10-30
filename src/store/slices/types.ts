@@ -36,6 +36,7 @@ export interface StructureSlice {
   relocateStructure: (structureId: string, newX: number, newY: number) => { success: boolean; message: string };
   demolishStructure: (structureId: string) => { success: boolean; message: string };
   assignFarmWorkers: (structureId: string, delta: number) => { success: boolean; message: string };
+  setFarmWorkers: (structureId: string, targetCount: number) => { success: boolean; message: string };
   startForgeOrder: (structureId: string, order: { weaponType: WeaponCraftType; quantity: number; smiths: number }) => { success: boolean; message: string };
   cancelForgeOrder: (structureId: string) => void;
   tradeFoodForGold: (foodAmount: number) => { success: boolean; message: string };

@@ -1,9 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import L from 'leaflet';
 import type { CityNode } from '../../../types';
 import type { DistrictInfo } from '../../../types/map';
-import { percentToLatLng, findDistrictForCoord } from '../../../utils/mapGeo';
-import { getCityGridSize, getCampGridSize, getEntityCellBounds } from '../../../data/terrainGrid';
+import { percentToLatLng } from '../../../utils/mapGeo';
+import { getCampGridSize, getCityGridSize, getEntityCellBounds } from '../../../data/terrainGrid';
 import { useUIStore } from '../../../store/uiStore';
 
 interface UseCityMarkersProps {
@@ -11,7 +11,7 @@ interface UseCityMarkersProps {
   nodesLayerRef: React.MutableRefObject<L.LayerGroup | null>;
   cities: CityNode[];
   districtsList: DistrictInfo[];
-  selectBase: (cityId: string) => void;
+  selectBase: (id: string | null) => void;
   handlePlacementAtRef: React.MutableRefObject<(latlng: L.LatLng) => void>;
 }
 
@@ -23,6 +23,13 @@ export const useCityMarkers = ({
   selectBase,
   handlePlacementAtRef,
 }: UseCityMarkersProps) => {
+  // Chỉ kích hoạt render lại các marker thành trì/căn cứ khi các thuộc tính hiển thị bản đồ thực sự thay đổi
+  const cityMarkersSignature = useMemo(() => {
+    return cities
+      .map(c => `${c.id}_${c.x}_${c.y}_${c.troops}_${c.faction}_${c.type}_${c.hasBase}_${c.startCol}_${c.startRow}`)
+      .join('|');
+  }, [cities]);
+
   useEffect(() => {
     if (!mapInstance) return;
     const layer = nodesLayerRef.current;
@@ -44,26 +51,17 @@ export const useCityMarkers = ({
 
       const iconUrl = isCity || troops >= 8000 ? '/icons/structure_city.png' : '/icons/structure_camp.png';
 
-      // Dùng L.imageOverlay để icon tự động phóng to / thu nhỏ theo ô lưới
+      // Sử dụng L.imageOverlay để icon tự động phóng to / thu nhỏ đồng bộ tuyệt đối với ô lưới
       const overlay = L.imageOverlay(iconUrl, imgBounds, {
         interactive: true,
         pane: 'structuresPane',
-        className: `city-grid-overlay cursor-pointer select-none transition-all ${
-          isLamSonBase ? 'filter drop-shadow-[0_0_8px_rgba(239,68,68,0.85)]' : 'filter drop-shadow-[0_0_8px_rgba(37,99,235,0.85)]'
-        }`,
+        className: 'city-grid-overlay cursor-pointer select-none transition-all hover:brightness-125 filter drop-shadow-[0_2px_4px_rgba(0,0,0,0.7)] hover:drop-shadow-[0_4px_8px_rgba(0,0,0,0.9)]',
       });
 
-      const matchedDistrict = findDistrictForCoord(bounds.centerX, bounds.centerY, districtsList);
-      const districtName = matchedDistrict?.name || city.name;
-      const hasTraining = !!(city.training && city.training.remainingDays > 0);
-
       overlay.bindTooltip(`
-        <div class="px-3 py-2 rounded shadow-xl font-serif text-xs whitespace-nowrap relative border border-[#8c6b44]/40 bg-[#fbf5e8] text-[#261304] drop-shadow-md">
-          <div class="font-bold text-sm ${isLamSonBase ? 'text-[#8c2d19]' : 'text-[#1d4ed8]'} pb-0.5 border-b border-[#8c6b44]/25">
-            ${isLamSonBase ? '★ Đại Bản Doanh' : isCity ? '◆ Thành Trì' : '▲ Doanh Trại'} ${city.name}
-          </div>
-          <div class="text-[11px] text-[#5c3e23] pt-1">Huyện ${districtName} • ${troops.toLocaleString()} quân</div>
-          ${hasTraining ? `<div class="text-[10px] text-[#8c2d19] font-bold mt-0.5">⚔️ Đang thao luyện ${city.training!.traineesCount} tráng phu (còn ${city.training!.remainingDays} ngày)</div>` : ''}
+        <div class="px-2 py-1 rounded bg-[#1e130c]/95 border border-amber-600/70 text-amber-100 text-xs font-serif font-bold shadow-lg whitespace-nowrap">
+          <div class="text-amber-300">${city.name}</div>
+          <div class="text-[10px] text-stone-300 font-sans">Quân số: ${troops.toLocaleString()} • Quy mô: ${gridSize}x${gridSize} ô</div>
         </div>
       `, {
         direction: 'top',
@@ -73,6 +71,7 @@ export const useCityMarkers = ({
 
       overlay.on('click', (e) => {
         L.DomEvent.stopPropagation(e);
+        // Nếu đang ở chế độ xây dựng hoặc di dời thì click vào căn cứ vẫn ưu tiên đặt công trình
         if (useUIStore.getState().placementMode || useUIStore.getState().baseRelocateMode) {
           handlePlacementAtRef.current(e.latlng);
           return;
@@ -104,5 +103,5 @@ export const useCityMarkers = ({
 
       badgeMarker.addTo(layer);
     });
-  }, [mapInstance, cities, selectBase, districtsList, nodesLayerRef, handlePlacementAtRef]);
+  }, [mapInstance, cityMarkersSignature, selectBase, districtsList, nodesLayerRef, handlePlacementAtRef]);
 };

@@ -27,7 +27,7 @@ export const ParchmentControls: React.FC<ParchmentControlsProps> = ({
   return (
     <div className="absolute bottom-5 left-5 z-[900] flex flex-wrap items-center gap-1.5 bg-[#1e130a]/90 border border-[#a87c4f]/70 rounded-lg p-1.5 shadow-2xl backdrop-blur-sm text-sm font-sans">
       <span className="px-2 py-1 text-[#ebd0a7] font-bold tracking-wider uppercase">
-        Sa bàn Thanh Hóa:
+        Bản đồ Da Cừu:
       </span>
       <button
         onClick={() => onChangeMode('cutout')}
@@ -37,7 +37,7 @@ export const ParchmentControls: React.FC<ParchmentControlsProps> = ({
             : 'text-[#c9a679] hover:bg-[#332010]'
         }`}
       >
-        Chỉ vùng Thanh Hóa
+        Cắt gọt Thanh - Nghệ
       </button>
       <button
         onClick={() => onChangeMode('sheet')}

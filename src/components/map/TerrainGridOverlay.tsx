@@ -246,7 +246,7 @@ export const TerrainGridOverlay: React.FC<TerrainGridOverlayProps> = ({ map }) =
         ctx.strokeRect(pTL.x, pTL.y, pBR.x - pTL.x, pBR.y - pTL.y);
       } else if (placementMode) {
         // Vẽ viền phạm vi công trình NxN ô
-        const size = placementMode.gridSize || (placementMode.type === 'forge' ? 3 : (placementMode.farmTier === 50 ? 7 : placementMode.farmTier === 30 ? 6 : 5));
+        const size = placementMode.gridSize || (placementMode.type === 'forge' ? 3 : (placementMode.farmTier === 50 ? 7 : placementMode.farmTier === 35 ? 6 : 5));
         const half = Math.floor(size / 2);
         const bStartCol = Math.max(0, Math.min(GRID_COLS - size, hoveredCell.col - half));
         const bEndCol = bStartCol + size - 1;

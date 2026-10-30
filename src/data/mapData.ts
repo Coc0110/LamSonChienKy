@@ -14,8 +14,8 @@ export const INITIAL_STRUCTURES: PlacedStructure[] = [
     buildDaysTotal: 12,
     buildDaysRemaining: 0,
     builderWorkers: 0,
-    assignedWorkers: 15,
-    maxWorkers: 15,
+    assignedWorkers: 25,
+    maxWorkers: 25,
     cropDays: 45, // Đang được nửa vụ mùa
     cropCycleDays: 90,
   },
@@ -31,8 +31,8 @@ export const INITIAL_STRUCTURES: PlacedStructure[] = [
     buildDaysTotal: 12,
     buildDaysRemaining: 0,
     builderWorkers: 0,
-    assignedWorkers: 15,
-    maxWorkers: 15,
+    assignedWorkers: 25,
+    maxWorkers: 25,
     cropDays: 30,
     cropCycleDays: 90,
   },
@@ -90,8 +90,8 @@ export const INITIAL_CITIES: CityNode[] = [
       hasBase: true,          // Căn cứ khởi phát đại nghiệp nghĩa quân Lam Sơn (có sẵn)
       population: {
         combatTroops: 50,       // 18 vị đầu lĩnh Lũng Nhai + 32 võ đinh bảo vệ gia trang
-        idleLaborers: 70,       // Tráng phu rảnh rỗi sẵn sàng thao luyện hoặc thi công
-        farmLaborers: 30,       // 30 nông đinh canh tác 2 khu ruộng đồn điền
+        idleLaborers: 50,       // Tráng phu rảnh rỗi sẵn sàng thao luyện hoặc thi công
+        farmLaborers: 50,       // 50 nông đinh canh tác 2 khu ruộng đồn điền (25 đinh/khu)
         forgeLaborers: 0,       // Lò rèn chờ lệnh rèn mới điều động thợ
         swappedCombatants: 0,   // Số nghĩa binh đang thế chỗ làm việc
         unfitPopulation: 60,    // Người già, phụ nữ, trẻ nhỏ nương nhờ

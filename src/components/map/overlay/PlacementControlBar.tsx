@@ -9,7 +9,7 @@ interface PlacementControlBarProps {
   structures: PlacedStructure[];
   onCancelBaseRelocate: () => void;
   onCancelPlacement: () => void;
-  onSetPlacementGridSize: (gridSize: number, farmTier?: 15 | 30 | 50) => void;
+  onSetPlacementGridSize: (gridSize: number, farmTier?: 25 | 35 | 50) => void;
 }
 
 export const PlacementControlBar: React.FC<PlacementControlBarProps> = React.memo(({
@@ -89,8 +89,8 @@ export const PlacementControlBar: React.FC<PlacementControlBarProps> = React.mem
               {isFarm && !isRelocating && (
                 <div className="flex items-center gap-1.5 ml-1">
                   {[
-                    { size: 5, workers: 15 as const, label: '5x5 (15 người)' },
-                    { size: 6, workers: 30 as const, label: '6x6 (30 người)' },
+                    { size: 5, workers: 25 as const, label: '5x5 (25 người)' },
+                    { size: 6, workers: 35 as const, label: '6x6 (35 người)' },
                     { size: 7, workers: 50 as const, label: '7x7 (50 người)' },
                   ].map(tier => {
                     const isSelected = (placementMode.gridSize || 5) === tier.size;

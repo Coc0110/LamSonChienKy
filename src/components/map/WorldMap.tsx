@@ -155,11 +155,11 @@ export const WorldMap: React.FC = React.memo(() => {
       const relocating = latestState.structures.find(s => s.id === currentPlacement.relocateStructureId);
       if (relocating) {
         gridSize = gridSize || relocating.gridSize || (relocating.type === 'forge' ? 3 : (relocating.maxWorkers === 50 ? 7 : relocating.maxWorkers === 30 ? 6 : 5));
-        farmTier = farmTier || (relocating.type === 'farm' ? (relocating.maxWorkers as 15 | 30 | 50) : undefined);
+        farmTier = farmTier || (relocating.type === 'farm' ? (relocating.maxWorkers as 25 | 35 | 50) : undefined);
       }
     } else {
-      gridSize = gridSize || (currentPlacement.type === 'forge' ? 3 : (currentPlacement.farmTier === 50 ? 7 : currentPlacement.farmTier === 30 ? 6 : 5));
-      farmTier = farmTier || (currentPlacement.type === 'farm' ? (gridSize === 7 ? 50 : gridSize === 6 ? 30 : 15) : undefined);
+      gridSize = gridSize || (currentPlacement.type === 'forge' ? 3 : (currentPlacement.farmTier === 50 ? 7 : currentPlacement.farmTier === 35 ? 6 : 5));
+      farmTier = farmTier || (currentPlacement.type === 'farm' ? (gridSize === 7 ? 50 : gridSize === 6 ? 35 : 25) : undefined);
     }
 
     const validation = validateCellPlacement(
@@ -341,7 +341,7 @@ export const WorldMap: React.FC = React.memo(() => {
     }).addTo(map);
 
     const thanhHoaBounds = L.latLngBounds(
-      percentToLatLng(36.0, 59.0),
+      percentToLatLng(36.0, 65.0),
       percentToLatLng(70.0, 38.0)
     );
 
@@ -556,7 +556,7 @@ export const WorldMap: React.FC = React.memo(() => {
               type: s.type,
               cityId: s.cityId,
               gridSize: s.gridSize || (s.type === 'forge' ? 3 : (s.maxWorkers === 50 ? 7 : s.maxWorkers === 30 ? 6 : 5)),
-              farmTier: s.type === 'farm' ? (s.maxWorkers as 15 | 30 | 50) : undefined,
+              farmTier: s.type === 'farm' ? (s.maxWorkers as 25 | 35 | 50) : undefined,
               relocateStructureId: s.id,
             });
           }}
@@ -640,8 +640,8 @@ export const WorldMap: React.FC = React.memo(() => {
             const { x, y } = latLngToPercent(latlng);
 
             const latestState = useGameStore.getState();
-            const gridSize = data.gridSize || (data.type === 'forge' ? 3 : (data.farmTier === 50 ? 7 : data.farmTier === 30 ? 6 : 5));
-            const farmTier = data.farmTier || (data.type === 'farm' ? (gridSize === 7 ? 50 : gridSize === 6 ? 30 : 15) : undefined);
+            const gridSize = data.gridSize || (data.type === 'forge' ? 3 : (data.farmTier === 50 ? 7 : data.farmTier === 35 ? 6 : 5));
+            const farmTier = data.farmTier || (data.type === 'farm' ? (gridSize === 7 ? 50 : gridSize === 6 ? 35 : 25) : undefined);
 
             const validation = validateCellPlacement(
               x,

@@ -2,7 +2,8 @@ import type { StateCreator } from 'zustand';
 import type { PlacedStructure, StructureType, WeaponCraftType, ForgeOrder } from '../../types';
 import { INITIAL_STRUCTURES } from '../../data/mapData';
 import { TERRAIN_DEFINITIONS } from '../../data/terrainData';
-import { validateCellPlacement } from '../../data/terrainGrid';
+import { validateCellPlacement, FARM_BASE_RADIUS_PCT } from '../../data/terrainGrid';
+import { MAP_COORD_W, MAP_COORD_H } from '../../utils/mapGeo';
 import type { StructureSlice, GameStore } from './types';
 
 export const createStructureSlice: StateCreator<GameStore, [], [], StructureSlice> = (set, get) => ({
@@ -15,8 +16,8 @@ export const createStructureSlice: StateCreator<GameStore, [], [], StructureSlic
       return { success: false, message: 'Không tìm thấy căn cứ sở tại!' };
     }
 
-    const gridSize = customGridSize || (type === 'forge' ? 3 : (customMaxWorkers === 50 ? 7 : customMaxWorkers === 30 ? 6 : 5));
-    const maxWorkers = type === 'farm' ? (customMaxWorkers || (gridSize === 7 ? 50 : gridSize === 6 ? 30 : 15)) : 15;
+    const gridSize = customGridSize || (type === 'forge' ? 3 : (customMaxWorkers === 50 ? 7 : customMaxWorkers === 35 ? 6 : 5));
+    const maxWorkers = type === 'farm' ? (customMaxWorkers || (gridSize === 7 ? 50 : gridSize === 6 ? 35 : 25)) : 15;
 
     // Kiểm tra hợp lệ vị trí theo khối ô lưới không trùng lấn
     const val = validateCellPlacement(x, y, type, cityId, get().cities, get().structures, undefined, gridSize);
@@ -123,10 +124,15 @@ export const createStructureSlice: StateCreator<GameStore, [], [], StructureSlic
       return { success: false, message: 'Không tìm thấy căn cứ sở tại!' };
     }
 
-    // 1. Kiểm tra cự ly bảo hộ 14 dặm tới căn cứ quản hạt
-    const dist = Math.hypot(city.x - newX, city.y - newY);
-    if (dist > 14.0) {
-      return { success: false, message: `Vị trí mới quá xa căn cứ ${city.name} (${dist.toFixed(1)} > 14 dặm)!` };
+    // 1. Kiểm tra cự ly bảo hộ tới căn cứ quản hạt đối với ruộng nương
+    if (structure.type === 'farm') {
+      const dLng = ((newX - city.x) / 100) * MAP_COORD_W;
+      const dLat = ((newY - city.y) / 100) * MAP_COORD_H;
+      const distUnits = Math.hypot(dLng, dLat);
+      const maxUnits = (FARM_BASE_RADIUS_PCT / 100) * MAP_COORD_W;
+      if (distUnits > maxUnits) {
+        return { success: false, message: `Vị trí mới quá xa căn cứ ${city.name} (vượt quá bán kính bảo hộ ${FARM_BASE_RADIUS_PCT}%)!` };
+      }
     }
 
     // 2. Xác định kích thước ô lưới của công trình cần di dời
@@ -266,6 +272,57 @@ export const createStructureSlice: StateCreator<GameStore, [], [], StructureSlic
     }));
 
     return { success: true, message: `Đã phân công ${target}/${structure.maxWorkers} tráng phu cày cấy ruộng.` };
+  },
+
+
+  // Điều chỉnh trực tiếp số lượng nông đinh qua thanh kéo thả
+  setFarmWorkers: (structureId, targetCount) => {
+    const structure = get().structures.find(s => s.id === structureId);
+    if (!structure || structure.type !== 'farm' || structure.status !== 'active') {
+      return { success: false, message: 'Đồn điền chưa sẵn sàng hoặc không tồn tại!' };
+    }
+
+    const city = get().cities.find(c => c.id === structure.cityId);
+    if (!city || !city.population) {
+      return { success: false, message: 'Không tìm thấy căn cứ sở tại!' };
+    }
+
+    const current = structure.assignedWorkers || 0;
+    const max = structure.maxWorkers || 25;
+    let desired = Math.max(0, Math.min(max, targetCount));
+    let diff = desired - current;
+
+    if (diff > 0) {
+      const available = city.population.idleLaborers;
+      if (available < diff) {
+        desired = current + available;
+        diff = available;
+      }
+    }
+
+    if (diff === 0) {
+      return { success: true, message: `Nông đinh: ${desired}/${max}` };
+    }
+
+    set(state => ({
+      cities: state.cities.map(c => {
+        if (c.id !== structure.cityId || !c.population) return c;
+        return {
+          ...c,
+          population: {
+            ...c.population,
+            idleLaborers: c.population.idleLaborers - diff,
+            farmLaborers: c.population.farmLaborers + diff,
+          }
+        };
+      }),
+      structures: state.structures.map(s => {
+        if (s.id !== structureId) return s;
+        return { ...s, assignedWorkers: desired };
+      }),
+    }));
+
+    return { success: true, message: `Đã điều động ${desired}/${max} nông đinh.` };
   },
 
   // Đặt mẻ rèn vũ khí tại lò rèn

@@ -28,6 +28,7 @@ export const GRID_ROWS = Math.ceil(100 / GRID_CELL_H_PCT); // 1052 hàng
 export const TOTAL_GRID_CELLS = GRID_COLS * GRID_ROWS; // 841,600 ô
 
 export const TERRAIN_STORAGE_KEY = 'lam_son_terrain_grid_custom_v2';
+export const FARM_BASE_RADIUS_PCT = 4.0;
 
 // Bảng mã hóa số nguyên cho từng loại địa hình để tối ưu bộ nhớ
 export const TERRAIN_CODES: Record<TerrainType, number> = {
@@ -462,6 +463,33 @@ export function validateCellPlacement(
         return {
           canBuild: false,
           reason: 'Không thể đặt ruộng đè lên đường ranh giới các huyện!',
+          terrain: centerTerrain,
+          snappedX: centerX,
+          snappedY: centerY,
+          col: startCol,
+          row: startRow,
+          startCol,
+          startRow,
+          endCol,
+          endRow,
+          gridSize: size,
+        };
+      }
+    }
+  }
+
+  // 6. Kiểm tra bán kính bảo hộ quanh căn cứ đối với ruộng nương
+  if (structureType === 'farm') {
+    const targetBase = cities.find(c => c.id === _targetCityId) || cities.find(c => c.faction === 'lam_son' && (c.hasBase || c.type === 'camp' || c.id === 'lam_son'));
+    if (targetBase) {
+      const dLng = ((centerX - targetBase.x) / 100) * MAP_COORD_W;
+      const dLat = ((centerY - targetBase.y) / 100) * MAP_COORD_H;
+      const distUnits = Math.hypot(dLng, dLat);
+      const maxUnits = (FARM_BASE_RADIUS_PCT / 100) * MAP_COORD_W;
+      if (distUnits > maxUnits) {
+        return {
+          canBuild: false,
+          reason: `Ruộng nương phải nằm trong phạm vi bảo hộ quanh căn cứ ${targetBase.name} (${FARM_BASE_RADIUS_PCT}% dặm)!`,
           terrain: centerTerrain,
           snappedX: centerX,
           snappedY: centerY,

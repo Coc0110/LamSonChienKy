@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import type { PlacedStructure, CityNode } from '../../../types';
 import { percentToLatLng } from '../../../utils/mapGeo';
@@ -23,13 +23,23 @@ export const useStructureMarkers = ({
   onSelectStructureMenu,
   handlePlacementAtRef,
 }: UseStructureMarkersProps) => {
+  // Lưu trữ instance overlay của từng công trình để tái sử dụng, tránh clearLayers() gây reload nhấp nháy hình ảnh
+  const overlaysRef = useRef<Map<string, { overlay: L.ImageOverlay; visualKey: string }>>(new Map());
+
+  // Giữ ref callback mới nhất để không tạo lại listener click không cần thiết
+  const callbacksRef = useRef({ onSelectStructureMenu, handlePlacementAtRef });
+  callbacksRef.current = { onSelectStructureMenu, handlePlacementAtRef };
+
   useEffect(() => {
     if (!mapInstance) return;
     const layer = structuresLayerRef.current;
     if (!layer) return;
-    layer.clearLayers();
+
+    const currentOverlayMap = overlaysRef.current;
+    const activeIds = new Set<string>();
 
     structures.forEach(structure => {
+      activeIds.add(structure.id);
       const isFarm = structure.type === 'farm';
       const isBuilding = structure.status === 'building';
       const order = structure.activeOrder;
@@ -42,14 +52,9 @@ export const useStructureMarkers = ({
 
       const iconUrl = isFarm ? '/icons/structure_farm.png' : '/icons/structure_forge.png';
 
-      // Dùng L.imageOverlay để icon tự động phóng to / thu nhỏ theo ô lưới
-      const overlay = L.imageOverlay(iconUrl, imgBounds, {
-        interactive: true,
-        pane: 'structuresPane',
-        className: `structure-grid-overlay cursor-pointer select-none transition-all ${
-          isBuilding ? 'opacity-70 animate-pulse' : ''
-        } ${order ? 'filter drop-shadow-[0_0_8px_rgba(239,68,68,0.9)]' : 'filter drop-shadow-[0_1px_3px_rgba(0,0,0,0.6)]'}`,
-      });
+      // visualKey chỉ thay đổi khi vị trí, kích thước, tiến độ thi công hoặc có mẻ rèn thay đổi
+      // KHÔNG phụ thuộc vào số lượng assignedWorkers khi kéo slider
+      const visualKey = `${structure.id}_${structure.x}_${structure.y}_${gridSize}_${structure.type}_${structure.status}_${Boolean(order)}_${structure.startCol}_${structure.startRow}`;
 
       const cleanName = cleanStructureName(structure.name);
       const isMing = cities.find(c => c.id === structure.cityId)?.faction === 'ming';
@@ -59,7 +64,7 @@ export const useStructureMarkers = ({
       const expectedYield = Math.max(0, Math.round((structure.assignedWorkers || 0) * 90 * efficiency * weatherMult * (1 - taxRate / 100)));
       const weatherText = structure.seasonCondition === 'bountiful' ? 'Được mùa +25%' : structure.seasonCondition === 'poor' ? 'Mất mùa -30%' : 'Bình thường';
 
-      overlay.bindTooltip(`
+      const tooltipHtml = `
         <div class="px-3 py-2 rounded shadow-xl font-serif text-xs whitespace-nowrap relative border border-[#8c6b44]/40 bg-[#fbf5e8] text-[#261304] drop-shadow-md">
           <div class="font-bold text-sm text-[#8c2d19] pb-0.5 border-b border-[#8c6b44]/25">
             ${cleanName}
@@ -76,22 +81,53 @@ export const useStructureMarkers = ({
             }
           </div>
         </div>
-      `, {
-        direction: 'top',
-        className: 'structure-tooltip-container',
-        sticky: true,
-      });
+      `;
 
-      overlay.on('click', (e) => {
-        L.DomEvent.stopPropagation(e);
-        if (useUIStore.getState().placementMode || useUIStore.getState().baseRelocateMode) {
-          handlePlacementAtRef.current(e.latlng);
-          return;
+      const existing = currentOverlayMap.get(structure.id);
+
+      if (existing && existing.visualKey === visualKey) {
+        // Cập nhật tooltip mà KHÔNG reload lại ảnh overlay
+        existing.overlay.setTooltipContent(tooltipHtml);
+      } else {
+        // Nếu đã có nhưng đổi vị trí/trạng thái thì gỡ bỏ cái cũ
+        if (existing) {
+          existing.overlay.remove();
         }
-        onSelectStructureMenu(structure);
-      });
 
-      overlay.addTo(layer);
+        const overlay = L.imageOverlay(iconUrl, imgBounds, {
+          interactive: true,
+          pane: 'structuresPane',
+          className: `structure-grid-overlay cursor-pointer select-none transition-all ${
+            isBuilding ? 'opacity-70 animate-pulse' : ''
+          } ${order ? 'filter drop-shadow-[0_0_8px_rgba(239,68,68,0.9)]' : 'filter drop-shadow-[0_1px_3px_rgba(0,0,0,0.6)]'}`,
+        });
+
+        overlay.bindTooltip(tooltipHtml, {
+          direction: 'top',
+          className: 'structure-tooltip-container',
+          sticky: true,
+        });
+
+        overlay.on('click', (e) => {
+          L.DomEvent.stopPropagation(e);
+          if (useUIStore.getState().placementMode || useUIStore.getState().baseRelocateMode) {
+            callbacksRef.current.handlePlacementAtRef.current(e.latlng);
+            return;
+          }
+          callbacksRef.current.onSelectStructureMenu(structure);
+        });
+
+        overlay.addTo(layer);
+        currentOverlayMap.set(structure.id, { overlay, visualKey });
+      }
     });
-  }, [mapInstance, structures, cities, structuresLayerRef, onSelectStructureMenu, handlePlacementAtRef]);
+
+    // Dọn dẹp các công trình đã bị phá dỡ
+    for (const [id, item] of currentOverlayMap.entries()) {
+      if (!activeIds.has(id)) {
+        item.overlay.remove();
+        currentOverlayMap.delete(id);
+      }
+    }
+  }, [mapInstance, structures, cities, structuresLayerRef]);
 };

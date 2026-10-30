@@ -10,7 +10,7 @@ export interface PlacementMode {
   type: StructureType;
   cityId: string;
   gridSize?: number;            // 3, 5, 6, 7
-  farmTier?: 15 | 30 | 50;      // 15 (5x5), 30 (6x6), 50 (7x7)
+  farmTier?: 25 | 35 | 50;      // 15 (5x5), 30 (6x6), 50 (7x7)
   relocateStructureId?: string; // ID của công trình đang di dời nếu có
 }
 

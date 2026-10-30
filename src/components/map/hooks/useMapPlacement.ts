@@ -8,6 +8,7 @@ import {
   validateCellPlacement,
   validateBaseRelocate,
   getCampGridSize,
+  FARM_BASE_RADIUS_PCT,
 } from '../../../data/terrainGrid';
 import { useGameStore } from '../../../store/gameStore';
 import type { PlacementMode, BaseRelocateMode } from '../../../store/uiStore';
@@ -47,28 +48,29 @@ export const useMapPlacement = ({
 
     if (!placementMode && !baseRelocateMode) return;
 
-    if (placementMode) {
+    if (placementMode && placementMode.type === 'farm') {
       const currentCities = useGameStore.getState().cities;
       const targetCity = currentCities.find(c => c.id === placementMode.cityId);
+      const basesToDraw = targetCity ? [targetCity] : currentCities.filter(c => c.faction === 'lam_son' && (c.hasBase || c.type === 'camp' || c.id === 'lam_son'));
 
-      // Vẽ vòng tròn bán kính 14 dặm bao bọc căn cứ
-      if (targetCity) {
-        const baseLatLng = percentToLatLng(targetCity.x, targetCity.y);
-        const radiusCRS = (14.0 / 100) * MAP_COORD_W;
+      // Vẽ vòng tròn giới hạn bán kính bảo hộ quanh căn cứ khi xây ruộng nương
+      basesToDraw.forEach(base => {
+        const baseLatLng = percentToLatLng(base.x, base.y);
+        const radiusCRS = (FARM_BASE_RADIUS_PCT / 100) * MAP_COORD_W;
 
         const controlCircle = L.circle(baseLatLng, {
           radius: radiusCRS,
-          color: '#f59e0b',
-          weight: 1.5,
+          color: '#10b981',
+          weight: 2,
           dashArray: '6, 6',
-          fillColor: '#f59e0b',
-          fillOpacity: 0.08,
+          fillColor: '#10b981',
+          fillOpacity: 0.12,
           pane: 'structuresPane',
           interactive: false,
         });
 
         controlCircle.addTo(controlLayer);
-      }
+      });
     }
 
     const handleMouseMove = (e: L.LeafletMouseEvent) => {
@@ -140,7 +142,7 @@ export const useMapPlacement = ({
 
       if (!placementMode) return;
 
-      const gridSize = placementMode.gridSize || (placementMode.type === 'forge' ? 3 : (placementMode.farmTier === 50 ? 7 : placementMode.farmTier === 30 ? 6 : 5));
+      const gridSize = placementMode.gridSize || (placementMode.type === 'forge' ? 3 : (placementMode.farmTier === 50 ? 7 : placementMode.farmTier === 35 ? 6 : 5));
       const isRelocating = Boolean(placementMode.relocateStructureId);
 
       const validation = validateCellPlacement(

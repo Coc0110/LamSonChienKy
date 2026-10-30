@@ -120,7 +120,7 @@ export const BuildPaperPanel: React.FC<BuildPaperPanelProps> = React.memo(({
                   setPlacementMode(null);
                 } else {
                   setBaseRelocateMode(null);
-                  setPlacementMode({ type: 'farm', cityId: baseId, gridSize: 5, farmTier: 15 });
+                  setPlacementMode({ type: 'farm', cityId: baseId, gridSize: 5, farmTier: 25 });
                 }
               }}
               className={`w-full flex items-center justify-between px-3 py-2.5 rounded transition-all cursor-pointer ${
@@ -147,8 +147,8 @@ export const BuildPaperPanel: React.FC<BuildPaperPanelProps> = React.memo(({
             {placementMode?.type === 'farm' && (
               <div className="grid grid-cols-3 gap-1 px-1 pt-0.5">
                 {[
-                  { size: 5, workers: 15, label: '5x5 (15 đinh)' },
-                  { size: 6, workers: 30, label: '6x6 (30 đinh)' },
+                  { size: 5, workers: 25, label: '5x5 (25 đinh)' },
+                  { size: 6, workers: 35, label: '6x6 (35 đinh)' },
                   { size: 7, workers: 50, label: '7x7 (50 đinh)' },
                 ].map(t => {
                   const isSel = (placementMode.gridSize || 5) === t.size;
