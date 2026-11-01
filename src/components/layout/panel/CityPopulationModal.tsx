@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Users, Swords, Clock, X, AlertCircle } from 'lucide-react';
+import { useGameStore } from '../../../store/gameStore';
 import type { CityNode, General } from '../../../types';
 import { TrainingSlider } from './TrainingSlider';
 
@@ -21,6 +22,9 @@ export const CityPopulationModal: React.FC<CityPopulationModalProps> = ({
   onClose,
 }) => {
   const [isSliderOpen, setIsSliderOpen] = useState(false);
+  const structures = useGameStore(state => state.structures);
+  const formations = useGameStore(state => state.formations);
+
   const pop = city.population || {
     combatTroops: city.troops,
     idleLaborers: 0,
@@ -30,15 +34,31 @@ export const CityPopulationModal: React.FC<CityPopulationModalProps> = ({
     unfitPopulation: 0,
   };
 
+  const formationTroops = useMemo(() => {
+    return formations
+      .filter(f => f.cityId === city.id)
+      .reduce((acc, f) => acc + (f.totalTroops || 0), 0);
+  }, [formations, city.id]);
+
+  const builderWorkers = useMemo(() => {
+    return structures
+      .filter(s => s.cityId === city.id && s.status === 'building')
+      .reduce((acc, s) => acc + (s.builderWorkers || 0), 0);
+  }, [structures, city.id]);
+
+  const training = city.training;
+  const trainingGeneral = training ? generals.find(g => g.id === training.generalId) : null;
+
   const totalPop =
     pop.combatTroops +
     pop.idleLaborers +
     pop.farmLaborers +
     pop.forgeLaborers +
-    pop.unfitPopulation;
-
-  const training = city.training;
-  const trainingGeneral = training ? generals.find(g => g.id === training.generalId) : null;
+    (pop.swappedCombatants || 0) +
+    pop.unfitPopulation +
+    (training?.traineesCount || 0) +
+    builderWorkers +
+    formationTroops;
 
   return (
     <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-3 pointer-events-auto">
@@ -77,9 +97,14 @@ export const CityPopulationModal: React.FC<CityPopulationModalProps> = ({
                 </span>
               </div>
               <div className="mt-1 text-2xl font-black text-amber-300">
-                {pop.combatTroops}{' '}
+                {pop.combatTroops + formationTroops}{' '}
                 <span className="text-xs font-normal text-stone-300">người</span>
               </div>
+              {formationTroops > 0 && (
+                <div className="text-[11px] text-stone-300 mt-0.5">
+                  • Dự bị: <b>{pop.combatTroops}</b> | Trong đội hình: <b>{formationTroops}</b>
+                </div>
+              )}
             </div>
 
             {pop.swappedCombatants > 0 && (
@@ -119,6 +144,12 @@ export const CityPopulationModal: React.FC<CityPopulationModalProps> = ({
                 </span>
                 <strong className="text-sky-300">{pop.forgeLaborers} người</strong>
               </div>
+              {builderWorkers > 0 && (
+                <div className="flex justify-between text-stone-300">
+                  <span>Đang thi công:</span>
+                  <strong className="text-orange-300">{builderWorkers} người</strong>
+                </div>
+              )}
               <div className="flex justify-between text-stone-400 pt-1 border-t border-[#4a2e18]">
                 <span>Phi chiến đấu (già, trẻ, gái):</span>
                 <span>{pop.unfitPopulation} người</span>

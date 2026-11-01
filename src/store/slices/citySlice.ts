@@ -152,9 +152,24 @@ export const createCitySlice: StateCreator<GameStore, [], [], CitySlice> = (set,
 
     const troopsMoving = target.troops;
     const targetPop = target.population;
+    const targetTraining = target.training;
 
     set(state => {
-      // 1. Hợp nhất quân số và dân cư vào căn cứ gần nhất
+      const takenFarmInTraining = targetTraining?.takenFromFarm || 0;
+      const takenForgeInTraining = targetTraining?.takenFromForge || 0;
+      const idleInTraining = targetTraining
+        ? Math.max(0, targetTraining.traineesCount - takenFarmInTraining - takenForgeInTraining)
+        : 0;
+
+      // Hoàn trả vũ khí nếu căn cứ bị giải thể đang có đợt thao luyện dở dang
+      const refundSwords = targetTraining?.weaponsUsed?.swords || 0;
+      const refundBows = targetTraining?.weaponsUsed?.bows || 0;
+      const refundSpears = targetTraining?.weaponsUsed?.spears || 0;
+      const nextSwords = state.resources.swords + refundSwords;
+      const nextBows = state.resources.bows + refundBows;
+      const nextSpears = state.resources.spears + refundSpears;
+
+      // 1. Hợp nhất quân số, dân cư và công trình vào căn cứ gần nhất
       const updatedCities = state.cities.map(c => {
         if (c.id === nearestBase.id) {
           const currentPop = c.population || {
@@ -170,11 +185,15 @@ export const createCitySlice: StateCreator<GameStore, [], [], CitySlice> = (set,
             troops: c.troops + troopsMoving,
             population: {
               combatTroops: currentPop.combatTroops + (targetPop?.combatTroops || troopsMoving) + (targetPop?.swappedCombatants || 0),
-              idleLaborers: currentPop.idleLaborers + (targetPop?.idleLaborers || 0) + (targetPop?.farmLaborers || 0) + (targetPop?.forgeLaborers || 0),
-              farmLaborers: currentPop.farmLaborers,
-              forgeLaborers: currentPop.forgeLaborers,
+              idleLaborers: currentPop.idleLaborers + (targetPop?.idleLaborers || 0) + idleInTraining,
+              farmLaborers: currentPop.farmLaborers + (targetPop?.farmLaborers || 0) + takenFarmInTraining,
+              forgeLaborers: currentPop.forgeLaborers + (targetPop?.forgeLaborers || 0) + takenForgeInTraining,
               swappedCombatants: currentPop.swappedCombatants,
               unfitPopulation: currentPop.unfitPopulation + (targetPop?.unfitPopulation || 0),
+            },
+            buildings: {
+              farms: (c.buildings?.farms || 0) + (target.buildings?.farms || 0),
+              forges: (c.buildings?.forges || 0) + (target.buildings?.forges || 0),
             },
           };
         }
@@ -208,10 +227,26 @@ export const createCitySlice: StateCreator<GameStore, [], [], CitySlice> = (set,
         return s;
       });
 
+      // 4. Chuyển các đạo quân đang đóng tại căn cứ bị giải thể về căn cứ gần nhất
+      const updatedFormations = state.formations.map(f => {
+        if (f.cityId === baseId) {
+          return { ...f, cityId: nearestBase.id };
+        }
+        return f;
+      });
+
       return {
+        resources: {
+          ...state.resources,
+          swords: nextSwords,
+          bows: nextBows,
+          spears: nextSpears,
+          weapons: nextSwords + nextBows + nextSpears,
+        },
         cities: updatedCities,
         generals: updatedGenerals,
         structures: updatedStructures,
+        formations: updatedFormations,
       };
     });
 

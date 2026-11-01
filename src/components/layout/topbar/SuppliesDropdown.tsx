@@ -5,6 +5,9 @@ import { useUIStore } from '../../../store/uiStore';
 
 export const SuppliesDropdown: React.FC = React.memo(() => {
   const weapons = useGameStore(state => state.resources.weapons);
+  const swords = useGameStore(state => state.resources.swords);
+  const bows = useGameStore(state => state.resources.bows);
+  const spears = useGameStore(state => state.resources.spears);
   const clothes = useGameStore(state => state.resources.clothes);
 
   const activeDropdown = useUIStore(state => state.activeDropdown);
@@ -37,10 +40,9 @@ export const SuppliesDropdown: React.FC = React.memo(() => {
     }
   }, [isOpen]);
 
-  // Phân bổ các loại vũ khí theo tỷ lệ kho
-  const swordCount = Math.floor(weapons * 0.35);
-  const bowCount = Math.floor(weapons * 0.25);
-  const spearCount = Math.max(0, Math.floor(weapons) - swordCount - bowCount);
+  const swordCount = Math.floor(swords);
+  const bowCount = Math.floor(bows);
+  const spearCount = Math.floor(spears);
 
   return (
     <div className="relative topbar-dropdown-container shrink-0 self-center">
@@ -107,7 +109,7 @@ export const SuppliesDropdown: React.FC = React.memo(() => {
               </span>
             </div>
 
-            {/* Danh sách 4 Khí Giới ngắn gọn: Kiếm, Cung, Giáo, Giáp */}
+            {/* Danh sách 4 Khí Giới thực tế trong kho: Kiếm, Cung, Giáo, Giáp */}
             <div className="space-y-1 text-xs text-[#2a1708]">
               {/* 1. Kiếm */}
               <div className="flex items-center justify-between py-0.5 px-1 rounded hover:bg-black/[0.04] transition">

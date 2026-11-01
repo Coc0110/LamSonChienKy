@@ -4,6 +4,9 @@ export interface Resources {
   elephants: number;
   food: number;
   weapons: number;
+  swords: number;
+  bows: number;
+  spears: number;
   clothes: number;
   gold: number;
   morale: number;
@@ -75,6 +78,13 @@ export interface TrainingSession {
   generalId: string;          // Vị tướng phụ trách thao luyện
   traineesCount: number;      // Tổng số tráng phu được đưa vào thao luyện
   swappedCount: number;       // Số nghĩa binh phải điều động thế chỗ làm việc
+  takenFromFarm?: number;     // Số nông đinh rút từ ruộng đi thao luyện
+  takenFromForge?: number;    // Số thợ rèn rút từ lò đi thao luyện
+  weaponsUsed?: {             // Số lượng từng loại vũ khí đã xuất kho cho đợt thao luyện
+    swords: number;
+    bows: number;
+    spears: number;
+  };
   totalDays: number;          // Tổng số ngày thao luyện
   remainingDays: number;      // Số ngày còn lại
 }
@@ -116,7 +126,7 @@ export interface General {
   epithet: string;        // Danh hiệu chiến trường
   group: GeneralGroup;
   stars: number;          // Số sao (1 - 5 sao)
-  starTier: StarTier;     // Bậc sao: 'silver' (Bạc) | 'gold' (Vàng) | 'red' (Đỏ)
+  starTier: StarTier;     // Bậc sao: 'silver' (Bạc) | 'gold' | 'red' (Đỏ)
   joinYear: number;
   joinMonth: number;
   joinDay: number;
@@ -161,3 +171,5 @@ export interface MilitaryNotice {
   read: boolean;
   timestamp: number;
 }
+
+export * from './armyFormation';

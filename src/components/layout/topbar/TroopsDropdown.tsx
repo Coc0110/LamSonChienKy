@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useGameStore } from '../../../store/gameStore';
 import { useUIStore } from '../../../store/uiStore';
@@ -7,6 +7,7 @@ export const TroopsDropdown: React.FC = React.memo(() => {
   const troops = useGameStore(state => state.resources.troops);
   const horses = useGameStore(state => state.resources.horses);
   const elephants = useGameStore(state => state.resources.elephants);
+  const formations = useGameStore(state => state.formations);
 
   const activeDropdown = useUIStore(state => state.activeDropdown);
   const toggleDropdown = useUIStore(state => state.toggleDropdown);
@@ -38,10 +39,48 @@ export const TroopsDropdown: React.FC = React.memo(() => {
     }
   }, [isOpen]);
 
-  // Phân bổ số lượng từng binh chủng
-  const swordTroops = Math.floor(troops * 0.45);
-  const bowTroops = Math.floor(troops * 0.25);
-  const spearTroops = Math.max(0, Math.floor(troops) - swordTroops - bowTroops);
+  // Thống kê thực tế quân số theo từng binh chủng từ các đạo quân + số quân dự bị tại các căn cứ
+  const breakdown = useMemo(() => {
+    let formSwords = 0;
+    let formBows = 0;
+    let formSpears = 0;
+    let formCavalry = 0;
+    let formElephants = 0;
+    let formOtherTroops = 0;
+
+    formations.forEach(f => {
+      const seen = new Set<string>();
+      f.grid.forEach(row => {
+        row.forEach(cell => {
+          if (cell && !seen.has(cell.parentUnitId)) {
+            seen.add(cell.parentUnitId);
+            const mult = cell.multiplier || 1;
+            if (cell.type === 'swordsman') formSwords += mult;
+            else if (cell.type === 'archer') formBows += mult;
+            else if (cell.type === 'spearman') formSpears += mult;
+            else if (cell.type === 'cavalry' || cell.type === 'scout') formCavalry += mult;
+            else if (cell.type === 'elephant') formElephants += mult;
+            else if (cell.type === 'supply_cart') formOtherTroops += mult;
+          }
+        });
+      });
+    });
+
+    const totalAssignedInFormations = formSwords + formBows + formSpears + formCavalry + formElephants + formOtherTroops;
+    const unassignedTroops = Math.max(0, Math.floor(troops) - totalAssignedInFormations);
+
+    const reserveSwords = Math.floor(unassignedTroops * 0.45);
+    const reserveBows = Math.floor(unassignedTroops * 0.25);
+    const reserveSpears = Math.max(0, unassignedTroops - reserveSwords - reserveBows);
+
+    return {
+      swordTroops: formSwords + reserveSwords,
+      bowTroops: formBows + reserveBows,
+      spearTroops: formSpears + reserveSpears + formOtherTroops,
+      cavalryTroops: formCavalry + Math.floor(horses),
+      elephantTroops: formElephants + Math.floor(elephants),
+    };
+  }, [formations, troops, horses, elephants]);
 
   return (
     <div className="relative topbar-dropdown-container shrink-0 self-center">
@@ -123,7 +162,7 @@ export const TroopsDropdown: React.FC = React.memo(() => {
                   </span>
                 </div>
                 <span className="font-serif font-black text-base text-[#8c2d19]">
-                  {swordTroops.toLocaleString()}
+                  {breakdown.swordTroops.toLocaleString()}
                 </span>
               </div>
 
@@ -140,7 +179,7 @@ export const TroopsDropdown: React.FC = React.memo(() => {
                   </span>
                 </div>
                 <span className="font-serif font-black text-base text-[#8c2d19]">
-                  {bowTroops.toLocaleString()}
+                  {breakdown.bowTroops.toLocaleString()}
                 </span>
               </div>
 
@@ -157,7 +196,7 @@ export const TroopsDropdown: React.FC = React.memo(() => {
                   </span>
                 </div>
                 <span className="font-serif font-black text-base text-[#8c2d19]">
-                  {spearTroops.toLocaleString()}
+                  {breakdown.spearTroops.toLocaleString()}
                 </span>
               </div>
 
@@ -174,7 +213,7 @@ export const TroopsDropdown: React.FC = React.memo(() => {
                   </span>
                 </div>
                 <span className="font-serif font-black text-base text-[#8c2d19]">
-                  {Math.floor(horses).toLocaleString()}
+                  {breakdown.cavalryTroops.toLocaleString()}
                 </span>
               </div>
 
@@ -191,7 +230,7 @@ export const TroopsDropdown: React.FC = React.memo(() => {
                   </span>
                 </div>
                 <span className="font-serif font-black text-base text-[#8c2d19]">
-                  {Math.floor(elephants).toLocaleString()}
+                  {breakdown.elephantTroops.toLocaleString()}
                 </span>
               </div>
             </div>

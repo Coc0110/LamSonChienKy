@@ -109,6 +109,9 @@ export const useStructureMarkers = ({
         });
 
         overlay.on('click', (e) => {
+          if (useUIStore.getState().marchDrawMode) {
+            return;
+          }
           L.DomEvent.stopPropagation(e);
           if (useUIStore.getState().placementMode || useUIStore.getState().baseRelocateMode) {
             callbacksRef.current.handlePlacementAtRef.current(e.latlng);

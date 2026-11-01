@@ -18,6 +18,12 @@ export interface BaseRelocateMode {
   baseId: string;
 }
 
+export interface MarchDrawMode {
+  formationId: string;
+  isDualRoute?: boolean;        // Chế độ vẽ lộ trình kép (Trá bại dụ địch: Tiến đánh -> Rút lui)
+  isEmergencyRetreat?: boolean; // Đang giao chiến bấm Trá Bại Rút Lui để vẽ đường tháo chạy ngay
+}
+
 interface UIState {
   activeModal: ModalType;
   isEditMode: boolean;
@@ -25,6 +31,8 @@ interface UIState {
   selectedCityId: string | null;
   placementMode: PlacementMode | null;
   baseRelocateMode: BaseRelocateMode | null;
+  marchDrawMode: MarchDrawMode | null;
+  selectedMapFormationId: string | null;
   activeForgeModalStructureId: string | null;
   isMilitaryBookOpen: boolean;
   isBuildPaperOpen: boolean;
@@ -45,6 +53,8 @@ interface UIState {
   selectDistrict: (districtId: string | null) => void;
   setPlacementMode: (mode: PlacementMode | null) => void;
   setBaseRelocateMode: (mode: BaseRelocateMode | null) => void;
+  setMarchDrawMode: (mode: MarchDrawMode | null) => void;
+  setSelectedMapFormationId: (id: string | null) => void;
   setActiveForgeModalStructureId: (id: string | null) => void;
   toggleMilitaryBook: () => void;
   setMilitaryBookOpen: (open: boolean) => void;
@@ -68,6 +78,8 @@ export const useUIStore = create<UIState>((set) => ({
   selectedCityId: 'lam_son',
   placementMode: null,
   baseRelocateMode: null,
+  marchDrawMode: null,
+  selectedMapFormationId: null,
   activeForgeModalStructureId: null,
   isMilitaryBookOpen: false,
   isBuildPaperOpen: false,
@@ -91,6 +103,19 @@ export const useUIStore = create<UIState>((set) => ({
   selectDistrict: (districtId) => set({ selectedCityId: districtId, selectionType: 'district' }),
   setPlacementMode: (mode) => set({ placementMode: mode }),
   setBaseRelocateMode: (mode) => set({ baseRelocateMode: mode }),
+  setMarchDrawMode: (mode) => set((state) => ({
+    marchDrawMode: mode,
+    selectedMapFormationId: mode ? mode.formationId : state.selectedMapFormationId,
+    showGrid: mode ? true : false,
+    ...(mode ? {
+      activeModal: null,
+      placementMode: null,
+      baseRelocateMode: null,
+      isMilitaryBookOpen: false,
+      isBuildPaperOpen: false,
+    } : {}),
+  })),
+  setSelectedMapFormationId: (id) => set({ selectedMapFormationId: id }),
   setActiveForgeModalStructureId: (id) => set({ activeForgeModalStructureId: id }),
   toggleMilitaryBook: () => set((state) => ({ isMilitaryBookOpen: !state.isMilitaryBookOpen })),
   setMilitaryBookOpen: (open) => set({ isMilitaryBookOpen: open }),

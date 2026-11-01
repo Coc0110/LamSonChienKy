@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Swords, AlertTriangle, Shield, Check, X } from 'lucide-react';
 import { notify } from '../../../store/dialogStore';
+import { calculateTrainingDays } from '../../../store/slices/militarySlice';
 import type { CityPopulation, General } from '../../../types';
 
 interface TrainingSliderProps {
@@ -42,13 +43,8 @@ export const TrainingSlider: React.FC<TrainingSliderProps> = ({
   const workingUsed = Math.max(0, trainCount - idleLaborers);
   const swappedCombatantsNeeded = workingUsed;
 
-  // Tính thời gian thao luyện dựa trên Thống Lĩnh và Võ Nghệ của tướng
-  // Thống lĩnh cao + võ nghệ cao => thao luyện nhanh hơn
-  const baseDays = 25;
-  const generalSkill = selectedCoach
-    ? (selectedCoach.stats.command * 0.6 + selectedCoach.stats.martial * 0.4)
-    : 75;
-  const trainingDays = Math.max(8, Math.round(baseDays - ((generalSkill - 70) * 0.35)));
+  // Tính thời gian thao luyện đồng bộ qua helper chuẩn
+  const trainingDays = calculateTrainingDays(selectedCoach);
 
   // Tính phần trăm các vùng trên thanh trượt
   const idlePercent = totalSliderMax > 0 ? (idleLaborers / totalSliderMax) * 100 : 0;
@@ -169,7 +165,7 @@ export const TrainingSlider: React.FC<TrainingSliderProps> = ({
           <div className="text-amber-300 flex items-start gap-1.5 font-sans">
             <AlertTriangle size={14} className="shrink-0 mt-0.5 text-amber-400" />
             <span>
-              Kéo lấn vào vùng Cam: Dùng <strong>{idleUsed}</strong> tráng phu nhàn rỗi và rút <strong>{workingUsed}</strong> tráng phu đang làm việc $\rightarrow$ Điều động <strong>{swappedCombatantsNeeded} Nghĩa Binh</strong> thế chỗ cày cấy/rèn đúc để duy trì sản xuất!
+              Kéo lấn vào vùng Cam: Dùng <strong>{idleUsed}</strong> tráng phu nhàn rỗi và rút <strong>{workingUsed}</strong> tráng phu đang làm việc → Điều động <strong>{swappedCombatantsNeeded} Nghĩa Binh</strong> thế chỗ cày cấy/rèn đúc để duy trì sản xuất!
             </span>
           </div>
         ) : (

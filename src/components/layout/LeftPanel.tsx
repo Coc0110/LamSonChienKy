@@ -12,6 +12,7 @@ export const LeftPanel: React.FC = React.memo(() => {
   const selectionType = useUIStore(state => state.selectionType);
   const selectCity = useUIStore(state => state.selectCity);
   const isListOpen = useUIStore(state => state.isMilitaryBookOpen);
+  const marchDrawMode = useUIStore(state => state.marchDrawMode);
 
   const cities = useGameStore(state => state.cities);
   const generals = useGameStore(state => state.generals);
@@ -37,6 +38,11 @@ export const LeftPanel: React.FC = React.memo(() => {
     () => (selectedCity && selectedCity.faction === 'lam_son') ? selectedCity : (lamSonBases[0] || cities.find(c => c.faction === 'lam_son')),
     [selectedCity, lamSonBases, cities]
   );
+
+  // Khi đang trong chế độ vẽ đường hành quân, ẩn hoàn toàn bảng thông tin tỉnh/căn cứ bên trái
+  if (marchDrawMode) {
+    return null;
+  }
 
   return (
     <>

@@ -1,6 +1,6 @@
 import type { TerrainType } from '../types/terrain';
-import type { StructureType, CityNode, PlacedStructure, TroopType } from '../types';
-import type { CellBuildValidation, GridPathResult } from '../types/grid';
+import type { StructureType, CityNode, PlacedStructure } from '../types';
+import type { CellBuildValidation } from '../types/grid';
 import { getTerrainAt, TERRAIN_DEFINITIONS } from './terrainData';
 import { MAP_COORD_W, MAP_COORD_H, pointInPolygon } from '../utils/mapGeo';
 import districtData from './districtPolygons.json';
@@ -208,13 +208,13 @@ export function getCityGridSize(troops: number): number {
   return 7;
 }
 
-// 3. Công trình: Lò rèn 3x3, Ruộng 5x5 (15 người), 6x6 (30 người), 7x7 (50 người)
+// 3. Công trình: Lò rèn 3x3, Ruộng 5x5 (25 người), 6x6 (35 người), 7x7 (50 người)
 export function getStructureGridSize(structure: { type: StructureType; gridSize?: number; maxWorkers?: number }): number {
   if (structure.type === 'forge') return 3;
   if (structure.type === 'farm') {
     if (structure.gridSize) return structure.gridSize;
     if (structure.maxWorkers === 50) return 7;
-    if (structure.maxWorkers === 30) return 6;
+    if (structure.maxWorkers === 35 || structure.maxWorkers === 30) return 6;
     return 5;
   }
   return 3;
@@ -653,198 +653,5 @@ export function validateBaseRelocate(
     endCol,
     endRow,
     gridSize: size,
-  };
-}
-
-// ============================================================================
-// THUẬT TOÁN A* TÌM ĐƯỜNG HÀNH QUÂN TRÊN TẤM LƯỚI Ô VUÔNG (A* PATHFINDING)
-// ============================================================================
-interface AStarNode {
-  col: number;
-  row: number;
-  g: number; // Chi phí từ điểm xuất phát đến ô này
-  h: number; // Dự đoán chi phí đến đích
-  f: number; // g + h
-  parent?: AStarNode;
-}
-
-export function findGridAStarPath(
-  startX: number,
-  startY: number,
-  targetX: number,
-  targetY: number,
-  troopType: TroopType = 'infantry'
-): GridPathResult {
-  const start = coordToCell(startX, startY);
-  const target = coordToCell(targetX, targetY);
-
-  if (start.col === target.col && start.row === target.row) {
-    const t = getGridTerrain(start.col, start.row);
-    return {
-      found: true,
-      path: [[start.centerX, start.centerY]],
-      cellPath: [{ col: start.col, row: start.row }],
-      totalCost: 1,
-      totalDistanceKm: 1,
-      terrainBreakdown: { plains: 0, forest: 0, mountain: 0, cliff: 0, swamp: 0, water: 0, [t]: 100 },
-    };
-  }
-
-  const openList: AStarNode[] = [];
-  const closedSet = new Set<number>();
-  const gScores = new Map<number, number>();
-
-  const startIdx = start.row * GRID_COLS + start.col;
-  const startNode: AStarNode = {
-    col: start.col,
-    row: start.row,
-    g: 0,
-    h: Math.hypot(start.col - target.col, start.row - target.row),
-    f: 0,
-  };
-  startNode.f = startNode.g + startNode.h;
-
-  openList.push(startNode);
-  gScores.set(startIdx, 0);
-
-  // 8 hướng di chuyển (ngang, dọc, chéo)
-  const DIRS = [
-    { dx: 1, dy: 0, dist: 1.0 },
-    { dx: -1, dy: 0, dist: 1.0 },
-    { dx: 0, dy: 1, dist: 1.0 },
-    { dx: 0, dy: -1, dist: 1.0 },
-    { dx: 1, dy: 1, dist: 1.414 },
-    { dx: -1, dy: 1, dist: 1.414 },
-    { dx: 1, dy: -1, dist: 1.414 },
-    { dx: -1, dy: -1, dist: 1.414 },
-  ];
-
-  let iterations = 0;
-  const MAX_ITERATIONS = 4000; // Giới hạn số bước tìm kiếm để đảm bảo 60fps mượt mà
-
-  while (openList.length > 0 && iterations < MAX_ITERATIONS) {
-    iterations++;
-
-    // Lấy node có f nhỏ nhất
-    let lowestIdx = 0;
-    for (let i = 1; i < openList.length; i++) {
-      if (openList[i].f < openList[lowestIdx].f) {
-        lowestIdx = i;
-      }
-    }
-    const current = openList.splice(lowestIdx, 1)[0];
-    const currIdx = current.row * GRID_COLS + current.col;
-
-    // Đã chạm đích
-    if (current.col === target.col && current.row === target.row) {
-      const cellPath: { col: number; row: number }[] = [];
-      const path: [number, number][] = [];
-      const terrainCounts: Record<TerrainType, number> = {
-        plains: 0,
-        forest: 0,
-        mountain: 0,
-        cliff: 0,
-        swamp: 0,
-        water: 0,
-      };
-
-      let curr: AStarNode | undefined = current;
-      while (curr) {
-        cellPath.unshift({ col: curr.col, row: curr.row });
-        const { centerX, centerY } = cellToCoord(curr.col, curr.row);
-        path.unshift([centerX, centerY]);
-
-        const terr = getGridTerrain(curr.col, curr.row);
-        terrainCounts[terr]++;
-        curr = curr.parent;
-      }
-
-      const totalSteps = cellPath.length || 1;
-      const breakdown: Record<TerrainType, number> = {
-        plains: Math.round((terrainCounts.plains / totalSteps) * 100),
-        forest: Math.round((terrainCounts.forest / totalSteps) * 100),
-        mountain: Math.round((terrainCounts.mountain / totalSteps) * 100),
-        cliff: Math.round((terrainCounts.cliff / totalSteps) * 100),
-        swamp: Math.round((terrainCounts.swamp / totalSteps) * 100),
-        water: Math.round((terrainCounts.water / totalSteps) * 100),
-      };
-
-      return {
-        found: true,
-        path,
-        cellPath,
-        totalCost: Math.round(current.g * 10) / 10,
-        totalDistanceKm: Math.round(cellPath.length * 0.25 * 10) / 10, // ~0.25km (250m) mỗi ô
-        terrainBreakdown: breakdown,
-      };
-    }
-
-    closedSet.add(currIdx);
-
-    // Mở rộng các ô lân cận
-    for (const dir of DIRS) {
-      const nc = current.col + dir.dx;
-      const nr = current.row + dir.dy;
-
-      if (nc < 0 || nc >= GRID_COLS || nr < 0 || nr >= GRID_ROWS) continue;
-      const nIdx = nr * GRID_COLS + nc;
-      if (closedSet.has(nIdx)) continue;
-
-      const nTerrain = getGridTerrain(nc, nr);
-      const tProps = TERRAIN_DEFINITIONS[nTerrain];
-
-      // Chi phí di chuyển qua ô dựa trên địa hình & binh chủng
-      let moveCost = tProps.moveSpeedCost;
-
-      // Không thể đi qua sông nếu không phải Thủy quân
-      if (nTerrain === 'water' && troopType !== 'navy') {
-        moveCost = 999; // Cấm đi
-      }
-      // Vách đá cấm kỵ binh và tượng binh
-      if (nTerrain === 'cliff' && (troopType === 'cavalry' || troopType === 'elephant')) {
-        moveCost = 999;
-      }
-
-      if (moveCost >= 900) continue; // Ô không thể vượt qua
-
-      // Hệ số tương quan binh chủng
-      const modifier = tProps.troopModifier[troopType] || 1.0;
-      const efficiencyCost = modifier > 0 ? (1 / modifier) : 2.5;
-
-      const tentativeG = current.g + dir.dist * moveCost * efficiencyCost;
-      const prevG = gScores.get(nIdx);
-
-      if (prevG === undefined || tentativeG < prevG) {
-        gScores.set(nIdx, tentativeG);
-        const h = Math.hypot(nc - target.col, nr - target.row);
-        const neighborNode: AStarNode = {
-          col: nc,
-          row: nr,
-          g: tentativeG,
-          h,
-          f: tentativeG + h,
-          parent: current,
-        };
-
-        const existingOpen = openList.find(n => n.col === nc && n.row === nr);
-        if (existingOpen) {
-          existingOpen.g = tentativeG;
-          existingOpen.f = tentativeG + h;
-          existingOpen.parent = current;
-        } else {
-          openList.push(neighborNode);
-        }
-      }
-    }
-  }
-
-  // Nếu không tìm được đường chính xác (hoặc quá bước), nối đường thẳng làm dự phòng
-  return {
-    found: false,
-    path: [[startX, startY], [targetX, targetY]],
-    cellPath: [start, target],
-    totalCost: 100,
-    totalDistanceKm: Math.round(Math.hypot(startX - targetX, startY - targetY) * 2),
-    terrainBreakdown: { plains: 100, forest: 0, mountain: 0, cliff: 0, swamp: 0, water: 0 },
   };
 }

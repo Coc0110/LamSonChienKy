@@ -89,7 +89,7 @@ export const INITIAL_CITIES: CityNode[] = [
       troops: 50,
       hasBase: true,          // Căn cứ khởi phát đại nghiệp nghĩa quân Lam Sơn (có sẵn)
       population: {
-        combatTroops: 50,       // 18 vị đầu lĩnh Lũng Nhai + 32 võ đinh bảo vệ gia trang
+        combatTroops: 44,       // 44 nghĩa binh dự bị tại doanh trại (+ 6 nghĩa binh trong Tiên Phong Doanh = 50 quân)
         idleLaborers: 50,       // Tráng phu rảnh rỗi sẵn sàng thao luyện hoặc thi công
         farmLaborers: 50,       // 50 nông đinh canh tác 2 khu ruộng đồn điền (25 đinh/khu)
         forgeLaborers: 0,       // Lò rèn chờ lệnh rèn mới điều động thợ

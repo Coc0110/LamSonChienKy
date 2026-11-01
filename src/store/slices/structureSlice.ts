@@ -16,7 +16,7 @@ export const createStructureSlice: StateCreator<GameStore, [], [], StructureSlic
       return { success: false, message: 'Không tìm thấy căn cứ sở tại!' };
     }
 
-    const gridSize = customGridSize || (type === 'forge' ? 3 : (customMaxWorkers === 50 ? 7 : customMaxWorkers === 35 ? 6 : 5));
+    const gridSize = customGridSize || (type === 'forge' ? 3 : (customMaxWorkers === 50 ? 7 : (customMaxWorkers === 35 || customMaxWorkers === 30) ? 6 : 5));
     const maxWorkers = type === 'farm' ? (customMaxWorkers || (gridSize === 7 ? 50 : gridSize === 6 ? 35 : 25)) : 15;
 
     // Kiểm tra hợp lệ vị trí theo khối ô lưới không trùng lấn
@@ -136,7 +136,7 @@ export const createStructureSlice: StateCreator<GameStore, [], [], StructureSlic
     }
 
     // 2. Xác định kích thước ô lưới của công trình cần di dời
-    const gridSize = structure.gridSize || (structure.type === 'forge' ? 3 : (structure.maxWorkers === 50 ? 7 : structure.maxWorkers === 30 ? 6 : 5));
+    const gridSize = structure.gridSize || (structure.type === 'forge' ? 3 : (structure.maxWorkers === 50 ? 7 : (structure.maxWorkers === 35 || structure.maxWorkers === 30) ? 6 : 5));
 
     // 3. Kiểm tra tính hợp lệ trên lưới địa hình
     const val = validateCellPlacement(
@@ -190,8 +190,18 @@ export const createStructureSlice: StateCreator<GameStore, [], [], StructureSlic
     if (structure.status === 'building') {
       returnedWorkers = structure.builderWorkers;
       refundGold = structure.type === 'farm' ? 50 : 80;
-    } else {
+    } else if (structure.type === 'farm') {
       returnedWorkers = structure.assignedWorkers;
+      if (structure.gridSize === 7) refundGold = 120;
+      else if (structure.gridSize === 6) refundGold = 75;
+      else refundGold = 40;
+    } else if (structure.type === 'forge') {
+      returnedWorkers = structure.activeOrder ? structure.activeOrder.assignedSmiths : 0;
+      const activeRefund = structure.activeOrder ? Math.floor(structure.activeOrder.goldCost * 0.5) : 0;
+      const queueRefund = structure.forgeQueue
+        ? structure.forgeQueue.reduce((sum, item) => sum + item.goldCost, 0)
+        : 0;
+      refundGold = 60 + activeRefund + queueRefund;
     }
 
     set(state => ({
@@ -202,18 +212,65 @@ export const createStructureSlice: StateCreator<GameStore, [], [], StructureSlic
       cities: state.cities.map(c => {
         if (c.id !== structure.cityId || !c.population) return c;
         const currentPop = c.population;
+
+        if (structure.status === 'building') {
+          return {
+            ...c,
+            population: {
+              ...currentPop,
+              idleLaborers: currentPop.idleLaborers + returnedWorkers,
+            },
+          };
+        }
+
+        if (structure.type === 'farm') {
+          const actualFarmReturn = Math.min(returnedWorkers, currentPop.farmLaborers || 0);
+          const swappedFarmReturn = Math.max(0, returnedWorkers - actualFarmReturn);
+          return {
+            ...c,
+            population: {
+              ...currentPop,
+              combatTroops: currentPop.combatTroops + swappedFarmReturn,
+              idleLaborers: currentPop.idleLaborers + actualFarmReturn,
+              farmLaborers: Math.max(0, (currentPop.farmLaborers || 0) - actualFarmReturn),
+              swappedCombatants: Math.max(0, (currentPop.swappedCombatants || 0) - swappedFarmReturn),
+            },
+            training: c.training && swappedFarmReturn > 0
+              ? {
+                  ...c.training,
+                  swappedCount: Math.max(0, c.training.swappedCount - swappedFarmReturn),
+                  takenFromFarm: Math.max(0, (c.training.takenFromFarm || 0) - swappedFarmReturn),
+                }
+              : c.training,
+            buildings: {
+              farms: Math.max(0, (c.buildings?.farms || 1) - 1),
+              forges: c.buildings?.forges || 0,
+            }
+          };
+        }
+
+        // structure.type === 'forge' && status === 'active'
+        const actualForgeReturn = Math.min(returnedWorkers, currentPop.forgeLaborers || 0);
+        const swappedForgeReturn = Math.max(0, returnedWorkers - actualForgeReturn);
         return {
           ...c,
           population: {
             ...currentPop,
-            idleLaborers: currentPop.idleLaborers + returnedWorkers,
-            farmLaborers: structure.type === 'farm'
-              ? Math.max(0, (currentPop.farmLaborers || 0) - (structure.status === 'active' ? structure.assignedWorkers : 0))
-              : currentPop.farmLaborers,
+            combatTroops: currentPop.combatTroops + swappedForgeReturn,
+            idleLaborers: currentPop.idleLaborers + actualForgeReturn,
+            forgeLaborers: Math.max(0, (currentPop.forgeLaborers || 0) - actualForgeReturn),
+            swappedCombatants: Math.max(0, (currentPop.swappedCombatants || 0) - swappedForgeReturn),
           },
+          training: c.training && swappedForgeReturn > 0
+            ? {
+                ...c.training,
+                swappedCount: Math.max(0, c.training.swappedCount - swappedForgeReturn),
+                takenFromForge: Math.max(0, (c.training.takenFromForge || 0) - swappedForgeReturn),
+              }
+            : c.training,
           buildings: {
-            farms: structure.type === 'farm' ? Math.max(0, (c.buildings?.farms || 1) - 1) : (c.buildings?.farms || 0),
-            forges: structure.type === 'forge' ? Math.max(0, (c.buildings?.forges || 1) - 1) : (c.buildings?.forges || 0),
+            farms: c.buildings?.farms || 0,
+            forges: Math.max(0, (c.buildings?.forges || 1) - 1),
           }
         };
       }),
@@ -222,7 +279,7 @@ export const createStructureSlice: StateCreator<GameStore, [], [], StructureSlic
 
     return {
       success: true,
-      message: `Đã phá dỡ [${structure.name}], thu hồi +${refundGold} Vàng và trả ${returnedWorkers} tráng phu về rảnh rỗi!`,
+      message: `Đã phá dỡ [${structure.name}], thu hồi +${refundGold} Vàng và trả ${returnedWorkers} nhân lực về căn cứ!`,
     };
   },
 
@@ -260,8 +317,8 @@ export const createStructureSlice: StateCreator<GameStore, [], [], StructureSlic
           ...c,
           population: {
             ...c.population,
-            idleLaborers: c.population.idleLaborers - diff,
-            farmLaborers: c.population.farmLaborers + diff,
+            idleLaborers: Math.max(0, c.population.idleLaborers - diff),
+            farmLaborers: Math.max(0, c.population.farmLaborers + diff),
           }
         };
       }),
@@ -273,7 +330,6 @@ export const createStructureSlice: StateCreator<GameStore, [], [], StructureSlic
 
     return { success: true, message: `Đã phân công ${target}/${structure.maxWorkers} tráng phu cày cấy ruộng.` };
   },
-
 
   // Điều chỉnh trực tiếp số lượng nông đinh qua thanh kéo thả
   setFarmWorkers: (structureId, targetCount) => {
@@ -298,6 +354,13 @@ export const createStructureSlice: StateCreator<GameStore, [], [], StructureSlic
         desired = current + available;
         diff = available;
       }
+    } else if (diff < 0) {
+      // Không cho rút nhiều hơn số farmLaborers thực tế (tránh rút nhầm nghĩa binh đang thế chỗ)
+      const maxRemovable = Math.min(current, city.population.farmLaborers);
+      if (-diff > maxRemovable) {
+        desired = current - maxRemovable;
+        diff = -maxRemovable;
+      }
     }
 
     if (diff === 0) {
@@ -311,8 +374,8 @@ export const createStructureSlice: StateCreator<GameStore, [], [], StructureSlic
           ...c,
           population: {
             ...c.population,
-            idleLaborers: c.population.idleLaborers - diff,
-            farmLaborers: c.population.farmLaborers + diff,
+            idleLaborers: Math.max(0, c.population.idleLaborers - diff),
+            farmLaborers: Math.max(0, c.population.farmLaborers + diff),
           }
         };
       }),
@@ -361,7 +424,7 @@ export const createStructureSlice: StateCreator<GameStore, [], [], StructureSlic
     };
 
     const forgeOrder: ForgeOrder = {
-      id: `order_${Date.now()}`,
+      id: `order_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       weaponType: order.weaponType,
       name: weaponNames[order.weaponType] || 'Khí Giới Lam Sơn',
       quantity: order.quantity,
@@ -426,33 +489,73 @@ export const createStructureSlice: StateCreator<GameStore, [], [], StructureSlic
     if (!structure || !structure.activeOrder) return;
 
     const smiths = structure.activeOrder.assignedSmiths;
-    const refundGold = Math.floor(structure.activeOrder.goldCost * 0.5);
+    let refundGold = Math.floor(structure.activeOrder.goldCost * 0.5);
 
-    set(state => ({
-      resources: {
-        ...state.resources,
-        gold: state.resources.gold + refundGold,
-      },
-      cities: state.cities.map(c => {
-        if (c.id !== structure.cityId || !c.population) return c;
-        return {
-          ...c,
-          population: {
-            ...c.population,
-            idleLaborers: c.population.idleLaborers + smiths,
-            forgeLaborers: Math.max(0, c.population.forgeLaborers - smiths),
-          }
-        };
-      }),
-      structures: state.structures.map(s => {
-        if (s.id !== structureId) return s;
-        if (s.forgeQueue && s.forgeQueue.length > 0) {
-          const [next, ...rest] = s.forgeQueue;
-          return { ...s, activeOrder: next, forgeQueue: rest };
+    set(state => {
+      const targetCity = state.cities.find(c => c.id === structure.cityId);
+      const pop = targetCity?.population;
+      const actualForgeReturn = pop ? Math.min(smiths, pop.forgeLaborers) : smiths;
+      const swappedForgeReturn = pop ? Math.max(0, smiths - actualForgeReturn) : 0;
+
+      let nextIdle = (pop?.idleLaborers || 0) + actualForgeReturn;
+      let nextForge = Math.max(0, (pop?.forgeLaborers || 0) - actualForgeReturn);
+      let nextActiveOrder: ForgeOrder | null = null;
+      let nextForgeQueue: ForgeOrder[] = structure.forgeQueue || [];
+
+      if (nextForgeQueue.length > 0) {
+        const [nextRaw, ...rest] = nextForgeQueue;
+        const smithsForNext = Math.min(nextRaw.assignedSmiths, nextIdle);
+        if (smithsForNext > 0) {
+          nextIdle -= smithsForNext;
+          nextForge += smithsForNext;
+          const workFactor = nextRaw.weaponType === 'spear' ? 1.0 : nextRaw.weaponType === 'sword' ? 1.8 : nextRaw.weaponType === 'armor' ? 2.2 : 1.4;
+          const recalcDays = Math.max(4, Math.ceil((nextRaw.quantity * workFactor * 1.5) / smithsForNext));
+          nextActiveOrder = {
+            ...nextRaw,
+            assignedSmiths: smithsForNext,
+            totalDays: recalcDays,
+            remainingDays: recalcDays,
+          };
+          nextForgeQueue = rest;
+        } else {
+          // Không đủ tráng phu rảnh để chạy hàng chờ -> hoàn lại toàn bộ vàng của hàng chờ
+          refundGold += nextRaw.goldCost + rest.reduce((acc, q) => acc + q.goldCost, 0);
+          nextActiveOrder = null;
+          nextForgeQueue = [];
         }
-        return { ...s, activeOrder: null };
-      }),
-    }));
+      }
+
+      return {
+        resources: {
+          ...state.resources,
+          gold: state.resources.gold + refundGold,
+        },
+        cities: state.cities.map(c => {
+          if (c.id !== structure.cityId || !c.population) return c;
+          return {
+            ...c,
+            population: {
+              ...c.population,
+              combatTroops: c.population.combatTroops + swappedForgeReturn,
+              idleLaborers: nextIdle,
+              forgeLaborers: nextForge,
+              swappedCombatants: Math.max(0, (c.population.swappedCombatants || 0) - swappedForgeReturn),
+            },
+            training: c.training && swappedForgeReturn > 0
+              ? {
+                  ...c.training,
+                  swappedCount: Math.max(0, c.training.swappedCount - swappedForgeReturn),
+                  takenFromForge: Math.max(0, (c.training.takenFromForge || 0) - swappedForgeReturn),
+                }
+              : c.training,
+          };
+        }),
+        structures: state.structures.map(s => {
+          if (s.id !== structureId) return s;
+          return { ...s, activeOrder: nextActiveOrder, forgeQueue: nextForgeQueue };
+        }),
+      };
+    });
   },
 
   // Giao thương đổi lương lấy ngân khố (vàng)

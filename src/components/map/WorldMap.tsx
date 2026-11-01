@@ -22,18 +22,17 @@ import {
 import { DistrictEditorBar } from './DistrictEditorBar';
 import { ParchmentControls } from './ParchmentControls';
 import { TerrainGridOverlay } from './TerrainGridOverlay';
-import { TerrainTacticalPanel } from './TerrainTacticalPanel';
 import { StructureDetailModal } from './StructureDetailModal';
 import { PlacementControlBar } from './overlay/PlacementControlBar';
 import { TerrainInspectHUD } from './overlay/TerrainInspectHUD';
+import { MarchRouteDrawerOverlay } from './overlay/MarchRouteDrawerOverlay';
 import { useDistrictPolygons, DISTRICT_STORAGE_KEY } from './hooks/useDistrictPolygons';
 import { useCityMarkers } from './hooks/useCityMarkers';
 import { useStructureMarkers } from './hooks/useStructureMarkers';
-import { useTacticalMarchLayer } from './hooks/useTacticalMarchLayer';
 import { useMapPlacement } from './hooks/useMapPlacement';
+import { useArmyMarchLayer } from './hooks/useArmyMarchLayer';
 import { notify } from '../../store/dialogStore';
 import { cleanStructureName } from '../../utils/formatters';
-import type { MarchCalculationResult } from '../../types/terrain';
 
 export const WorldMap: React.FC = React.memo(() => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -43,7 +42,7 @@ export const WorldMap: React.FC = React.memo(() => {
   const vertexHandlesLayerRef = useRef<L.LayerGroup | null>(null);
   const nodesLayerRef = useRef<L.LayerGroup | null>(null);
   const structuresLayerRef = useRef<L.LayerGroup | null>(null);
-  const marchLayerRef = useRef<L.LayerGroup | null>(null);
+  const armyLayerRef = useRef<L.LayerGroup | null>(null);
   const previewLayerRef = useRef<L.LayerGroup | null>(null);
   const controlRadiusLayerRef = useRef<L.LayerGroup | null>(null);
   const parchmentCutoutRef = useRef<L.ImageOverlay | null>(null);
@@ -54,8 +53,6 @@ export const WorldMap: React.FC = React.memo(() => {
   const [showDistricts, setShowDistricts] = useState<boolean>(true);
   const [hoveredDistrictId, setHoveredDistrictId] = useState<string | null>(null);
   const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
-  const [showTacticalPanel, setShowTacticalPanel] = useState<boolean>(false);
-  const [activeMarchRoute, setActiveMarchRoute] = useState<MarchCalculationResult | null>(null);
 
   // Danh sách polygon các huyện (hỗ trợ lưu chỉnh sửa vào localStorage)
   const [districtsList, setDistrictsList] = useState<DistrictInfo[]>(() => {
@@ -154,7 +151,7 @@ export const WorldMap: React.FC = React.memo(() => {
     if (currentPlacement.relocateStructureId) {
       const relocating = latestState.structures.find(s => s.id === currentPlacement.relocateStructureId);
       if (relocating) {
-        gridSize = gridSize || relocating.gridSize || (relocating.type === 'forge' ? 3 : (relocating.maxWorkers === 50 ? 7 : relocating.maxWorkers === 30 ? 6 : 5));
+        gridSize = gridSize || relocating.gridSize || (relocating.type === 'forge' ? 3 : (relocating.maxWorkers === 50 ? 7 : (relocating.maxWorkers === 35 || relocating.maxWorkers === 30) ? 6 : 5));
         farmTier = farmTier || (relocating.type === 'farm' ? (relocating.maxWorkers as 25 | 35 | 50) : undefined);
       }
     } else {
@@ -245,8 +242,9 @@ export const WorldMap: React.FC = React.memo(() => {
       draggable.disable();
       const origOnDown = draggable._onDown;
       draggable._onDown = function (e: any) {
-        const isTerrainPainting = useUIStore.getState().terrainEditMode;
-        if (isTerrainPainting && !e.touches && (e.button === 0 || e.which === 1)) {
+        const uiState = useUIStore.getState();
+        const isLeftMouseDrawActive = uiState.terrainEditMode || Boolean(uiState.marchDrawMode);
+        if (isLeftMouseDrawActive && !e.touches && (e.button === 0 || e.which === 1)) {
           return;
         }
         if (e.button === 2 || e.which === 3) {
@@ -382,7 +380,7 @@ export const WorldMap: React.FC = React.memo(() => {
     const controlRadiusLayer = L.layerGroup().addTo(map);
     const nodesLayer = L.layerGroup().addTo(map);
     const structuresLayer = L.layerGroup().addTo(map);
-    const marchLayer = L.layerGroup().addTo(map);
+    const armyLayer = L.layerGroup().addTo(map);
     const previewLayer = L.layerGroup().addTo(map);
 
     mapInstanceRef.current = map;
@@ -392,7 +390,7 @@ export const WorldMap: React.FC = React.memo(() => {
     controlRadiusLayerRef.current = controlRadiusLayer;
     nodesLayerRef.current = nodesLayer;
     structuresLayerRef.current = structuresLayer;
-    marchLayerRef.current = marchLayer;
+    armyLayerRef.current = armyLayer;
     previewLayerRef.current = previewLayer;
 
     setMapInstance(map);
@@ -492,12 +490,6 @@ export const WorldMap: React.FC = React.memo(() => {
     handlePlacementAtRef,
   });
 
-  // Hook quản lý Tuyến đường Hành quân Chiến thuật
-  useTacticalMarchLayer({
-    marchLayerRef,
-    activeMarchRoute,
-  });
-
   // Hook quản lý Preview & Thao tác cắm mốc xây dựng / di dời
   useMapPlacement({
     mapInstance,
@@ -511,8 +503,16 @@ export const WorldMap: React.FC = React.memo(() => {
     handlePlacementAtRef,
   });
 
+  // Hook quản lý Quân kỳ Đạo quân & Lộ trình hành quân trên lưới
+  useArmyMarchLayer({
+    mapInstance,
+    armyLayerRef,
+  });
+
   return (
     <div className="absolute inset-0 z-0 bg-[#16171a] overflow-hidden">
+      {/* Giao diện Vẽ Đường Hành Quân Tự Do Trên Lưới & Bảng Lệnh Đạo Quân */}
+      <MarchRouteDrawerOverlay map={mapInstance} />
       {/* Banner thông báo chế độ Sửa Map & Bộ công cụ tinh chỉnh ranh giới */}
       {isEditMode && (
         <DistrictEditorBar
@@ -555,7 +555,7 @@ export const WorldMap: React.FC = React.memo(() => {
             setPlacementMode({
               type: s.type,
               cityId: s.cityId,
-              gridSize: s.gridSize || (s.type === 'forge' ? 3 : (s.maxWorkers === 50 ? 7 : s.maxWorkers === 30 ? 6 : 5)),
+              gridSize: s.gridSize || (s.type === 'forge' ? 3 : (s.maxWorkers === 50 ? 7 : (s.maxWorkers === 35 || s.maxWorkers === 30) ? 6 : 5)),
               farmTier: s.type === 'farm' ? (s.maxWorkers as 25 | 35 | 50) : undefined,
               relocateStructureId: s.id,
             });
@@ -598,23 +598,7 @@ export const WorldMap: React.FC = React.memo(() => {
         onChangeMode={setParchmentMode}
         showDistricts={showDistricts}
         onToggleDistricts={() => setShowDistricts(prev => !prev)}
-        showTacticalPanel={showTacticalPanel}
-        onToggleTacticalPanel={() => setShowTacticalPanel(prev => !prev)}
       />
-
-      {/* Bảng Hành Quân Chiến Thuật và Phân Tích Địa Hình */}
-      {showTacticalPanel && (
-        <TerrainTacticalPanel
-          selectedCity={cities.find(c => c.id === selectedCityId) || null}
-          allCities={cities}
-          onSelectCity={(cityId) => selectBase(cityId)}
-          showTerrainZones={useUIStore.getState().showTerrainOverlay}
-          onToggleTerrainZones={() => useUIStore.getState().toggleTerrainOverlay()}
-          activeMarchRoute={activeMarchRoute}
-          onSetMarchRoute={setActiveMarchRoute}
-          onClose={() => setShowTacticalPanel(false)}
-        />
-      )}
 
       {/* Container của Leaflet Map - Hỗ trợ kéo thả công trình từ panel */}
       <div 

@@ -1,14 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { X } from 'lucide-react';
 import { useGameStore } from '../../../store/gameStore';
 import { useUIStore } from '../../../store/uiStore';
 import districtData from '../../../data/districtPolygons.json';
 import type { DistrictInfo } from '../../../types/map';
+import { STATUS_LABELS, getFormationMapPos } from '../../../utils/marchPathUtils';
 
 const DEFAULT_DISTRICTS: DistrictInfo[] = (districtData as any).districts || [];
 
 export const MilitaryBookPanel: React.FC = React.memo(() => {
   const cities = useGameStore(state => state.cities);
+  const formations = useGameStore(state => state.formations);
   const militaryNotices = useGameStore(state => state.militaryNotices);
   const markNoticesAsRead = useGameStore(state => state.markNoticesAsRead);
   const clearMilitaryNotices = useGameStore(state => state.clearMilitaryNotices);
@@ -16,9 +18,15 @@ export const MilitaryBookPanel: React.FC = React.memo(() => {
   const selectCity = useUIStore(state => state.selectCity);
   const selectDistrict = useUIStore(state => state.selectDistrict);
   const setIsListOpen = useUIStore(state => state.setMilitaryBookOpen);
+  const setMarchDrawMode = useUIStore(state => state.setMarchDrawMode);
+  const setSelectedMapFormationId = useUIStore(state => state.setSelectedMapFormationId);
 
-  const [listTab, setListTab] = useState<'bases' | 'districts' | 'notices'>('bases');
+  const [listTab, setListTab] = useState<'bases' | 'armies' | 'districts' | 'notices'>('bases');
   const unreadNoticesCount = (militaryNotices || []).filter(n => !n.read).length;
+
+  const sortedCities = useMemo(() => {
+    return [...cities].sort((a, b) => (b.faction === 'lam_son' ? 1 : 0) - (a.faction === 'lam_son' ? 1 : 0));
+  }, [cities]);
 
   return (
     <div 
@@ -53,7 +61,7 @@ export const MilitaryBookPanel: React.FC = React.memo(() => {
       <div className="relative z-10 flex border-b border-[#8c6b44]/25 px-7">
         <button
           onClick={() => setListTab('bases')}
-          className={`pb-2 text-xs font-serif font-bold transition cursor-pointer mr-4 ${
+          className={`pb-2 text-xs font-serif font-bold transition cursor-pointer mr-3 ${
             listTab === 'bases' 
               ? 'text-[#8c2d19] border-b-2 border-[#8c2d19]' 
               : 'text-[#6b4a2e] hover:text-[#2d1e13]'
@@ -62,8 +70,18 @@ export const MilitaryBookPanel: React.FC = React.memo(() => {
           Bản Doanh ({cities.length})
         </button>
         <button
+          onClick={() => setListTab('armies')}
+          className={`pb-2 text-xs font-serif font-bold transition cursor-pointer mr-3 ${
+            listTab === 'armies' 
+              ? 'text-[#8c2d19] border-b-2 border-[#8c2d19]' 
+              : 'text-[#6b4a2e] hover:text-[#2d1e13]'
+          }`}
+        >
+          Đạo Quân ({formations.length})
+        </button>
+        <button
           onClick={() => setListTab('districts')}
-          className={`pb-2 text-xs font-serif font-bold transition cursor-pointer mr-4 ${
+          className={`pb-2 text-xs font-serif font-bold transition cursor-pointer mr-3 ${
             listTab === 'districts' 
               ? 'text-[#8c2d19] border-b-2 border-[#8c2d19]' 
               : 'text-[#6b4a2e] hover:text-[#2d1e13]'
@@ -98,45 +116,79 @@ export const MilitaryBookPanel: React.FC = React.memo(() => {
       {/* Danh sách bản doanh / địa hạt / tin báo */}
       <div className="relative z-10 px-7 pt-3 pb-14 overflow-y-auto space-y-1 no-scrollbar flex-1">
         {listTab === 'bases' ? (
-          cities
-            .sort((a, b) => (b.faction === 'lam_son' ? 1 : 0) - (a.faction === 'lam_son' ? 1 : 0))
-            .map(c => {
-              const isLamSon = c.faction === 'lam_son';
-              const isMing = c.faction === 'ming';
+          sortedCities.map(c => {
+            const isLamSon = c.faction === 'lam_son';
+            const isMing = c.faction === 'ming';
 
-              return (
-                <button
-                  key={c.id}
-                  onClick={() => {
-                    selectCity(c.id);
-                    setIsListOpen(false);
-                  }}
-                  className="w-full text-left py-2 px-2.5 rounded transition flex items-center justify-between cursor-pointer hover:bg-black/[0.04] active:bg-black/[0.08]"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <img
-                      src={c.type === 'city' ? '/icons/structure_city.png' : '/icons/structure_camp.png'}
-                      alt={c.type === 'city' ? 'Thành' : 'Doanh'}
-                      className="w-5 h-5 object-contain shrink-0 filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]"
-                    />
-                    <div>
-                      <div className="font-serif font-bold text-[#261304] text-sm leading-tight">
-                        {c.name}
-                      </div>
-                      <div className="text-[11px] font-serif text-[#704d2e]">
-                        {isLamSon ? '★ Bản Doanh Lam Sơn' : isMing ? '◆ Đồn Binh Quân Minh' : 'Căn cứ trung lập'}
-                      </div>
+            return (
+              <button
+                key={c.id}
+                onClick={() => {
+                  selectCity(c.id);
+                  setIsListOpen(false);
+                }}
+                className="w-full text-left py-2 px-2.5 rounded transition flex items-center justify-between cursor-pointer hover:bg-black/[0.04] active:bg-black/[0.08]"
+              >
+                <div className="flex items-center gap-2.5">
+                  <img
+                    src={c.type === 'city' ? '/icons/structure_city.png' : '/icons/structure_camp.png'}
+                    alt={c.type === 'city' ? 'Thành' : 'Doanh'}
+                    className="w-5 h-5 object-contain shrink-0 filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]"
+                  />
+                  <div>
+                    <div className="font-serif font-bold text-[#261304] text-sm leading-tight">
+                      {c.name}
+                    </div>
+                    <div className="text-[11px] font-serif text-[#704d2e]">
+                      {isLamSon ? '★ Bản Doanh Lam Sơn' : isMing ? '◆ Đồn Binh Quân Minh' : 'Căn cứ trung lập'}
                     </div>
                   </div>
+                </div>
 
-                  <div className="text-right">
-                    <span className="font-serif font-bold text-xs text-[#8c2d19]">
-                      {c.troops > 0 ? `${c.troops.toLocaleString()} binh` : 'Trống'}
-                    </span>
+                <div className="text-right">
+                  <span className="font-serif font-bold text-xs text-[#8c2d19]">
+                    {c.troops > 0 ? `${c.troops.toLocaleString()} binh` : 'Trống'}
+                  </span>
+                </div>
+              </button>
+            );
+          })
+        ) : listTab === 'armies' ? (
+          formations.map(f => {
+            const st = STATUS_LABELS[f.status] || STATUS_LABELS.idle;
+            const pos = getFormationMapPos(f, cities);
+            return (
+              <div
+                key={f.id}
+                onClick={() => {
+                  setSelectedMapFormationId(f.id);
+                  setIsListOpen(false);
+                }}
+                className="w-full text-left py-2 px-2.5 rounded border border-[#8c6b44]/25 bg-black/[0.02] hover:bg-black/[0.06] transition flex items-center justify-between cursor-pointer"
+              >
+                <div className="min-w-0 pr-2">
+                  <div className="font-serif font-bold text-[#261304] text-sm truncate flex items-center gap-1.5">
+                    <span>{st.icon}</span>
+                    <span>{f.name}</span>
                   </div>
+                  <div className="text-[11px] font-serif text-[#704d2e]">
+                    {f.totalTroops} binh • {st.label} • Ô ({pos.col}, {pos.row})
+                  </div>
+                </div>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsListOpen(false);
+                    setMarchDrawMode({ formationId: f.id });
+                  }}
+                  className="px-2.5 py-1 rounded bg-[#8c2d19] hover:bg-[#6e1e0d] text-white font-serif font-bold text-[11px] shrink-0 shadow cursor-pointer"
+                  title="Tự vẽ đường hành quân theo ô lưới trên bản đồ"
+                >
+                  ✍️ Vẽ Đường
                 </button>
-              );
-            })
+              </div>
+            );
+          })
         ) : listTab === 'districts' ? (
           DEFAULT_DISTRICTS.map(d => {
             const hasLamSon = cities.some(c => (c.districtId === d.id || c.id === d.id) && c.faction === 'lam_son' && c.troops > 0);

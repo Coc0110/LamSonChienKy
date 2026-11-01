@@ -44,6 +44,7 @@ export const useDistrictPolygons = ({
   vertexHandlesLayerRef,
   handlePlacementAtRef,
 }: UseDistrictPolygonsProps) => {
+  const marchDrawMode = useUIStore(state => state.marchDrawMode);
 
   // Cập nhật tọa độ polygon cho huyện
   const updateDistrictPolygonVertex = useCallback((districtId: string, vertexIndex: number, newX: number, newY: number) => {
@@ -158,6 +159,7 @@ export const useDistrictPolygons = ({
 
     districtsList.forEach(district => {
       const latlngs = district.polygon.map(pt => percentToLatLng(pt[0], pt[1]));
+
       const poly = L.polygon(latlngs, {
         className: 'district-polygon-interactive',
         fill: true,
@@ -174,6 +176,7 @@ export const useDistrictPolygons = ({
       });
 
       poly.on('mouseover', () => {
+        if (useUIStore.getState().marchDrawMode) return;
         setHoveredDistrictId(district.id);
       });
 
@@ -182,6 +185,9 @@ export const useDistrictPolygons = ({
       });
 
       poly.on('click', (e) => {
+        if (useUIStore.getState().marchDrawMode) {
+          return;
+        }
         L.DomEvent.stopPropagation(e);
         if (useUIStore.getState().placementMode || useUIStore.getState().baseRelocateMode) {
           handlePlacementAtRef.current(e.latlng);
@@ -204,8 +210,8 @@ export const useDistrictPolygons = ({
   // 2. Cập nhật Style highlight trực tiếp (0ms latency, không redraw)
   useEffect(() => {
     polygonsMapRef.current.forEach((poly, did) => {
-      const isSelected = selectedCityId === did;
-      const isHovered = hoveredDistrictId === did;
+      const isSelected = !marchDrawMode && selectedCityId === did;
+      const isHovered = !marchDrawMode && hoveredDistrictId === did;
 
       if (!showDistricts || parchmentMode === 'off') {
         poly.setStyle({ opacity: 0, fillOpacity: 0 });
@@ -235,7 +241,7 @@ export const useDistrictPolygons = ({
         });
       }
     });
-  }, [selectedCityId, hoveredDistrictId, showDistricts, parchmentMode, polygonsMapRef]);
+  }, [selectedCityId, hoveredDistrictId, showDistricts, parchmentMode, polygonsMapRef, marchDrawMode]);
 
   // 3. Chế độ chỉnh sửa ranh giới bằng tay (Edit Mode)
   useEffect(() => {
@@ -399,7 +405,7 @@ export const useDistrictPolygons = ({
     updateDistrictPolygonVertex,
   ]);
 
-  // 4. Hiển thị chữ thẻ bài nổi khi rê chuột hoặc chọn huyện
+  // 4. Hiển thị chữ thẻ bài nổi khi rê chuột hoặc chọn huyện (Ẩn hoàn toàn khi đang vẽ đường hành quân)
   useEffect(() => {
     if (!mapInstance) return;
     const labelsLayer = labelsLayerRef.current;
@@ -407,7 +413,7 @@ export const useDistrictPolygons = ({
 
     labelsLayer.clearLayers();
 
-    if (!showDistricts || parchmentMode === 'off') return;
+    if (!showDistricts || parchmentMode === 'off' || marchDrawMode) return;
 
     districtsList.forEach(district => {
       const isSelected = selectedCityId === district.id;
@@ -463,7 +469,7 @@ export const useDistrictPolygons = ({
         labelMarker.addTo(labelsLayer);
       }
     });
-  }, [mapInstance, showDistricts, parchmentMode, selectedCityId, hoveredDistrictId, cities, districtsList, labelsLayerRef]);
+  }, [mapInstance, showDistricts, parchmentMode, selectedCityId, hoveredDistrictId, cities, districtsList, labelsLayerRef, marchDrawMode]);
 
   // Helper reset single district
   const resetSingleDistrict = (districtId: string) => {

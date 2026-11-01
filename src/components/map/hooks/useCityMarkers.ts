@@ -70,6 +70,9 @@ export const useCityMarkers = ({
       });
 
       overlay.on('click', (e) => {
+        if (useUIStore.getState().marchDrawMode) {
+          return;
+        }
         L.DomEvent.stopPropagation(e);
         // Nếu đang ở chế độ xây dựng hoặc di dời thì click vào căn cứ vẫn ưu tiên đặt công trình
         if (useUIStore.getState().placementMode || useUIStore.getState().baseRelocateMode) {

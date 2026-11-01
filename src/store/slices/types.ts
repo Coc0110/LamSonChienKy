@@ -9,6 +9,7 @@ import type {
   WeaponCraftType,
   PlacedStructure,
 } from '../../types';
+import type { ArmySlice } from './armySlice';
 
 export interface TimeSlice {
   day: number;
@@ -60,4 +61,5 @@ export interface MilitarySlice {
   bribeMingOfficials: () => void;
 }
 
-export type GameStore = TimeSlice & CitySlice & StructureSlice & MilitarySlice;
+export type { ArmySlice };
+export type GameStore = TimeSlice & CitySlice & StructureSlice & MilitarySlice & ArmySlice;

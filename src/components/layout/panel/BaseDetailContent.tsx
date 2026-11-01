@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { X } from 'lucide-react';
 import { useGameStore } from '../../../store/gameStore';
 import { useUIStore } from '../../../store/uiStore';
@@ -20,6 +20,8 @@ export const BaseDetailContent: React.FC<BaseDetailContentProps> = React.memo(({
   onOpenPopulationModal,
 }) => {
   const resources = useGameStore(state => state.resources);
+  const structures = useGameStore(state => state.structures);
+  const formations = useGameStore(state => state.formations);
   const demolishBase = useGameStore(state => state.demolishBase);
 
   const selectCity = useUIStore(state => state.selectCity);
@@ -27,8 +29,37 @@ export const BaseDetailContent: React.FC<BaseDetailContentProps> = React.memo(({
   const isBuildPaperOpen = useUIStore(state => state.isBuildPaperOpen);
   const setIsBuildPaperOpen = useUIStore(state => state.setBuildPaperOpen);
   const setActiveModal = useUIStore(state => state.setActiveModal);
+  const setMarchDrawMode = useUIStore(state => state.setMarchDrawMode);
+  const setSelectedMapFormationId = useUIStore(state => state.setSelectedMapFormationId);
 
   const isLamSon = selectedCity.faction === 'lam_son';
+
+  const baseFormations = useMemo(() => {
+    return formations.filter(f => f.cityId === selectedCity.id);
+  }, [formations, selectedCity.id]);
+
+  const totalCityPop = useMemo(() => {
+    if (!selectedCity.population) return 0;
+    const pop = selectedCity.population;
+    const builderCount = structures
+      .filter(s => s.cityId === selectedCity.id && s.status === 'building')
+      .reduce((acc, s) => acc + (s.builderWorkers || 0), 0);
+    const formationTroops = formations
+      .filter(f => f.cityId === selectedCity.id)
+      .reduce((acc, f) => acc + (f.totalTroops || 0), 0);
+
+    return (
+      pop.combatTroops +
+      pop.idleLaborers +
+      pop.farmLaborers +
+      pop.forgeLaborers +
+      (pop.swappedCombatants || 0) +
+      pop.unfitPopulation +
+      (selectedCity.training?.traineesCount || 0) +
+      builderCount +
+      formationTroops
+    );
+  }, [selectedCity, structures, formations]);
 
   return (
     <>
@@ -201,18 +232,53 @@ export const BaseDetailContent: React.FC<BaseDetailContentProps> = React.memo(({
           )}
         </div>
 
+        {/* 2.5. Danh Sách Đạo Quân Thuộc Quyền */}
+        {isLamSon && baseFormations.length > 0 && (
+          <div className="space-y-1.5 pt-1">
+            <div className="text-xs font-serif font-bold text-[#5c3e23] uppercase tracking-wider">
+              Đạo Quân Thuộc Quyền ({baseFormations.length})
+            </div>
+            <div className="space-y-1">
+              {baseFormations.map(form => (
+                <div
+                  key={form.id}
+                  onClick={() => setSelectedMapFormationId(form.id)}
+                  className="py-1.5 px-2.5 rounded border border-[#8c6b44]/35 bg-black/[0.03] hover:bg-black/[0.06] flex items-center justify-between cursor-pointer transition"
+                >
+                  <div className="min-w-0 pr-2">
+                    <div className="font-serif font-bold text-xs text-[#261304] truncate">
+                      🚩 {form.name}
+                    </div>
+                    <div className="text-[10.5px] font-serif text-[#704d2e]">
+                      {form.totalTroops} binh • Khí giới: {form.totalWeapons}
+                    </div>
+                  </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (form.totalTroops <= 0) {
+                        notify.warning('Hãy đặt ít nhất 1 đơn vị lính vào đạo quân trước khi vẽ đường hành quân!');
+                        return;
+                      }
+                      setMarchDrawMode({ formationId: form.id });
+                    }}
+                    className="px-2.5 py-1 rounded bg-[#8c2d19] hover:bg-[#6e1e0d] text-white font-serif font-bold text-[11px] shrink-0 shadow cursor-pointer"
+                    title="Tự vẽ đường hành quân theo ô lưới trên bản đồ"
+                  >
+                    ✍️ Vẽ Đường
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* 3. Dân Số & Lòng Dân */}
         {isLamSon && selectedCity.population && (
           <div className="space-y-1 pt-1 font-serif">
             <div className="text-xs text-[#2a1708]">
               <span className="font-serif font-bold text-[#5c3e23]">Dân chúng: </span>
-              <span className="font-serif">{(
-                selectedCity.population.combatTroops + 
-                selectedCity.population.idleLaborers + 
-                selectedCity.population.farmLaborers + 
-                selectedCity.population.forgeLaborers + 
-                selectedCity.population.unfitPopulation
-              ).toLocaleString()} nhân khẩu</span>
+              <span className="font-serif">{totalCityPop.toLocaleString()} nhân khẩu</span>
             </div>
 
             <div className="text-xs text-[#2a1708]">

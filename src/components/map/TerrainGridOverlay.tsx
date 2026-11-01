@@ -38,6 +38,7 @@ export const TerrainGridOverlay: React.FC<TerrainGridOverlayProps> = ({ map }) =
   const brushSize = useUIStore(state => state.brushSize);
   const placementMode = useUIStore(state => state.placementMode);
   const baseRelocateMode = useUIStore(state => state.baseRelocateMode);
+  const marchDrawMode = useUIStore(state => state.marchDrawMode);
   const hoveredCell = useUIStore(state => state.hoveredCell);
   const setHoveredCell = useUIStore(state => state.setHoveredCell);
 
@@ -101,7 +102,8 @@ export const TerrainGridOverlay: React.FC<TerrainGridOverlayProps> = ({ map }) =
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    const shouldDrawGrid = showGrid || isEditMode || terrainEditMode || Boolean(placementMode);
+    const shouldDrawGrid =
+      showGrid || isEditMode || terrainEditMode || Boolean(placementMode) || Boolean(marchDrawMode);
 
     // Nếu không bật cả Lưới lẫn Lớp Địa Hình và không trong chế độ Đặt / Sửa Map thì không cần vẽ nền
     if (!shouldDrawGrid && !showTerrainOverlay) {
@@ -129,11 +131,18 @@ export const TerrainGridOverlay: React.FC<TerrainGridOverlayProps> = ({ map }) =
 
     const zoom = map.getZoom();
 
-    // 1. Tô màu địa hình từng ô nếu bật showTerrainOverlay, terrainEditMode hoặc khi đang xây dựng (placementMode)
-    const isShowingTerrainColors = showTerrainOverlay || terrainEditMode || Boolean(placementMode) || Boolean(baseRelocateMode);
+    // 1. Tô màu địa hình từng ô nếu bật showTerrainOverlay, terrainEditMode, xây dựng hoặc khi đang vẽ đường hành quân
+    const isShowingTerrainColors =
+      showTerrainOverlay ||
+      terrainEditMode ||
+      Boolean(placementMode) ||
+      Boolean(baseRelocateMode) ||
+      Boolean(marchDrawMode);
+
     if (isShowingTerrainColors) {
       // Khi zoom xa (< 1.8) và không ở chế độ sơn/đặt công trình, tô màu gộp 4 ô (~1km) hoặc 2 ô để tối ưu mượt mà 60fps
-      const isPreciseMode = terrainEditMode || Boolean(placementMode) || Boolean(baseRelocateMode);
+      const isPreciseMode =
+        terrainEditMode || Boolean(placementMode) || Boolean(baseRelocateMode) || Boolean(marchDrawMode);
       const fillStep = (zoom < 1.8 && !isPreciseMode) ? 4 : (zoom < 2.2 && !isPreciseMode) ? 2 : 1;
 
       for (let r = startRow; r <= endRow; r += fillStep) {
@@ -159,8 +168,8 @@ export const TerrainGridOverlay: React.FC<TerrainGridOverlayProps> = ({ map }) =
 
     // 2. Vẽ các đường kẻ lưới ô vuông (Square Grid Lines)
     if (shouldDrawGrid) {
-      // Khi ở chế độ đặt công trình hoặc sửa map, luôn vẽ lưới chi tiết
-      const isPreciseMode = terrainEditMode || Boolean(placementMode) || isEditMode;
+      // Khi ở chế độ đặt công trình, sửa map hoặc vẽ đường hành quân, luôn vẽ lưới chi tiết
+      const isPreciseMode = terrainEditMode || Boolean(placementMode) || isEditMode || Boolean(marchDrawMode);
       const step = (zoom < 1.8 && !isPreciseMode) ? 4 : 1;
       const actualStartRow = Math.floor(startRow / step) * step;
       const actualStartCol = Math.floor(startCol / step) * step;
@@ -280,14 +289,14 @@ export const TerrainGridOverlay: React.FC<TerrainGridOverlayProps> = ({ map }) =
         ctx.strokeStyle = '#eab308';
         ctx.lineWidth = 2.5;
         ctx.strokeRect(pTL.x, pTL.y, pBR.x - pTL.x, pBR.y - pTL.y);
-      } else if (isEditMode) {
-        // Chỉ highlight viền ô đơn lẻ khi đang ở chế độ chỉnh sửa địa hình / sửa map
+      } else if (isEditMode || marchDrawMode) {
+        // Highlight viền ô đơn lẻ khi đang ở chế độ chỉnh sửa địa hình hoặc vẽ đường hành quân
         const { minX: hMinX, maxX: hMaxX, minY: hMinY, maxY: hMaxY } = cellToCoord(hoveredCell.col, hoveredCell.row);
         const pTL = map.latLngToContainerPoint(percentToLatLng(hMinX, hMinY));
         const pBR = map.latLngToContainerPoint(percentToLatLng(hMaxX, hMaxY));
 
-        ctx.strokeStyle = '#f59e0b';
-        ctx.lineWidth = 2;
+        ctx.strokeStyle = marchDrawMode ? '#fde047' : '#f59e0b';
+        ctx.lineWidth = 2.2;
         ctx.strokeRect(pTL.x, pTL.y, pBR.x - pTL.x, pBR.y - pTL.y);
       }
     }
@@ -302,6 +311,7 @@ export const TerrainGridOverlay: React.FC<TerrainGridOverlayProps> = ({ map }) =
     brushSize,
     placementMode,
     baseRelocateMode,
+    marchDrawMode,
     hoveredCell,
   ]);
 
@@ -355,7 +365,8 @@ export const TerrainGridOverlay: React.FC<TerrainGridOverlayProps> = ({ map }) =
     }
 
     const handleMouseMove = (e: L.LeafletMouseEvent) => {
-      const isGridActive = showGrid || isEditMode || terrainEditMode || Boolean(placementMode) || showTerrainOverlay;
+      const isGridActive =
+        showGrid || isEditMode || terrainEditMode || Boolean(placementMode) || Boolean(marchDrawMode) || showTerrainOverlay;
       if (!isGridActive) {
         if (useUIStore.getState().hoveredCell) setHoveredCell(null);
         return;
@@ -417,6 +428,7 @@ export const TerrainGridOverlay: React.FC<TerrainGridOverlayProps> = ({ map }) =
     isEditMode,
     showTerrainOverlay,
     placementMode,
+    marchDrawMode,
     terrainEditMode,
     brushTerrain,
     brushSize,

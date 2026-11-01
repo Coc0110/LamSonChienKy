@@ -171,6 +171,42 @@ export const TopBar: React.FC = React.memo(() => {
             </button>
 
             {/* Phân cách */}
+            <div className="w-px h-6 bg-[#8c6b44]/40 shrink-0 self-center" />
+
+            {/* 0.7. NÚT BỐ TRẬN SA BÀN */}
+            <button
+              onClick={() => setActiveModal(activeModal === 'army' ? null : 'army')}
+              className={`relative px-1.5 py-0.5 rounded flex items-center gap-1.5 transition-all cursor-pointer ${
+                activeModal === 'army' ? 'scale-105' : 'hover:bg-black/[0.04] active:scale-95'
+              }`}
+              title="Mở Sa Bàn Bố Trận (Sắp xếp từng người lính và quản lý các đạo quân chờ)"
+            >
+              {activeModal !== 'army' && (
+                <img 
+                  src="/icons/flag.png" 
+                  alt="Bố Trận" 
+                  className="w-8 h-8 object-contain filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]"
+                />
+              )}
+              {activeModal === 'army' ? (
+                <div className="relative px-3.5 py-1 flex items-center justify-center">
+                  <img
+                    src="/ink_stroke_1.png"
+                    alt="Vết mực"
+                    className="absolute inset-0 w-full h-full object-fill pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]"
+                  />
+                  <span className="relative z-10 font-serif font-bold text-xs md:text-sm text-[#fcf4e4] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]">
+                    Bố Trận
+                  </span>
+                </div>
+              ) : (
+                <span className="relative z-10 font-serif font-bold text-[#2a1708]">
+                  Bố Trận
+                </span>
+              )}
+            </button>
+
+            {/* Phân cách */}
             <div className="w-px h-8 bg-[#8c6b44]/40 shrink-0 self-center" />
 
             {/* 1. KHỐI THỜI GIAN VÀ CÁC NÚT TỐC ĐỘ */}
