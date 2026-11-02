@@ -130,44 +130,48 @@ export const MarchRouteDrawerOverlay: React.FC<MarchRouteDrawerOverlayProps> = (
 
   // Khởi tạo ô xuất phát khi bắt đầu chế độ vẽ lộ trình (marchDrawMode)
   useEffect(() => {
-    if (!marchDrawMode || !activeFormation) {
-      setDrawnCells([]);
+    const initTimer = setTimeout(() => {
+      if (!marchDrawMode || !activeFormation) {
+        setDrawnCells([]);
+        setDrawnRetreatCells([]);
+        setDrawingPhase('main');
+        setIsRouteFinalized(false);
+        setCliffWarningCell(null);
+        mainUndoStackRef.current = [];
+        retreatUndoStackRef.current = [];
+        return;
+      }
+
+      const startPos = getFormationMapPos(activeFormation, cities);
+      const initialCell = createMarchPathCell(
+        startPos.col,
+        startPos.row,
+        activeFormation,
+        0,
+        Boolean(marchDrawMode.isEmergencyRetreat)
+      );
+      initialCell.moveCostDays = 0;
+      initialCell.cumulativeDays = 0;
+      initialCell.foodCost = 0;
+
+      setDrawnCells([initialCell]);
       setDrawnRetreatCells([]);
       setDrawingPhase('main');
       setIsRouteFinalized(false);
       setCliffWarningCell(null);
-      mainUndoStackRef.current = [];
+      mainUndoStackRef.current = [1];
       retreatUndoStackRef.current = [];
-      return;
-    }
+      lastLeftClickRef.current = { time: 0, col: -1, row: -1 };
 
-    const startPos = getFormationMapPos(activeFormation, cities);
-    const initialCell = createMarchPathCell(
-      startPos.col,
-      startPos.row,
-      activeFormation,
-      0,
-      Boolean(marchDrawMode.isEmergencyRetreat)
-    );
-    initialCell.moveCostDays = 0;
-    initialCell.cumulativeDays = 0;
-    initialCell.foodCost = 0;
+      if (marchDrawMode.isDualRoute) {
+        setSelectedEndpointAction('feigned_retreat');
+      } else {
+        setSelectedEndpointAction('camp');
+      }
+    }, 0);
 
-    setDrawnCells([initialCell]);
-    setDrawnRetreatCells([]);
-    setDrawingPhase('main');
-    setIsRouteFinalized(false);
-    setCliffWarningCell(null);
-    mainUndoStackRef.current = [1];
-    retreatUndoStackRef.current = [];
-    lastLeftClickRef.current = { time: 0, col: -1, row: -1 };
-
-    if (marchDrawMode.isDualRoute) {
-      setSelectedEndpointAction('feigned_retreat');
-    } else {
-      setSelectedEndpointAction('camp');
-    }
-  }, [marchDrawMode, activeFormation?.id]);
+    return () => clearTimeout(initTimer);
+  }, [marchDrawMode, activeFormation, cities]);
 
   // Hàm dừng việc vẽ đường hành quân -> Kích hoạt sự kiện chọn thao tác chiến thuật điểm cuối!
   const handleStopDrawingAndOpenTacticalMenu = useCallback(() => {

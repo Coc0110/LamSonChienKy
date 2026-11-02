@@ -106,5 +106,5 @@ export const useCityMarkers = ({
 
       badgeMarker.addTo(layer);
     });
-  }, [mapInstance, cityMarkersSignature, selectBase, districtsList, nodesLayerRef, handlePlacementAtRef]);
+  }, [mapInstance, cityMarkersSignature, cities, selectBase, districtsList, nodesLayerRef, handlePlacementAtRef]);
 };

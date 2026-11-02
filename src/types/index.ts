@@ -159,7 +159,7 @@ export interface RecruitmentEventNotice {
   generalIds: string[];
 }
 
-export type NoticeType = 'harvest' | 'forge' | 'build' | 'general';
+export type NoticeType = 'harvest' | 'forge' | 'build' | 'general' | 'combat';
 
 export interface MilitaryNotice {
   id: string;

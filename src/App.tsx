@@ -1,18 +1,34 @@
-import { useEffect } from 'react';
+import { useEffect, lazy, Suspense } from 'react';
 import { TopBar } from './components/layout/TopBar';
 import { LeftPanel } from './components/layout/LeftPanel';
 import { WorldMap } from './components/map/WorldMap';
-import { GeneralsModal } from './components/generals/GeneralsModal';
-import { TacticalFormationModal } from './components/army/TacticalFormationModal';
 import { ParchmentToastContainer } from './components/common/ParchmentToastContainer';
 import { ParchmentConfirmModal } from './components/common/ParchmentConfirmModal';
-import { useGameStore } from './store/gameStore';
+import { EndgameModal } from './components/common/EndgameModal';
+import { useGameStore, SAVE_GAME_STORAGE_KEY } from './store/gameStore';
+
+// Code-splitting các modal chiến thuật & danh tướng có kích thước lớn để tăng tốc tải trang
+const GeneralsModal = lazy(() => import('./components/generals/GeneralsModal').then(m => ({ default: m.GeneralsModal })));
+const TacticalFormationModal = lazy(() => import('./components/army/TacticalFormationModal').then(m => ({ default: m.TacticalFormationModal })));
 
 function App() {
   const isPaused = useGameStore(state => state.isPaused);
   const gameSpeed = useGameStore(state => state.gameSpeed);
   const tick = useGameStore(state => state.tick);
   const stepArmies = useGameStore(state => state.stepArmies);
+  const loadGame = useGameStore(state => state.loadGame);
+
+  // Tự động phục hồi bản lưu gần nhất (nếu có) khi mở trang
+  useEffect(() => {
+    try {
+      const hasSave = localStorage.getItem(SAVE_GAME_STORAGE_KEY);
+      if (hasSave) {
+        loadGame();
+      }
+    } catch {
+      // Ignore
+    }
+  }, [loadGame]);
 
   // Vòng lặp thời gian thực chuẩn xác theo gameSpeed (1x: 1000ms, 2x: 500ms, 5x: 200ms, 10x: 100ms, 50x: 20ms)
   useEffect(() => {
@@ -40,10 +56,13 @@ function App() {
       <WorldMap />
       <TopBar />
       <LeftPanel />
-      <GeneralsModal />
-      <TacticalFormationModal />
+      <Suspense fallback={null}>
+        <GeneralsModal />
+        <TacticalFormationModal />
+      </Suspense>
       <ParchmentToastContainer />
       <ParchmentConfirmModal />
+      <EndgameModal />
     </div>
   );
 }

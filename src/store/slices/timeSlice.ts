@@ -2,6 +2,7 @@ import type { StateCreator } from 'zustand';
 import { START_DAY, START_MONTH, START_YEAR } from '../../data/mapData';
 import type { MilitaryNotice } from '../../types';
 import { notify } from '../dialogStore';
+import { SAVE_GAME_STORAGE_KEY } from './saveSlice';
 import type { TimeSlice, GameStore } from './types';
 
 export const getDaysInMonth = (month: number, year: number): number => {
@@ -414,10 +415,92 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set)
       newMorale = Math.min(100, newMorale + 0.05);
     }
 
-    // 4. Mức nghi ngờ của quân Minh
-    const newSuspicion = Math.min(100, Math.max(0, state.suspicion + suspicionGain - 0.02));
-    if (newSuspicion >= 95 && Math.random() < 0.05) {
-      notify.warning('CẢNH BÁO QUÂN CƠ: Quân Minh tại thành Tây Đô đã dấy lên nghi ngờ cao độ! Mau chuẩn bị vàng đút lót trước khi giặc kéo quân lục soát!');
+    // 4. Mức nghi ngờ & Cuộc càn quét trừng phạt của quân Minh
+    let nextSuspicion = Math.min(100, Math.max(0, state.suspicion + suspicionGain - 0.02));
+
+    if (nextSuspicion >= 100) {
+      // Giặc Minh tại thành Tây Đô mở cuộc hành quân càn quét bất ngờ vào Lam Sơn!
+      nextSuspicion = 35; // Sau trận càn quét, địch rút quân tạm lắng, nghi ngờ hạ về 35%
+
+      const baseIdx = updatedCities.findIndex(c => c.id === 'lam_son' && c.faction === 'lam_son');
+      const baseCity = baseIdx !== -1 ? updatedCities[baseIdx] : null;
+
+      const baseCombatTroops = baseCity?.population?.combatTroops || 0;
+      const stationedFormationTroops = state.formations
+        .filter(f => f.cityId === 'lam_son' && f.status === 'stationed')
+        .reduce((sum, f) => sum + f.totalTroops, 0);
+      const totalDefenders = baseCombatTroops + stationedFormationTroops;
+
+      // Toán quân càn quét ngẫu nhiên 60 - 95 tên
+      const enemyRaiders = Math.floor(Math.random() * 36) + 60;
+
+      if (totalDefenders >= Math.round(enemyRaiders * 0.7)) {
+        // Nghĩa quân phòng thủ vững chắc hoặc phục kích đánh tan toán càn quét!
+        const enemyKilled = Math.min(enemyRaiders, Math.floor(enemyRaiders * 0.6) + 12);
+        const ourLosses = Math.min(baseCombatTroops, Math.max(1, Math.floor(enemyKilled * 0.25)));
+        const lootWeapons = Math.floor(enemyKilled * 0.35);
+        const lootFood = Math.floor(enemyKilled * 1.4);
+
+        if (baseIdx !== -1 && baseCity && baseCity.population) {
+          citiesChanged = true;
+          updatedCities[baseIdx] = {
+            ...baseCity,
+            troops: Math.max(0, baseCity.troops - ourLosses),
+            population: {
+              ...baseCity.population,
+              combatTroops: Math.max(0, baseCity.population.combatTroops - ourLosses),
+            },
+          };
+        }
+
+        newFood += lootFood;
+        newMorale = Math.min(100, newMorale + 4);
+
+        notify.success(`⚔️ ĐẠI THẮNG ĐẨY LÙI QUÂN MINH CÀN QUÉT! Quân ta phục binh đánh tan ${enemyRaiders} quân Minh lục soát Lam Sơn! Diệt ${enemyKilled} giặc, thu ${lootWeapons} vũ khí & ${lootFood} lương!`);
+
+        newNotices.push({
+          id: `ming_raid_win_${Date.now()}`,
+          type: 'combat' as const,
+          title: 'Đẩy Lùi Quân Minh Càn Quét',
+          dateStr: `Ngày ${newDay}/${newMonth}/${newYear}`,
+          description: `Độ nghi ngờ chạm đỉnh khiến giặc Minh phái ${enemyRaiders} quân càn quét Lam Sơn. Nhờ có quân phòng thủ vững vàng, nghĩa quân đã đánh tan giặc, tiêu diệt ${enemyKilled} tên, thu chiến lợi phẩm dồi dào!`,
+          read: false,
+          timestamp: Date.now(),
+        });
+      } else {
+        // Quân ta mỏng manh, không kịp phòng ngự, giặc cướp bóc một phần tài nguyên
+        const foodPlundered = Math.min(newFood, Math.floor(newFood * 0.2) + 150);
+        const weaponPlundered = Math.min(newWeapons, 25);
+        newFood = Math.max(0, newFood - foodPlundered);
+        newMorale = Math.max(0, newMorale - 12);
+
+        if (baseIdx !== -1 && baseCity && baseCity.population) {
+          const casualties = Math.min(baseCombatTroops, 10);
+          citiesChanged = true;
+          updatedCities[baseIdx] = {
+            ...baseCity,
+            troops: Math.max(0, baseCity.troops - casualties),
+            population: {
+              ...baseCity.population,
+              combatTroops: Math.max(0, baseCity.population.combatTroops - casualties),
+            },
+          };
+        }
+
+        notify.error(`🚨 NGUY CẤP: Quân Minh bất ngờ càn quét Lam Sơn! Do quân số phòng thủ mỏng, giặc đã cướp mất ${foodPlundered} hộc lương, ${weaponPlundered} khí giới!`);
+
+        newNotices.push({
+          id: `ming_raid_loss_${Date.now()}`,
+          type: 'combat' as const,
+          title: 'Quân Minh Đột Kích Lam Sơn',
+          dateStr: `Ngày ${newDay}/${newMonth}/${newYear}`,
+          description: `Mức nghi ngờ đạt 100%, quan quân Tây Đô kéo đến càn quét bất ngờ! Ta thiếu quân phòng thủ, giặc cướp phá ${foodPlundered} lương thảo, ${weaponPlundered} vũ khí, sĩ khí nghĩa quân sa sút.`,
+          read: false,
+          timestamp: Date.now(),
+        });
+      }
+    } else if (nextSuspicion >= 85 && Math.random() < 0.06) {
+      notify.warning('CẢNH BÁO QUÂN CƠ: Mật thám Tây Đô phát giác khói lửa lò rèn Lam Sơn! Nghi ngờ dâng cao, mau lo vàng đút lót trước khi giặc kéo quân càn quét!');
     }
 
     // 5. Kiểm tra tướng gia nhập
@@ -487,6 +570,63 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set)
       });
     }
 
+    // 6. Kiểm tra Thắng / Bại (Victory & Defeat Conditions)
+    let nextGameStatus = state.gameStatus;
+    const tayDoCity = updatedCities.find(c => c.id === 'tay_do');
+    const hasLamSonBase = updatedCities.some(c => c.faction === 'lam_son' && (c.hasBase || c.type === 'camp'));
+
+    if (nextGameStatus === 'playing') {
+      if (tayDoCity && tayDoCity.faction === 'lam_son') {
+        nextGameStatus = 'victory';
+        shouldPause = true;
+        notify.success('🎉 ĐẠI THẮNG LỊCH SỬ: Nghĩa quân đã hạ thành Tây Đô, quét sạch giặc Minh khỏi phủ Thanh Hóa!');
+      } else if (!hasLamSonBase || (newMorale <= 0 && state.resources.troops <= 0 && newFood <= 0)) {
+        nextGameStatus = 'defeat';
+        shouldPause = true;
+        notify.error('💀 KHỞI NGHĨA THẤT BẠI: Toàn bộ căn cứ nghĩa quân thất thủ, khí số dở dang...');
+      }
+    }
+
+    // 7. Tự động lưu quân cơ (Auto-save) vào đầu mỗi tháng mới
+    if (newDay === 1 && state.day !== 1) {
+      try {
+        const autoSaveData = {
+          version: 1,
+          savedAt: `Tự động lưu Tháng ${newMonth}/${newYear}`,
+          day: newDay,
+          month: newMonth,
+          year: newYear,
+          isPaused: shouldPause ? true : state.isPaused,
+          gameSpeed: state.gameSpeed,
+          resources: {
+            ...state.resources,
+            food: newFood,
+            swords: newSwords,
+            bows: newBows,
+            spears: newSpears,
+            weapons: newWeapons,
+            clothes: newClothes,
+            gold: newGold,
+            morale: newMorale,
+            troops: state.resources.troops + trainedTroopsAdded + bonusTroops,
+            elephants: state.resources.elephants + bonusElephants,
+          },
+          cities: citiesChanged ? updatedCities : state.cities,
+          structures: structuresChanged ? updatedStructures : state.structures,
+          formations: formationsChanged ? updatedFormations : state.formations,
+          generals: updatedGenerals,
+          suspicion: nextSuspicion,
+          militaryNotices: newNotices.length > 0
+            ? [...newNotices, ...state.militaryNotices].slice(0, 100)
+            : state.militaryNotices,
+          gameStatus: nextGameStatus,
+        };
+        localStorage.setItem(SAVE_GAME_STORAGE_KEY, JSON.stringify(autoSaveData));
+      } catch {
+        // Bỏ qua lỗi quota bộ nhớ nếu có
+      }
+    }
+
     return {
       day: newDay,
       month: newMonth,
@@ -513,7 +653,8 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set)
       militaryNotices: newNotices.length > 0
         ? [...newNotices, ...state.militaryNotices].slice(0, 100)
         : state.militaryNotices,
-      suspicion: newSuspicion,
+      suspicion: nextSuspicion,
+      gameStatus: nextGameStatus,
     };
   })
 });

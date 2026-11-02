@@ -5,6 +5,7 @@ import { useUIStore } from '../../store/uiStore';
 import { TimeSpeedControls } from './topbar/TimeSpeedControls';
 import { TroopsDropdown } from './topbar/TroopsDropdown';
 import { SuppliesDropdown } from './topbar/SuppliesDropdown';
+import { GameSaveMenu } from './topbar/GameSaveMenu';
 
 export const TopBar: React.FC = React.memo(() => {
   const food = useGameStore(state => state.resources.food);
@@ -267,7 +268,8 @@ export const TopBar: React.FC = React.memo(() => {
           </div>
 
           {/* 7. NÚT SỬA MAP */}
-          <div className="shrink-0 pl-2 self-center">
+          <div className="shrink-0 pl-2 self-center flex items-center gap-1.5">
+            <GameSaveMenu />
             <button
               onClick={toggleEditMode}
               className={`relative px-2.5 py-1 rounded transition-transform hover:scale-105 active:scale-95 cursor-pointer flex items-center gap-1.5 text-xs font-serif font-black uppercase tracking-wider ${

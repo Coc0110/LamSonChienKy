@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { sounds } from '../utils/soundEffects';
 
 export type ToastType = 'info' | 'success' | 'warning' | 'error';
 
@@ -72,9 +73,24 @@ export const useDialogStore = create<DialogState>((set) => ({
 
 // Helper tiện ích gọi ở bất kỳ đâu trong dự án (cả trong component lẫn trong store)
 export const notify = {
-  info: (message: string, duration?: number) => useDialogStore.getState().showToast(message, 'info', duration),
-  success: (message: string, duration?: number) => useDialogStore.getState().showToast(message, 'success', duration),
-  warning: (message: string, duration?: number) => useDialogStore.getState().showToast(message, 'warning', duration),
-  error: (message: string, duration?: number) => useDialogStore.getState().showToast(message, 'error', duration),
-  confirm: (options: ConfirmDialogOptions) => useDialogStore.getState().showConfirm(options),
+  info: (message: string, duration?: number) => {
+    sounds.playPaper();
+    return useDialogStore.getState().showToast(message, 'info', duration);
+  },
+  success: (message: string, duration?: number) => {
+    sounds.playGong();
+    return useDialogStore.getState().showToast(message, 'success', duration);
+  },
+  warning: (message: string, duration?: number) => {
+    sounds.playDrum();
+    return useDialogStore.getState().showToast(message, 'warning', duration);
+  },
+  error: (message: string, duration?: number) => {
+    sounds.playDrum();
+    return useDialogStore.getState().showToast(message, 'error', duration);
+  },
+  confirm: (options: ConfirmDialogOptions) => {
+    sounds.playPaper();
+    return useDialogStore.getState().showConfirm(options);
+  },
 };

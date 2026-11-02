@@ -10,6 +10,7 @@ import type {
   PlacedStructure,
 } from '../../types';
 import type { ArmySlice } from './armySlice';
+import type { SaveSlice, GameStatus } from './saveSlice';
 
 export interface TimeSlice {
   day: number;
@@ -61,5 +62,5 @@ export interface MilitarySlice {
   bribeMingOfficials: () => void;
 }
 
-export type { ArmySlice };
-export type GameStore = TimeSlice & CitySlice & StructureSlice & MilitarySlice & ArmySlice;
+export type { ArmySlice, SaveSlice, GameStatus };
+export type GameStore = TimeSlice & CitySlice & StructureSlice & MilitarySlice & ArmySlice & SaveSlice;

@@ -28,7 +28,9 @@ export const useStructureMarkers = ({
 
   // Giữ ref callback mới nhất để không tạo lại listener click không cần thiết
   const callbacksRef = useRef({ onSelectStructureMenu, handlePlacementAtRef });
-  callbacksRef.current = { onSelectStructureMenu, handlePlacementAtRef };
+  useEffect(() => {
+    callbacksRef.current = { onSelectStructureMenu, handlePlacementAtRef };
+  });
 
   useEffect(() => {
     if (!mapInstance) return;
