@@ -21,7 +21,7 @@ export const TimelineWheelScrubber: React.FC = () => {
   const setTimelineWheelOpen = useUIStore(state => state.setTimelineWheelOpen);
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const [containerWidth, setContainerWidth] = useState<number>(560);
+  const [containerWidth, setContainerWidth] = useState<number>(480);
 
   // Vị trí ngày hiện tại (dạng số thực khi đang kéo để mượt mà)
   const currentDayIndex = useMemo(() => dateToDayIndex(day, month, year), [day, month, year]);
@@ -64,10 +64,8 @@ export const TimelineWheelScrubber: React.FC = () => {
     const distFromCenter = Math.abs(mouseX - centerX);
 
     // QUY TẮC: Càng xa mũi tên ở giữa, tốc độ kéo lướt thời gian càng lớn
-    // - Gần tâm (< 25px): hệ số = 1 (tinh chỉnh tỉ mỉ từng ngày)
-    // - Càng kéo chuột ra xa: gia tốc tăng dần theo khoảng cách
-    const normalizedDist = Math.max(0, distFromCenter - 25);
-    const speedMultiplier = 1 + Math.pow(normalizedDist / 32, 1.6);
+    const normalizedDist = Math.max(0, distFromCenter - 20);
+    const speedMultiplier = 1 + Math.pow(normalizedDist / 26, 1.7);
 
     const deltaDay = -(dx / DAY_WIDTH_PX) * speedMultiplier;
     currentDayRef.current = Math.max(0, Math.min(MAX_DAY_INDEX, currentDayRef.current + deltaDay));
@@ -108,7 +106,7 @@ export const TimelineWheelScrubber: React.FC = () => {
     const rect = containerRef.current?.getBoundingClientRect();
     const centerX = rect ? rect.left + rect.width / 2 : window.innerWidth / 2;
     const distFromCenter = Math.abs(e.clientX - centerX);
-    const speedMultiplier = Math.max(1, Math.round(1 + Math.pow(distFromCenter / 45, 1.4)));
+    const speedMultiplier = Math.max(1, Math.round(1 + Math.pow(distFromCenter / 38, 1.45)));
     
     const deltaDays = (e.deltaY > 0 ? 1 : -1) * speedMultiplier;
     const nextDay = Math.max(0, Math.min(MAX_DAY_INDEX, Math.round(effectiveDayIndex) + deltaDays));
@@ -116,7 +114,7 @@ export const TimelineWheelScrubber: React.FC = () => {
     setTimeDate(targetDate.day, targetDate.month, targetDate.year);
   };
 
-  // Vạch chia ngày hiển thị trong khung nhìn (Virtual ticks)
+  // Vạch chia thước đo trong khung nhìn (Virtual ticks)
   const centerPos = containerWidth / 2;
   const visibleDaysRange = Math.ceil((containerWidth / 2) / DAY_WIDTH_PX) + 3;
   const minVisibleDay = Math.max(0, Math.floor(effectiveDayIndex - visibleDaysRange));
@@ -148,99 +146,86 @@ export const TimelineWheelScrubber: React.FC = () => {
   if (!isTimelineWheelOpen) return null;
 
   return (
-    <div className="fixed top-[72px] md:top-[78px] left-1/2 -translate-x-1/2 z-40 select-none pointer-events-auto filter drop-shadow-[0_10px_20px_rgba(0,0,0,0.8)] animate-fade-in">
-      {/* KHUNG THƯỚC NHỎ GỌN (~NỬA MÀN HÌNH) */}
+    <div className="fixed top-[72px] md:top-[78px] left-1/2 -translate-x-1/2 z-40 select-none pointer-events-auto filter drop-shadow-[0_12px_24px_rgba(0,0,0,0.6)] drop-shadow-[0_2px_6px_rgba(0,0,0,0.4)] animate-fade-in">
+      {/* KHUNG THƯỚC NHỎ GỌN, ĐỒNG BỘ MÀU GIẤY (~480px - 520px, CAO ~76px - 80px) */}
       <div 
         ref={containerRef}
-        className="relative w-[92vw] max-w-[540px] md:max-w-[580px] bg-[#fbf6ea] border-2 border-[#8c2d19] rounded-lg overflow-hidden shadow-2xl"
-        style={{
-          backgroundImage: 'radial-gradient(circle at 50% 50%, #fefcf6 0%, #f5e9d3 100%)',
-        }}
+        className="relative w-[92vw] max-w-[480px] md:max-w-[520px] h-[76px] md:h-[80px] px-7 pt-1.5 pb-2 flex flex-col justify-center items-center gap-0.5"
       >
-        {/* Nền giấy cổ */}
+        {/* NỀN GIẤY CỔ PHONG ĐỒNG MÀU, MÉP RÁCH TỰ NHIÊN */}
         <img
-          src="/parchment_torn_horizontal.png"
-          alt="Parchment Border"
-          className="absolute inset-0 w-full h-full object-fill pointer-events-none opacity-20 mix-blend-multiply"
+          src="/parchment_timeline_strip.png"
+          alt="Giấy cổ phong"
+          className="absolute inset-0 w-full h-full object-fill pointer-events-none select-none z-0"
+          draggable={false}
         />
 
-        {/* 1. PHÍA TRÊN: CHỈ HIỂN THỊ DUY NHẤT NGÀY THÁNG NĂM (VD: 14/2/1420) + NÚT ĐÓNG */}
-        <div className="relative z-20 px-3 pt-2 pb-1 flex items-center justify-between border-b border-[#8c6b44]/20 font-serif">
-          <div className="w-5" /> {/* Spacer cân xứng */}
-          
-          {/* CHỮ SỐ NGÀY THÁNG ĐẬM RÕ */}
-          <span className="text-base md:text-lg font-black tracking-widest text-[#701a14] drop-shadow-xs">
+        {/* 1. PHÍA TRÊN: CHỈ HIỂN THỊ DUY NHẤT NGÀY/THÁNG/NĂM (VD: 14/2/1420) + NÚT ĐÓNG */}
+        <div className="relative z-10 w-full flex items-center justify-between font-serif px-2">
+          <div className="w-5" /> {/* Cân xứng lề trái */}
+
+          {/* DÒNG NGÀY THÁNG ĐẬM RÕ SÁT PHÍA TRÊN VẠCH THƯỚC */}
+          <span className="font-serif font-black text-base md:text-lg tracking-widest text-[#2a1708] drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)]">
             {day}/{month}/{year}
           </span>
 
           <button
             onClick={() => setTimelineWheelOpen(false)}
-            className="p-1 rounded hover:bg-black/10 active:scale-90 text-[#701a14] transition-all cursor-pointer"
+            className="p-0.5 rounded hover:bg-black/10 active:scale-90 text-[#701a14] transition-all cursor-pointer"
             title="Đóng thanh thời gian"
           >
-            <X className="w-4 h-4" />
+            <X className="w-3.5 h-3.5" />
           </button>
         </div>
 
-        {/* 2. BĂNG CUỘN BÁNH XE THỜI GIAN NHÌN TỪ TRÊN XUỐNG */}
+        {/* 2. THƯỚC ĐO CUỘN BÁNH XE THỜI GIAN NGAY SÁT BÊN DƯỚI */}
         <div 
-          className="relative w-full h-[52px] cursor-grab active:cursor-grabbing overflow-hidden"
+          className="relative z-10 w-full h-[32px] cursor-grab active:cursor-grabbing overflow-hidden"
           onMouseDown={handleMouseDown}
           onWheel={handleWheel}
         >
-          {/* Đổ bóng 3D mờ dần ở 2 mép tạo cảm giác vành bánh xe cong nhìn từ trên xuống */}
-          <div className="absolute inset-y-0 left-0 w-16 bg-gradient-to-r from-stone-900/40 via-stone-800/10 to-transparent pointer-events-none z-10" />
-          <div className="absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-stone-900/40 via-stone-800/10 to-transparent pointer-events-none z-10" />
+          {/* Đổ bóng cong 3D mờ dần ở 2 mép tạo cảm giác bánh xe nhìn từ trên xuống */}
+          <div className="absolute inset-y-0 left-0 w-12 bg-gradient-to-r from-stone-900/30 via-stone-800/5 to-transparent pointer-events-none z-10" />
+          <div className="absolute inset-y-0 right-0 w-12 bg-gradient-to-l from-stone-900/30 via-stone-800/5 to-transparent pointer-events-none z-10" />
 
-          {/* Đường ray thời gian ngang */}
-          <div className="absolute top-[26px] left-0 right-0 h-0.5 bg-[#8c6b44]/30" />
+          {/* Đường gạch ngang ở đáy thước */}
+          <div className="absolute bottom-[4px] left-0 right-0 h-px bg-[#8c6b44]/70" />
 
-          {/* CÁC VẠCH NGÀY THÁNG (TICKS) */}
+          {/* CÁC VẠCH THƯỚC DỰNG ĐỨNG TỪ GẠCH NGANG LÊN TRÊN */}
           <div className="absolute inset-0 pointer-events-none">
             {ticks.map((t) => {
-              if (t.x < -60 || t.x > containerWidth + 60) return null;
+              if (t.x < -30 || t.x > containerWidth + 30) return null;
 
               return (
                 <div 
                   key={t.dayIndex}
-                  className="absolute top-0 bottom-0 flex flex-col items-center"
+                  className="absolute bottom-[4px] flex flex-col items-center"
                   style={{ left: `${t.x}px`, transform: 'translateX(-50%)' }}
                 >
-                  {/* Nhãn tháng / năm ở đầu tháng */}
+                  {/* Nhãn tháng/năm ở vạch đầu tháng */}
                   {t.isFirstDay && (
-                    <span className="absolute top-0.5 text-[9px] font-black text-[#701a14] whitespace-nowrap bg-[#faeed8] px-1 rounded shadow-xs border border-[#8c6b44]/40">
+                    <span className="absolute bottom-[16px] text-[8px] font-bold text-[#701a14] whitespace-nowrap bg-[#faeed8] px-1 py-0.2 rounded shadow-2xs border border-[#8c6b44]/40 leading-none">
                       {t.month}/{t.year}
                     </span>
                   )}
 
-                  {/* Vạch đo ngày */}
+                  {/* Vạch đo ngày dựng đứng từ đường gạch ngang lên */}
                   <div
                     className={`w-px ${
                       t.isFirstDay
-                        ? 'h-5 top-[18px] bg-[#701a14] w-[1.5px]'
+                        ? 'h-3.5 bg-[#701a14] w-[1.5px]'
                         : t.isFullMoon
-                        ? 'h-3.5 top-[21px] bg-[#8c6b44] w-[1px]'
-                        : 'h-2 top-[24px] bg-[#b39775]/60'
+                        ? 'h-2 bg-[#8c6b44] w-[1px]'
+                        : 'h-1.5 bg-[#b39775]/90'
                     }`}
                   />
 
-                  {/* Số ngày */}
-                  {(t.isFirstDay || t.isFullMoon || t.day % 5 === 0) && (
-                    <span 
-                      className={`absolute top-[34px] text-[8px] font-mono leading-none ${
-                        t.isFirstDay ? 'font-bold text-[#701a14]' : 'text-stone-600'
-                      }`}
-                    >
-                      {t.day}
-                    </span>
-                  )}
-
-                  {/* Dấu son đỏ mốc lịch sử */}
+                  {/* Chấm son đỏ mốc lịch sử */}
                   {t.milestone && (
                     <div 
-                      className="absolute top-[10px] w-2 h-2 rounded-full shadow-xs animate-ping"
+                      className="absolute bottom-[10px] w-1.5 h-1.5 rounded-full shadow-xs animate-ping"
                       style={{ backgroundColor: t.milestone.color }}
-                      title={`${t.milestone.title}: Ngày ${t.milestone.day}/${t.milestone.month}/${t.milestone.year}`}
+                      title={`${t.milestone.title}: ${t.milestone.day}/${t.milestone.month}/${t.milestone.year}`}
                     />
                   )}
                 </div>
@@ -248,13 +233,9 @@ export const TimelineWheelScrubber: React.FC = () => {
             })}
           </div>
 
-          {/* 3. DUY NHẤT 1 MŨI TÊN HƯỚNG LÊN TRÊN Ở CHÍNH GIỮA */}
-          <div className="absolute bottom-0 left-1/2 -translate-x-1/2 z-20 pointer-events-none flex flex-col items-center">
-            {/* Vạch kim mảnh đỏ xuyên tâm chỉ ngày */}
-            <div className="w-[1.5px] h-7 bg-red-600 shadow-[0_0_6px_rgba(239,68,68,0.9)]" />
-            
-            {/* Mũi tên đỏ duy nhất trỏ lên trên */}
-            <div className="w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-b-[8px] border-b-red-600 filter drop-shadow-[0_-2px_4px_rgba(220,38,38,0.8)]" />
+          {/* 3. MŨI TÊN DUY NHẤT Ở ĐÁY CHÍNH GIỮA CHỈ THẲNG LÊN VẠCH THƯỚC */}
+          <div className="absolute bottom-[1px] left-1/2 -translate-x-1/2 z-20 pointer-events-none">
+            <div className="w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-b-[7px] border-b-[#8c2d19] filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]" />
           </div>
 
         </div>
