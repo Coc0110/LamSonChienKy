@@ -16,11 +16,16 @@ export interface TimeSlice {
   day: number;
   month: number;
   year: number;
+  canhHour: number; // 0..11 tuong ung 12 Thoi than: Ty, Suu, Dan, Mao, Thin, Ti, Ngo, Mui, Than, Dau, Tuat, Hoi
+  isWarMode: boolean; // Che do Chien Su (dem theo Canh gio)
   isPaused: boolean;
   gameSpeed: number;
   togglePause: () => void;
   setSpeed: (speed: number) => void;
+  setWarMode: (active: boolean) => void;
+  toggleWarMode: () => void;
   tick: () => void;
+  tickCanh: () => void;
   setTimeDate: (day: number, month: number, year: number) => void;
 }
 

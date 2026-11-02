@@ -10,7 +10,7 @@ import { GameSaveMenu } from './topbar/GameSaveMenu';
 export const TopBar: React.FC = React.memo(() => {
   const food = useGameStore(state => state.resources.food);
   const gold = useGameStore(state => state.resources.gold);
-  const morale = useGameStore(state => state.resources.morale);
+  // const morale = useGameStore(state => state.resources.morale);
   const militaryNotices = useGameStore(state => state.militaryNotices);
 
   const toggleEditMode = useUIStore(state => state.toggleEditMode);
@@ -253,18 +253,7 @@ export const TopBar: React.FC = React.memo(() => {
               <span className="leading-none">Ngân khố: {Math.floor(gold).toLocaleString()}</span>
             </div>
 
-            {/* Phân cách */}
-            <div className="w-px h-6 bg-[#8c6b44]/40 shrink-0 self-center" />
-
-            {/* 6. SĨ KHÍ */}
-            <div className="flex items-center gap-1.5 shrink-0 self-center" title="Sĩ khí nghĩa quân">
-              <img 
-                src="/icons/flag.png" 
-                alt="Sĩ khí" 
-                className="w-8 h-8 object-contain filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]"
-              />
-              <span className="text-[#1c4521]">Sĩ khí: {Math.floor(morale)}</span>
-            </div>
+{/* Tạm thời ẩn mục Sĩ Khí theo yêu cầu người dùng */}
           </div>
 
           {/* 7. NÚT SỬA MAP */}

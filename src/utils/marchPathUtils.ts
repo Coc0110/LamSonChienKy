@@ -183,8 +183,9 @@ export function getFormationTerrainSpeedFactor(
   return Math.max(0.35, factor);
 }
 
-// Thời gian cơ sở để vượt qua 1 ô lưới (250m) ở đồng bằng là ~0.04 ngày (~25 ô/ngày)
-export const BASE_CELL_DAYS = 0.04;
+// Thời gian cơ sở để vượt qua 1 ô lưới (250m) ở đồng bằng: ~0.048 ngày (~21 ô/ngày)
+// Với cự ly 20km (Lam Sơn - Tây Đô ~32 ô), mất ~1.5 ngày đường (18 canh giờ chuẩn lịch sử)
+export const BASE_CELL_DAYS = 0.048;
 
 export function calculateCellMoveCostDays(
   terrain: TerrainType,

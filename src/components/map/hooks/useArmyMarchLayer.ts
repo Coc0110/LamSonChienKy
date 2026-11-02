@@ -29,7 +29,11 @@ export function useArmyMarchLayer({ mapInstance, armyLayerRef }: UseArmyMarchLay
   const formations = useGameStore(state => state.formations);
   const cities = useGameStore(state => state.cities);
   const generals = useGameStore(state => state.generals);
+  const canhHour = useGameStore(state => state.canhHour);
+  const isWarMode = useGameStore(state => state.isWarMode);
   const selectedMapFormationId = useUIStore(state => state.selectedMapFormationId);
+
+  const isNight = isWarMode && (canhHour >= 10 || canhHour <= 2);
   const marchDrawMode = useUIStore(state => state.marchDrawMode);
 
   useEffect(() => {
@@ -249,6 +253,16 @@ export function useArmyMarchLayer({ mapInstance, armyLayerRef }: UseArmyMarchLay
       }
 
       // 3. Vẽ Quân Kỳ Đạo Quân (Army Banner Marker) tại vị trí hiện tại
+      const isNightResting = isNight && (form.status === 'marching' || form.status === 'retreating');
+      const displayStatusLabel = isNightResting ? 'Hạ trại nghỉ đêm' : statusMeta.label;
+      const displayStatusIcon = isNightResting ? '⛺' : statusMeta.icon;
+      const displayBorderColor = isNightResting ? '#60a5fa' : statusMeta.color;
+      const displayBg = isSelected
+        ? 'linear-gradient(135deg, #7c2d12, #b45309)'
+        : isNightResting
+        ? 'linear-gradient(135deg, #091326, #162544)'
+        : 'linear-gradient(135deg, #271509, #3f220f)';
+
       const bannerIcon = L.divIcon({
         className: 'lam-son-army-banner',
         html: `
@@ -267,21 +281,21 @@ export function useArmyMarchLayer({ mapInstance, armyLayerRef }: UseArmyMarchLay
               gap: 5px;
               padding: 3px 8px;
               border-radius: 7px;
-              background: ${isSelected ? 'linear-gradient(135deg, #7c2d12, #b45309)' : 'linear-gradient(135deg, #271509, #3f220f)'};
-              border: ${isSelected ? '2px solid #fde047' : `1.5px solid ${statusMeta.color}`};
+              background: ${displayBg};
+              border: ${isSelected ? '2px solid #fde047' : `1.5px solid ${displayBorderColor}`};
               color: #fef3c7;
               white-space: nowrap;
               font-family: serif;
-              box-shadow: ${isSelected ? '0 0 14px rgba(250, 204, 21, 0.7)' : 'none'};
+              box-shadow: ${isSelected ? '0 0 14px rgba(250, 204, 21, 0.7)' : isNightResting ? '0 0 10px rgba(96, 165, 250, 0.5)' : 'none'};
               transition: all 0.15s ease;
             ">
-              <span style="font-size: 13px;">${statusMeta.icon}</span>
+              <span style="font-size: 13px;">${displayStatusIcon}</span>
               <div style="display: flex; flex-direction: column; line-height: 1.15;">
                 <span style="font-size: 11px; font-weight: 800; color: #fffbeb;">
                   ${form.name}
                 </span>
-                <span style="font-size: 9.5px; color: #fcd34d; font-family: monospace;">
-                  ${form.totalTroops} binh • ${statusMeta.label}${commander ? ` • ${commander.name}` : ''}
+                <span style="font-size: 9.5px; color: ${isNightResting ? '#93c5fd' : '#fcd34d'}; font-family: monospace;">
+                  ${form.totalTroops} binh • ${displayStatusLabel}${commander ? ` • ${commander.name}` : ''}
                 </span>
               </div>
             </div>
@@ -317,5 +331,5 @@ export function useArmyMarchLayer({ mapInstance, armyLayerRef }: UseArmyMarchLay
 
       bannerMarker.addTo(layer);
     });
-  }, [mapInstance, armyLayerRef, formations, cities, generals, selectedMapFormationId, marchDrawMode]);
+  }, [mapInstance, armyLayerRef, formations, cities, generals, selectedMapFormationId, marchDrawMode, canhHour, isWarMode, isNight]);
 }

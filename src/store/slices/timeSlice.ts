@@ -8,11 +8,12 @@ export const getDaysInMonth = (month: number, year: number): number => {
   return new Date(year, month, 0).getDate();
 };
 
-export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set) => ({
+export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set, get) => ({
   day: START_DAY,
   month: START_MONTH,
   year: START_YEAR,
-
+  canhHour: 4, // Bắt đầu lúc Giờ Thìn (07:00 - 09:00 sớm mai)
+  isWarMode: false,
   isPaused: false,
   gameSpeed: 1,
 
@@ -24,6 +25,23 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set)
     }
     return { gameSpeed: speed, isPaused: false };
   }),
+
+  setWarMode: (active: boolean) => set(() => ({ isWarMode: active })),
+  toggleWarMode: () => set((state) => ({ isWarMode: !state.isWarMode })),
+
+  tickCanh: () => {
+    const state = get();
+    if (state.isPaused) return;
+
+    const nextCanh = (state.canhHour + 1) % 12;
+    if (nextCanh === 0) {
+      // Đủ 12 canh giờ -> bước sang ngày mới và kích hoạt toàn bộ logic thường nhật
+      set({ canhHour: 0 });
+      get().tick();
+    } else {
+      set({ canhHour: nextCanh });
+    }
+  },
 
   setTimeDate: (targetDay: number, targetMonth: number, targetYear: number) => set((state) => {
     const targetVal = targetYear * 10000 + targetMonth * 100 + targetDay;
