@@ -21,6 +21,7 @@ export interface TimeSlice {
   togglePause: () => void;
   setSpeed: (speed: number) => void;
   tick: () => void;
+  setTimeDate: (day: number, month: number, year: number) => void;
 }
 
 export interface CitySlice {

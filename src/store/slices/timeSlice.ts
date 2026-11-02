@@ -2,7 +2,6 @@ import type { StateCreator } from 'zustand';
 import { START_DAY, START_MONTH, START_YEAR } from '../../data/mapData';
 import type { MilitaryNotice } from '../../types';
 import { notify } from '../dialogStore';
-import { SAVE_GAME_STORAGE_KEY } from './saveSlice';
 import type { TimeSlice, GameStore } from './types';
 
 export const getDaysInMonth = (month: number, year: number): number => {
@@ -24,6 +23,28 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set)
       return { isPaused: true };
     }
     return { gameSpeed: speed, isPaused: false };
+  }),
+
+  setTimeDate: (targetDay: number, targetMonth: number, targetYear: number) => set((state) => {
+    const targetVal = targetYear * 10000 + targetMonth * 100 + targetDay;
+    const updatedGenerals = state.generals.map(g => {
+      // Các danh tướng lập thề Lũng Nhai ban đầu luôn mở khóa
+      if (!g.joinYear || g.joinYear < 1416 || (g.joinYear === 1416 && (g.joinMonth || 1) <= 2)) {
+        return { ...g, unlocked: true };
+      }
+      const gJoinVal = g.joinYear * 10000 + (g.joinMonth || 1) * 100 + (g.joinDay || 1);
+      return {
+        ...g,
+        unlocked: targetVal >= gJoinVal,
+      };
+    });
+
+    return {
+      day: targetDay,
+      month: targetMonth,
+      year: targetYear,
+      generals: updatedGenerals,
+    };
   }),
 
   tick: () => set((state) => {
@@ -584,46 +605,6 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set)
         nextGameStatus = 'defeat';
         shouldPause = true;
         notify.error('💀 KHỞI NGHĨA THẤT BẠI: Toàn bộ căn cứ nghĩa quân thất thủ, khí số dở dang...');
-      }
-    }
-
-    // 7. Tự động lưu quân cơ (Auto-save) vào đầu mỗi tháng mới
-    if (newDay === 1 && state.day !== 1) {
-      try {
-        const autoSaveData = {
-          version: 1,
-          savedAt: `Tự động lưu Tháng ${newMonth}/${newYear}`,
-          day: newDay,
-          month: newMonth,
-          year: newYear,
-          isPaused: shouldPause ? true : state.isPaused,
-          gameSpeed: state.gameSpeed,
-          resources: {
-            ...state.resources,
-            food: newFood,
-            swords: newSwords,
-            bows: newBows,
-            spears: newSpears,
-            weapons: newWeapons,
-            clothes: newClothes,
-            gold: newGold,
-            morale: newMorale,
-            troops: state.resources.troops + trainedTroopsAdded + bonusTroops,
-            elephants: state.resources.elephants + bonusElephants,
-          },
-          cities: citiesChanged ? updatedCities : state.cities,
-          structures: structuresChanged ? updatedStructures : state.structures,
-          formations: formationsChanged ? updatedFormations : state.formations,
-          generals: updatedGenerals,
-          suspicion: nextSuspicion,
-          militaryNotices: newNotices.length > 0
-            ? [...newNotices, ...state.militaryNotices].slice(0, 100)
-            : state.militaryNotices,
-          gameStatus: nextGameStatus,
-        };
-        localStorage.setItem(SAVE_GAME_STORAGE_KEY, JSON.stringify(autoSaveData));
-      } catch {
-        // Bỏ qua lỗi quota bộ nhớ nếu có
       }
     }
 

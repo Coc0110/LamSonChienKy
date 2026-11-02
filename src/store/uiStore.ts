@@ -36,6 +36,7 @@ interface UIState {
   activeForgeModalStructureId: string | null;
   isMilitaryBookOpen: boolean;
   isBuildPaperOpen: boolean;
+  isTimelineWheelOpen: boolean;
   activeDropdown: 'troops' | 'weapons' | null;
 
   // Trạng thái Tấm Lưới Địa Hình & Sơn Địa Hình
@@ -58,6 +59,8 @@ interface UIState {
   setActiveForgeModalStructureId: (id: string | null) => void;
   toggleMilitaryBook: () => void;
   setMilitaryBookOpen: (open: boolean) => void;
+  toggleTimelineWheel: () => void;
+  setTimelineWheelOpen: (open: boolean) => void;
   toggleBuildPaper: () => void;
   setBuildPaperOpen: (open: boolean) => void;
   toggleDropdown: (dropdown: 'troops' | 'weapons') => void;
@@ -83,6 +86,7 @@ export const useUIStore = create<UIState>((set) => ({
   activeForgeModalStructureId: null,
   isMilitaryBookOpen: false,
   isBuildPaperOpen: false,
+  isTimelineWheelOpen: false,
   activeDropdown: null,
 
   showGrid: false,            // Mặc định ẩn lưới, chỉ hiện khi xây dựng, sửa map hoặc hành quân
@@ -119,6 +123,8 @@ export const useUIStore = create<UIState>((set) => ({
   setActiveForgeModalStructureId: (id) => set({ activeForgeModalStructureId: id }),
   toggleMilitaryBook: () => set((state) => ({ isMilitaryBookOpen: !state.isMilitaryBookOpen })),
   setMilitaryBookOpen: (open) => set({ isMilitaryBookOpen: open }),
+  toggleTimelineWheel: () => set((state) => ({ isTimelineWheelOpen: !state.isTimelineWheelOpen })),
+  setTimelineWheelOpen: (open) => set({ isTimelineWheelOpen: open }),
   toggleBuildPaper: () => set((state) => {
     const nextOpen = !state.isBuildPaperOpen;
     return {

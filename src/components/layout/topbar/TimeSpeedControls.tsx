@@ -1,4 +1,5 @@
-import React, { useRef } from 'react';
+import React from 'react';
+import { useUIStore } from '../../../store/uiStore';
 import { useGameStore } from '../../../store/gameStore';
 
 const SPEED_OPTIONS = [0, 1, 2, 5, 10, 50] as const;
@@ -9,40 +10,20 @@ export const TimeSpeedControls: React.FC = React.memo(() => {
   const year = useGameStore(state => state.year);
   const isPaused = useGameStore(state => state.isPaused);
   const gameSpeed = useGameStore(state => state.gameSpeed);
-  const togglePause = useGameStore(state => state.togglePause);
+  const isTimelineWheelOpen = useUIStore(state => state.isTimelineWheelOpen);
+  const toggleTimelineWheel = useUIStore(state => state.toggleTimelineWheel);
   const setSpeed = useGameStore(state => state.setSpeed);
 
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const handleTimeClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    if (e.detail === 1) {
-      timerRef.current = setTimeout(() => {
-        timerRef.current = null;
-        togglePause();
-      }, 280);
-    } else if (e.detail >= 2) {
-      if (timerRef.current) {
-        clearTimeout(timerRef.current);
-        timerRef.current = null;
-      }
-      if (!isPaused && gameSpeed === 2) {
-        setSpeed(1);
-      } else {
-        setSpeed(2);
-      }
-    }
-  };
 
   return (
     <div className="flex flex-col items-start justify-center shrink-0 pr-1 -mt-0.5">
       {/* Dòng trên: Ngày / Tháng / Năm + Icon Đồng Hồ Cát lật theo trục ngang */}
       <button 
-        onClick={handleTimeClick}
-        className="flex items-center gap-1.5 py-0 px-1 rounded hover:bg-black/[0.04] transition-all text-left"
-        title="Bấm để Tạm dừng / Tiếp tục"
+        onClick={() => toggleTimelineWheel()}
+        className={`flex items-center gap-1.5 py-0 px-1 rounded transition-all text-left cursor-pointer ${
+          isTimelineWheelOpen ? 'bg-amber-800/20 ring-1 ring-[#8c2d19]/40' : 'hover:bg-black/[0.04]'
+        }`}
+        title="Bấm để mở Thanh Cuộn Bánh Xe Thời Gian (Kéo tua chính xác từng ngày)"
       >
         <div 
           className="relative w-7 h-7 md:w-8 md:h-8 shrink-0 flex items-center justify-center"

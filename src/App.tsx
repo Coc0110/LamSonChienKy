@@ -5,7 +5,8 @@ import { WorldMap } from './components/map/WorldMap';
 import { ParchmentToastContainer } from './components/common/ParchmentToastContainer';
 import { ParchmentConfirmModal } from './components/common/ParchmentConfirmModal';
 import { EndgameModal } from './components/common/EndgameModal';
-import { useGameStore, SAVE_GAME_STORAGE_KEY } from './store/gameStore';
+import { TimelineWheelScrubber } from './components/layout/topbar/TimelineWheelScrubber';
+import { useGameStore } from './store/gameStore';
 
 // Code-splitting các modal chiến thuật & danh tướng có kích thước lớn để tăng tốc tải trang
 const GeneralsModal = lazy(() => import('./components/generals/GeneralsModal').then(m => ({ default: m.GeneralsModal })));
@@ -16,19 +17,6 @@ function App() {
   const gameSpeed = useGameStore(state => state.gameSpeed);
   const tick = useGameStore(state => state.tick);
   const stepArmies = useGameStore(state => state.stepArmies);
-  const loadGame = useGameStore(state => state.loadGame);
-
-  // Tự động phục hồi bản lưu gần nhất (nếu có) khi mở trang
-  useEffect(() => {
-    try {
-      const hasSave = localStorage.getItem(SAVE_GAME_STORAGE_KEY);
-      if (hasSave) {
-        loadGame();
-      }
-    } catch {
-      // Ignore
-    }
-  }, [loadGame]);
 
   // Vòng lặp thời gian thực chuẩn xác theo gameSpeed (1x: 1000ms, 2x: 500ms, 5x: 200ms, 10x: 100ms, 50x: 20ms)
   useEffect(() => {
@@ -55,6 +43,7 @@ function App() {
     <div className="w-screen h-screen overflow-hidden relative bg-stone-950 select-none">
       <WorldMap />
       <TopBar />
+      <TimelineWheelScrubber />
       <LeftPanel />
       <Suspense fallback={null}>
         <GeneralsModal />
