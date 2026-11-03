@@ -1,26 +1,24 @@
 import React, { useEffect } from 'react';
-import { Edit3, Check } from 'lucide-react';
 import { useGameStore } from '../../store/gameStore';
 import { useUIStore } from '../../store/uiStore';
 import { TimeSpeedControls } from './topbar/TimeSpeedControls';
 import { TroopsDropdown } from './topbar/TroopsDropdown';
 import { SuppliesDropdown } from './topbar/SuppliesDropdown';
-import { GameSaveMenu } from './topbar/GameSaveMenu';
+// import { GameSaveMenu } from './topbar/GameSaveMenu'; // Tạm thời ẩn theo yêu cầu
 
 export const TopBar: React.FC = React.memo(() => {
   const food = useGameStore(state => state.resources.food);
   const gold = useGameStore(state => state.resources.gold);
   // const morale = useGameStore(state => state.resources.morale);
   const militaryNotices = useGameStore(state => state.militaryNotices);
-
-  const toggleEditMode = useUIStore(state => state.toggleEditMode);
-  const isEditMode = useUIStore(state => state.isEditMode);
   const isMilitaryBookOpen = useUIStore(state => state.isMilitaryBookOpen);
   const toggleMilitaryBook = useUIStore(state => state.toggleMilitaryBook);
   const isBuildPaperOpen = useUIStore(state => state.isBuildPaperOpen);
   const toggleBuildPaper = useUIStore(state => state.toggleBuildPaper);
   const activeModal = useUIStore(state => state.activeModal);
   const setActiveModal = useUIStore(state => state.setActiveModal);
+  const isWarMode = useGameStore(state => state.isWarMode);
+  const toggleWarMode = useGameStore(state => state.toggleWarMode);
   const activeDropdown = useUIStore(state => state.activeDropdown);
   const setActiveDropdown = useUIStore(state => state.setActiveDropdown);
 
@@ -208,10 +206,60 @@ export const TopBar: React.FC = React.memo(() => {
             </button>
 
             {/* Phân cách */}
-            <div className="w-px h-8 bg-[#8c6b44]/40 shrink-0 self-center" />
+            <div className="w-px h-6 bg-[#8c6b44]/40 shrink-0 self-center" />
 
-            {/* 1. KHỐI THỜI GIAN VÀ CÁC NÚT TỐC ĐỘ */}
-            <TimeSpeedControls />
+            {/* CỤM CHIẾN SỰ & THỜI GIAN: CHỈ DUY NHẤT 1 VỆT MỰC ĐỎ TRẢI TỪ ICON CHIẾN SỰ ĐẾN HẾT Ô NGÀY THÁNG */}
+            <div className={`relative flex items-center shrink-0 ${isWarMode ? 'gap-2 pl-2 pr-3 py-0.5 min-w-[340px] md:min-w-[360px]' : ''}`}>
+              {/* DUY NHẤT 1 VỆT MỰC ĐỎ KHI Ở CHẾ ĐỘ CHIẾN SỰ TRẢI DÀI TOÀN BỘ (KÉO DÀI SANG TRÁI -LEFT-12 ĐỂ PHỦ HOÀN TOÀN ICON CHIẾN SỰ) */}
+              {isWarMode && (
+                <div className="absolute -left-12 -right-8 -inset-y-1.5 pointer-events-none z-0 overflow-hidden animate-fade-in">
+                  <img
+                    src="/ink_stroke_red.png"
+                    alt="Vệt mực đỏ thời chiến"
+                    className="w-full h-full object-fill opacity-95 filter drop-shadow-[0_0_12px_rgba(220,38,38,0.85)]"
+                  />
+                </div>
+              )}
+
+              {/* 0.8. NÚT CHẾ ĐỘ CHIẾN SỰ (ICON PHÓNG TO GẤP ĐÔI, ĐỨNG ĐẦU VỆT MỰC) */}
+              <button
+                type="button"
+                onClick={toggleWarMode}
+                className={`relative z-10 px-1 py-0.5 rounded flex items-center gap-1.5 transition-all cursor-pointer ${
+                  isWarMode ? 'scale-105' : 'hover:bg-black/[0.04] active:scale-95'
+                }`}
+                title={
+                  isWarMode
+                    ? "⚔️ Chế độ Chiến Sự ĐANG BẬT (Đếm từng Canh Giờ) - Bấm để tắt"
+                    : "⚔️ Bật Chế độ Chiến Sự (Đếm từng Canh Giờ khi hành quân/tác chiến)"
+                }
+              >
+                <img
+                  src={isWarMode ? "/icons/war_mode_sword_spear_gold.png" : "/icons/war_mode_sword_spear.png"}
+                  alt="Chiến Sự"
+                  className={`w-9 h-9 md:w-10 md:h-10 object-contain filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)] transition-transform ${
+                    isWarMode ? 'scale-110 drop-shadow-[0_0_8px_rgba(255,215,0,0.95)] animate-pulse' : ''
+                  }`}
+                />
+                <span 
+                  className={`relative z-10 font-serif font-bold text-xs md:text-sm transition-colors ${
+                    isWarMode 
+                      ? 'text-[#fef2d6] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]' 
+                      : 'text-[#2a1708]'
+                  }`}
+                >
+                  Chiến Sự
+                </span>
+              </button>
+
+              {/* Phân cách giữa Chiến Sự và Thời Gian (Ẩn khi ở chế độ Chiến Sự để vệt mực đỏ liền mạch) */}
+              {!isWarMode && (
+                <div className="w-px h-6 bg-[#8c6b44]/40 shrink-0 self-center mx-1.5" />
+              )}
+
+              {/* 1. KHỐI THỜI GIAN VÀ CÁC NÚT TỐC ĐỘ */}
+              <TimeSpeedControls />
+            </div>
 
             {/* Phân cách */}
             <div className="w-px h-8 bg-[#8c6b44]/40 shrink-0 self-center" />
@@ -256,31 +304,7 @@ export const TopBar: React.FC = React.memo(() => {
 {/* Tạm thời ẩn mục Sĩ Khí theo yêu cầu người dùng */}
           </div>
 
-          {/* 7. NÚT SỬA MAP */}
-          <div className="shrink-0 pl-2 self-center flex items-center gap-1.5">
-            <GameSaveMenu />
-            <button
-              onClick={toggleEditMode}
-              className={`relative px-2.5 py-1 rounded transition-transform hover:scale-105 active:scale-95 cursor-pointer flex items-center gap-1.5 text-xs font-serif font-black uppercase tracking-wider ${
-                isEditMode 
-                  ? 'bg-[#8c2d19] text-[#fceddc] shadow-sm' 
-                  : 'hover:bg-black/[0.06] text-[#8c2d19]'
-              }`}
-              title="Bật/Tắt chế độ chỉnh sửa bản đồ"
-            >
-              {isEditMode ? (
-                <>
-                  <Check size={13} className="text-[#fef08a]" />
-                  <span className="text-[#fef08a]">XONG SỬA MAP</span>
-                </>
-              ) : (
-                <>
-                  <Edit3 size={13} />
-                  <span>SỬA MAP</span>
-                </>
-              )}
-            </button>
-          </div>
+          {/* Tạm thời ẩn chế độ lưu trữ và chuyển nút Sửa Map xuống thanh dưới */}
 
         </div>
       </div>
