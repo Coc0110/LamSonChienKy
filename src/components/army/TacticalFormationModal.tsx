@@ -37,102 +37,54 @@ const getUnitResourceInfo = (type: TacticalUnitType, res: Resources) => {
 };
 
 // ==========================================
-// 1. TACTICAL GRID CELL (Memoized for 60+ FPS)
+// 1. TACTICAL GRID CELL (Memoized for 120+ FPS, Zero Filter Repaints)
 // ==========================================
 interface TacticalGridCellProps {
   r: number;
   c: number;
   cell: TacticalPlacedUnit | null;
-  inFootprint: boolean;
-  isFootprintValid: boolean;
   cellSizePx: number;
   zoomLevel: TacticalZoomLevel;
   generalPortraitUrl?: string;
-  onCellMouseDown: (e: React.MouseEvent, r: number, c: number) => void;
-  onCellMouseEnter: (r: number, c: number) => void;
-  onDropGeneral?: (generalId: string, r: number, c: number) => void;
 }
 
 const TacticalGridCell = React.memo<TacticalGridCellProps>(({
   r,
-  c,
+  c: _c,
   cell,
-  inFootprint,
-  isFootprintValid,
   cellSizePx,
   zoomLevel,
   generalPortraitUrl,
-  onCellMouseDown,
-  onCellMouseEnter,
-  onDropGeneral,
 }) => {
-  const [isDragOver, setIsDragOver] = useState(false);
   const cfg = cell ? TACTICAL_UNIT_CONFIGS[cell.type] : null;
 
-  // 4 Mức Zoom theo yêu cầu: 100, 256, 1024 (hiển thị icon), 1024 (×10 Vạn Quân)
+  // 4 Mức Zoom theo yêu cầu: 100, 256, 1024, 1024_x10
   const isHighZoom = zoomLevel === 100;
   const isFrontSector = r < 8;
   const isRearSector = r >= 24;
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'copy';
-    if (!isDragOver) setIsDragOver(true);
-  };
-
-  const handleDragLeave = () => {
-    setIsDragOver(false);
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(false);
-    const genId = e.dataTransfer.getData('generalId') || e.dataTransfer.getData('text/plain');
-    if (genId && onDropGeneral) {
-      onDropGeneral(genId, r, c);
-    }
-  };
 
   const iconSize = Math.max(9, Math.round(cellSizePx * (zoomLevel === 100 ? 0.75 : zoomLevel === 256 ? 0.72 : 0.68)));
 
   return (
     <div
-      onMouseDown={(e) => onCellMouseDown(e, r, c)}
-      onMouseEnter={() => onCellMouseEnter(r, c)}
-      onContextMenu={(e) => e.preventDefault()}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
-      draggable={false}
       style={{ 
         width: `${cellSizePx}px`, 
         height: `${cellSizePx}px`,
         userSelect: 'none'
       }}
-      className={`relative rounded-[2px] flex flex-col items-center justify-center select-none transition-none cursor-pointer ${
-        isDragOver
-          ? 'bg-amber-400/70 border-2 border-amber-600 z-30 shadow-lg scale-105'
-          : inFootprint 
-            ? isFootprintValid 
-              ? 'bg-emerald-400/70 border-2 border-emerald-600 z-20 shadow' 
-              : 'bg-red-400/80 border-2 border-red-600 z-20 shadow'
-            : cell
-              ? `${cfg?.bgTint} border ${cfg?.borderColor} hover:brightness-110 z-10`
-              : isFrontSector
-                ? 'bg-[#faebd7]/80 border border-dashed border-[#b91c1c]/35 hover:bg-[#fee2e2]'
-                : isRearSector
-                  ? 'bg-[#faebd7]/80 border border-dashed border-[#ca8a04]/35 hover:bg-[#fef9c3]'
-                  : 'bg-[#faebd7]/60 border border-dashed border-[#8c6b44]/35 hover:bg-[#fef3c7]'
+      className={`relative rounded-[2px] flex flex-col items-center justify-center select-none transition-none pointer-events-none ${
+        cell
+          ? `${cfg?.bgTint} border ${cfg?.borderColor} z-10`
+          : isFrontSector
+            ? 'bg-[#faebd7]/80 border border-dashed border-[#b91c1c]/35'
+            : isRearSector
+              ? 'bg-[#faebd7]/80 border border-dashed border-[#ca8a04]/35'
+              : 'bg-[#faebd7]/60 border border-dashed border-[#8c6b44]/35'
       }`}
-      title={
-        cell 
-          ? `${cell.name} (${cfg?.name}${cell.multiplier && cell.multiplier > 1 ? ` ×${cell.multiplier}` : ''})\nHàng ${r + 1}, Cột ${c + 1}\n• Nhấp/Kéo chuột phải: HỦY QUÂN`
-          : `Ô trống (Hàng ${r + 1}, Cột ${c + 1})\n• Chuột trái: Đặt quân\n• Kéo thẻ Lệnh Bài tướng vào đây\n• Chuột phải: Hủy quân`
-      }
     >
       {cell && (
         <>
-          {/* HIỂN THỊ ICON TẠI TẤT CẢ CÁC MỨC ZOOM */}
+          {/* HIỂN THỊ ICON TẠI TẤT CẢ CÁC MỨC ZOOM (KHÔNG DÙNG DROP-SHADOW ĐỂ ĐẠT 120+ FPS) */}
           {cell.isRoot && (
             <img
               src={cell.type === 'general' ? generalPortraitUrl : cfg?.icon}
@@ -142,7 +94,7 @@ const TacticalGridCell = React.memo<TacticalGridCellProps>(({
                 width: `${iconSize}px`,
                 height: `${iconSize}px`,
               }}
-              className="object-contain drop-shadow pointer-events-none select-none"
+              className="object-contain pointer-events-none select-none"
             />
           )}
 
@@ -170,16 +122,50 @@ const TacticalGridCell = React.memo<TacticalGridCellProps>(({
     prev.cell?.id === next.cell?.id &&
     prev.cell?.parentUnitId === next.cell?.parentUnitId &&
     prev.cell?.multiplier === next.cell?.multiplier &&
-    prev.inFootprint === next.inFootprint &&
-    prev.isFootprintValid === next.isFootprintValid &&
     prev.cellSizePx === next.cellSizePx &&
     prev.zoomLevel === next.zoomLevel &&
-    prev.generalPortraitUrl === next.generalPortraitUrl &&
-    prev.onDropGeneral === next.onDropGeneral
+    prev.generalPortraitUrl === next.generalPortraitUrl
   );
 });
 
 TacticalGridCell.displayName = 'TacticalGridCell';
+
+// ==========================================
+// 1.5. MA TRẬN 1024 Ô TÁCH BIỆT (KHÔNG RE-RENDER KHI RÊ CHUỘT)
+// ==========================================
+interface TacticalGridBoardProps {
+  grid: (TacticalPlacedUnit | null)[][];
+  cellSizePx: number;
+  zoomLevel: TacticalZoomLevel;
+  generalsPortraitMap: Record<string, string>;
+}
+
+const TacticalGridBoard = React.memo<TacticalGridBoardProps>(({
+  grid,
+  cellSizePx,
+  zoomLevel,
+  generalsPortraitMap,
+}) => {
+  return (
+    <>
+      {grid.map((rowArr, rIdx) =>
+        rowArr.map((cell, cIdx) => (
+          <TacticalGridCell
+            key={`cell_${rIdx}_${cIdx}`}
+            r={rIdx}
+            c={cIdx}
+            cell={cell}
+            cellSizePx={cellSizePx}
+            zoomLevel={zoomLevel}
+            generalPortraitUrl={cell?.type === 'general' ? generalsPortraitMap[cell.generalId || ''] : undefined}
+          />
+        ))
+      )}
+    </>
+  );
+});
+
+TacticalGridBoard.displayName = 'TacticalGridBoard';
 
 // ==========================================
 // 2. MODAL CHÍNH: SA BÀN BỐ TRẬN
@@ -243,6 +229,78 @@ export const TacticalFormationModal: React.FC = React.memo(() => {
   const activeFormation = useMemo(() => {
     return formations.find(f => f.id === activeFormationId) || cityFormations[0] || null;
   }, [formations, activeFormationId, cityFormations]);
+
+  // Bảng tra cứu chân dung tướng (tính toán 1 lần thay vì 1024 lần trong vòng lặp)
+  const generalsPortraitMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    generals.forEach(g => {
+      map[g.id] = g.portraitUrl || '/icons/general_token.png';
+    });
+    return map;
+  }, [generals]);
+
+  // Vùng footprint preview đơn lẻ (Floating Ghost Box) - Tính toán 1 lần duy nhất, không đụng tới 1024 ô lưới
+  const hoveredFootprint = useMemo(() => {
+    if (!hoveredCell || !selectedToolUnit || !activeFormation) {
+      return null;
+    }
+
+    // Chế độ Tẩy Quân: hiển thị khung 1 ô viền đỏ/cam
+    if (selectedToolUnit === 'eraser') {
+      const targetCell = activeFormation.grid[hoveredCell.r]?.[hoveredCell.c] || null;
+      return {
+        r: hoveredCell.r,
+        c: hoveredCell.c,
+        spanRows: 1,
+        spanCols: 1,
+        isValid: true,
+        isEraser: true,
+        hasTarget: !!targetCell,
+      };
+    }
+
+    const toolCfg = TACTICAL_UNIT_CONFIGS[selectedToolUnit];
+    if (!toolCfg) return null;
+
+    const sR = toolCfg.spanRows;
+    const sC = toolCfg.spanCols;
+    const fits = hoveredCell.r + sR <= FORMATION_ROWS && hoveredCell.c + sC <= FORMATION_COLS;
+    let overlaps = false;
+    if (fits) {
+      for (let ro = 0; ro < sR; ro++) {
+        for (let co = 0; co < sC; co++) {
+          if (activeFormation.grid[hoveredCell.r + ro]?.[hoveredCell.c + co] !== null) {
+            overlaps = true;
+            break;
+          }
+        }
+        if (overlaps) break;
+      }
+    }
+
+    return {
+      r: hoveredCell.r,
+      c: hoveredCell.c,
+      spanRows: sR,
+      spanCols: sC,
+      isValid: fits && !overlaps,
+      isEraser: false,
+      hasTarget: false,
+    };
+  }, [hoveredCell, selectedToolUnit, activeFormation]);
+
+  // Thông tin ô đang trỏ chuột (Hiển thị thanh Inspector 0ms thay vì dùng title HTML lag)
+  const hoveredCellInfo = useMemo(() => {
+    if (!hoveredCell || !activeFormation) return null;
+    const targetCell = activeFormation.grid[hoveredCell.r]?.[hoveredCell.c] || null;
+    const cfg = targetCell ? TACTICAL_UNIT_CONFIGS[targetCell.type] : null;
+    return {
+      r: hoveredCell.r,
+      c: hoveredCell.c,
+      cell: targetCell,
+      cfg,
+    };
+  }, [hoveredCell, activeFormation]);
 
   const availableGeneralsAtBase = useMemo(() => {
     return generals.filter(g => g.unlocked && (g.locationId === currentCity.id || !g.locationId));
@@ -446,10 +504,29 @@ export const TacticalFormationModal: React.FC = React.memo(() => {
     removeUnitFromGrid(activeFormation.id, r, c);
   }, [activeFormation, removeUnitFromGrid]);
 
-  // Nhấn chuột lên ô
-  const handleCellMouseDown = useCallback((e: React.MouseEvent, r: number, c: number) => {
+  // Hàm tính tọa độ ô (r, c) từ vị trí con trỏ trên khung lưới (O(1) Math, 0ms Delay)
+  const getGridCoordinateFromPointer = useCallback((e: React.PointerEvent<HTMLDivElement> | React.MouseEvent<HTMLDivElement> | React.DragEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const step = cellSizePx + cellGap;
+    const c = Math.floor(x / step);
+    const r = Math.floor(y / step);
+    if (r >= 0 && r < FORMATION_ROWS && c >= 0 && c < FORMATION_COLS) {
+      return { r, c };
+    }
+    return null;
+  }, [cellSizePx, cellGap]);
+
+  // Nhấn chuột trên lưới (Đồng bộ cả click đơn và kéo rải quân)
+  const handleGridPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0 && e.button !== 2) return;
     e.preventDefault();
     if (!activeFormation) return;
+
+    const coord = getGridCoordinateFromPointer(e);
+    if (!coord) return;
+    const { r, c } = coord;
 
     if (e.button === 0) {
       isLeftMouseDownRef.current = true;
@@ -462,11 +539,15 @@ export const TacticalFormationModal: React.FC = React.memo(() => {
       isRightMouseDownRef.current = true;
       executeRemoveAt(r, c);
     }
-  }, [activeFormation, selectedToolUnit, executePlaceAt, executeRemoveAt]);
+  }, [activeFormation, getGridCoordinateFromPointer, selectedToolUnit, executePlaceAt, executeRemoveAt]);
 
-  // Chuột rê vào ô (kéo đặt hoặc kéo hủy)
-  const handleCellMouseEnter = useCallback((r: number, c: number) => {
-    setHoveredCell({ r, c });
+  // Di chuyển con trỏ trên lưới (Hover preview + Kéo đặt nhiều / Kéo xóa nhiều đạt 120+ FPS)
+  const handleGridPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const coord = getGridCoordinateFromPointer(e);
+    if (!coord) return;
+    const { r, c } = coord;
+
+    setHoveredCell(prev => (prev && prev.r === r && prev.c === c ? prev : { r, c }));
 
     if (isLeftMouseDownRef.current) {
       if (selectedToolUnit === 'eraser') {
@@ -477,7 +558,28 @@ export const TacticalFormationModal: React.FC = React.memo(() => {
     } else if (isRightMouseDownRef.current) {
       executeRemoveAt(r, c);
     }
-  }, [selectedToolUnit, executePlaceAt, executeRemoveAt]);
+  }, [getGridCoordinateFromPointer, selectedToolUnit, executePlaceAt, executeRemoveAt]);
+
+  // Kéo Lệnh Bài Tướng lướt qua lưới
+  const handleGridDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    const coord = getGridCoordinateFromPointer(e);
+    if (coord) {
+      setHoveredCell(prev => (prev && prev.r === coord.r && prev.c === coord.c ? prev : coord));
+    }
+  }, [getGridCoordinateFromPointer]);
+
+  // Thả Lệnh Bài Tướng vào ô
+  const handleGridDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const coord = getGridCoordinateFromPointer(e);
+    if (!coord) return;
+    const genId = e.dataTransfer.getData('generalId') || e.dataTransfer.getData('text/plain');
+    if (genId) {
+      handleDropGeneral(genId, coord.r, coord.c);
+    }
+  }, [getGridCoordinateFromPointer, handleDropGeneral]);
 
   const handleStartRename = () => {
     if (!activeFormation) return;
@@ -781,7 +883,7 @@ export const TacticalFormationModal: React.FC = React.memo(() => {
                   onDragStart={(e) => e.preventDefault()}
                 >
                   <div 
-                    className="grid transition-none select-none m-auto"
+                    className="relative grid transition-none select-none m-auto cursor-pointer"
                     style={{ 
                       gridTemplateColumns: `repeat(${FORMATION_COLS}, ${cellSizePx}px)`,
                       gridTemplateRows: `repeat(${FORMATION_ROWS}, ${cellSizePx}px)`,
@@ -791,63 +893,68 @@ export const TacticalFormationModal: React.FC = React.memo(() => {
                     }}
                     onContextMenu={(e) => e.preventDefault()}
                     onDragStart={(e) => e.preventDefault()}
+                    onPointerDown={handleGridPointerDown}
+                    onPointerMove={handleGridPointerMove}
+                    onDragOver={handleGridDragOver}
+                    onDrop={handleGridDrop}
                   >
-                    {activeFormation.grid.map((rowArr, rIdx) => 
-                      rowArr.map((cell, cIdx) => {
-                        let inFootprint = false;
-                        let isFootprintValid = true;
+                    {/* BẢNG MA TRẬN 1024 Ô CỐ ĐỊNH (TỰ ĐỘNG MEMO, 0MS DELAY KHI RÊ CHUỘT) */}
+                    <TacticalGridBoard
+                      grid={activeFormation.grid}
+                      cellSizePx={cellSizePx}
+                      zoomLevel={zoomLevel}
+                      generalsPortraitMap={generalsPortraitMap}
+                    />
 
-                        if (hoveredCell && selectedToolUnit && selectedToolUnit !== 'eraser' && !cell) {
-                          const toolCfg = TACTICAL_UNIT_CONFIGS[selectedToolUnit];
-                          if (toolCfg) {
-                            const sR = toolCfg.spanRows;
-                            const sC = toolCfg.spanCols;
-
-                            inFootprint = (
-                              rIdx >= hoveredCell.r && rIdx < hoveredCell.r + sR &&
-                              cIdx >= hoveredCell.c && cIdx < hoveredCell.c + sC
-                            );
-
-                            if (inFootprint) {
-                              const fits = hoveredCell.r + sR <= FORMATION_ROWS && hoveredCell.c + sC <= FORMATION_COLS;
-                              let overlaps = false;
-                              if (fits) {
-                                for (let ro = 0; ro < sR; ro++) {
-                                  for (let co = 0; co < sC; co++) {
-                                    if (activeFormation.grid[hoveredCell.r + ro]?.[hoveredCell.c + co] !== null) {
-                                      overlaps = true;
-                                    }
-                                  }
-                                }
-                              }
-                              isFootprintValid = fits && !overlaps;
-                            }
-                          }
-                        }
-
-                        const genPortrait = cell?.type === 'general'
-                          ? generals.find(g => g.id === cell.generalId)?.portraitUrl || '/icons/general_token.png'
-                          : undefined;
-
-                        return (
-                          <TacticalGridCell
-                            key={`cell_${rIdx}_${cIdx}`}
-                            r={rIdx}
-                            c={cIdx}
-                            cell={cell}
-                            inFootprint={inFootprint}
-                            isFootprintValid={isFootprintValid}
-                            cellSizePx={cellSizePx}
-                            zoomLevel={zoomLevel}
-                            generalPortraitUrl={genPortrait}
-                            onCellMouseDown={handleCellMouseDown}
-                            onCellMouseEnter={handleCellMouseEnter}
-                            onDropGeneral={handleDropGeneral}
-                          />
-                        );
-                      })
+                    {/* VÙNG HOVER HIỂN THỊ Ô XANH / ĐỎ / TẨY CỰC MƯỢT (0MS DELAY, KHÔNG DÙNG BOX-SHADOW BLUR) */}
+                    {hoveredFootprint && (
+                      <div
+                        className={`absolute pointer-events-none rounded-[2px] transition-none z-30 ${
+                          hoveredFootprint.isEraser
+                            ? hoveredFootprint.hasTarget
+                              ? 'bg-red-500/40 border-2 border-red-500 ring-1 ring-red-400'
+                              : 'bg-amber-400/25 border-2 border-dashed border-amber-600'
+                            : hoveredFootprint.isValid
+                              ? 'bg-emerald-400/45 border-2 border-emerald-500 ring-1 ring-emerald-300'
+                              : 'bg-red-500/45 border-2 border-red-500 ring-1 ring-red-400'
+                        }`}
+                        style={{
+                          left: `${hoveredFootprint.c * (cellSizePx + cellGap)}px`,
+                          top: `${hoveredFootprint.r * (cellSizePx + cellGap)}px`,
+                          width: `${hoveredFootprint.spanCols * cellSizePx + (hoveredFootprint.spanCols - 1) * cellGap}px`,
+                          height: `${hoveredFootprint.spanRows * cellSizePx + (hoveredFootprint.spanRows - 1) * cellGap}px`,
+                        }}
+                      />
                     )}
                   </div>
+                </div>
+
+                {/* THANH TRẠNG THÁI SOI Ô (INSPECTOR BAR 0MS DELAY) */}
+                <div className="w-full max-w-2xl flex items-center justify-between text-[11px] font-serif px-2.5 py-1 mt-1 bg-[#42220f]/10 border border-[#734f2d]/30 rounded text-[#351e0f] shrink-0 select-none">
+                  {hoveredCellInfo ? (
+                    <div className="flex items-center gap-2 truncate">
+                      <span className="font-mono font-bold text-[#8c2d19] bg-[#faebd7] px-1.5 py-0.2 rounded border border-[#8c2d19]/30">
+                        Hàng {hoveredCellInfo.r + 1}, Cột {hoveredCellInfo.c + 1}
+                      </span>
+                      {hoveredCellInfo.cell ? (
+                        <span className="font-bold">
+                          {hoveredCellInfo.cell.name} ({hoveredCellInfo.cfg?.name}{hoveredCellInfo.cell.multiplier && hoveredCellInfo.cell.multiplier > 1 ? ` ×${hoveredCellInfo.cell.multiplier}` : ''})
+                          <span className="text-[#8c2d19] font-normal ml-2">• [Chuột phải]: Hủy quân</span>
+                        </span>
+                      ) : (
+                        <span className="text-[#543319]">
+                          Ô trống • <span className="text-emerald-800 font-bold">[Chuột trái]: Đặt {selectedToolUnit === 'eraser' ? 'Tẩy' : TACTICAL_UNIT_CONFIGS[selectedToolUnit]?.name}</span> • Kéo thẻ tướng vào đây
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-[#734f2d] italic">
+                      Di chuột lên ô sa bàn để ngắm vị trí • Giữ chuột trái kéo để rải quân • Chuột phải kéo để hủy
+                    </div>
+                  )}
+                  <span className="text-[10px] text-[#734f2d] shrink-0 ml-2">
+                    {zoomLevel === '1024_x10' ? 'Chế độ Vạn Quân (×10)' : `${zoomLevel} Ô`}
+                  </span>
                 </div>
 
                 {/* PHÂN VÙNG 32 HÀNG CHIẾN TUYẾN */}
