@@ -1,13 +1,15 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
+import { Swords, Users, HeartHandshake } from 'lucide-react';
 import { useGameStore } from '../../../store/gameStore';
 import { useUIStore } from '../../../store/uiStore';
 
 export const TroopsDropdown: React.FC = React.memo(() => {
-  const troops = useGameStore(state => state.resources.troops);
+  const cities = useGameStore(state => state.cities);
+  const structures = useGameStore(state => state.structures);
+  const formations = useGameStore(state => state.formations);
   const horses = useGameStore(state => state.resources.horses);
   const elephants = useGameStore(state => state.resources.elephants);
-  const formations = useGameStore(state => state.formations);
 
   const activeDropdown = useUIStore(state => state.activeDropdown);
   const toggleDropdown = useUIStore(state => state.toggleDropdown);
@@ -20,7 +22,7 @@ export const TroopsDropdown: React.FC = React.memo(() => {
   const updatePosition = () => {
     if (buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
-      const panelWidth = 250;
+      const panelWidth = 270;
       const left = Math.max(8, Math.min(rect.left - 10, window.innerWidth - panelWidth - 8));
       const top = window.innerWidth >= 768 ? 38 : 34;
       setPanelPos({ top, left });
@@ -38,6 +40,72 @@ export const TroopsDropdown: React.FC = React.memo(() => {
       };
     }
   }, [isOpen]);
+
+  // TÍNH TOÁN TỔNG QUÂN SỐ TẤT CẢ (BAO GỒM NGHĨA BINH, TRÁNG ĐINH, NGƯỜI GIÀ TRẺ NHỎ)
+  const populationStats = useMemo(() => {
+    let combatTroops = 0;
+    let idleLaborers = 0;
+    let farmLaborers = 0;
+    let forgeLaborers = 0;
+    let unfitPopulation = 0;
+    let trainingCount = 0;
+    let campBuilders = 0;
+
+    // Duyệt qua tất cả căn cứ thuộc phe Lam Sơn
+    cities.forEach(c => {
+      if (c.faction === 'lam_son') {
+        if (c.population) {
+          combatTroops += c.population.combatTroops || 0;
+          idleLaborers += c.population.idleLaborers || 0;
+          farmLaborers += c.population.farmLaborers || 0;
+          forgeLaborers += c.population.forgeLaborers || 0;
+          unfitPopulation += c.population.unfitPopulation || 0;
+        } else {
+          combatTroops += c.troops || 0;
+        }
+        if (c.training) {
+          trainingCount += c.training.traineesCount || 0;
+        }
+        if (c.upgrading) {
+          campBuilders += c.upgrading.builders || 0;
+        }
+      }
+    });
+
+    // Thợ thi công công trình đang xây dựng
+    let structureBuilders = 0;
+    structures.forEach(s => {
+      if (s.status === 'building') {
+        structureBuilders += s.builderWorkers || 0;
+      }
+    });
+
+    // Quân nhân đã biên chế trong các đạo quân
+    let formationTroops = 0;
+    formations.forEach(f => {
+      formationTroops += f.totalTroops || 0;
+    });
+
+    // Tổng quân số tác chiến (dự bị tại căn cứ + trong đạo quân)
+    const totalCombatPersonnel = combatTroops + formationTroops;
+
+    // Tổng tráng đinh lao động (nhàn rỗi, làm ruộng, rèn đúc, thao luyện, thi công)
+    const totalLaborers = idleLaborers + farmLaborers + forgeLaborers + trainingCount + campBuilders + structureBuilders;
+
+    // TỔNG QUÂN SỐ TOÀN DIỆN CẢ NGHĨA QUÂN (Bao gồm cả tráng đinh và người già trẻ nhỏ)
+    const totalAllPeople = totalCombatPersonnel + totalLaborers + unfitPopulation;
+
+    return {
+      totalAllPeople,
+      totalCombatPersonnel,
+      totalLaborers,
+      unfitPopulation,
+      idleLaborers,
+      farmLaborers,
+      forgeLaborers,
+      trainingCount,
+    };
+  }, [cities, structures, formations]);
 
   // Thống kê thực tế quân số theo từng binh chủng từ các đạo quân + số quân dự bị tại các căn cứ
   const breakdown = useMemo(() => {
@@ -67,11 +135,11 @@ export const TroopsDropdown: React.FC = React.memo(() => {
     });
 
     const totalAssignedInFormations = formSwords + formBows + formSpears + formCavalry + formElephants + formOtherTroops;
-    const unassignedTroops = Math.max(0, Math.floor(troops) - totalAssignedInFormations);
+    const unassignedCombatants = Math.max(0, populationStats.totalCombatPersonnel - totalAssignedInFormations);
 
-    const reserveSwords = Math.floor(unassignedTroops * 0.45);
-    const reserveBows = Math.floor(unassignedTroops * 0.25);
-    const reserveSpears = Math.max(0, unassignedTroops - reserveSwords - reserveBows);
+    const reserveSwords = Math.floor(unassignedCombatants * 0.45);
+    const reserveBows = Math.floor(unassignedCombatants * 0.25);
+    const reserveSpears = Math.max(0, unassignedCombatants - reserveSwords - reserveBows);
 
     return {
       swordTroops: formSwords + reserveSwords,
@@ -80,7 +148,7 @@ export const TroopsDropdown: React.FC = React.memo(() => {
       cavalryTroops: formCavalry + Math.floor(horses),
       elephantTroops: formElephants + Math.floor(elephants),
     };
-  }, [formations, troops, horses, elephants]);
+  }, [formations, populationStats.totalCombatPersonnel, horses, elephants]);
 
   return (
     <div className="relative topbar-dropdown-container shrink-0 self-center">
@@ -94,7 +162,7 @@ export const TroopsDropdown: React.FC = React.memo(() => {
         className={`relative px-1.5 py-0.5 rounded flex items-center gap-1.5 transition-all cursor-pointer ${
           isOpen ? 'scale-105' : 'hover:bg-black/[0.04] active:scale-95'
         }`}
-        title="Bấm để mở tờ giấy biên chế chi tiết các binh chủng"
+        title={`Tổng quân dân: ${populationStats.totalAllPeople.toLocaleString()} người (${populationStats.totalCombatPersonnel.toLocaleString()} nghĩa binh, ${populationStats.totalLaborers.toLocaleString()} tráng đinh, ${populationStats.unfitPopulation.toLocaleString()} già yếu/trẻ nhỏ)`}
       >
         {!isOpen && (
           <img 
@@ -111,12 +179,12 @@ export const TroopsDropdown: React.FC = React.memo(() => {
               className="absolute inset-0 w-full h-full object-fill pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]"
             />
             <span className="relative z-10 font-serif font-bold text-xs md:text-sm text-[#fcf4e4] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]">
-              Quân: {Math.floor(troops).toLocaleString()}
+              Quân: {populationStats.totalAllPeople.toLocaleString()}
             </span>
           </div>
         ) : (
           <span className="relative z-10 font-serif font-bold text-[#2a1708]">
-            Quân: {Math.floor(troops).toLocaleString()}
+            Quân: {populationStats.totalAllPeople.toLocaleString()}
           </span>
         )}
       </button>
@@ -125,7 +193,7 @@ export const TroopsDropdown: React.FC = React.memo(() => {
       {isOpen && typeof document !== 'undefined' && createPortal(
         <div 
           style={{ top: `${panelPos.top}px`, left: `${panelPos.left}px` }}
-          className="fixed z-30 w-[250px] flex flex-col pointer-events-auto filter drop-shadow-[0_16px_32px_rgba(0,0,0,0.75)] drop-shadow-[0_2px_6px_rgba(0,0,0,0.4)] animate-in fade-in slide-in-from-top-2 duration-150 topbar-paper-panel select-none"
+          className="fixed z-30 w-[270px] flex flex-col pointer-events-auto filter drop-shadow-[0_16px_32px_rgba(0,0,0,0.75)] drop-shadow-[0_2px_6px_rgba(0,0,0,0.4)] animate-in fade-in slide-in-from-top-2 duration-150 topbar-paper-panel select-none"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Nền giấy dó sứt mẻ tự nhiên */}
@@ -137,99 +205,137 @@ export const TroopsDropdown: React.FC = React.memo(() => {
           />
 
           <div className="relative z-10 px-4 pt-11 pb-4 flex flex-col font-serif">
-            {/* Dòng Tổng quân */}
-            <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-[#8c6b44]/30">
+            {/* Dòng 1: Tổng nhân khẩu nghĩa quân (toàn diện) */}
+            <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-[#8c6b44]/35">
               <span className="font-serif font-black text-xs uppercase tracking-wider text-[#5c3e23]">
-                Tổng quân:
+                Tổng Quân Dân:
               </span>
-              <span className="font-serif font-black text-base text-[#8c2d19]">
-                {Math.floor(troops).toLocaleString()}
+              <span className="font-serif font-black text-lg text-[#8c2d19]">
+                {populationStats.totalAllPeople.toLocaleString()} người
               </span>
             </div>
 
-            {/* Danh sách 5 Binh Chủng */}
+            {/* Dòng 2: Cơ cấu 3 nhóm nhân lực */}
+            <div className="space-y-1 pb-2 mb-2 border-b border-[#8c6b44]/25 text-[11.5px] font-serif text-[#3a220f]">
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1.5 font-bold text-[#8c2d19]">
+                  <Swords size={13} className="shrink-0" />
+                  Nghĩa binh tác chiến:
+                </span>
+                <span className="font-black text-[#8c2d19]">
+                  {populationStats.totalCombatPersonnel.toLocaleString()}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1.5 font-bold text-[#2b593f]">
+                  <Users size={13} className="shrink-0" />
+                  Tráng đinh (ruộng, rèn, thợ):
+                </span>
+                <span className="font-bold text-[#1e3a29]">
+                  {populationStats.totalLaborers.toLocaleString()}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1.5 font-bold text-[#785434]">
+                  <HeartHandshake size={13} className="shrink-0" />
+                  Già yếu, phụ nữ, trẻ nhỏ:
+                </span>
+                <span className="font-bold text-[#5c3e23]">
+                  {populationStats.unfitPopulation.toLocaleString()}
+                </span>
+              </div>
+            </div>
+
+            {/* Tiêu đề mục binh chủng */}
+            <div className="text-[10.5px] font-serif font-bold uppercase tracking-wider text-[#734e2e] mb-1">
+              Biên Chế Binh Chủng ({populationStats.totalCombatPersonnel} binh):
+            </div>
+
+            {/* Danh sách 5 Binh Chủng Chiến Đấu */}
             <div className="space-y-1 text-xs text-[#2a1708]">
               {/* 1. Quân binh (Kiếm) */}
               <div className="flex items-center justify-between py-0.5 px-1 rounded hover:bg-black/[0.04] transition">
-                <div className="flex items-center gap-2.5">
+                <div className="flex items-center gap-2">
                   <img 
                     src="/icons/unit_sword.png" 
                     alt="Quân binh" 
-                    className="w-11 h-11 object-contain filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)] shrink-0" 
+                    className="w-8 h-8 object-contain filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)] shrink-0" 
                   />
-                  <span className="font-serif font-bold text-sm text-[#261304]">
+                  <span className="font-serif font-bold text-xs text-[#261304]">
                     Quân Binh (Kiếm)
                   </span>
                 </div>
-                <span className="font-serif font-black text-base text-[#8c2d19]">
+                <span className="font-serif font-black text-sm text-[#8c2d19]">
                   {breakdown.swordTroops.toLocaleString()}
                 </span>
               </div>
 
               {/* 2. Cung thủ */}
               <div className="flex items-center justify-between py-0.5 px-1 rounded hover:bg-black/[0.04] transition">
-                <div className="flex items-center gap-2.5">
+                <div className="flex items-center gap-2">
                   <img 
                     src="/icons/unit_bow.png" 
                     alt="Cung thủ" 
-                    className="w-11 h-11 object-contain filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)] shrink-0" 
+                    className="w-8 h-8 object-contain filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)] shrink-0" 
                   />
-                  <span className="font-serif font-bold text-sm text-[#261304]">
+                  <span className="font-serif font-bold text-xs text-[#261304]">
                     Cung Thủ
                   </span>
                 </div>
-                <span className="font-serif font-black text-base text-[#8c2d19]">
+                <span className="font-serif font-black text-sm text-[#8c2d19]">
                   {breakdown.bowTroops.toLocaleString()}
                 </span>
               </div>
 
               {/* 3. Trường thương binh */}
               <div className="flex items-center justify-between py-0.5 px-1 rounded hover:bg-black/[0.04] transition">
-                <div className="flex items-center gap-2.5">
+                <div className="flex items-center gap-2">
                   <img 
                     src="/icons/unit_spear.png" 
                     alt="Giáo binh" 
-                    className="w-11 h-11 object-contain filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)] shrink-0" 
+                    className="w-8 h-8 object-contain filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)] shrink-0" 
                   />
-                  <span className="font-serif font-bold text-sm text-[#261304]">
+                  <span className="font-serif font-bold text-xs text-[#261304]">
                     Trường Thương Binh
                   </span>
                 </div>
-                <span className="font-serif font-black text-base text-[#8c2d19]">
+                <span className="font-serif font-black text-sm text-[#8c2d19]">
                   {breakdown.spearTroops.toLocaleString()}
                 </span>
               </div>
 
               {/* 4. Thiết kỵ binh */}
               <div className="flex items-center justify-between py-0.5 px-1 rounded hover:bg-black/[0.04] transition">
-                <div className="flex items-center gap-2.5">
+                <div className="flex items-center gap-2">
                   <img 
                     src="/icons/unit_cavalry.png" 
                     alt="Kỵ binh" 
-                    className="w-11 h-11 object-contain filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)] shrink-0" 
+                    className="w-8 h-8 object-contain filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)] shrink-0" 
                   />
-                  <span className="font-serif font-bold text-sm text-[#261304]">
+                  <span className="font-serif font-bold text-xs text-[#261304]">
                     Thiết Kỵ Binh
                   </span>
                 </div>
-                <span className="font-serif font-black text-base text-[#8c2d19]">
+                <span className="font-serif font-black text-sm text-[#8c2d19]">
                   {breakdown.cavalryTroops.toLocaleString()}
                 </span>
               </div>
 
               {/* 5. Thiết tượng binh */}
               <div className="flex items-center justify-between py-0.5 px-1 rounded hover:bg-black/[0.04] transition">
-                <div className="flex items-center gap-2.5">
+                <div className="flex items-center gap-2">
                   <img 
                     src="/icons/unit_elephant.png" 
                     alt="Tượng binh" 
-                    className="w-11 h-11 object-contain filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)] shrink-0" 
+                    className="w-8 h-8 object-contain filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)] shrink-0" 
                   />
-                  <span className="font-serif font-bold text-sm text-[#261304]">
+                  <span className="font-serif font-bold text-xs text-[#261304]">
                     Thiết Tượng Binh
                   </span>
                 </div>
-                <span className="font-serif font-black text-base text-[#8c2d19]">
+                <span className="font-serif font-black text-sm text-[#8c2d19]">
                   {breakdown.elephantTroops.toLocaleString()}
                 </span>
               </div>

@@ -1,3 +1,4 @@
+import { CAMP_CAPACITY_BY_LEVEL } from '../../types';
 import type { StateCreator } from 'zustand';
 import { START_DAY, START_MONTH, START_YEAR } from '../../data/mapData';
 import type { MilitaryNotice } from '../../types';
@@ -90,44 +91,85 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
 
     const updatedCities = state.cities.map(city => {
       if (!city.population) return city;
+      let pop = { ...city.population };
+      let currentCity: typeof city = { ...city };
 
-      if (city.training) {
+      // Cập nhật tiến trình nâng cấp căn cứ doanh trại
+      if (currentCity.upgrading) {
+        const nextDays = currentCity.upgrading.remainingDays - 1;
+        if (nextDays <= 0) {
+          citiesChanged = true;
+          const targetLevel = currentCity.upgrading.targetLevel;
+          const buildersReturned = currentCity.upgrading.builders;
+          const newCap = CAMP_CAPACITY_BY_LEVEL[targetLevel] || 1000;
+
+          newNotices.push({
+            id: `camp_upgrade_${Date.now()}_${city.id}`,
+            type: 'build' as const,
+            title: 'Mở Rộng Doanh Trại Hoàn Tất',
+            dateStr: `Ngày ${newDay}/${newMonth}/${newYear}`,
+            description: `Công trình nâng cấp doanh trại [${city.name}] lên Cấp ${targetLevel} đã hoàn tất! Sức chứa mở rộng lên ${newCap.toLocaleString()} người, ${buildersReturned} thợ thi công đã trở về trạng thái nhàn rỗi.`,
+            read: false,
+            timestamp: Date.now(),
+          });
+
+          pop.idleLaborers += buildersReturned;
+          currentCity = {
+            ...currentCity,
+            level: targetLevel,
+            upgrading: null,
+          };
+        } else {
+          currentCity = {
+            ...currentCity,
+            upgrading: {
+              ...currentCity.upgrading,
+              remainingDays: nextDays,
+            },
+          };
+        }
+      }
+
+      if (currentCity.training) {
         citiesChanged = true;
-        const newRemaining = city.training.remainingDays - 1;
+        const training = currentCity.training;
+        const newRemaining = training.remainingDays - 1;
         if (newRemaining <= 0) {
-          const { traineesCount, swappedCount = 0, takenFromFarm = 0, takenFromForge = 0 } = city.training;
+          const { traineesCount, swappedCount = 0, takenFromFarm = 0, takenFromForge = 0 } = training;
           trainedTroopsAdded += traineesCount;
 
           if (takenFromFarm > 0) {
             farmWorkersToReduceByCity.set(city.id, takenFromFarm);
           }
 
-          // Đối với phần thợ rèn rút đi (takenFromForge), trả lại forgeLaborers để lò rèn đang chạy giữ nguyên số thợ,
-          // phần nghĩa binh thế chỗ ruộng (takenFromFarm) quay về hàng ngũ combatTroops cùng với số tân binh mới mãn khóa.
           const combatReturned = Math.max(0, swappedCount - takenFromForge);
 
           return {
-            ...city,
+            ...currentCity,
             population: {
-              ...city.population,
-              combatTroops: city.population.combatTroops + combatReturned + traineesCount,
-              forgeLaborers: city.population.forgeLaborers + takenFromForge,
-              swappedCombatants: Math.max(0, (city.population.swappedCombatants || 0) - swappedCount),
+              ...pop,
+              combatTroops: pop.combatTroops + combatReturned + traineesCount,
+              forgeLaborers: pop.forgeLaborers + takenFromForge,
+              swappedCombatants: Math.max(0, (pop.swappedCombatants || 0) - swappedCount),
             },
-            troops: city.troops + traineesCount,
+            troops: currentCity.troops + traineesCount,
             training: null,
           };
         } else {
           return {
-            ...city,
+            ...currentCity,
+            population: pop,
             training: {
-              ...city.training,
+              ...training,
               remainingDays: newRemaining,
             },
           };
         }
       }
-      return city;
+      return {
+        ...currentCity,
+        population: pop,
+      };
     });
 
     // 2. Cập nhật tiến độ đồn điền & lò rèn theo ngày
@@ -434,6 +476,65 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
       return f;
     });
 
+    // 3. DÂN TỊ NẠN QUY PHỤ ĐỊNH KỲ (Mỗi 28 - 32 ngày có 1 đợt, kiểm soát theo sức chứa căn cứ)
+    const isRefugeeDay = (newDay === 15 || newDay === 28);
+    const lamSonBaseIdx = updatedCities.findIndex(c => c.id === 'lam_son' && c.faction === 'lam_son');
+    
+    if (isRefugeeDay && lamSonBaseIdx !== -1 && updatedCities[lamSonBaseIdx].population) {
+      const base = updatedCities[lamSonBaseIdx];
+      const pop = base.population!;
+      const baseCap = CAMP_CAPACITY_BY_LEVEL[base.level || 1] || 500;
+      
+      const currentBasePop = (pop.combatTroops || 0) + (pop.idleLaborers || 0) + (pop.farmLaborers || 0) + 
+                             (pop.forgeLaborers || 0) + (pop.unfitPopulation || 0) + (pop.swappedCombatants || 0);
+      const capAvailable = baseCap - currentBasePop;
+
+      if (capAvailable > 0) {
+        // Có chỗ chứa -> đón nhận 12 - 22 người tị nạn
+        const incomingCount = Math.min(capAvailable, Math.floor(Math.random() * 11) + 12);
+        const idleIncoming = Math.round(incomingCount * 0.6); // 60% tráng phu
+        const unfitIncoming = incomingCount - idleIncoming;  // 40% phụ nữ, người già, trẻ nhỏ
+        const reliefFood = incomingCount * 3;
+
+        if (state.resources.food >= reliefFood) {
+          citiesChanged = true;
+          updatedCities[lamSonBaseIdx] = {
+            ...base,
+            population: {
+              ...pop,
+              idleLaborers: pop.idleLaborers + idleIncoming,
+              unfitPopulation: pop.unfitPopulation + unfitIncoming,
+            },
+          };
+
+          seasonalFoodHarvested -= reliefFood; // Xuất kho lương thực cứu tế ban đầu
+
+          newNotices.push({
+            id: `refugee_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+            type: 'general' as const,
+            title: 'Lưu Dân Tị Nạn Quy Phụ',
+            dateStr: `Ngày ${newDay}/${newMonth}/${newYear}`,
+            description: `Một đoàn gồm ${incomingCount} dân tị nạn (${idleIncoming} tráng phu, ${unfitIncoming} già yếu) từ phủ lân cận trốn chạy ách bạo ngược của giặc Minh đã kéo về Lam Sơn xin nương náu. Nghĩa quân đã xuất ${reliefFood} thạch lương cứu tế và cưu mang họ!`,
+            read: false,
+            timestamp: Date.now(),
+          });
+        }
+      } else {
+        // Căn cứ đã đầy (ví dụ 500/500) -> Thông báo cảnh báo quá tải
+        if (Math.random() < 0.35) {
+          newNotices.push({
+            id: `camp_full_${Date.now()}`,
+            type: 'build' as const,
+            title: 'Căn Cứ Đã Đạt Trần Sức Chứa',
+            dateStr: `Ngày ${newDay}/${newMonth}/${newYear}`,
+            description: `Doanh trại Lam Sơn đã chật ních lán trại (${currentBasePop}/${baseCap} người)! Đoàn lưu dân không thể vào nương náu và buộc phải tản mát vào rừng núi lân cận. Hãy sớm mở rộng nâng cấp căn cứ để cưu mang thêm trăm họ!`,
+            read: false,
+            timestamp: Date.now(),
+          });
+        }
+      }
+    }
+
     const foodConsumption = Math.max(5, totalPopulation * 0.035);
     let newFood = state.resources.food + seasonalFoodHarvested + foragedFoodDaily + raidFoodDaily - foodConsumption;
     const newSwords = state.resources.swords + swordsProduced + Math.ceil(raidWeaponsDaily * 0.4);
@@ -454,8 +555,21 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
       newMorale = Math.min(100, newMorale + 0.05);
     }
 
-    // 4. Mức nghi ngờ & Cuộc càn quét trừng phạt của quân Minh
-    let nextSuspicion = Math.min(100, Math.max(0, state.suspicion + suspicionGain - 0.02));
+    // 4. Mức nghi ngờ: Tính từ tiếng búa lò rèn + Quy mô quân đội đã thao luyện
+    let totalCombatTroops = 0;
+    updatedCities.forEach(c => {
+      totalCombatTroops += c.population?.combatTroops || 0;
+    });
+    state.formations.forEach(f => {
+      totalCombatTroops += f.totalTroops || 0;
+    });
+
+    // Nếu quân số thao luyện vượt mốc 120 tên, mỗi ngày tăng nhẹ độ chú ý của giặc Minh
+    if (totalCombatTroops > 120) {
+      suspicionGain += (totalCombatTroops - 120) * 0.00035;
+    }
+
+    let nextSuspicion = Math.min(100, Math.max(0, state.suspicion + suspicionGain - 0.025));
 
     if (nextSuspicion >= 100) {
       // Giặc Minh tại thành Tây Đô mở cuộc hành quân càn quét bất ngờ vào Lam Sơn!

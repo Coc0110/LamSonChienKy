@@ -49,7 +49,10 @@ export const useCityMarkers = ({
       const ne = percentToLatLng(bounds.maxX, bounds.minY);
       const imgBounds = L.latLngBounds(sw, ne);
 
-      const iconUrl = isCity || troops >= 8000 ? '/icons/structure_city.png' : '/icons/structure_camp.png';
+      const isLamSon = city.faction === 'lam_son';
+      const iconUrl = isCity || troops >= 8000 
+        ? (isLamSon ? '/icons/structure_city_red.png' : '/icons/structure_city_blue.png') 
+        : (isLamSon ? '/icons/structure_camp_red.png' : '/icons/structure_camp_blue.png');
 
       // Sử dụng L.imageOverlay để icon tự động phóng to / thu nhỏ đồng bộ tuyệt đối với ô lưới
       const overlay = L.imageOverlay(iconUrl, imgBounds, {

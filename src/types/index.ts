@@ -89,6 +89,13 @@ export interface TrainingSession {
   remainingDays: number;      // Số ngày còn lại
 }
 
+export interface CampUpgradeSession {
+  targetLevel: number;
+  remainingDays: number;
+  totalDays: number;
+  builders: number;
+}
+
 export interface CityNode {
   id: string;
   name: string;
@@ -105,6 +112,9 @@ export interface CityNode {
   population?: CityPopulation;
   buildings?: CityBuildings;
   training?: TrainingSession | null;
+  level?: number;             // Cấp bậc căn cứ doanh trại (Cấp 1: 500, Cấp 2: 1000, Cấp 3: 2000, Cấp 4: 5000)
+  assignedScouts?: number;    // Số quân do thám đang cắm chốt tại thành trì này
+  upgrading?: CampUpgradeSession | null; // Tiến trình nâng cấp căn cứ
 }
 
 export interface Connection {
@@ -173,3 +183,109 @@ export interface MilitaryNotice {
 }
 
 export * from './armyFormation';
+
+// ============================================================================
+// HỆ THỐNG SỨC CHỨA CĂN CỨ & TÌNH BÁO THÁM MÃ (PRE-UPRISING MECHANICS)
+// ============================================================================
+
+export const CAMP_CAPACITY_BY_LEVEL: Record<number, number> = {
+  1: 500,
+  2: 1000,
+  3: 2000,
+  4: 5000,
+};
+
+export const CAMP_UPGRADE_COSTS: Record<number, { gold: number; food: number; workers: number; days: number }> = {
+  2: { gold: 120, food: 300, workers: 25, days: 25 },
+  3: { gold: 250, food: 600, workers: 40, days: 40 },
+  4: { gold: 500, food: 1200, workers: 60, days: 60 },
+};
+
+export const getMaxScoutsNeeded = (troops: number): number => {
+  if (troops >= 8000) return 4;
+  if (troops >= 2000) return 3;
+  return 2;
+};
+
+export interface CityIntelReport {
+  level: 0 | 1 | 2 | 3 | 4;
+  scouts: number;
+  maxScouts: number;
+  displayedTroops: string;
+  displayedSuspicion: string;
+  canBribe: boolean;
+}
+
+export const getCityIntelReport = (cityTroops: number, scouts: number, actualSuspicion: number): CityIntelReport => {
+  const maxScouts = getMaxScoutsNeeded(cityTroops);
+  const effectiveScouts = Math.min(scouts, maxScouts);
+  const ratio = maxScouts > 0 ? effectiveScouts / maxScouts : 1;
+
+  if (effectiveScouts === 0) {
+    return {
+      level: 0,
+      scouts: 0,
+      maxScouts,
+      displayedTroops: 'Chưa rõ lực lượng',
+      displayedSuspicion: 'Tuyệt mật (Chưa rõ)',
+      canBribe: false,
+    };
+  }
+
+  if (ratio < 0.35) {
+    // 1 / 4 hoặc 1 / 3
+    const tier1Troops = Math.max(1000, Math.floor(cityTroops * 0.15 / 500) * 500);
+    const suspFloor = Math.floor(actualSuspicion / 10) * 10;
+    return {
+      level: 1,
+      scouts: effectiveScouts,
+      maxScouts,
+      displayedTroops: `> ${tier1Troops.toLocaleString()} quân`,
+      displayedSuspicion: actualSuspicion < 15 ? '< 15%' : `> ${suspFloor}%`,
+      canBribe: true,
+    };
+  }
+
+  if (ratio < 0.68) {
+    // 2 / 4 hoặc 2 / 3
+    const tier2Troops = Math.max(2500, Math.floor(cityTroops * 0.45 / 500) * 500);
+    const suspFloor = Math.floor(actualSuspicion / 5) * 5;
+    return {
+      level: 2,
+      scouts: effectiveScouts,
+      maxScouts,
+      displayedTroops: `> ${tier2Troops.toLocaleString()} quân`,
+      displayedSuspicion: `> ${suspFloor}%`,
+      canBribe: true,
+    };
+  }
+
+  if (ratio < 1.0) {
+    // 3 / 4
+    const tier3Troops = Math.max(5000, Math.floor(cityTroops * 0.75 / 500) * 500);
+    return {
+      level: 3,
+      scouts: effectiveScouts,
+      maxScouts,
+      displayedTroops: `> ${tier3Troops.toLocaleString()} quân`,
+      displayedSuspicion: `~${Math.round(actualSuspicion)}%`,
+      canBribe: true,
+    };
+  }
+
+  // 4 / 4 (Đủ thám mã tối đa)
+  return {
+    level: 4,
+    scouts: effectiveScouts,
+    maxScouts,
+    displayedTroops: `~${cityTroops.toLocaleString()} quân`,
+    displayedSuspicion: `${Math.round(actualSuspicion)}%`,
+    canBribe: true,
+  };
+};
+
+export const getBriberyCostAndEffect = (bribeCount: number) => {
+  const cost = 100 + bribeCount * 60;
+  const reduction = Math.max(8, 22 - bribeCount * 3);
+  return { cost, reduction };
+};

@@ -57,6 +57,7 @@ export interface MilitarySlice {
   recruitmentNotice: RecruitmentEventNotice | null;
   militaryNotices: MilitaryNotice[];
   suspicion: number;
+  bribeCount: number; // Lạm phát số lần đút lót
   assignGeneralToCity: (generalId: string, cityId: string) => void;
   unlockGeneralManual: (generalId: string) => void;
   dismissRecruitmentNotice: () => void;
@@ -65,7 +66,11 @@ export interface MilitarySlice {
   clearMilitaryNotices: () => void;
   startTraining: (cityId: string, generalId: string, traineesCount: number, swappedCount: number, totalDays: number) => void;
   cancelTraining: (cityId: string) => void;
-  bribeMingOfficials: () => void;
+  bribeMingOfficials: (cityId?: string) => { success: boolean; message: string; cost: number; reducedSuspicion: number };
+  dispatchScout: (cityId: string) => { success: boolean; message: string };
+  recallScout: (cityId: string) => { success: boolean; message: string };
+  upgradeCamp: (cityId: string) => { success: boolean; message: string };
+  triggerUprising: () => { success: boolean; message: string };
 }
 
 export type { ArmySlice, SaveSlice, GameStatus };

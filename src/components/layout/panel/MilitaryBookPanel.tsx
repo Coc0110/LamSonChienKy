@@ -131,7 +131,7 @@ export const MilitaryBookPanel: React.FC = React.memo(() => {
               >
                 <div className="flex items-center gap-2.5">
                   <img
-                    src={c.type === 'city' ? '/icons/structure_city.png' : '/icons/structure_camp.png'}
+                    src={c.type === 'city' ? (isLamSon ? '/icons/structure_city_red.png' : '/icons/structure_city_blue.png') : (isLamSon ? '/icons/structure_camp_red.png' : '/icons/structure_camp_blue.png')}
                     alt={c.type === 'city' ? 'Thành' : 'Doanh'}
                     className="w-5 h-5 object-contain shrink-0 filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]"
                   />

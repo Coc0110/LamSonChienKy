@@ -214,7 +214,7 @@ export const DistrictDetailPanel: React.FC<DistrictDetailPanelProps> = ({ distri
                   >
                     <div className="flex items-center gap-2.5 flex-1">
                       <img
-                        src={b.type === 'city' ? '/icons/structure_city.png' : '/icons/structure_camp.png'}
+                        src={b.type === 'city' ? (isLamSon ? '/icons/structure_city_red.png' : '/icons/structure_city_blue.png') : (isLamSon ? '/icons/structure_camp_red.png' : '/icons/structure_camp_blue.png')}
                         alt={b.type === 'city' ? 'Thành' : 'Doanh'}
                         className="w-5 h-5 object-contain shrink-0 filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]"
                       />
