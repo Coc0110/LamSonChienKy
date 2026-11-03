@@ -131,7 +131,52 @@ const TacticalGridCell = React.memo<TacticalGridCellProps>(({
 TacticalGridCell.displayName = 'TacticalGridCell';
 
 // ==========================================
-// 1.5. MA TRẬN 1024 Ô TÁCH BIỆT (KHÔNG RE-RENDER KHI RÊ CHUỘT)
+// 1.4. TỪNG HÀNG SA BÀN ĐƯỢC MEMO HÓA (CHỈ RE-RENDER HÀNG CÓ THAY ĐỔI QUÂN SỐ)
+// ==========================================
+interface TacticalGridRowProps {
+  r: number;
+  rowArr: (TacticalPlacedUnit | null)[];
+  cellSizePx: number;
+  zoomLevel: TacticalZoomLevel;
+  generalsPortraitMap: Record<string, string>;
+}
+
+const TacticalGridRow = React.memo<TacticalGridRowProps>(({
+  r,
+  rowArr,
+  cellSizePx,
+  zoomLevel,
+  generalsPortraitMap,
+}) => {
+  return (
+    <>
+      {rowArr.map((cell, cIdx) => (
+        <TacticalGridCell
+          key={`cell_${r}_${cIdx}`}
+          r={r}
+          c={cIdx}
+          cell={cell}
+          cellSizePx={cellSizePx}
+          zoomLevel={zoomLevel}
+          generalPortraitUrl={cell?.type === 'general' ? generalsPortraitMap[cell.generalId || ''] : undefined}
+        />
+      ))}
+    </>
+  );
+}, (prev, next) => {
+  return (
+    prev.r === next.r &&
+    prev.rowArr === next.rowArr &&
+    prev.cellSizePx === next.cellSizePx &&
+    prev.zoomLevel === next.zoomLevel &&
+    prev.generalsPortraitMap === next.generalsPortraitMap
+  );
+});
+
+TacticalGridRow.displayName = 'TacticalGridRow';
+
+// ==========================================
+// 1.5. MA TRẬN 1024 Ô TÁCH BIỆT (KHÔNG RE-RENDER KHI RÊ CHUỘT, BỎ QUA 31 HÀNG KHÔNG ĐỔI KHI ĐẶT/HỦY)
 // ==========================================
 interface TacticalGridBoardProps {
   grid: (TacticalPlacedUnit | null)[][];
@@ -148,19 +193,16 @@ const TacticalGridBoard = React.memo<TacticalGridBoardProps>(({
 }) => {
   return (
     <>
-      {grid.map((rowArr, rIdx) =>
-        rowArr.map((cell, cIdx) => (
-          <TacticalGridCell
-            key={`cell_${rIdx}_${cIdx}`}
-            r={rIdx}
-            c={cIdx}
-            cell={cell}
-            cellSizePx={cellSizePx}
-            zoomLevel={zoomLevel}
-            generalPortraitUrl={cell?.type === 'general' ? generalsPortraitMap[cell.generalId || ''] : undefined}
-          />
-        ))
-      )}
+      {grid.map((rowArr, rIdx) => (
+        <TacticalGridRow
+          key={`row_${rIdx}`}
+          r={rIdx}
+          rowArr={rowArr}
+          cellSizePx={cellSizePx}
+          zoomLevel={zoomLevel}
+          generalsPortraitMap={generalsPortraitMap}
+        />
+      ))}
     </>
   );
 });
@@ -336,16 +378,19 @@ export const TacticalFormationModal: React.FC = React.memo(() => {
     const typeCounts: Record<string, number> = {};
     const seenParents = new Set<string>();
 
-    activeFormation.grid.forEach(rowArr => {
-      rowArr.forEach(u => {
+    const grid = activeFormation.grid;
+    for (let r = 0; r < FORMATION_ROWS; r++) {
+      const rowArr = grid[r];
+      for (let c = 0; c < FORMATION_COLS; c++) {
+        const u = rowArr[c];
         if (u && !seenParents.has(u.parentUnitId)) {
           seenParents.add(u.parentUnitId);
           if (u.type !== 'general') {
             typeCounts[u.type] = (typeCounts[u.type] || 0) + (u.multiplier || 1);
           }
         }
-      });
-    });
+      }
+    }
 
     const assignedGens = generals.filter(g => activeFormation.assignedGeneralIds.includes(g.id));
 
@@ -465,15 +510,18 @@ export const TacticalFormationModal: React.FC = React.memo(() => {
     placeUnitOnGrid(activeFormation.id, r, c, 'general', genId);
   }, [activeFormation, generals, getGeneralCoordinate, removeUnitFromGrid, assignGeneralToFormation, placeUnitOnGrid]);
 
-  // Hàm thực hiện đặt quân tại (r, c)
+  // Hàm thực hiện đặt quân tại (r, c) (Đọc store trực tiếp, khử triệt để stale closure và re-binding)
   const executePlaceAt = useCallback((r: number, c: number) => {
-    if (!activeFormation) return;
     const key = `place_${r}_${c}`;
     if (lastInteractedCellRef.current === key) return;
     lastInteractedCellRef.current = key;
 
+    const state = useGameStore.getState();
+    const currentActive = state.formations.find(f => f.id === state.activeFormationId);
+    if (!currentActive) return;
+
     // Nếu ô đã có quân -> bỏ qua khi kéo chuột
-    const existing = activeFormation.grid[r][c];
+    const existing = currentActive.grid[r][c];
     if (existing) return;
 
     if (selectedToolUnit === 'eraser') {
@@ -485,24 +533,27 @@ export const TacticalFormationModal: React.FC = React.memo(() => {
 
     if (selectedToolUnit === 'general') {
       if (selectedGeneralToPlace) {
-        placeUnitOnGrid(activeFormation.id, r, c, 'general', selectedGeneralToPlace, 1);
+        placeUnitOnGrid(currentActive.id, r, c, 'general', selectedGeneralToPlace, 1);
       }
     } else if (selectedToolUnit) {
-      placeUnitOnGrid(activeFormation.id, r, c, selectedToolUnit, undefined, multiplier);
+      placeUnitOnGrid(currentActive.id, r, c, selectedToolUnit, undefined, multiplier);
     }
-  }, [activeFormation, selectedToolUnit, selectedGeneralToPlace, placeUnitOnGrid, zoomLevel]);
+  }, [selectedToolUnit, selectedGeneralToPlace, placeUnitOnGrid, zoomLevel]);
 
-  // Hàm thực hiện hủy/gỡ quân tại (r, c)
+  // Hàm thực hiện hủy/gỡ quân tại (r, c) (Đọc store trực tiếp, khử triệt để stale closure và re-binding)
   const executeRemoveAt = useCallback((r: number, c: number) => {
-    if (!activeFormation) return;
-    const cell = activeFormation.grid[r][c];
+    const state = useGameStore.getState();
+    const currentActive = state.formations.find(f => f.id === state.activeFormationId);
+    if (!currentActive) return;
+
+    const cell = currentActive.grid[r][c];
     if (!cell) return;
     const key = `del_${cell.parentUnitId}`;
     if (lastInteractedCellRef.current === key) return;
     lastInteractedCellRef.current = key;
 
-    removeUnitFromGrid(activeFormation.id, r, c);
-  }, [activeFormation, removeUnitFromGrid]);
+    removeUnitFromGrid(currentActive.id, r, c);
+  }, [removeUnitFromGrid]);
 
   // Hàm tính tọa độ ô (r, c) từ vị trí con trỏ trên khung lưới (O(1) Math, 0ms Delay)
   const getGridCoordinateFromPointer = useCallback((e: React.PointerEvent<HTMLDivElement> | React.MouseEvent<HTMLDivElement> | React.DragEvent<HTMLDivElement>) => {

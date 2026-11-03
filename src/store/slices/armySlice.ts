@@ -435,7 +435,7 @@ export const createArmySlice: StateCreator<GameStore, [], [], ArmySlice> = (set,
       if (alreadyPlaced) return { success: false, message: `${gen.name} đã được bố trí trên sa bàn!` };
 
       const parentUnitId = `p_gen_${generalId}_${Date.now()}`;
-      const newGrid = target.grid.map(rArr => [...rArr]);
+      const newGrid = target.grid.map((rArr, rIdx) => rIdx === row ? [...rArr] : rArr);
       newGrid[row][col] = {
         id: `u_gen_${generalId}_${Date.now()}`,
         parentUnitId,
@@ -526,9 +526,14 @@ export const createArmySlice: StateCreator<GameStore, [], [], ArmySlice> = (set,
       }
     }
 
-    // Đặt đơn vị mới lên lưới (chiếm spanR x spanC ô)
+    // Đặt đơn vị mới lên lưới (chiếm spanR x spanC ô) - CHỈ CLONE CÁC HÀNG BỊ ẢNH HƯỞNG
     const parentUnitId = `p_${unitType}_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`;
-    const newGrid = target.grid.map(rArr => [...rArr]);
+    const newGrid = target.grid.map((rArr, rIdx) => {
+      if (rIdx >= row && rIdx < row + spanR) {
+        return [...rArr];
+      }
+      return rArr;
+    });
 
     for (let ro = 0; ro < spanR; ro++) {
       for (let co = 0; co < spanC; co++) {
@@ -555,7 +560,11 @@ export const createArmySlice: StateCreator<GameStore, [], [], ArmySlice> = (set,
       }
     }
 
-    const { totalT, totalW, totalH, totalE, totalF } = calculateFormationTotals(newGrid);
+    const totalT = target.totalTroops + reqTroops;
+    const totalW = target.totalWeapons + reqWeapons;
+    const totalH = target.totalHorses + reqHorses;
+    const totalE = target.totalElephants + reqElephants;
+    const totalF = target.totalFoodCarried + reqFood;
 
     set(prev => {
       const nextSwords = Math.max(0, prev.resources.swords - unitWeapons.swords);
@@ -645,12 +654,18 @@ export const createArmySlice: StateCreator<GameStore, [], [], ArmySlice> = (set,
       }
     }
 
-    // Xóa TOÀN BỘ các ô có chung parentUnitId (ví dụ xe lương 4 ô, voi 6 ô, ngựa 2 ô)
-    const newGrid = target.grid.map(rArr => 
-      rArr.map(cell => (cell && cell.parentUnitId === parentId ? null : cell))
-    );
+    // Xóa TOÀN BỘ các ô có chung parentUnitId - CHỈ CLONE CÁC HÀNG CÓ CHỨA ĐƠN VỊ NÀY
+    const newGrid = target.grid.map(rArr => {
+      const hasTarget = rArr.some(cell => cell && cell.parentUnitId === parentId);
+      if (!hasTarget) return rArr;
+      return rArr.map(cell => (cell && cell.parentUnitId === parentId ? null : cell));
+    });
 
-    const { totalT, totalW, totalH, totalE, totalF } = calculateFormationTotals(newGrid);
+    const totalT = Math.max(0, target.totalTroops - refundCombatants);
+    const totalW = Math.max(0, target.totalWeapons - (refundSwords + refundBows + refundSpears));
+    const totalH = Math.max(0, target.totalHorses - refundHorses);
+    const totalE = Math.max(0, target.totalElephants - refundElephants);
+    const totalF = Math.max(0, target.totalFoodCarried - refundFood);
 
     set(prev => {
       const nextSwords = prev.resources.swords + refundSwords;

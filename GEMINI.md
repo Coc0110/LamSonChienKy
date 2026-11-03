@@ -34,6 +34,15 @@ Tài liệu này ghi nhớ các bài học tối ưu hóa hiệu năng (60–144
 - Component lưới ma trận (ví dụ: `TacticalGridBoard`) phải được bọc `React.memo` và **không được nhận bất kỳ prop hover hoặc callback di chuột nào**.
 - Khi con trỏ chuột di chuyển trên sa bàn, ma trận 1.024 ô phải **KHÔNG BAO GIỜ RE-RENDER**. Chỉ duy nhất hộp preview nổi (`hoveredFootprint`) và thanh trạng thái (`hoveredCellInfo`) được cập nhật.
 
+### 1.6. Phân lớp Memoization theo Hàng (Row-Level Memoization)
+- Khi người chơi kéo đặt hoặc kéo hủy quân hàng loạt, ma trận 32×32 phải được cấu trúc thành các hàng `TacticalGridRow` bọc `React.memo` so sánh `prev.rowArr === next.rowArr`.
+- **CẤM:** Clone toàn bộ 32 hàng mảng 2D (`target.grid.map(rArr => [...rArr])`) khi chỉ thay đổi 1 ô.
+- **BẮT BUỘC:** Chỉ clone đúng hàng (hoặc các hàng span) bị ảnh hưởng; 31 hàng còn lại giữ nguyên tham chiếu đối tượng trong bộ nhớ. React sẽ bỏ qua 992 ô không đổi (giảm 97% chi phí DOM reconciliation).
+
+### 1.7. Đọc Store Trực Tiếp trong Thao Tác Kéo Chuột (No Stale Closures)
+- Trong các hàm kéo rê chuột (`executePlaceAt`, `executeRemoveAt`), đọc trạng thái trực tiếp bằng `useGameStore.getState()` thay vì phụ thuộc vào dependencies trong `useCallback`.
+- Điều này loại bỏ hoàn toàn việc tạo lại reference hàm liên tục và tái gán event listener trên Container khi đang kéo chuột nhanh.
+
 ---
 
 ## 2. QUY CHUẨN TỐC ĐỘ THỜI GIAN & HÀNH QUÂN
