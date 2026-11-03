@@ -22,7 +22,7 @@ export const nguyen_trai: General = {
   epithet: 'Ức Trai / Bậc Thầy Tâm Công',
   group: 'quy_tu_1420_1426',
   unlocked: false,
-  locationId: 'loi_giang',
+  locationId: 'lam_son',
 
   // --- 2. BẬC SAO & CHỈ SỐ KHỞI ĐẦU ---
   stars: 5,

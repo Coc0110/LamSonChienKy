@@ -1,7 +1,8 @@
 import type { StateCreator } from 'zustand';
 import { INITIAL_GENERALS } from '../../data/generalsData';
 import { notify } from '../dialogStore';
-import type { Resources } from '../../types';
+import type { Resources, ScoutMission } from '../../types';
+import { findShortestScoutPath } from '../../utils/scoutPathfinding';
 import type { MilitarySlice, GameStore } from './types';
 
 // Công thức chuẩn tính số ngày thao luyện dựa trên chỉ số Thống Lĩnh và Võ Nghệ của tướng
@@ -51,7 +52,7 @@ export const deductWeaponsFromPool = (
   return { swords: takeSwords, bows: takeBows, spears: takeSpears };
 };
 
-export const createMilitarySlice: StateCreator<GameStore, [], [], MilitarySlice> = (set) => ({
+export const createMilitarySlice: StateCreator<GameStore, [], [], MilitarySlice> = (set, get) => ({
   resources: {
     troops: 70,           // 50 quân ở Lam Sơn (44 dự bị + 6 trong Tiên Phong Doanh) + 20 võ đinh ở Chí Linh
     horses: 0,            // Chưa có kỵ binh
@@ -71,6 +72,7 @@ export const createMilitarySlice: StateCreator<GameStore, [], [], MilitarySlice>
   militaryNotices: [],
   suspicion: 15,          // Mức nghi ngờ ban đầu của quan quân giặc Minh (15%)
   bribeCount: 0,         // Số lần đã đút lót (tính lạm phát giá)
+  scoutMissions: [],
 
   assignGeneralToCity: (generalId, cityId) => set((state) => ({
     generals: state.generals.map(g => g.id === generalId ? { ...g, locationId: cityId } : g)
@@ -263,82 +265,205 @@ export const createMilitarySlice: StateCreator<GameStore, [], [], MilitarySlice>
     return result;
   },
 
-  // Phái 1 do thám quân thâm nhập thành trì đối phương
+  // Phái 1 do thám quân thâm nhập thành trì đối phương (chuyển tiếp qua dispatchScoutMission)
   dispatchScout: (cityId: string) => {
+    return get().dispatchScoutMission('lam_son', cityId, 1);
+  },
+
+  // Phái đoàn thám mã (1 đến 5 quân) di chuyển theo lộ trình ngắn thời gian nhất
+  dispatchScoutMission: (originCityId: string, targetCityId: string, scoutCount: number) => {
     let result = { success: false, message: '' };
     set((state) => {
-      const targetCity = state.cities.find(c => c.id === cityId);
-      if (!targetCity) {
-        result = { success: false, message: 'Thành trì không tồn tại!' };
+      const validCount = Math.min(5, Math.max(1, Math.floor(scoutCount)));
+      const originCity =
+        state.cities.find(c => c.id === originCityId && c.faction === 'lam_son') ||
+        state.cities.find(c => c.id === 'lam_son' && c.faction === 'lam_son') ||
+        state.cities.find(c => c.faction === 'lam_son');
+      const targetCity = state.cities.find(c => c.id === targetCityId);
+
+      if (!originCity || !originCity.population) {
+        result = { success: false, message: 'Không tìm thấy căn cứ nghĩa quân xuất phát!' };
         return state;
       }
-
-      const isEnemy = targetCity.faction === 'ming';
-      if (!isEnemy) {
+      if (!targetCity) {
+        result = { success: false, message: 'Thành trì mục tiêu không tồn tại!' };
+        return state;
+      }
+      if (targetCity.faction === 'lam_son') {
         result = { success: false, message: 'Không thể phái thám mã vào căn cứ phe ta!' };
         return state;
       }
 
-      // Kiểm tra trần do thám cần thiết của thành này
-      const maxScouts = targetCity.troops >= 8000 ? 4 : targetCity.troops >= 2000 ? 3 : 2;
-      const currentScouts = targetCity.assignedScouts || 0;
-
-      if (currentScouts >= maxScouts) {
-        const msg = `Đã phái đủ tối đa ${maxScouts} thám mã cắm chốt tại ${targetCity.name}! Tình báo đã tường tận.`;
-        notify.warning(msg);
-        result = { success: false, message: msg };
-        return state;
-      }
-
-      // Tìm căn cứ Lam Sơn có tráng phu nhàn rỗi
-      const baseLamSon = state.cities.find(c => c.id === 'lam_son' && c.faction === 'lam_son') || state.cities.find(c => c.faction === 'lam_son');
-      if (!baseLamSon || !baseLamSon.population || baseLamSon.population.idleLaborers < 1) {
-        const msg = 'Căn cứ Lam Sơn không còn tráng phu nhàn rỗi để điều động đi do thám!';
+      if (originCity.population.idleLaborers < validCount) {
+        const msg = `Căn cứ ${originCity.name} không đủ tráng phu nhàn rỗi! (Cần ${validCount}, hiện có ${originCity.population.idleLaborers})`;
         notify.error(msg);
         result = { success: false, message: msg };
         return state;
       }
 
-      const scoutFoodCost = 30; // Lộ phí mang theo
-      if (state.resources.food < scoutFoodCost) {
-        const msg = `Lương thảo không đủ! Cần ${scoutFoodCost} thạch lương làm lộ phí cho thám mã.`;
+      const foodCost = validCount * 30;
+      if (state.resources.food < foodCost) {
+        const msg = `Lương thảo không đủ! Cần ${foodCost} thạch lương làm lộ phí cho ${validCount} thám mã.`;
         notify.error(msg);
         result = { success: false, message: msg };
         return state;
       }
 
-      // Điều động 1 tráng phu từ Lam Sơn làm thám mã
+      // Tìm lộ trình ngắn thời gian nhất bằng thuật toán A* địa hình
+      const { path, totalDays } = findShortestScoutPath(originCity, targetCity, validCount);
+      const missionId = `scout_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const firstCell = path[0];
+
+      const newMission: ScoutMission = {
+        id: missionId,
+        originCityId: originCity.id,
+        originCityName: originCity.name,
+        targetCityId: targetCity.id,
+        targetCityName: targetCity.name,
+        scoutCount: validCount,
+        foodCost,
+        path,
+        currentCellIndex: 0,
+        cellProgress: 0,
+        currentPos: {
+          x: firstCell.x,
+          y: firstCell.y,
+          col: firstCell.col,
+          row: firstCell.row,
+        },
+        totalDays,
+        daysRemaining: totalDays,
+        status: 'traveling',
+      };
+
       const updatedCities = state.cities.map(c => {
-        if (c.id === baseLamSon.id && c.population) {
+        if (c.id === originCity.id && c.population) {
           return {
             ...c,
             population: {
               ...c.population,
-              idleLaborers: c.population.idleLaborers - 1,
+              idleLaborers: c.population.idleLaborers - validCount,
             },
-          };
-        }
-        if (c.id === cityId) {
-          return {
-            ...c,
-            assignedScouts: (c.assignedScouts || 0) + 1,
           };
         }
         return c;
       });
 
-      notify.success(`Đã cử 1 thám mã bí mật trà trộn vào vùng ngoại vi ${targetCity.name} để thám thính tình hình quân giặc!`);
+      const canhs = Math.round(totalDays * 12);
+      notify.success(
+        `Đã phái ${validCount} thám mã từ ${originCity.name} hướng về ${targetCity.name}! Lộ trình ngắn nhất ~${totalDays.toFixed(1)} ngày đường (${canhs} canh).`
+      );
       result = { success: true, message: 'Phái thám mã thành công!' };
 
       return {
         cities: updatedCities,
         resources: {
           ...state.resources,
-          food: state.resources.food - scoutFoodCost,
+          food: state.resources.food - foodCost,
         },
+        scoutMissions: [...(state.scoutMissions || []), newMission],
       };
     });
     return result;
+  },
+
+  // Tiến bước cho các toán thám mã di chuyển trên bản đồ theo thời gian trôi
+  stepScoutMissions: (deltaDays: number) => {
+    if (deltaDays <= 0) return;
+    const currentMissions = get().scoutMissions;
+    if (!currentMissions || currentMissions.length === 0) return;
+
+    set((prev) => {
+      let citiesChanged = false;
+      const citiesMap = new Map(prev.cities.map(c => [c.id, { ...c }]));
+      const arrivedMissions: ScoutMission[] = [];
+
+      const updatedMissions = prev.scoutMissions.map(m => {
+        if (m.status !== 'traveling') return m;
+        const path = m.path;
+        if (path.length <= 1) {
+          arrivedMissions.push(m);
+          return null;
+        }
+
+        let curIdx = m.currentCellIndex;
+        let curProg = m.cellProgress;
+        let remainingDelta = deltaDays;
+        let currentPos = { ...m.currentPos };
+
+        while (remainingDelta > 0 && curIdx < path.length - 1) {
+          const nextCell = path[curIdx + 1];
+          const stepCost = Math.max(0.01, nextCell.moveCostDays);
+          const daysNeeded = (1 - curProg) * stepCost;
+
+          if (remainingDelta >= daysNeeded) {
+            remainingDelta -= daysNeeded;
+            curIdx += 1;
+            curProg = 0;
+            currentPos = {
+              x: nextCell.x,
+              y: nextCell.y,
+              col: nextCell.col,
+              row: nextCell.row,
+            };
+          } else {
+            const progDelta = remainingDelta / stepCost;
+            curProg += progDelta;
+            remainingDelta = 0;
+            const fromCell = path[curIdx];
+            currentPos = {
+              x: Number((fromCell.x + (nextCell.x - fromCell.x) * curProg).toFixed(4)),
+              y: Number((fromCell.y + (nextCell.y - fromCell.y) * curProg).toFixed(4)),
+              col: curProg >= 0.5 ? nextCell.col : fromCell.col,
+              row: curProg >= 0.5 ? nextCell.row : fromCell.row,
+            };
+          }
+        }
+
+        const daysDone =
+          path.slice(0, curIdx).reduce((acc, c) => acc + c.moveCostDays, 0) +
+          (path[curIdx + 1] ? path[curIdx + 1].moveCostDays * curProg : 0);
+        const daysRem = Math.max(0, Number((m.totalDays - daysDone).toFixed(2)));
+
+        if (curIdx >= path.length - 1) {
+          arrivedMissions.push({
+            ...m,
+            currentCellIndex: curIdx,
+            cellProgress: 1,
+            currentPos,
+            daysRemaining: 0,
+            status: 'arrived',
+          });
+          const target = citiesMap.get(m.targetCityId);
+          if (target) {
+            target.assignedScouts = (target.assignedScouts || 0) + m.scoutCount;
+            citiesChanged = true;
+          }
+          return null;
+        }
+
+        return {
+          ...m,
+          currentCellIndex: curIdx,
+          cellProgress: curProg,
+          currentPos,
+          daysRemaining: daysRem,
+        };
+      }).filter((m): m is ScoutMission => m !== null);
+
+      if (arrivedMissions.length > 0) {
+        arrivedMissions.forEach(arr => {
+          notify.success(
+            `Toán thám mã (${arr.scoutCount} quân) đã vượt đèo lội suối thâm nhập thành công vào ${arr.targetCityName}! Tình báo quân sự được mở rộng.`
+          );
+        });
+      }
+
+      return {
+        scoutMissions: updatedMissions,
+        cities: citiesChanged ? Array.from(citiesMap.values()) : prev.cities,
+      };
+    });
   },
 
   // Rút 1 thám mã từ thành giặc trở về doanh trại Lam Sơn

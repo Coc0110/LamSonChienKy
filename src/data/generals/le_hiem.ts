@@ -22,7 +22,7 @@ export const le_hiem: General = {
   epithet: 'Bức Tường Chí Linh',
   group: 'lung_nhai_1416',
   unlocked: true,
-  locationId: 'chi_linh',
+  locationId: 'lam_son',
 
   // --- 2. BẬC SAO & CHỈ SỐ KHỞI ĐẦU ---
   stars: 5,

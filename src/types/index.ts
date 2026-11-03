@@ -61,12 +61,15 @@ export interface PlacedStructure {
   buildDaysTotal: number;
   buildDaysRemaining: number;
   builderWorkers: number;
+  isUpgrading?: boolean;
 
   // Ruộng cày cấy
   assignedWorkers: number; // Nông đinh đang canh tác
   maxWorkers: number;      // Tối đa tráng phu / 1 khu ruộng (mặc định 15)
-  cropDays: number;        // Số ngày sinh trưởng đã qua trong vụ mùa (0..90)
-  cropCycleDays: number;   // Chu kỳ mùa vụ (90 ngày ~ 1 vụ Chiêm / vụ Mùa)
+  cropDays: number;        // Số ngày thực tế đã canh tác từ khi ruộng đi vào hoạt động đến ngày vụ mùa
+  cropCycleDays: number;   // Chu kỳ mùa vụ
+  lastHarvestYield?: number; // Sản lượng thu hoạch vụ gần nhất
+  recentEvent?: string;     // Biến cố thửa ruộng (phù sa, sâu bọ, v.v.)
 
   // Lò rèn đúc
   seasonCondition?: 'bountiful' | 'normal' | 'poor';
@@ -217,6 +220,17 @@ export interface CityIntelReport {
 }
 
 export const getCityIntelReport = (cityTroops: number, scouts: number, actualSuspicion: number): CityIntelReport => {
+  if (cityTroops <= 0) {
+    return {
+      level: 4,
+      scouts,
+      maxScouts: 1,
+      displayedTroops: '0 quân',
+      displayedSuspicion: '0%',
+      canBribe: false,
+    };
+  }
+
   const maxScouts = getMaxScoutsNeeded(cityTroops);
   const effectiveScouts = Math.min(scouts, maxScouts);
   const ratio = maxScouts > 0 ? effectiveScouts / maxScouts : 1;
@@ -234,7 +248,7 @@ export const getCityIntelReport = (cityTroops: number, scouts: number, actualSus
 
   if (ratio < 0.35) {
     // 1 / 4 hoặc 1 / 3
-    const tier1Troops = Math.max(1000, Math.floor(cityTroops * 0.15 / 500) * 500);
+    const tier1Troops = Math.min(cityTroops, Math.max(200, Math.floor(cityTroops * 0.25 / 100) * 100));
     const suspFloor = Math.floor(actualSuspicion / 10) * 10;
     return {
       level: 1,
@@ -248,7 +262,7 @@ export const getCityIntelReport = (cityTroops: number, scouts: number, actualSus
 
   if (ratio < 0.68) {
     // 2 / 4 hoặc 2 / 3
-    const tier2Troops = Math.max(2500, Math.floor(cityTroops * 0.45 / 500) * 500);
+    const tier2Troops = Math.min(cityTroops, Math.max(400, Math.floor(cityTroops * 0.5 / 100) * 100));
     const suspFloor = Math.floor(actualSuspicion / 5) * 5;
     return {
       level: 2,
@@ -262,7 +276,7 @@ export const getCityIntelReport = (cityTroops: number, scouts: number, actualSus
 
   if (ratio < 1.0) {
     // 3 / 4
-    const tier3Troops = Math.max(5000, Math.floor(cityTroops * 0.75 / 500) * 500);
+    const tier3Troops = Math.min(cityTroops, Math.max(800, Math.floor(cityTroops * 0.75 / 100) * 100));
     return {
       level: 3,
       scouts: effectiveScouts,
@@ -273,7 +287,7 @@ export const getCityIntelReport = (cityTroops: number, scouts: number, actualSus
     };
   }
 
-  // 4 / 4 (Đủ thám mã tối đa)
+  // Đủ thám mã tối đa
   return {
     level: 4,
     scouts: effectiveScouts,
@@ -289,3 +303,21 @@ export const getBriberyCostAndEffect = (bribeCount: number) => {
   const reduction = Math.max(8, 22 - bribeCount * 3);
   return { cost, reduction };
 };
+
+// Nhiệm vụ thám mã đang di chuyển trên bản đồ đến mục tiêu
+export interface ScoutMission {
+  id: string;
+  originCityId: string;
+  originCityName: string;
+  targetCityId: string;
+  targetCityName: string;
+  scoutCount: number;
+  foodCost: number;
+  path: import('./armyFormation').MarchPathCell[];
+  currentCellIndex: number;
+  cellProgress: number; // 0..1 trong ô hiện tại
+  currentPos: { x: number; y: number; col: number; row: number };
+  totalDays: number;
+  daysRemaining: number;
+  status: 'traveling' | 'arrived';
+}

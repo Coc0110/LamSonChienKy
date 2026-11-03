@@ -21,6 +21,7 @@ function App() {
   const tick = useGameStore(state => state.tick);
   const tickCanh = useGameStore(state => state.tickCanh);
   const stepArmies = useGameStore(state => state.stepArmies);
+  const stepScoutMissions = useGameStore(state => state.stepScoutMissions);
   const formations = useGameStore(state => state.formations);
 
   // Tự động kích hoạt Chế độ Chiến Sự khi có đạo quân xuất trận (marching / retreating, không tính cắm trại)
@@ -77,9 +78,10 @@ function App() {
 
     const armyInterval = setInterval(() => {
       stepArmies(deltaDays);
+      stepScoutMissions(deltaDays);
     }, stepMs);
     return () => clearInterval(armyInterval);
-  }, [isPaused, isWarMode, canhHour, gameSpeed, stepArmies]);
+  }, [isPaused, isWarMode, canhHour, gameSpeed, stepArmies, stepScoutMissions]);
 
   return (
     <div className="w-screen h-screen overflow-hidden relative bg-stone-950 select-none">

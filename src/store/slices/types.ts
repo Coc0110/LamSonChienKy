@@ -8,6 +8,7 @@ import type {
   StructureType,
   WeaponCraftType,
   PlacedStructure,
+  ScoutMission,
 } from '../../types';
 import type { ArmySlice } from './armySlice';
 import type { SaveSlice, GameStatus } from './saveSlice';
@@ -45,6 +46,7 @@ export interface StructureSlice {
   demolishStructure: (structureId: string) => { success: boolean; message: string };
   assignFarmWorkers: (structureId: string, delta: number) => { success: boolean; message: string };
   setFarmWorkers: (structureId: string, targetCount: number) => { success: boolean; message: string };
+  upgradeFarm: (structureId: string) => { success: boolean; message: string };
   startForgeOrder: (structureId: string, order: { weaponType: WeaponCraftType; quantity: number; smiths: number }) => { success: boolean; message: string };
   cancelForgeOrder: (structureId: string) => void;
   tradeFoodForGold: (foodAmount: number) => { success: boolean; message: string };
@@ -71,6 +73,9 @@ export interface MilitarySlice {
   recallScout: (cityId: string) => { success: boolean; message: string };
   upgradeCamp: (cityId: string) => { success: boolean; message: string };
   triggerUprising: () => { success: boolean; message: string };
+  scoutMissions: ScoutMission[];
+  dispatchScoutMission: (originCityId: string, targetCityId: string, scoutCount: number) => { success: boolean; message: string };
+  stepScoutMissions: (deltaDays: number) => void;
 }
 
 export type { ArmySlice, SaveSlice, GameStatus };

@@ -2,7 +2,8 @@ import type { StateCreator } from 'zustand';
 import type { PlacedStructure, StructureType, WeaponCraftType, ForgeOrder } from '../../types';
 import { INITIAL_STRUCTURES } from '../../data/mapData';
 import { TERRAIN_DEFINITIONS } from '../../data/terrainData';
-import { validateCellPlacement, FARM_BASE_RADIUS_PCT } from '../../data/terrainGrid';
+import { validateCellPlacement, FARM_BASE_RADIUS_PCT, checkFarmUpgradeValid } from '../../data/terrainGrid';
+import { notify } from '../dialogStore';
 import { MAP_COORD_W, MAP_COORD_H } from '../../utils/mapGeo';
 import type { StructureSlice, GameStore } from './types';
 
@@ -62,6 +63,13 @@ export const createStructureSlice: StateCreator<GameStore, [], [], StructureSlic
     const sameTypeCount = existingStructures.filter(s => s.cityId === cityId && s.type === type).length + 1;
     const tierName = type === 'farm' ? (gridSize === 7 ? 'Đại Điền' : gridSize === 6 ? 'Trung Điền' : 'Tiểu Điền') : 'Lò Rèn';
 
+    // Đặt ruộng xuống mặc định cử tối đa nông đinh vào làm luôn (nếu có đủ tráng phu nhàn rỗi)
+    let initialFarmWorkers = 0;
+    if (type === 'farm' && city.population) {
+      const availForFarming = Math.max(0, city.population.idleLaborers - reqWorkers);
+      initialFarmWorkers = Math.min(maxWorkers, availForFarming);
+    }
+
     const newStructure: PlacedStructure = {
       id: `${type}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       cityId,
@@ -77,11 +85,12 @@ export const createStructureSlice: StateCreator<GameStore, [], [], StructureSlic
       buildDaysTotal: buildDays,
       buildDaysRemaining: buildDays,
       builderWorkers: reqWorkers,
-      assignedWorkers: 0,
+      assignedWorkers: initialFarmWorkers,
       maxWorkers,
       cropDays: 0,
       cropCycleDays: 90,
-      seasonCondition: Math.random() < 0.25 ? 'bountiful' : Math.random() < 0.2 ? 'poor' : 'normal',
+      seasonCondition: 'normal',
+      recentEvent: 'Vừa lập ruộng mới',
       activeOrder: null,
       forgeQueue: [],
     };
@@ -97,7 +106,8 @@ export const createStructureSlice: StateCreator<GameStore, [], [], StructureSlic
           ...c,
           population: {
             ...c.population,
-            idleLaborers: c.population.idleLaborers - reqWorkers,
+            idleLaborers: c.population.idleLaborers - reqWorkers - initialFarmWorkers,
+            farmLaborers: (c.population.farmLaborers || 0) + initialFarmWorkers,
           }
         };
       }),
@@ -582,6 +592,84 @@ export const createStructureSlice: StateCreator<GameStore, [], [], StructureSlic
       success: true,
       message: `Đã bí mật giao thương xuất bán ${foodAmount.toLocaleString()} thạch thóc lúa, thu về ${goldEarned.toLocaleString()} Vàng nạp vào ngân khố nghĩa quân!`,
     };
+  },
+
+  // Nâng cấp mở rộng đồn điền theo từng cấp (5x5 -> 6x6 -> 7x7) nếu xung quanh có đủ không gian hợp lệ
+  upgradeFarm: (structureId: string) => {
+    const farm = get().structures.find(s => s.id === structureId);
+    if (!farm) {
+      return { success: false, message: 'Không tìm thấy đồn điền cần mở rộng!' };
+    }
+
+    const upgradeInfo = checkFarmUpgradeValid(farm, get().cities, get().structures);
+    if (!upgradeInfo.canUpgrade || !upgradeInfo.newPlacement) {
+      return { success: false, message: upgradeInfo.reason };
+    }
+
+    const {
+      costGold = 70,
+      reqWorkers = 10,
+      buildDays = 12,
+      nextSize = 6,
+      nextMaxWorkers = 35,
+      targetTierName = '',
+      newPlacement,
+    } = upgradeInfo;
+
+    if (get().resources.gold < costGold) {
+      return { success: false, message: `Ngân khố không đủ! Cần ${costGold} Vàng để mở rộng bờ ruộng.` };
+    }
+
+    const city = get().cities.find(c => c.id === farm.cityId);
+    if (!city || !city.population || city.population.idleLaborers < reqWorkers) {
+      return { success: false, message: `Thiếu tráng phu nhàn rỗi! Cần điều động ${reqWorkers} tráng phu đào đắp kênh mương mở rộng.` };
+    }
+
+    const updatedStructures = get().structures.map(s => {
+      if (s.id !== structureId) return s;
+      const oldTier = s.gridSize === 6 ? 'Trung Điền' : 'Tiểu Điền';
+      const newTier = nextSize === 7 ? 'Đại Điền' : 'Trung Điền';
+      const updatedName = s.name.replace(oldTier, newTier);
+
+      return {
+        ...s,
+        name: updatedName,
+        status: 'building' as const,
+        isUpgrading: true,
+        gridSize: nextSize,
+        maxWorkers: nextMaxWorkers,
+        buildDaysTotal: buildDays,
+        buildDaysRemaining: buildDays,
+        builderWorkers: reqWorkers,
+        x: newPlacement.snappedX,
+        y: newPlacement.snappedY,
+        startCol: newPlacement.startCol,
+        startRow: newPlacement.startRow,
+        terrain: newPlacement.terrain,
+        recentEvent: `Đang đào đắp mở rộng lên ${newTier}`,
+      };
+    });
+
+    set(state => ({
+      resources: {
+        ...state.resources,
+        gold: state.resources.gold - costGold,
+      },
+      cities: state.cities.map(c => {
+        if (c.id !== farm.cityId || !c.population) return c;
+        return {
+          ...c,
+          population: {
+            ...c.population,
+            idleLaborers: c.population.idleLaborers - reqWorkers,
+          },
+        };
+      }),
+      structures: updatedStructures,
+    }));
+
+    notify.success(`Bắt đầu thi công mở rộng [${farm.name}] lên ${targetTierName}!`);
+    return { success: true, message: `Đang thi công mở rộng đồn điền!` };
   },
 
   // Legacy build structure

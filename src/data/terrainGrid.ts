@@ -655,3 +655,138 @@ export function validateBaseRelocate(
     gridSize: size,
   };
 }
+
+
+// ============================================================================
+// 6. KIỂM TRA NÂNG CẤP MỞ RỘNG ĐỒN ĐIỀN NÔNG NGHIỆP THEO CÁC CẤP (5x5 -> 6x6 -> 7x7)
+// ============================================================================
+export interface FarmUpgradeInfo {
+  canUpgrade: boolean;
+  reason: string;
+  currentSize: number;
+  nextSize?: number;
+  nextMaxWorkers?: number;
+  costGold?: number;
+  reqWorkers?: number;
+  buildDays?: number;
+  targetTierName?: string;
+  newPlacement?: CellBuildValidation;
+}
+
+export function checkFarmUpgradeValid(
+  farm: PlacedStructure,
+  cities: CityNode[],
+  structures: PlacedStructure[]
+): FarmUpgradeInfo {
+  if (farm.type !== 'farm') {
+    return { canUpgrade: false, reason: 'Chỉ có thể nâng cấp mở rộng đồn điền', currentSize: 5 };
+  }
+
+  const currentSize = farm.gridSize || (farm.maxWorkers === 50 ? 7 : (farm.maxWorkers === 35 || farm.maxWorkers === 30) ? 6 : 5);
+
+  if (farm.status === 'building') {
+    return {
+      canUpgrade: false,
+      reason: `Đồn điền đang thi công (còn ${Math.ceil(farm.buildDaysRemaining)} ngày)`,
+      currentSize,
+    };
+  }
+
+  if (currentSize >= 7) {
+    return {
+      canUpgrade: false,
+      reason: 'Đã đạt quy mô tối đa (Đại Điền 7x7)',
+      currentSize,
+    };
+  }
+
+  const nextSize = currentSize + 1;
+  const nextMaxWorkers = nextSize === 7 ? 50 : 35;
+  const targetTierName = nextSize === 7 ? 'Đại Điền (7x7)' : 'Trung Điền (6x6)';
+  const costGold = nextSize === 7 ? 90 : 70;
+  const reqWorkers = nextSize === 7 ? 15 : 10;
+  const buildDays = nextSize === 7 ? 16 : 12;
+
+  // Lấy vị trí bắt đầu hiện tại
+  const currentBounds = getEntityCellBounds(farm.x, farm.y, currentSize, farm.startCol, farm.startRow);
+  const { startCol, startRow } = currentBounds;
+
+  // Kiểm tra 4 hướng mở rộng tiềm năng (dịch lùi/tiến 1 ô xung quanh)
+  const candidateOffsets: [number, number][] = [
+    [0, 0],   // mở rộng sang phải và xuống dưới
+    [-1, 0],  // mở rộng sang trái và xuống dưới
+    [0, -1],  // mở rộng sang phải và lên trên
+    [-1, -1], // mở rộng sang trái và lên trên
+  ];
+
+  let bestPlacement: CellBuildValidation | null = null;
+  let minCenterDist = Infinity;
+  let firstFailReason = '';
+
+  for (const [colOffset, rowOffset] of candidateOffsets) {
+    const candStartCol = startCol + colOffset;
+    const candStartRow = startRow + rowOffset;
+    const candEndCol = candStartCol + nextSize - 1;
+    const candEndRow = candStartRow + nextSize - 1;
+
+    // Bỏ qua nếu tràn viền bản đồ
+    if (candStartCol < 0 || candEndCol >= GRID_COLS || candStartRow < 0 || candEndRow >= GRID_ROWS) {
+      continue;
+    }
+
+    const minX = candStartCol * GRID_CELL_W_PCT;
+    const maxX = (candEndCol + 1) * GRID_CELL_W_PCT;
+    const minY = candStartRow * GRID_CELL_H_PCT;
+    const maxY = (candEndRow + 1) * GRID_CELL_H_PCT;
+    const candCenterX = (minX + maxX) / 2;
+    const candCenterY = (minY + maxY) / 2;
+
+    const val = validateCellPlacement(
+      candCenterX,
+      candCenterY,
+      'farm',
+      farm.cityId,
+      cities,
+      structures,
+      farm.id,
+      nextSize
+    );
+
+    if (val.canBuild) {
+      const dist = Math.hypot(candCenterX - farm.x, candCenterY - farm.y);
+      if (dist < minCenterDist) {
+        minCenterDist = dist;
+        bestPlacement = val;
+      }
+    } else if (!firstFailReason) {
+      firstFailReason = val.reason;
+    }
+  }
+
+  if (bestPlacement) {
+    return {
+      canUpgrade: true,
+      reason: `Đủ không gian hợp lệ để mở rộng lên ${targetTierName}!`,
+      currentSize,
+      nextSize,
+      nextMaxWorkers,
+      costGold,
+      reqWorkers,
+      buildDays,
+      targetTierName,
+      newPlacement: bestPlacement,
+    };
+  }
+
+  return {
+    canUpgrade: false,
+    reason: firstFailReason || 'Xung quanh không đủ không gian đồng bằng hợp lệ để mở rộng!',
+    currentSize,
+    nextSize,
+    nextMaxWorkers,
+    costGold,
+    reqWorkers,
+    buildDays,
+    targetTierName,
+  };
+}

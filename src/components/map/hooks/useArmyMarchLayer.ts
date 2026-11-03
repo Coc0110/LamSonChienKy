@@ -31,6 +31,7 @@ export function useArmyMarchLayer({ mapInstance, armyLayerRef }: UseArmyMarchLay
   const generals = useGameStore(state => state.generals);
   const canhHour = useGameStore(state => state.canhHour);
   const isWarMode = useGameStore(state => state.isWarMode);
+  const scoutMissions = useGameStore(state => state.scoutMissions || []);
   const selectedMapFormationId = useUIStore(state => state.selectedMapFormationId);
 
   const isNight = isWarMode && (canhHour >= 10 || canhHour <= 2);
@@ -331,5 +332,63 @@ export function useArmyMarchLayer({ mapInstance, armyLayerRef }: UseArmyMarchLay
 
       bannerMarker.addTo(layer);
     });
-  }, [mapInstance, armyLayerRef, formations, cities, generals, selectedMapFormationId, marchDrawMode, canhHour, isWarMode, isNight]);
+
+    // 3. Hiển thị các toán thám mã đang di chuyển trên bản đồ (Scout Missions)
+    const activeScoutMissions = (scoutMissions || []).filter(m => m.status === 'traveling');
+    activeScoutMissions.forEach(mission => {
+      // Đường nét đứt thám thính
+      const remainingCells = mission.path.slice(mission.currentCellIndex);
+      if (remainingCells.length >= 2) {
+        const linePoints = [
+          percentToLatLng(mission.currentPos.x, mission.currentPos.y),
+          ...remainingCells.slice(1).map(c => percentToLatLng(c.x, c.y)),
+        ];
+        L.polyline(linePoints, {
+          color: '#8c6b44',
+          weight: 2,
+          opacity: 0.75,
+          dashArray: '4, 6',
+          interactive: false,
+        }).addTo(layer);
+      }
+
+      // Marker thám mã chuẩn nhận diện
+      const scoutIconHtml = `
+        <div style="
+          transform: translate(-50%, -50%);
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          background: rgba(247, 238, 216, 0.95);
+          border: 1.5px solid #8c6b44;
+          border-radius: 9999px;
+          padding: 2px 7px;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+          white-space: nowrap;
+          cursor: pointer;
+        ">
+          <img src="/troops/scout.png" alt="Thám mã" style="width: 16px; height: 16px; object-fit: contain;" />
+          <span style="font-family: serif; font-weight: bold; font-size: 11px; color: #261304;">${mission.scoutCount} Thám mã</span>
+        </div>
+      `;
+
+      const scoutMarker = L.marker(percentToLatLng(mission.currentPos.x, mission.currentPos.y), {
+        icon: L.divIcon({
+          className: 'scout-mission-marker',
+          html: scoutIconHtml,
+          iconSize: [0, 0],
+          iconAnchor: [0, 0],
+        }),
+        zIndexOffset: 1150,
+      });
+
+      scoutMarker.bindTooltip(
+        `<b>Toán thám mã Lam Sơn (${mission.scoutCount} quân)</b><br/>Đang tới: ${mission.targetCityName}<br/>Còn ~${mission.daysRemaining.toFixed(1)} ngày đường (${Math.round(mission.daysRemaining * 12)} canh)`,
+        { direction: 'top', offset: [0, -14] }
+      );
+
+      scoutMarker.addTo(layer);
+    });
+
+  }, [mapInstance, armyLayerRef, formations, cities, generals, selectedMapFormationId, marchDrawMode, canhHour, isWarMode, isNight, scoutMissions]);
 }

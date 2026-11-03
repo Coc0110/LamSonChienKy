@@ -1,4 +1,5 @@
 import { CAMP_CAPACITY_BY_LEVEL } from '../../types';
+import { isHarvestDay, rollSeasonClimate, rollFarmMicroEvent } from '../../utils/harvestSeasons';
 import type { StateCreator } from 'zustand';
 import { START_DAY, START_MONTH, START_YEAR } from '../../data/mapData';
 import type { MilitaryNotice } from '../../types';
@@ -40,7 +41,91 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
       set({ canhHour: 0 });
       get().tick();
     } else {
-      set({ canhHour: nextCanh });
+      // Trong Chế độ Chiến Sự: Mỗi canh giờ (1/12 ngày) trôi qua
+      // Tiến bước đồng bộ cho nâng cấp doanh trại, thi công và thao luyện
+      const deltaDayFraction = 1 / 12;
+      let citiesChanged = false;
+      let structuresChanged = false;
+
+      const updatedCities = state.cities.map(city => {
+        if (!city.upgrading && !city.training) return city;
+        citiesChanged = true;
+        let c = { ...city };
+
+        if (c.upgrading) {
+          const nextDays = Math.max(0, Number((c.upgrading.remainingDays - deltaDayFraction).toFixed(3)));
+          if (nextDays <= 0) {
+            const targetLevel = c.upgrading.targetLevel;
+            const buildersReturned = c.upgrading.builders;
+            const newCap = CAMP_CAPACITY_BY_LEVEL[targetLevel] || 1000;
+            const pop = c.population ? { ...c.population, idleLaborers: c.population.idleLaborers + buildersReturned } : c.population;
+            c = {
+              ...c,
+              level: targetLevel,
+              population: pop,
+              upgrading: null,
+            };
+            notify.success(`Công trình mở rộng doanh trại [${c.name}] lên Cấp ${targetLevel} (${newCap.toLocaleString()} người) đã hoàn tất!`);
+          } else {
+            c = {
+              ...c,
+              upgrading: {
+                ...c.upgrading,
+                remainingDays: nextDays,
+              },
+            };
+          }
+        }
+
+        if (c.training) {
+          const nextDays = Math.max(0, Number((c.training.remainingDays - deltaDayFraction).toFixed(3)));
+          if (nextDays <= 0) {
+            const { traineesCount } = c.training;
+            const pop = c.population ? { ...c.population, combatTroops: c.population.combatTroops + traineesCount } : c.population;
+            c = {
+              ...c,
+              population: pop,
+              training: null,
+            };
+            notify.success(`Đợt thao luyện ${traineesCount} nghĩa binh tại [${c.name}] đã hoàn tất!`);
+          } else {
+            c = {
+              ...c,
+              training: {
+                ...c.training,
+                remainingDays: nextDays,
+              },
+            };
+          }
+        }
+
+        return c;
+      });
+
+      const updatedStructures = state.structures.map(s => {
+        if (s.status !== 'building') return s;
+        structuresChanged = true;
+        const nextDays = Math.max(0, Number((s.buildDaysRemaining - deltaDayFraction).toFixed(3)));
+        if (nextDays <= 0) {
+          notify.success(`Công trình [${s.name}] đã hoàn tất thi công và đi vào hoạt động!`);
+          return {
+            ...s,
+            status: 'active' as const,
+            buildDaysRemaining: 0,
+            builderWorkers: 0,
+          };
+        }
+        return {
+          ...s,
+          buildDaysRemaining: nextDays,
+        };
+      });
+
+      set({
+        canhHour: nextCanh,
+        cities: citiesChanged ? updatedCities : state.cities,
+        structures: structuresChanged ? updatedStructures : state.structures,
+      });
     }
   },
 
@@ -120,6 +205,7 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
             upgrading: null,
           };
         } else {
+          citiesChanged = true; // Đồng bộ trạng thái nâng cấp doanh trại
           currentCity = {
             ...currentCity,
             upgrading: {
@@ -182,7 +268,7 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
     let refundedQueueGold = 0;
     let suspicionGain = 0;
 
-    const updatedStructures = state.structures.map(structure => {
+    let updatedStructures = state.structures.map(structure => {
       let currentStruct = structure;
 
       // Đồng bộ số nông đinh trên ruộng nếu đợt thao luyện vùng Cam vừa hoàn tất
@@ -209,15 +295,31 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
           if (targetCityIdx !== -1 && updatedCities[targetCityIdx].population) {
             citiesChanged = true;
             const targetCity = updatedCities[targetCityIdx];
+            let currentIdle = targetCity.population!.idleLaborers + workers;
+            let currentFarmLaborers = targetCity.population!.farmLaborers || 0;
+
+            // Đặt ruộng xuống mặc định cử tối đa nông đinh vào làm
+            if (s.type === 'farm' && s.assignedWorkers < s.maxWorkers) {
+              const needed = s.maxWorkers - s.assignedWorkers;
+              const fill = Math.min(needed, currentIdle);
+              s.assignedWorkers += fill;
+              currentIdle -= fill;
+              currentFarmLaborers += fill;
+            }
+
+            const wasUpgrading = s.isUpgrading;
+            s.isUpgrading = undefined;
+
             updatedCities[targetCityIdx] = {
               ...targetCity,
               population: {
                 ...targetCity.population!,
-                idleLaborers: targetCity.population!.idleLaborers + workers,
+                idleLaborers: currentIdle,
+                farmLaborers: currentFarmLaborers,
               },
               buildings: s.type === 'farm'
                 ? {
-                    farms: (targetCity.buildings?.farms || 0) + 1,
+                    farms: (targetCity.buildings?.farms || 0) + (wasUpgrading ? 0 : 1),
                     forges: targetCity.buildings?.forges || 0,
                   }
                 : {
@@ -227,13 +329,18 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
             };
           }
 
+          const wasUpgrading = s.isUpgrading;
+          s.isUpgrading = undefined;
+
           newNotices.push({
             id: `build_${Date.now()}_${s.id}_${Math.random().toString(36).substring(2, 6)}`,
             type: 'build',
-            title: s.type === 'farm' ? 'Đồn Điền Khai Hoang Hoàn Tất' : 'Lò Rèn Binh Khí Đã Dựng Xong',
+            title: s.type === 'farm' ? (wasUpgrading ? 'Mở Rộng Đồn Điền Hoàn Tất' : 'Đồn Điền Khai Hoang Hoàn Tất') : 'Lò Rèn Binh Khí Đã Dựng Xong',
             dateStr: `Ngày ${newDay}/${newMonth}/${newYear}`,
             description: s.type === 'farm'
-              ? `Khu ruộng [${s.name}] đã khai hoang xong trên bãi bồi, sẵn sàng đón nông đinh vào cày cấy!`
+              ? (wasUpgrading
+                  ? `Khu ruộng [${s.name}] đã hoàn tất đắp bờ, mở rộng quy mô lên ${s.gridSize}x${s.gridSize} (${s.maxWorkers} nông đinh)!`
+                  : `Khu ruộng [${s.name}] đã khai hoang xong trên bãi bồi, sẵn sàng đón nông đinh vào cày cấy!`)
               : `Lò rèn [${s.name}] đã dựng xong bễ đúc và đe búa, sẵn sàng nhận lệnh rèn đúc!`,
             read: false,
             timestamp: Date.now(),
@@ -242,39 +349,11 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
         return s;
       }
 
-      // Ruộng lúa đang hoạt động: Tích lũy tiến độ vụ mùa (90 ngày ~ 1 quý / vụ)
+      // Ruộng lúa đang hoạt động: Mỗi ngày tích lũy số ngày canh tác thực tế
       if (currentStruct.type === 'farm' && currentStruct.status === 'active') {
         if (currentStruct.assignedWorkers > 0) {
           structuresChanged = true;
-          const s = { ...currentStruct, cropDays: currentStruct.cropDays + 1 };
-          if (s.cropDays >= s.cropCycleDays) {
-            // MÙA THU HOẠCH LƯƠNG THỰC!
-            const efficiency = s.gridSize === 7 ? 0.26 : s.gridSize === 6 ? 0.24 : 0.22;
-            const weatherMult = s.seasonCondition === 'bountiful' ? 1.25 : s.seasonCondition === 'poor' ? 0.70 : 1.0;
-            const baseFood = Math.round(s.assignedWorkers * 90 * efficiency * weatherMult);
-
-            const matchedCity = updatedCities.find(c => c.id === s.cityId);
-            const isMing = matchedCity?.faction === 'ming';
-            const taxRate = isMing ? 0.50 : 0.10;
-            const taxAmount = Math.round(baseFood * taxRate);
-            const yieldFood = Math.max(0, baseFood - taxAmount);
-
-            seasonalFoodHarvested += yieldFood;
-            s.cropDays = 0;
-            const condText = s.seasonCondition === 'bountiful' ? 'Được mùa (+25%)' : s.seasonCondition === 'poor' ? 'Mất mùa (-30%)' : 'Mưa thuận gió hòa';
-
-            newNotices.push({
-              id: `harvest_${Date.now()}_${s.id}_${Math.random().toString(36).substring(2, 6)}`,
-              type: 'harvest',
-              title: 'Vụ Mùa Gặt Lương Thảo',
-              dateStr: `Ngày ${newDay}/${newMonth}/${newYear}`,
-              description: `Đồn điền [${s.name}] đã gặt xong (${condText})! Thuế: ${taxAmount.toLocaleString()} thạch (${taxRate * 100}%). Thực thu nhập kho: ${yieldFood.toLocaleString()} thạch thóc!`,
-              read: false,
-              timestamp: Date.now(),
-            });
-
-            s.seasonCondition = Math.random() < 0.25 ? 'bountiful' : Math.random() < 0.20 ? 'poor' : 'normal';
-          }
+          const s = { ...currentStruct, cropDays: (currentStruct.cropDays || 0) + 1 };
           return s;
         }
         return currentStruct;
@@ -387,6 +466,68 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
       return currentStruct;
     });
 
+    // 2.2. KIỂM TRA ĐẠI VỤ THU HOẠCH CỐ ĐỊNH TRONG NĂM (Vụ Chiêm 15/5, Vụ Mùa 15/10)
+    const harvestInfo = isHarvestDay(newDay, newMonth);
+    if (harvestInfo.isHarvest && harvestInfo.season) {
+      const seasonClimate = rollSeasonClimate(harvestInfo.season.id);
+      let totalSeasonYield = 0;
+      const farmReportLines: string[] = [];
+
+      updatedStructures = updatedStructures.map(struct => {
+        if (struct.type !== 'farm' || struct.status !== 'active') return struct;
+        structuresChanged = true;
+        const s = { ...struct };
+
+        // Số ngày thực tế ruộng đã hoạt động từ đầu vụ (hoặc từ khi thi công xong) đến ngày gặt
+        const daysActive = s.cropDays || 0;
+        if (daysActive <= 0 || s.assignedWorkers <= 0) {
+          s.cropDays = 0;
+          s.lastHarvestYield = 0;
+          s.recentEvent = 'Chưa kịp canh tác';
+          return s;
+        }
+
+        const microEvent = rollFarmMicroEvent();
+        const efficiency = s.gridSize === 7 ? 0.26 : s.gridSize === 6 ? 0.24 : 0.22;
+        const baseCrop = Math.round(s.assignedWorkers * daysActive * efficiency);
+        const finalCrop = Math.max(0, Math.round(baseCrop * seasonClimate.mult * microEvent.mult));
+
+        const matchedCity = updatedCities.find(c => c.id === s.cityId);
+        const isMing = matchedCity?.faction === 'ming';
+        const taxRate = isMing ? 0.50 : 0.10;
+        const taxAmount = Math.round(finalCrop * taxRate);
+        const netYield = Math.max(0, finalCrop - taxAmount);
+
+        seasonalFoodHarvested += netYield;
+        totalSeasonYield += netYield;
+
+        s.cropDays = 0; // Đặt lại số ngày canh tác cho vụ mùa tiếp theo!
+        s.lastHarvestYield = netYield;
+        s.seasonCondition = seasonClimate.condition;
+        s.recentEvent = microEvent.eventName;
+
+        farmReportLines.push(`• [${s.name}]: +${netYield.toLocaleString()} thạch (${daysActive} ngày cấy - ${microEvent.eventName})`);
+        return s;
+      });
+
+      if (totalSeasonYield > 0) {
+        const seasonTitle = `Đại Vụ Thu Hoạch ${harvestInfo.season.name} (${newMonth === 5 ? 'Tháng 5' : 'Tháng 10'})`;
+        const logPreview = farmReportLines.slice(0, 4).join('\n') + (farmReportLines.length > 4 ? `\n...và ${farmReportLines.length - 4} khu ruộng khác.` : '');
+
+        newNotices.push({
+          id: `season_harvest_${Date.now()}`,
+          type: 'harvest',
+          title: seasonTitle,
+          dateStr: `Ngày 15/${newMonth}/${newYear}`,
+          description: `Toàn quân thu hoạch +${totalSeasonYield.toLocaleString()} thạch thóc nhập kho!\nThời tiết: ${seasonClimate.label} (${seasonClimate.note})\n${logPreview}`,
+          read: false,
+          timestamp: Date.now(),
+        });
+
+        notify.success(`🌾 ${seasonTitle.toUpperCase()}: Toàn quân thu hoạch +${totalSeasonYield.toLocaleString()} thạch lương! (${seasonClimate.label})`);
+      }
+    }
+
     // 3. Tính tổng nhân khẩu thực tế (gồm dân cư căn cứ, người đang thao luyện, thợ đang xây dựng và quân trong các đạo quân)
     let totalPopulation = 0;
     updatedCities.forEach(city => {
@@ -476,8 +617,9 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
       return f;
     });
 
-    // 3. DÂN TỊ NẠN QUY PHỤ ĐỊNH KỲ (Mỗi 28 - 32 ngày có 1 đợt, kiểm soát theo sức chứa căn cứ)
-    const isRefugeeDay = (newDay === 15 || newDay === 28);
+    // 3. DÂN TỊ NẠN & HÀO KIỆT QUY PHỤ ĐỊNH KỲ (Đều đặn ngày 5, 12, 19, 26 hàng tháng)
+    // Điều chỉnh quy mô gia tăng đạt ~2.000 người vào mốc tháng 2/1418 như sử sách ghi nhận
+    const isRefugeeDay = (newDay === 5 || newDay === 12 || newDay === 19 || newDay === 26);
     const lamSonBaseIdx = updatedCities.findIndex(c => c.id === 'lam_son' && c.faction === 'lam_son');
     
     if (isRefugeeDay && lamSonBaseIdx !== -1 && updatedCities[lamSonBaseIdx].population) {
@@ -490,35 +632,38 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
       const capAvailable = baseCap - currentBasePop;
 
       if (capAvailable > 0) {
-        // Có chỗ chứa -> đón nhận 12 - 22 người tị nạn
-        const incomingCount = Math.min(capAvailable, Math.floor(Math.random() * 11) + 12);
-        const idleIncoming = Math.round(incomingCount * 0.6); // 60% tráng phu
-        const unfitIncoming = incomingCount - idleIncoming;  // 40% phụ nữ, người già, trẻ nhỏ
-        const reliefFood = incomingCount * 3;
+        // Đón nhận 15 - 21 người mỗi đợt (~72 người/tháng, đạt mốc ~2.000 người sau 2 năm)
+        const incomingCount = Math.min(capAvailable, Math.floor(Math.random() * 7) + 15);
+        // Tỷ lệ già yếu giảm xuống chỉ còn ~15%, ~85% là tráng phu trai tráng tụ nghĩa
+        const unfitIncoming = Math.max(1, Math.round(incomingCount * 0.15));
+        const idleIncoming = incomingCount - unfitIncoming;
+        const reliefFood = incomingCount * 1; // 1 thạch lương/người trợ cấp ban đầu
 
-        if (state.resources.food >= reliefFood) {
-          citiesChanged = true;
-          updatedCities[lamSonBaseIdx] = {
-            ...base,
-            population: {
-              ...pop,
-              idleLaborers: pop.idleLaborers + idleIncoming,
-              unfitPopulation: pop.unfitPopulation + unfitIncoming,
-            },
-          };
+        const actualFoodDeducted = Math.min(state.resources.food, reliefFood);
 
-          seasonalFoodHarvested -= reliefFood; // Xuất kho lương thực cứu tế ban đầu
+        citiesChanged = true;
+        updatedCities[lamSonBaseIdx] = {
+          ...base,
+          population: {
+            ...pop,
+            idleLaborers: pop.idleLaborers + idleIncoming,
+            unfitPopulation: pop.unfitPopulation + unfitIncoming,
+          },
+        };
 
-          newNotices.push({
-            id: `refugee_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-            type: 'general' as const,
-            title: 'Lưu Dân Tị Nạn Quy Phụ',
-            dateStr: `Ngày ${newDay}/${newMonth}/${newYear}`,
-            description: `Một đoàn gồm ${incomingCount} dân tị nạn (${idleIncoming} tráng phu, ${unfitIncoming} già yếu) từ phủ lân cận trốn chạy ách bạo ngược của giặc Minh đã kéo về Lam Sơn xin nương náu. Nghĩa quân đã xuất ${reliefFood} thạch lương cứu tế và cưu mang họ!`,
-            read: false,
-            timestamp: Date.now(),
-          });
+        if (actualFoodDeducted > 0) {
+          seasonalFoodHarvested -= actualFoodDeducted;
         }
+
+        newNotices.push({
+          id: `refugee_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+          type: 'general' as const,
+          title: 'Lưu Dân & Hào Kiệt Quy Phụ',
+          dateStr: `Ngày ${newDay}/${newMonth}/${newYear}`,
+          description: `Đoàn ${incomingCount} người (${idleIncoming} tráng phu, ${unfitIncoming} già yếu) từ các châu huyện lân cận trốn chạy ách bạo ngược giặc Minh đã kéo về Lam Sơn tụ nghĩa. Doanh trại đã cưu mang họ!`,
+          read: false,
+          timestamp: Date.now(),
+        });
       } else {
         // Căn cứ đã đầy (ví dụ 500/500) -> Thông báo cảnh báo quá tải
         if (Math.random() < 0.35) {
@@ -536,7 +681,7 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
     }
 
     const foodConsumption = Math.max(5, totalPopulation * 0.035);
-    let newFood = state.resources.food + seasonalFoodHarvested + foragedFoodDaily + raidFoodDaily - foodConsumption;
+    let newFood = Math.max(0, Math.round(state.resources.food + seasonalFoodHarvested + foragedFoodDaily + raidFoodDaily - foodConsumption));
     const newSwords = state.resources.swords + swordsProduced + Math.ceil(raidWeaponsDaily * 0.4);
     const newBows = state.resources.bows + bowsProduced + Math.floor(raidWeaponsDaily * 0.3);
     const newSpears =

@@ -1,15 +1,15 @@
 import React, { useMemo } from 'react';
-import { X, Eye, EyeOff, UserPlus, UserMinus, ShieldAlert, Coins, Flag, ArrowUpCircle } from 'lucide-react';
+import { X, Flag, ArrowUpCircle } from 'lucide-react';
 import { useGameStore } from '../../../store/gameStore';
 import { useUIStore } from '../../../store/uiStore';
 import { notify } from '../../../store/dialogStore';
 import { MiniGeneralCard } from '../../generals/MiniGeneralCard';
+import { findShortestScoutPath } from '../../../utils/scoutPathfinding';
 import type { CityNode, General } from '../../../types';
 import {
   CAMP_CAPACITY_BY_LEVEL,
   CAMP_UPGRADE_COSTS,
   getCityIntelReport,
-  getBriberyCostAndEffect,
 } from '../../../types';
 
 interface BaseDetailContentProps {
@@ -29,10 +29,13 @@ export const BaseDetailContent: React.FC<BaseDetailContentProps> = React.memo(({
   const formations = useGameStore(state => state.formations);
   const demolishBase = useGameStore(state => state.demolishBase);
   const suspicion = useGameStore(state => state.suspicion);
-  const bribeCount = useGameStore(state => state.bribeCount || 0);
-  const bribeMingOfficials = useGameStore(state => state.bribeMingOfficials);
-  const dispatchScout = useGameStore(state => state.dispatchScout);
+  const dispatchScoutMission = useGameStore(state => state.dispatchScoutMission);
   const recallScout = useGameStore(state => state.recallScout);
+  const scoutMissions = useGameStore(state => state.scoutMissions || []);
+  const cities = useGameStore(state => state.cities);
+  const resources = useGameStore(state => state.resources);
+  const [isDispatchOpen, setIsDispatchOpen] = React.useState(false);
+  const [scoutSendCount, setScoutSendCount] = React.useState(1);
   const upgradeCamp = useGameStore(state => state.upgradeCamp);
   const triggerUprising = useGameStore(state => state.triggerUprising);
   const isWarMode = useGameStore(state => state.isWarMode);
@@ -88,10 +91,25 @@ export const BaseDetailContent: React.FC<BaseDetailContentProps> = React.memo(({
     return getCityIntelReport(selectedCity.troops, assignedScouts, suspicion);
   }, [selectedCity.troops, assignedScouts, suspicion]);
 
-  // Chi phí và hiệu quả đút lót hiện tại
-  const bribery = useMemo(() => {
-    return getBriberyCostAndEffect(bribeCount);
-  }, [bribeCount]);
+
+
+  // Các toán thám mã đang trên đường tới thành này
+  const travelingMissions = useMemo(() => {
+    return scoutMissions.filter(m => m.targetCityId === selectedCity.id && m.status === 'traveling');
+  }, [scoutMissions, selectedCity.id]);
+
+  // Căn cứ nghĩa quân xuất phát (ưu tiên Lam Sơn)
+  const originBase = useMemo(() => {
+    return cities.find(c => c.id === 'lam_son' && c.faction === 'lam_son') ||
+           cities.find(c => c.faction === 'lam_son' && (c.population?.idleLaborers || 0) > 0) ||
+           cities.find(c => c.faction === 'lam_son');
+  }, [cities]);
+
+  // Ước tính lộ trình ngắn thời gian nhất khi phái thám mã
+  const scoutRoutePreview = useMemo(() => {
+    if (!originBase || !selectedCity || selectedCity.faction === 'lam_son') return null;
+    return findShortestScoutPath(originBase, selectedCity, scoutSendCount);
+  }, [originBase, selectedCity, scoutSendCount]);
 
   return (
     <>
@@ -384,135 +402,157 @@ export const BaseDetailContent: React.FC<BaseDetailContentProps> = React.memo(({
           </>
         ) : (
           /* ========================================================================= */
-          /* KHỐI 2: THÀNH TRÌ / ĐỒN LŨY QUÂN MINH (TÌNH BÁO THÁM MÃ & ĐÚT LÓT)       */
+          /* KHỐI 2: THÀNH TRÌ / ĐỒN LŨY QUÂN MINH (THÁM MÃ)                           */
           /* ========================================================================= */
-          <>
-            {/* 2.1. BẢNG TÌNH BÁO THÁM MÃ (FOG OF WAR THEO CẤP BẬC) */}
-            <div className="p-3 rounded-lg border border-[#3b82f6]/40 bg-[#0f172a]/90 text-sky-100 shadow-xl space-y-3">
-              <div className="flex items-center justify-between border-b border-sky-800/60 pb-2">
+          <div className="space-y-3 pt-2">
+            {/* TOÁN THÁM MÃ ĐANG DI CHUYỂN */}
+            {travelingMissions.length > 0 && (
+              <div className="flex items-center justify-between py-1 px-2.5 rounded bg-[#8c6b44]/10 border border-[#8c6b44]/20 text-xs font-serif text-[#5c3e23]">
                 <div className="flex items-center gap-2">
-                  {intelReport.level === 0 ? (
-                    <EyeOff size={16} className="text-stone-400" />
-                  ) : (
-                    <Eye size={16} className="text-sky-400" />
-                  )}
-                  <span className="font-serif font-bold text-xs uppercase tracking-wider text-sky-200">
-                    Tình Báo Thám Mã
-                  </span>
+                  <img src="/troops/scout.png" alt="Thám mã" className="w-[20px] h-[20px] object-contain" />
+                  <span>Đang tới: <strong>{travelingMissions.reduce((acc, m) => acc + m.scoutCount, 0)} thám mã</strong></span>
                 </div>
+                <span className="font-mono text-[11px] text-[#8c2d19]">
+                  còn ~{travelingMissions[0].daysRemaining.toFixed(1)} ngày ({Math.round(travelingMissions[0].daysRemaining * 12)} canh)
+                </span>
+              </div>
+            )}
 
-                {/* Bộ điều khiển quân do thám */}
-                <div className="flex items-center gap-1.5 bg-black/40 px-2 py-0.5 rounded border border-sky-700/50">
-                  <span className="text-[11px] font-mono font-bold text-sky-300">
-                    {assignedScouts} / {intelReport.maxScouts} Do thám
-                  </span>
-                  <div className="flex items-center gap-1 ml-1">
-                    <button
-                      disabled={assignedScouts <= 0}
-                      onClick={() => recallScout(selectedCity.id)}
-                      className="p-1 rounded bg-sky-950 hover:bg-sky-800 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition text-sky-200"
-                      title="Rút 1 thám mã trở về Lam Sơn"
-                    >
-                      <UserMinus size={11} />
-                    </button>
-                    <button
-                      disabled={assignedScouts >= intelReport.maxScouts}
-                      onClick={() => dispatchScout(selectedCity.id)}
-                      className="p-1 rounded bg-sky-950 hover:bg-sky-800 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition text-sky-200"
-                      title="Phái 1 tráng phu Lam Sơn làm thám mã thâm nhập (Lộ phí 30 lương)"
-                    >
-                      <UserPlus size={11} />
-                    </button>
-                  </div>
+            {/* HIỂN THỊ CON MẮT LỚN (KÍCH THƯỚC X10 ~280px) & TRẠNG THÁI */}
+            {assignedScouts === 0 ? (
+              <div className="flex flex-col items-center justify-center py-4 text-center space-y-2">
+                <button
+                  onClick={() => setIsDispatchOpen(prev => !prev)}
+                  className="cursor-pointer transition-transform hover:scale-105 active:scale-95 group"
+                  title="Nhấn vào để phái thám mã"
+                >
+                  <img
+                    src="/troops/scout.png"
+                    alt="Thám mã"
+                    className="w-[280px] max-h-[170px] object-contain drop-shadow-[0_4px_8px_rgba(0,0,0,0.15)] group-hover:brightness-110"
+                  />
+                </button>
+                <div className="font-serif font-bold text-sm text-[#8c2d19]">
+                  {isDispatchOpen ? 'Cử quân do thám' : 'Chưa có thông tin'}
                 </div>
               </div>
-
-              {/* Thông số quân số đồn trú & Độ nghi ngờ theo cấp độ thám mã */}
-              <div className="grid grid-cols-2 gap-3 pt-0.5">
-                <div className="p-2 rounded bg-black/40 border border-sky-900/60">
-                  <div className="text-[11px] text-sky-300/80 font-serif font-bold">
-                    Quân đồn trú:
-                  </div>
-                  <div className={`mt-0.5 font-serif font-bold text-base ${
-                    intelReport.level === 0 ? 'text-stone-400 italic text-sm' : intelReport.level === 4 ? 'text-amber-300 text-lg' : 'text-sky-100'
-                  }`}>
-                    {intelReport.displayedTroops}
-                  </div>
-                </div>
-
-                <div className="p-2 rounded bg-black/40 border border-sky-900/60">
-                  <div className="text-[11px] text-sky-300/80 font-serif font-bold flex items-center gap-1">
-                    <ShieldAlert size={12} className="text-red-400" />
-                    <span>Mức độ nghi ngờ:</span>
-                  </div>
-                  <div className={`mt-0.5 font-serif font-bold text-base ${
-                    intelReport.level === 0 ? 'text-stone-400 italic text-sm' : intelReport.level === 4 ? 'text-red-400 text-lg' : 'text-amber-300'
-                  }`}>
-                    {intelReport.displayedSuspicion}
-                  </div>
-                </div>
-              </div>
-
-              {/* Ghi chú về tình báo */}
-              <div className="text-[10.5px] font-serif text-sky-300/70 italic leading-snug">
-                {intelReport.level === 0 ? (
-                  <span>* Chưa có thám mã thâm nhập. Sương mù chiến tranh che phủ toàn bộ tình hình quân giặc bên trong thành.</span>
-                ) : intelReport.level < 4 ? (
-                  <span>* Cần cử thêm {intelReport.maxScouts - assignedScouts} do thám nữa để thâm nhập sâu vào phủ tướng và có số liệu chính xác tuyệt đối.</span>
-                ) : (
-                  <span className="text-emerald-300">* Đã cắm chốt đủ {assignedScouts} thám mã. Tình báo quân sự và mức độ cảnh giác của quan giặc đã được nắm bắt tường tận!</span>
-                )}
-              </div>
-            </div>
-
-            {/* 2.2. KHU VỰC NGOẠI GIAO & ĐÚT LÓT QUAN TƯỚNG */}
-            <div className="p-3 rounded-lg border border-[#8c6b44]/40 bg-[#f7eed8]/70 shadow-inner space-y-2.5">
-              <div className="flex items-center gap-1.5 text-xs font-serif font-bold text-[#8c2d19] uppercase tracking-wider">
-                <Coins size={14} />
-                <span>Ngoại Giao & Đút Lót Quan Tướng</span>
-              </div>
-
-              {!intelReport.canBribe ? (
-                <div className="p-2 rounded bg-amber-900/10 border border-amber-800/20 text-xs font-serif text-[#704d2e] italic">
-                  Chưa có thám mã thâm nhập để bắt mối với lính gác và nha môn quân Minh. Hãy cử ít nhất 1 do thám để mở đường cống nạp!
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <div className="text-xs font-serif text-[#5c3e23]">
-                    Bí mật phái sứ giả đem cống lễ vàng bạc, sản vật dâng tiến quan tướng đồn trú để xoa dịu lòng nghi ngờ của giặc.
-                  </div>
-
-                  <div className="flex items-center justify-between text-xs font-serif border-t border-[#8c6b44]/25 pt-2">
-                    <span className="text-[#704d2e]">
-                      Chi phí: <strong className="text-[#8c2d19]">{bribery.cost} Vàng</strong>
-                    </span>
-                    <span className="text-[#15803d] font-bold">
-                      Hiệu quả: -{bribery.reduction}% Nghi ngờ
-                    </span>
-                  </div>
-
+            ) : (
+              <div className="space-y-3 pt-1">
+                <div className="flex justify-center">
                   <button
-                    onClick={() => bribeMingOfficials(selectedCity.id)}
-                    className="w-full relative py-2 px-3 rounded flex items-center justify-center gap-2 group transition-transform hover:scale-[1.02] active:scale-95 cursor-pointer shadow"
+                    onClick={() => setIsDispatchOpen(prev => !prev)}
+                    className="cursor-pointer transition-transform hover:scale-105 active:scale-95 group"
+                    title="Phái thêm thám mã"
                   >
                     <img
-                      src="/ink_stroke_1.png"
-                      alt="Vết mực"
-                      className="absolute inset-0 w-full h-full object-fill pointer-events-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.35)] group-hover:brightness-125"
+                      src="/troops/scout.png"
+                      alt="Thám mã"
+                      className="w-[240px] max-h-[150px] object-contain drop-shadow-[0_4px_8px_rgba(0,0,0,0.15)] group-hover:brightness-110"
                     />
-                    <Coins size={14} className="relative z-10 text-amber-300" />
-                    <span className="relative z-10 font-serif font-bold text-xs text-[#fcf4e4] tracking-wide uppercase drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
-                      Tiến Cống Đút Lót ({bribery.cost} Vàng)
-                    </span>
                   </button>
+                </div>
 
-                  <div className="text-[10px] font-serif text-[#8c4b26] italic text-center">
-                    * Đã đút lót {bribeCount} lần. Quan tướng giặc ngày càng tham lam, đòi hỏi lễ vật nhiều hơn và hiệu quả giảm dần.
+                <div className="flex items-center justify-between text-xs font-serif text-[#5c3e23] border-b border-[#8c6b44]/20 pb-1.5">
+                  <span>Đã cắm chốt: <strong>{assignedScouts} thám mã</strong></span>
+                  <button
+                    onClick={() => recallScout(selectedCity.id)}
+                    className="text-[#8c2d19] hover:underline cursor-pointer text-[11px]"
+                    title="Rút 1 thám mã về Lam Sơn"
+                  >
+                    (Rút 1)
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="border border-[#8c6b44]/25 rounded p-2 bg-[#8c6b44]/5">
+                    <div className="text-[11px] font-serif text-[#704d2e]">Quân đồn trú:</div>
+                    <div className="font-serif font-bold text-base text-[#261304] mt-0.5">
+                      {intelReport.displayedTroops}
+                    </div>
+                  </div>
+
+                  <div className="border border-[#8c6b44]/25 rounded p-2 bg-[#8c6b44]/5">
+                    <div className="text-[11px] font-serif text-[#704d2e]">Độ nghi ngờ:</div>
+                    <div className="font-serif font-bold text-base text-[#8c2d19] mt-0.5">
+                      {intelReport.displayedSuspicion}
+                    </div>
                   </div>
                 </div>
-              )}
-            </div>
-          </>
+              </div>
+            )}
+
+            {/* CƠ CHẾ PHÁI THÁM MÃ (HIỂN THỊ TRỰC TIẾP TRÊN GIẤY) */}
+            {isDispatchOpen && (
+              <div className="py-2.5 px-3 rounded border border-[#8c6b44]/35 bg-[#8c6b44]/10 space-y-2">
+                <div className="flex items-center justify-between text-xs font-serif text-[#261304]">
+                  <span className="font-bold">Số lượng:</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      disabled={scoutSendCount <= 1}
+                      onClick={() => setScoutSendCount(c => Math.max(1, c - 1))}
+                      className="w-6 h-6 rounded bg-[#8c6b44]/20 hover:bg-[#8c6b44]/35 disabled:opacity-30 disabled:cursor-not-allowed font-bold cursor-pointer text-[#261304] flex items-center justify-center text-sm"
+                    >
+                      -
+                    </button>
+                    <span className="w-6 text-center font-serif font-bold text-sm text-[#8c2d19]">
+                      {scoutSendCount}
+                    </span>
+                    <button
+                      disabled={scoutSendCount >= 5}
+                      onClick={() => setScoutSendCount(c => Math.min(5, c + 1))}
+                      className="w-6 h-6 rounded bg-[#8c6b44]/20 hover:bg-[#8c6b44]/35 disabled:opacity-30 disabled:cursor-not-allowed font-bold cursor-pointer text-[#261304] flex items-center justify-center text-sm"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-1 text-xs font-serif text-[#5c3e23] border-t border-[#8c6b44]/20 pt-1.5">
+                  <div className="flex justify-between">
+                    <span>Tráng phu:</span>
+                    <strong className={(originBase?.population?.idleLaborers || 0) < scoutSendCount ? 'text-[#b91c1c]' : 'text-[#261304]'}>
+                      {scoutSendCount} (Lam Sơn: {originBase?.population?.idleLaborers || 0})
+                    </strong>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Lộ phí:</span>
+                    <strong className={resources.food < scoutSendCount * 30 ? 'text-[#b91c1c]' : 'text-[#261304]'}>
+                      {scoutSendCount * 30} lương (Kho: {Math.floor(resources.food).toLocaleString()})
+                    </strong>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Lộ trình:</span>
+                    <span className="font-serif font-bold text-[#261304]">
+                      ~{scoutRoutePreview?.totalDays.toFixed(1) || '1.5'} ngày ({Math.round((scoutRoutePreview?.totalDays || 1.5) * 12)} canh)
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  disabled={
+                    !originBase ||
+                    (originBase.population?.idleLaborers || 0) < scoutSendCount ||
+                    resources.food < scoutSendCount * 30
+                  }
+                  onClick={() => {
+                    if (!originBase) return;
+                    dispatchScoutMission(originBase.id, selectedCity.id, scoutSendCount);
+                    setIsDispatchOpen(false);
+                  }}
+                  className="w-full relative h-[32px] px-3 flex items-center justify-center transition-transform hover:scale-105 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer mt-1"
+                >
+                  <img
+                    src="/ink_stroke_1.png"
+                    alt="Vết mực"
+                    className="absolute inset-0 w-full h-full object-fill pointer-events-none drop-shadow-[0_1px_3px_rgba(0,0,0,0.3)]"
+                  />
+                  <span className="relative z-10 font-serif font-bold text-xs text-[#fcf4e4] tracking-wider uppercase drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
+                    Xuất phát
+                  </span>
+                </button>
+              </div>
+            )}
+          </div>
         )}
       </div>
     </>
