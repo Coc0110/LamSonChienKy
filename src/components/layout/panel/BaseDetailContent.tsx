@@ -56,10 +56,6 @@ export const BaseDetailContent: React.FC<BaseDetailContentProps> = React.memo(({
     return formations.filter(f => f.cityId === selectedCity.id);
   }, [formations, selectedCity.id]);
 
-  const totalPendingRefugees = useMemo(() => {
-    return pendingRefugees.reduce((acc, w) => acc + w.totalCount, 0);
-  }, [pendingRefugees]);
-
   const totalCityPop = useMemo(() => {
     if (!selectedCity.population) return 0;
     const pop = selectedCity.population;
