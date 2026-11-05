@@ -785,7 +785,7 @@ export const createMilitarySlice: StateCreator<GameStore, [], [], MilitarySlice>
       originName: picked.name,
       story: picked.story,
       timestamp: Date.now(),
-      daysRemaining: 7,
+      daysRemaining: 30,
     };
 
     set(curr => ({

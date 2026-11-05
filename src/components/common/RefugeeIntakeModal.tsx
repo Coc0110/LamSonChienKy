@@ -119,30 +119,30 @@ export const RefugeeIntakeModal: React.FC = () => {
                 return (
                   <div
                     key={wave.id}
-                    className="p-3 rounded-lg border border-[#8c6b44]/30 bg-[#8c6b44]/5 flex flex-col md:flex-row md:items-center justify-between gap-2.5 transition"
+                    className="p-3 rounded-lg border border-[#8c6b44]/30 bg-[#8c6b44]/5 flex flex-col gap-1 transition"
                   >
-                    {/* Thông tin đoàn */}
-                    <div className="space-y-1 text-xs">
-                      <div className="font-serif font-black text-sm text-[#8c2d19]">
-                        Lưu dân từ {wave.originName}
-                      </div>
-
-                      <div className="text-[#261304] font-serif font-bold">
-                        {wave.idleCount} tráng phu, {wave.unfitCount} lão, ấu
-                      </div>
-
-                      <div className="text-[11px] text-[#704d2e] font-sans">
-                        Ngày tới: {wave.dateStr} • <span className="text-[#8c2d19] font-bold">còn {wave.daysRemaining ?? 7} ngày</span>
-                      </div>
+                    {/* Dòng 1: Tên đoàn */}
+                    <div className="font-serif font-black text-sm text-[#8c2d19] leading-snug">
+                      Lưu dân từ {wave.originName}
                     </div>
 
-                    {/* Bộ 3 nút thao tác cho từng đoàn */}
-                    <div className="flex items-center gap-1.5 shrink-0 pt-1 md:pt-0">
+                    {/* Dòng 2: Ngày tới & hạn chờ */}
+                    <div className="text-[11px] text-[#704d2e] font-sans leading-snug">
+                      Ngày tới: {wave.dateStr} • <span className="text-[#8c2d19] font-bold">còn {wave.daysRemaining ?? 30} ngày</span>
+                    </div>
+
+                    {/* Dòng 3: Tráng đinh, lão ấu */}
+                    <div className="text-[#261304] font-serif font-bold text-xs leading-snug">
+                      {wave.idleCount} tráng phu, {wave.unfitCount} lão, ấu
+                    </div>
+
+                    {/* Dòng 4: 1 dòng 3 nút chọn */}
+                    <div className="flex items-center gap-2 pt-2 border-t border-[#8c6b44]/20 mt-1">
                       {/* 1. Nhận toàn bộ */}
                       <button
                         disabled={!canAcceptFull}
                         onClick={() => acceptRefugeeWave(wave.id, 'full')}
-                        className="py-1 px-2.5 rounded bg-[#8c2d19] hover:bg-[#6b1e10] disabled:opacity-40 disabled:cursor-not-allowed text-[#fff3db] text-xs font-serif font-bold transition shadow-xs cursor-pointer whitespace-nowrap"
+                        className="flex-1 py-1.5 px-2 text-center rounded bg-[#8c2d19] hover:bg-[#6b1e10] disabled:opacity-40 disabled:cursor-not-allowed text-[#fff3db] text-xs font-serif font-bold transition shadow-xs cursor-pointer whitespace-nowrap"
                         title={`Cần ${wave.foodCost} lương, ${wave.totalCount} chỗ`}
                       >
                         Nhận toàn bộ (-{wave.foodCost} lương)
@@ -152,7 +152,7 @@ export const RefugeeIntakeModal: React.FC = () => {
                       <button
                         disabled={!canAcceptAbleOnly}
                         onClick={() => acceptRefugeeWave(wave.id, 'able_bodied_only')}
-                        className="py-1 px-2.5 rounded border border-[#8c6b44]/50 bg-[#8c6b44]/20 hover:bg-[#8c6b44]/35 disabled:opacity-40 disabled:cursor-not-allowed text-[#42250d] text-xs font-serif font-bold transition cursor-pointer whitespace-nowrap"
+                        className="flex-1 py-1.5 px-2 text-center rounded border border-[#8c6b44]/50 bg-[#8c6b44]/20 hover:bg-[#8c6b44]/35 disabled:opacity-40 disabled:cursor-not-allowed text-[#42250d] text-xs font-serif font-bold transition cursor-pointer whitespace-nowrap"
                         title={`Cần ${halfFood} lương, ${wave.idleCount} chỗ`}
                       >
                         Chỉ nhận tráng đinh (-{halfFood} lương)
@@ -161,7 +161,7 @@ export const RefugeeIntakeModal: React.FC = () => {
                       {/* 3. Không nhận */}
                       <button
                         onClick={() => acceptRefugeeWave(wave.id, 'reject')}
-                        className="py-1 px-2 rounded border border-[#8c6b44]/35 hover:bg-black/10 text-[#704d2e] hover:text-[#261304] text-xs font-serif transition cursor-pointer whitespace-nowrap"
+                        className="py-1.5 px-3 text-center rounded border border-[#8c6b44]/35 hover:bg-black/10 text-[#704d2e] hover:text-[#261304] text-xs font-serif transition cursor-pointer whitespace-nowrap"
                         title="Từ chối đoàn lưu dân này"
                       >
                         Không nhận
