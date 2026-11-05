@@ -9,6 +9,7 @@ import type {
   WeaponCraftType,
   PlacedStructure,
   ScoutMission,
+  PendingRefugeeWave,
 } from '../../types';
 import type { ArmySlice } from './armySlice';
 import type { SaveSlice, GameStatus } from './saveSlice';
@@ -76,6 +77,13 @@ export interface MilitarySlice {
   scoutMissions: ScoutMission[];
   dispatchScoutMission: (originCityId: string, targetCityId: string, scoutCount: number) => { success: boolean; message: string };
   stepScoutMissions: (deltaDays: number) => void;
+  // Cơ chế tiếp nhận lưu dân
+  pendingRefugees: PendingRefugeeWave[];
+  activeRefugeeModal: PendingRefugeeWave | null;
+  setActiveRefugeeModal: (wave: PendingRefugeeWave | null) => void;
+  acceptRefugeeWave: (waveId: string, policy: 'full' | 'able_bodied_only' | 'relief_only' | 'reject') => { success: boolean; message: string };
+  acceptAllRefugees: (policy: 'full' | 'able_bodied_only') => { success: boolean; message: string };
+  dispatchRefugeeRecruit: (cityId: string) => { success: boolean; message: string };
 }
 
 export type { ArmySlice, SaveSlice, GameStatus };

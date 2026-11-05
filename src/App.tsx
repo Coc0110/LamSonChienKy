@@ -5,6 +5,7 @@ import { WorldMap } from './components/map/WorldMap';
 import { ParchmentToastContainer } from './components/common/ParchmentToastContainer';
 import { ParchmentConfirmModal } from './components/common/ParchmentConfirmModal';
 import { EndgameModal } from './components/common/EndgameModal';
+import { RefugeeIntakeModal } from './components/common/RefugeeIntakeModal';
 import { TimelineWheelScrubber } from './components/layout/topbar/TimelineWheelScrubber';
 import { useGameStore } from './store/gameStore';
 
@@ -95,6 +96,7 @@ function App() {
       </Suspense>
       <ParchmentToastContainer />
       <ParchmentConfirmModal />
+      <RefugeeIntakeModal />
       <EndgameModal />
     </div>
   );

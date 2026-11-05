@@ -1,7 +1,8 @@
 import type { StateCreator } from 'zustand';
 import { INITIAL_GENERALS } from '../../data/generalsData';
 import { notify } from '../dialogStore';
-import type { Resources, ScoutMission } from '../../types';
+import type { Resources, ScoutMission, PendingRefugeeWave } from '../../types';
+import { CAMP_CAPACITY_BY_LEVEL } from '../../types';
 import { findShortestScoutPath } from '../../utils/scoutPathfinding';
 import type { MilitarySlice, GameStore } from './types';
 
@@ -73,6 +74,8 @@ export const createMilitarySlice: StateCreator<GameStore, [], [], MilitarySlice>
   suspicion: 15,          // Mức nghi ngờ ban đầu của quan quân giặc Minh (15%)
   bribeCount: 0,         // Số lần đã đút lót (tính lạm phát giá)
   scoutMissions: [],
+  pendingRefugees: [],
+  activeRefugeeModal: null,
 
   assignGeneralToCity: (generalId, cityId) => set((state) => ({
     generals: state.generals.map(g => g.id === generalId ? { ...g, locationId: cityId } : g)
@@ -588,6 +591,199 @@ export const createMilitarySlice: StateCreator<GameStore, [], [], MilitarySlice>
       };
     });
     return result;
+  },
+
+  setActiveRefugeeModal: (wave) => set({ activeRefugeeModal: wave }),
+
+  // Tiếp nhận hoặc xử lý một đoàn lưu dân
+  acceptRefugeeWave: (waveId, policy) => {
+    const state = get();
+    const wave = state.pendingRefugees.find(w => w.id === waveId);
+    if (!wave) return { success: false, message: 'Không tìm thấy thông tin đoàn lưu dân!' };
+
+    const city = state.cities.find(c => c.id === wave.cityId);
+    if (!city || !city.population) return { success: false, message: 'Không tìm thấy căn cứ tiếp nhận!' };
+
+    const pop = city.population;
+    const currentCityPop = (pop.combatTroops || 0) + (pop.idleLaborers || 0) + (pop.farmLaborers || 0) + 
+                           (pop.forgeLaborers || 0) + (pop.swappedCombatants || 0) + (pop.unfitPopulation || 0) + 
+                           (city.training?.traineesCount || 0);
+    const baseCap = CAMP_CAPACITY_BY_LEVEL[city.level || 1] || 500;
+    const remainingCap = Math.max(0, baseCap - currentCityPop);
+
+    if (policy === 'full') {
+      if (state.resources.food < wave.foodCost) {
+        return { success: false, message: `Kho lương không đủ cứu tế! Cần ${wave.foodCost} thạch lương (Kho có: ${Math.floor(state.resources.food)}).` };
+      }
+      if (remainingCap < wave.totalCount) {
+        return { success: false, message: `Doanh trại không đủ sức chứa! Cần ${wave.totalCount} chỗ (Trại còn trống: ${remainingCap}). Hãy nâng cấp căn cứ!` };
+      }
+
+      set(curr => ({
+        resources: {
+          ...curr.resources,
+          food: curr.resources.food - wave.foodCost,
+        },
+        cities: curr.cities.map(c => {
+          if (c.id !== wave.cityId || !c.population) return c;
+          return {
+            ...c,
+            population: {
+              ...c.population,
+              idleLaborers: c.population.idleLaborers + wave.idleCount,
+              unfitPopulation: c.population.unfitPopulation + wave.unfitCount,
+            },
+          };
+        }),
+        pendingRefugees: curr.pendingRefugees.filter(w => w.id !== waveId),
+        activeRefugeeModal: curr.activeRefugeeModal?.id === waveId ? null : curr.activeRefugeeModal,
+      }));
+
+      notify.success(`Đã mở cổng cưu mang toàn bộ đoàn ${wave.totalCount} lưu dân từ ${wave.originName} (+${wave.idleCount} tráng phu, +${wave.unfitCount} già yếu)!`);
+      return { success: true, message: `Đã tiếp nhận ${wave.totalCount} người vào căn cứ.` };
+    }
+
+    if (policy === 'able_bodied_only') {
+      const halfFood = Math.max(1, Math.round(wave.foodCost * 0.5));
+      if (state.resources.food < halfFood) {
+        return { success: false, message: `Kho lương không đủ! Cần ${halfFood} thạch lương hỗ trợ lộ phí (Kho có: ${Math.floor(state.resources.food)}).` };
+      }
+      if (remainingCap < wave.idleCount) {
+        return { success: false, message: `Doanh trại không đủ chỗ cho ${wave.idleCount} tráng phu (Trại còn trống: ${remainingCap})!` };
+      }
+
+      set(curr => ({
+        resources: {
+          ...curr.resources,
+          food: curr.resources.food - halfFood,
+        },
+        cities: curr.cities.map(c => {
+          if (c.id !== wave.cityId || !c.population) return c;
+          return {
+            ...c,
+            population: {
+              ...c.population,
+              idleLaborers: c.population.idleLaborers + wave.idleCount,
+            },
+          };
+        }),
+        pendingRefugees: curr.pendingRefugees.filter(w => w.id !== waveId),
+        activeRefugeeModal: curr.activeRefugeeModal?.id === waveId ? null : curr.activeRefugeeModal,
+      }));
+
+      notify.success(`Đã chiêu nạp ${wave.idleCount} tráng phu sung sức từ ${wave.originName} vào hàng ngũ nghĩa quân, trợ cấp ${halfFood} lương cho gia quyến nương náu!`);
+      return { success: true, message: `Đã chiêu nạp ${wave.idleCount} tráng phu.` };
+    }
+
+    if (policy === 'relief_only') {
+      const reliefAmt = Math.min(5, Math.floor(state.resources.food));
+      if (reliefAmt <= 0) {
+        return { success: false, message: 'Kho lương đã cạn kiệt, không đủ phát chẩn!' };
+      }
+
+      set(curr => ({
+        resources: {
+          ...curr.resources,
+          food: curr.resources.food - reliefAmt,
+        },
+        pendingRefugees: curr.pendingRefugees.filter(w => w.id !== waveId),
+        activeRefugeeModal: curr.activeRefugeeModal?.id === waveId ? null : curr.activeRefugeeModal,
+      }));
+
+      notify.info(`Đã xuất ${reliefAmt} thạch lương phát chẩn cứu đói thiện tâm và hướng dẫn đoàn lưu dân tạm lánh nạn an toàn.`);
+      return { success: true, message: 'Đã phát chẩn cho đoàn lưu dân.' };
+    }
+
+    if (policy === 'reject') {
+      set(curr => ({
+        pendingRefugees: curr.pendingRefugees.filter(w => w.id !== waveId),
+        activeRefugeeModal: curr.activeRefugeeModal?.id === waveId ? null : curr.activeRefugeeModal,
+      }));
+
+      notify.warning(`Đã đóng cổng trại từ chối tiếp nhận đoàn lưu dân để giữ gìn bí mật cơ mật quân sự.`);
+      return { success: true, message: 'Đã từ chối tiếp nhận đoàn lưu dân.' };
+    }
+
+    return { success: false, message: 'Chính sách không hợp lệ!' };
+  },
+
+  // Tiếp nhận nhanh toàn bộ các đoàn lưu dân đang chờ
+  acceptAllRefugees: (policy) => {
+    const state = get();
+    if (state.pendingRefugees.length === 0) {
+      return { success: false, message: 'Hiện không có đoàn lưu dân nào đang chờ!' };
+    }
+
+    let acceptedWaves = 0;
+    let acceptedPeople = 0;
+    const waves = [...state.pendingRefugees];
+
+    for (const w of waves) {
+      const res = get().acceptRefugeeWave(w.id, policy);
+      if (res.success) {
+        acceptedWaves++;
+        acceptedPeople += (policy === 'able_bodied_only' ? w.idleCount : w.totalCount);
+      } else {
+        break; // Dừng lại khi hết lương hoặc hết chỗ chứa
+      }
+    }
+
+    if (acceptedWaves > 0) {
+      return { success: true, message: `Đã tiếp nhận thành công ${acceptedWaves} đoàn lưu dân (${acceptedPeople} người)!` };
+    }
+    return { success: false, message: 'Không thể tiếp nhận (thiếu lương thực hoặc đầy sức chứa)!' };
+  },
+
+  // Chủ động cử người xuất lương đi chiêu mộ lưu dân ở các huyện lân cận
+  dispatchRefugeeRecruit: (cityId) => {
+    const state = get();
+    if (state.resources.food < 20) {
+      return { success: false, message: 'Cần ít nhất 20 thạch lương thảo làm lộ phí chiêu mộ hào kiệt!' };
+    }
+
+    const city = state.cities.find(c => c.id === cityId);
+    if (!city) return { success: false, message: 'Không tìm thấy căn cứ sở tại!' };
+
+    const totalCount = Math.floor(Math.random() * 8) + 16; // 16 - 23 người
+    const unfitCount = Math.max(1, Math.round(totalCount * 0.15));
+    const idleCount = totalCount - unfitCount;
+    const foodCost = totalCount * 1;
+
+    const origins = [
+      { name: 'Triệu Hóa', story: 'Trốn chạy việc quan quân nhà Minh cưỡng bách dân phu đi đào vàng đãi bạc ở khe núi sâu...' },
+      { name: 'Nông Cống', story: 'Trốn thuế khóa hà khắc và việc giặc vơ vét toàn bộ thóc giống đầu mùa...' },
+      { name: 'Quảng Hóa', story: 'Hào kiệt và trai tráng trong làng rủ nhau vượt sông Chu tìm về Lam Sơn quy tụ dưới trướng Bình Định Vương...' },
+      { name: 'Nga Sơn', story: 'Gia đình bị giặc Minh đốt phá lán trại vì không chịu nộp vải lụa, dắt díu nhau vượt núi tìm về nghĩa quân...' },
+      { name: 'Cổ Lũng', story: 'Dân bản Mường cùng các tráng đinh nghe tiếng đức độ của Lê Lợi đã băng rừng tìm về nương náu...' },
+      { name: 'Lương Giang', story: 'Thanh niên trai tráng căm thù giặc Minh tàn bạo, kết đoàn tìm đến căn cứ xin cầm gươm giáo giết giặc...' },
+    ];
+    const picked = origins[Math.floor(Math.random() * origins.length)];
+
+    const newWave: PendingRefugeeWave = {
+      id: `refugee_wave_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      cityId: city.id,
+      cityName: city.name,
+      dateStr: `Ngày ${state.day}/${state.month}/${state.year}`,
+      totalCount,
+      idleCount,
+      unfitCount,
+      foodCost,
+      originName: picked.name,
+      story: picked.story,
+      timestamp: Date.now(),
+    };
+
+    set(curr => ({
+      resources: {
+        ...curr.resources,
+        food: curr.resources.food - 20,
+      },
+      pendingRefugees: [newWave, ...curr.pendingRefugees],
+      activeRefugeeModal: newWave,
+    }));
+
+    notify.success(`Nghĩa sĩ đã dẫn đường cho đoàn ${totalCount} người từ ${picked.name} về trước cổng trại Lam Sơn!`);
+    return { success: true, message: `Đã chiêu tập được đoàn ${totalCount} người!` };
   },
 
   // Phất cờ khởi nghĩa (Dựng cờ Bình Định Vương - Bước ngoặt lịch sử)

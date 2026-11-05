@@ -2,7 +2,7 @@ import { CAMP_CAPACITY_BY_LEVEL } from '../../types';
 import { isHarvestDay, rollSeasonClimate, rollFarmMicroEvent } from '../../utils/harvestSeasons';
 import type { StateCreator } from 'zustand';
 import { START_DAY, START_MONTH, START_YEAR } from '../../data/mapData';
-import type { MilitaryNotice } from '../../types';
+import type { MilitaryNotice, PendingRefugeeWave } from '../../types';
 import { notify } from '../dialogStore';
 import type { TimeSlice, GameStore } from './types';
 
@@ -267,6 +267,8 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
     let armorProduced = 0;
     let refundedQueueGold = 0;
     let suspicionGain = 0;
+    let nextPendingRefugees = state.pendingRefugees || [];
+    let newActiveRefugeeModal = state.activeRefugeeModal;
 
     let updatedStructures = state.structures.map(structure => {
       let currentStruct = structure;
@@ -617,66 +619,59 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
       return f;
     });
 
-    // 3. DÂN TỊ NẠN & HÀO KIỆT QUY PHỤ ĐỊNH KỲ (Đều đặn ngày 5, 12, 19, 26 hàng tháng)
-    // Điều chỉnh quy mô gia tăng đạt ~2.000 người vào mốc tháng 2/1418 như sử sách ghi nhận
+    // 3. DÂN TỊ NẠN & HÀO KIỆT TÌM ĐẾN QUY PHỤ (CƠ CHẾ TƯƠNG TÁC THAY VÌ TỰ ĐỘNG)
+    // Lưu dân tụ hội trước cổng trại Lam Sơn vào ngày 5, 12, 19, 26 hàng tháng
     const isRefugeeDay = (newDay === 5 || newDay === 12 || newDay === 19 || newDay === 26);
-    const lamSonBaseIdx = updatedCities.findIndex(c => c.id === 'lam_son' && c.faction === 'lam_son');
+    const lamSonBase = updatedCities.find(c => c.id === 'lam_son' && c.faction === 'lam_son');
     
-    if (isRefugeeDay && lamSonBaseIdx !== -1 && updatedCities[lamSonBaseIdx].population) {
-      const base = updatedCities[lamSonBaseIdx];
-      const pop = base.population!;
-      const baseCap = CAMP_CAPACITY_BY_LEVEL[base.level || 1] || 500;
-      
-      const currentBasePop = (pop.combatTroops || 0) + (pop.idleLaborers || 0) + (pop.farmLaborers || 0) + 
-                             (pop.forgeLaborers || 0) + (pop.unfitPopulation || 0) + (pop.swappedCombatants || 0);
-      const capAvailable = baseCap - currentBasePop;
+    if (isRefugeeDay && lamSonBase && lamSonBase.population) {
+      // Giữ tối đa 5 đoàn lưu dân chờ cùng lúc trước cổng trại để tránh dồn ứ vô hạn
+      if (nextPendingRefugees.length < 5) {
+        const totalCount = Math.floor(Math.random() * 7) + 15; // 15 - 21 người
+        const unfitCount = Math.max(1, Math.round(totalCount * 0.15)); // ~15% già yếu
+        const idleCount = totalCount - unfitCount; // ~85% tráng đinh
+        const foodCost = totalCount * 1;
 
-      if (capAvailable > 0) {
-        // Đón nhận 15 - 21 người mỗi đợt (~72 người/tháng, đạt mốc ~2.000 người sau 2 năm)
-        const incomingCount = Math.min(capAvailable, Math.floor(Math.random() * 7) + 15);
-        // Tỷ lệ già yếu giảm xuống chỉ còn ~15%, ~85% là tráng phu trai tráng tụ nghĩa
-        const unfitIncoming = Math.max(1, Math.round(incomingCount * 0.15));
-        const idleIncoming = incomingCount - unfitIncoming;
-        const reliefFood = incomingCount * 1; // 1 thạch lương/người trợ cấp ban đầu
+        const origins = [
+          { name: 'Triệu Hóa', story: 'Trốn chạy việc quan quân nhà Minh cưỡng bức bắt phu đi đào vàng đãi bạc ở khe núi sâu...' },
+          { name: 'Nông Cống', story: 'Trốn thuế khóa hà khắc và việc giặc vơ vét toàn bộ thóc giống đầu mùa...' },
+          { name: 'Quảng Hóa', story: 'Hào kiệt và trai tráng trong làng rủ nhau vượt sông Chu tìm về Lam Sơn quy tụ dưới cờ Bình Định Vương...' },
+          { name: 'Nga Sơn', story: 'Gia đình bị giặc Minh đốt nhà vì không chịu nộp vải lụa, dắt díu nhau vượt núi tìm về nghĩa quân...' },
+          { name: 'Cổ Lũng', story: 'Dân bản Mường cùng các tráng đinh nghe tiếng đức độ của Lê Lợi đã băng rừng tìm về nương náu...' },
+          { name: 'Lương Giang', story: 'Thanh niên trai tráng căm thù giặc Minh tàn bạo, kết đoàn tìm đến căn cứ xin cầm gươm giáo giết giặc...' },
+        ];
+        const picked = origins[Math.floor(Math.random() * origins.length)];
 
-        const actualFoodDeducted = Math.min(state.resources.food, reliefFood);
-
-        citiesChanged = true;
-        updatedCities[lamSonBaseIdx] = {
-          ...base,
-          population: {
-            ...pop,
-            idleLaborers: pop.idleLaborers + idleIncoming,
-            unfitPopulation: pop.unfitPopulation + unfitIncoming,
-          },
+        const newWave: PendingRefugeeWave = {
+          id: `refugee_wave_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+          cityId: lamSonBase.id,
+          cityName: lamSonBase.name,
+          dateStr: `Ngày ${newDay}/${newMonth}/${newYear}`,
+          totalCount,
+          idleCount,
+          unfitCount,
+          foodCost,
+          originName: picked.name,
+          story: picked.story,
+          timestamp: Date.now(),
         };
 
-        if (actualFoodDeducted > 0) {
-          seasonalFoodHarvested -= actualFoodDeducted;
+        nextPendingRefugees = [newWave, ...nextPendingRefugees];
+        if (!newActiveRefugeeModal) {
+          newActiveRefugeeModal = newWave;
         }
 
         newNotices.push({
-          id: `refugee_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+          id: `refugee_arrive_${Date.now()}`,
           type: 'general' as const,
-          title: 'Lưu Dân & Hào Kiệt Quy Phụ',
+          title: 'Đoàn Lưu Dân Xin Quy Phụ',
           dateStr: `Ngày ${newDay}/${newMonth}/${newYear}`,
-          description: `Đoàn ${incomingCount} người (${idleIncoming} tráng phu, ${unfitIncoming} già yếu) từ các châu huyện lân cận trốn chạy ách bạo ngược giặc Minh đã kéo về Lam Sơn tụ nghĩa. Doanh trại đã cưu mang họ!`,
+          description: `Đoàn ${totalCount} người từ ${picked.name} (${idleCount} tráng phu, ${unfitCount} già yếu) đã tới trước cổng trại Lam Sơn xin được che chở! Hãy quyết định chính sách tiếp nhận.`,
           read: false,
           timestamp: Date.now(),
         });
-      } else {
-        // Căn cứ đã đầy (ví dụ 500/500) -> Thông báo cảnh báo quá tải
-        if (Math.random() < 0.35) {
-          newNotices.push({
-            id: `camp_full_${Date.now()}`,
-            type: 'build' as const,
-            title: 'Căn Cứ Đã Đạt Trần Sức Chứa',
-            dateStr: `Ngày ${newDay}/${newMonth}/${newYear}`,
-            description: `Doanh trại Lam Sơn đã chật ních lán trại (${currentBasePop}/${baseCap} người)! Đoàn lưu dân không thể vào nương náu và buộc phải tản mát vào rừng núi lân cận. Hãy sớm mở rộng nâng cấp căn cứ để cưu mang thêm trăm họ!`,
-            read: false,
-            timestamp: Date.now(),
-          });
-        }
+
+        notify.info(`⛺ Có đoàn ${totalCount} lưu dân từ ${picked.name} đang chờ trước cổng trại Lam Sơn!`);
       }
     }
 
@@ -907,6 +902,8 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
       structures: structuresChanged ? updatedStructures : state.structures,
       formations: formationsChanged ? updatedFormations : state.formations,
       generals: updatedGenerals,
+      pendingRefugees: nextPendingRefugees,
+      activeRefugeeModal: newActiveRefugeeModal,
       recruitmentNotice: newNotice,
       militaryNotices: newNotices.length > 0
         ? [...newNotices, ...state.militaryNotices].slice(0, 100)

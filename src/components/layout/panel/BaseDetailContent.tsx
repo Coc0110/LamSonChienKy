@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { X, Flag, ArrowUpCircle } from 'lucide-react';
+import { X, Flag, ArrowUpCircle, Users } from 'lucide-react';
 import { useGameStore } from '../../../store/gameStore';
 import { useUIStore } from '../../../store/uiStore';
 import { notify } from '../../../store/dialogStore';
@@ -39,6 +39,10 @@ export const BaseDetailContent: React.FC<BaseDetailContentProps> = React.memo(({
   const upgradeCamp = useGameStore(state => state.upgradeCamp);
   const triggerUprising = useGameStore(state => state.triggerUprising);
   const isWarMode = useGameStore(state => state.isWarMode);
+  const pendingRefugees = useGameStore(state => state.pendingRefugees || []);
+  const setActiveRefugeeModal = useGameStore(state => state.setActiveRefugeeModal);
+  const acceptAllRefugees = useGameStore(state => state.acceptAllRefugees);
+  const dispatchRefugeeRecruit = useGameStore(state => state.dispatchRefugeeRecruit);
 
   const selectCity = useUIStore(state => state.selectCity);
   const setBaseRelocateMode = useUIStore(state => state.setBaseRelocateMode);
@@ -53,6 +57,10 @@ export const BaseDetailContent: React.FC<BaseDetailContentProps> = React.memo(({
   const baseFormations = useMemo(() => {
     return formations.filter(f => f.cityId === selectedCity.id);
   }, [formations, selectedCity.id]);
+
+  const totalPendingRefugees = useMemo(() => {
+    return pendingRefugees.reduce((acc, w) => acc + w.totalCount, 0);
+  }, [pendingRefugees]);
 
   const totalCityPop = useMemo(() => {
     if (!selectedCity.population) return 0;
@@ -270,6 +278,58 @@ export const BaseDetailContent: React.FC<BaseDetailContentProps> = React.memo(({
               ) : (
                 <div className="text-[11px] font-serif text-[#15803d] italic text-center">
                   Doanh trại đã đạt cấp độ tối đa (Cấp 4 - 5.000 người).
+                </div>
+              )}
+            </div>
+
+            {/* 1.1.2. CƠ CHẾ TIẾP NHẬN LƯU DÂN QUY PHỤ */}
+            <div className="p-3 rounded-lg border border-[#8c6b44]/40 bg-[#f7eed8]/70 shadow-inner space-y-2">
+              <div className="flex items-center justify-between text-xs font-serif font-bold">
+                <span className="text-[#5c3e23] flex items-center gap-1.5">
+                  <Users size={14} className="text-[#8c2d19]" />
+                  Lưu Dân Chờ Trước Cổng:
+                </span>
+                <span className={pendingRefugees.length > 0 ? 'text-[#8c2d19] font-black' : 'text-[#704d2e]'}>
+                  {pendingRefugees.length > 0 ? `${totalPendingRefugees} người (${pendingRefugees.length} đoàn)` : 'Không có'}
+                </span>
+              </div>
+
+              {pendingRefugees.length > 0 ? (
+                <div className="space-y-1.5 pt-1 border-t border-[#8c6b44]/20">
+                  <div className="text-[11px] font-sans text-[#704d2e] leading-snug">
+                    Đoàn lưu dân từ <strong>{pendingRefugees[0].originName}</strong> ({pendingRefugees[0].totalCount} người) đang chờ quân lệnh trước cổng trại Lam Sơn.
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-0.5">
+                    <button
+                      onClick={() => setActiveRefugeeModal(pendingRefugees[0])}
+                      className="flex-1 py-1 px-2 rounded bg-[#8c2d19] hover:bg-[#6b1e10] text-[#fff3db] text-xs font-serif font-bold transition shadow-xs cursor-pointer flex items-center justify-center gap-1"
+                    >
+                      <span>Xem Xét & Tiếp Nhận</span>
+                    </button>
+
+                    <button
+                      onClick={() => acceptAllRefugees('able_bodied_only')}
+                      className="py-1 px-2.5 rounded border border-[#8c6b44]/40 bg-[#8c6b44]/15 hover:bg-[#8c6b44]/30 text-[#42250d] text-[11px] font-serif font-bold transition cursor-pointer whitespace-nowrap"
+                      title="Nhanh chóng chiêu nạp tất cả tráng phu của các đoàn đang chờ"
+                    >
+                      Chỉ nhận tráng đinh
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="pt-1 flex items-center justify-between border-t border-[#8c6b44]/20">
+                  <span className="text-[11px] text-[#704d2e] font-sans">
+                    Lưu dân đến định kỳ hoặc cử người chiêu tập:
+                  </span>
+                  <button
+                    disabled={resources.food < 20}
+                    onClick={() => dispatchRefugeeRecruit(selectedCity.id)}
+                    className="px-2 py-1 rounded bg-[#8c6b44]/20 hover:bg-[#8c6b44]/35 disabled:opacity-40 disabled:cursor-not-allowed text-[#261304] text-[11px] font-serif font-bold transition cursor-pointer shrink-0"
+                    title="Xuất 20 thạch lương cho nghĩa sĩ đi chiêu tập lưu dân ở các huyện lân cận"
+                  >
+                    Chiêu Mộ Lưu Dân (-20 lương)
+                  </button>
                 </div>
               )}
             </div>

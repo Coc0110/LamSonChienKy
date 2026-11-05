@@ -321,3 +321,18 @@ export interface ScoutMission {
   daysRemaining: number;
   status: 'traveling' | 'arrived';
 }
+
+// Đoàn lưu dân đang chờ ngoài cổng căn cứ xin quy phụ
+export interface PendingRefugeeWave {
+  id: string;
+  cityId: string;           // Căn cứ nơi lưu dân tìm đến (mặc định 'lam_son')
+  cityName: string;
+  dateStr: string;
+  totalCount: number;       // Tổng số người (ví dụ: 18)
+  idleCount: number;        // Số tráng đinh (ví dụ: 15)
+  unfitCount: number;       // Số người già, phụ nữ, trẻ nhỏ (ví dụ: 3)
+  foodCost: number;         // Lượng lương thực cần xuất kho cứu tế (1 thạch/người)
+  originName: string;       // Địa phương trốn chạy: "Triệu Hóa", "Quảng Hóa", "Nông Cống", v.v.
+  story: string;            // Lý do quy phụ
+  timestamp: number;
+}
