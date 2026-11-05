@@ -288,9 +288,9 @@ export const BaseDetailContent: React.FC<BaseDetailContentProps> = React.memo(({
                 className="px-3 py-1 rounded bg-[#8c2d19] hover:bg-[#6b1e10] text-[#fff3db] text-xs font-serif font-bold transition shadow-xs cursor-pointer flex items-center gap-1.5"
               >
                 <span>Xem chi tiết</span>
-                {pendingRefugees.length > 0 && (
+                {pendingRefugees.filter(w => !w.departed && (w.daysRemaining ?? 0) > 0).length > 0 && (
                   <span className="px-1.5 py-0.2 bg-[#fff3db] text-[#8c2d19] rounded-full text-[10px] font-bold font-mono">
-                    {pendingRefugees.length}
+                    {pendingRefugees.filter(w => !w.departed && (w.daysRemaining ?? 0) > 0).length}
                   </span>
                 )}
               </button>

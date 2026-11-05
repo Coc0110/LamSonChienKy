@@ -336,4 +336,5 @@ export interface PendingRefugeeWave {
   story: string;            // Lý do quy phụ
   timestamp: number;
   daysRemaining: number;    // Thời gian lưu lại ngoài cổng (mặc định 30 ngày / ~1 tháng, sau đó tự rời đi)
+  departed?: boolean;       // Đã hết thời hạn chờ ngoài cổng, rời đi
 }

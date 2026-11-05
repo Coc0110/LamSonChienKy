@@ -598,9 +598,10 @@ export const createMilitarySlice: StateCreator<GameStore, [], [], MilitarySlice>
     isRefugeeModalOpen: true,
     activeRefugeeModal: wave || s.pendingRefugees[0] || null,
   })),
-  closeRefugeeModal: () => set({
+  closeRefugeeModal: () => set(state => ({
     isRefugeeModalOpen: false,
     activeRefugeeModal: null,
+    pendingRefugees: (state.pendingRefugees || []).filter(w => !w.departed && (w.daysRemaining ?? 0) > 0),
   }),
   setActiveRefugeeModal: (wave) => set({ activeRefugeeModal: wave }),
 
@@ -608,7 +609,7 @@ export const createMilitarySlice: StateCreator<GameStore, [], [], MilitarySlice>
   acceptRefugeeWave: (waveId, policy) => {
     const state = get();
     const wave = state.pendingRefugees.find(w => w.id === waveId);
-    if (!wave) return { success: false, message: 'Không tìm thấy thông tin đoàn lưu dân!' };
+    if (!wave || wave.departed || (wave.daysRemaining ?? 0) <= 0) return { success: false, message: 'Đoàn lưu dân này đã rời đi!' };
 
     const city = state.cities.find(c => c.id === wave.cityId);
     if (!city || !city.population) return { success: false, message: 'Không tìm thấy căn cứ tiếp nhận!' };
@@ -723,13 +724,14 @@ export const createMilitarySlice: StateCreator<GameStore, [], [], MilitarySlice>
   // Tiếp nhận nhanh toàn bộ các đoàn lưu dân đang chờ
   acceptAllRefugees: (policy) => {
     const state = get();
-    if (state.pendingRefugees.length === 0) {
+    const waves = (state.pendingRefugees || []).filter(w => !w.departed && (w.daysRemaining ?? 0) > 0);
+    if (waves.length === 0) {
       return { success: false, message: 'Hiện không có đoàn lưu dân nào đang chờ!' };
     }
 
     let acceptedWaves = 0;
     let acceptedPeople = 0;
-    const waves = [...state.pendingRefugees];
+
 
     for (const w of waves) {
       const res = get().acceptRefugeeWave(w.id, policy);

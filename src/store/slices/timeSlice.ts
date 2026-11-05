@@ -267,10 +267,20 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
     let armorProduced = 0;
     let refundedQueueGold = 0;
     let suspicionGain = 0;
-    // Lưu dân chỉ lưu lại khoảng 30 ngày (~1 tháng), nếu không nhận sẽ tự rời đi
+    // Đếm lùi thời hạn của các đoàn lưu dân đang chờ ngoài cổng
     let nextPendingRefugees = (state.pendingRefugees || [])
-      .map(w => ({ ...w, daysRemaining: (w.daysRemaining ?? 30) - 1 }))
-      .filter(w => w.daysRemaining > 0);
+      .map(w => {
+        if (w.departed) return w;
+        const nextDays = (w.daysRemaining ?? 30) - 1;
+        if (nextDays <= 0) {
+          return { ...w, daysRemaining: 0, departed: true };
+        }
+        return { ...w, daysRemaining: nextDays };
+      });
+    // Nếu người chơi KHÔNG mở xem chi tiết lưu dân, dọn dẹp các đoàn đã rời đi
+    if (!state.isRefugeeModalOpen) {
+      nextPendingRefugees = nextPendingRefugees.filter(w => !w.departed && (w.daysRemaining ?? 0) > 0);
+    }
 
     let updatedStructures = state.structures.map(structure => {
       let currentStruct = structure;
@@ -628,7 +638,7 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
     
     if (isRefugeeDay && lamSonBase && lamSonBase.population) {
       // Giữ tối đa 5 đoàn lưu dân chờ cùng lúc trước cổng trại để tránh dồn ứ vô hạn
-      if (nextPendingRefugees.length < 10) {
+      if (nextPendingRefugees.filter(w => !w.departed && (w.daysRemaining ?? 0) > 0).length < 10) {
         const totalCount = Math.floor(Math.random() * 7) + 15; // 15 - 21 người
         const unfitCount = Math.max(1, Math.round(totalCount * 0.15)); // ~15% già yếu
         const idleCount = totalCount - unfitCount; // ~85% tráng đinh
