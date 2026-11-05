@@ -602,7 +602,7 @@ export const createMilitarySlice: StateCreator<GameStore, [], [], MilitarySlice>
     isRefugeeModalOpen: false,
     activeRefugeeModal: null,
     pendingRefugees: (state.pendingRefugees || []).filter(w => !w.departed && (w.daysRemaining ?? 0) > 0),
-  }),
+  })),
   setActiveRefugeeModal: (wave) => set({ activeRefugeeModal: wave }),
 
   // Tiếp nhận hoặc xử lý một đoàn lưu dân

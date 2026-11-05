@@ -115,11 +115,16 @@ export const RefugeeIntakeModal: React.FC = () => {
                 const halfFood = Math.max(1, Math.round(wave.foodCost * 0.5));
                 const canAcceptFull = resources.food >= wave.foodCost && remainingCap >= wave.totalCount;
                 const canAcceptAbleOnly = resources.food >= halfFood && remainingCap >= wave.idleCount;
+                const isDeparted = Boolean(wave.departed || (wave.daysRemaining ?? 0) <= 0);
 
                 return (
                   <div
                     key={wave.id}
-                    className="p-3 rounded-lg border border-[#8c6b44]/30 bg-[#8c6b44]/5 flex flex-col gap-1 transition"
+                    className={`p-3 rounded-lg border transition ${
+                      isDeparted
+                        ? 'border-[#8c6b44]/20 bg-black/[0.02] opacity-75'
+                        : 'border-[#8c6b44]/30 bg-[#8c6b44]/5'
+                    } flex flex-col gap-1.5`}
                   >
                     {/* Dòng 1: Tên đoàn */}
                     <div className="font-serif font-black text-sm text-[#8c2d19] leading-snug">
@@ -128,45 +133,69 @@ export const RefugeeIntakeModal: React.FC = () => {
 
                     {/* Dòng 2: Ngày tới & hạn chờ */}
                     <div className="text-[11px] text-[#704d2e] font-sans leading-snug">
-                      Ngày tới: {wave.dateStr} • <span className="text-[#8c2d19] font-bold">còn {wave.daysRemaining ?? 30} ngày</span>
+                      Ngày tới: {wave.dateStr} •{' '}
+                      {isDeparted ? (
+                        <span className="text-[#8c2d19] font-bold italic">Đã hết hạn chờ</span>
+                      ) : (
+                        <span className="text-[#8c2d19] font-bold">còn {wave.daysRemaining ?? 30} ngày</span>
+                      )}
                     </div>
 
-                    {/* Dòng 3: Tráng đinh, lão ấu */}
-                    <div className="text-[#261304] font-serif font-bold text-xs leading-snug">
-                      {wave.idleCount} tráng phu, {wave.unfitCount} lão, ấu
+                    {/* Dòng 3: Tráng đinh & Lão ấu tách biệt rõ ràng */}
+                    <div className="flex items-center gap-2.5 text-xs font-serif pt-0.5">
+                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-[#15803d]/15 text-[#14532d] font-bold border border-[#15803d]/25">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#15803d]" />
+                        {wave.idleCount} tráng phu
+                      </span>
+
+                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-[#8c6b44]/15 text-[#5c3e23] font-medium border border-[#8c6b44]/25">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#8c6b44]" />
+                        {wave.unfitCount} lão, ấu
+                      </span>
                     </div>
 
-                    {/* Dòng 4: 1 dòng 3 nút chọn */}
-                    <div className="flex items-center gap-2 pt-2 border-t border-[#8c6b44]/20 mt-1">
-                      {/* 1. Nhận toàn bộ */}
-                      <button
-                        disabled={!canAcceptFull}
-                        onClick={() => acceptRefugeeWave(wave.id, 'full')}
-                        className="flex-1 py-1.5 px-2 text-center rounded bg-[#8c2d19] hover:bg-[#6b1e10] disabled:opacity-40 disabled:cursor-not-allowed text-[#fff3db] text-xs font-serif font-bold transition shadow-xs cursor-pointer whitespace-nowrap"
-                        title={`Cần ${wave.foodCost} lương, ${wave.totalCount} chỗ`}
-                      >
-                        Nhận toàn bộ (-{wave.foodCost} lương)
-                      </button>
+                    {/* Dòng 4: 1 dòng 3 nút chọn HOẶC hiển thị 'Đã rời đi' */}
+                    {isDeparted ? (
+                      <div className="flex items-center justify-between pt-2 border-t border-[#8c6b44]/20 mt-1">
+                        <span className="text-xs italic text-[#704d2e] font-serif">
+                          Đoàn lưu dân đã rời đi tìm nơi nương tựa khác...
+                        </span>
+                        <span className="py-1 px-3.5 rounded bg-[#8c6b44]/20 border border-[#8c6b44]/40 text-[#704d2e] text-xs font-serif font-bold select-none">
+                          Đã rời đi
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 pt-2 border-t border-[#8c6b44]/20 mt-1">
+                        {/* 1. Nhận toàn bộ */}
+                        <button
+                          disabled={!canAcceptFull}
+                          onClick={() => acceptRefugeeWave(wave.id, 'full')}
+                          className="flex-1 py-1.5 px-2 text-center rounded bg-[#8c2d19] hover:bg-[#6b1e10] disabled:opacity-40 disabled:cursor-not-allowed text-[#fff3db] text-xs font-serif font-bold transition shadow-xs cursor-pointer whitespace-nowrap"
+                          title={`Cần ${wave.foodCost} lương, ${wave.totalCount} chỗ`}
+                        >
+                          Nhận toàn bộ (-{wave.foodCost} lương)
+                        </button>
 
-                      {/* 2. Chỉ nhận tráng đinh */}
-                      <button
-                        disabled={!canAcceptAbleOnly}
-                        onClick={() => acceptRefugeeWave(wave.id, 'able_bodied_only')}
-                        className="flex-1 py-1.5 px-2 text-center rounded border border-[#8c6b44]/50 bg-[#8c6b44]/20 hover:bg-[#8c6b44]/35 disabled:opacity-40 disabled:cursor-not-allowed text-[#42250d] text-xs font-serif font-bold transition cursor-pointer whitespace-nowrap"
-                        title={`Cần ${halfFood} lương, ${wave.idleCount} chỗ`}
-                      >
-                        Chỉ nhận tráng đinh (-{halfFood} lương)
-                      </button>
+                        {/* 2. Chỉ nhận tráng đinh */}
+                        <button
+                          disabled={!canAcceptAbleOnly}
+                          onClick={() => acceptRefugeeWave(wave.id, 'able_bodied_only')}
+                          className="flex-1 py-1.5 px-2 text-center rounded border border-[#8c6b44]/50 bg-[#8c6b44]/20 hover:bg-[#8c6b44]/35 disabled:opacity-40 disabled:cursor-not-allowed text-[#42250d] text-xs font-serif font-bold transition cursor-pointer whitespace-nowrap"
+                          title={`Cần ${halfFood} lương, ${wave.idleCount} chỗ`}
+                        >
+                          Chỉ nhận tráng đinh (-{halfFood} lương)
+                        </button>
 
-                      {/* 3. Không nhận */}
-                      <button
-                        onClick={() => acceptRefugeeWave(wave.id, 'reject')}
-                        className="py-1.5 px-3 text-center rounded border border-[#8c6b44]/35 hover:bg-black/10 text-[#704d2e] hover:text-[#261304] text-xs font-serif transition cursor-pointer whitespace-nowrap"
-                        title="Từ chối đoàn lưu dân này"
-                      >
-                        Không nhận
-                      </button>
-                    </div>
+                        {/* 3. Từ chối */}
+                        <button
+                          onClick={() => acceptRefugeeWave(wave.id, 'reject')}
+                          className="py-1.5 px-3.5 text-center rounded border border-[#8c6b44]/35 bg-black/5 hover:bg-black/15 text-[#704d2e] hover:text-[#261304] text-xs font-serif font-bold transition cursor-pointer whitespace-nowrap shrink-0"
+                          title="Từ chối đoàn lưu dân này"
+                        >
+                          Từ chối
+                        </button>
+                      </div>
+                    )}
                   </div>
                 );
               })
