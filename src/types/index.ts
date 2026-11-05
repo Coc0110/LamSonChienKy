@@ -335,4 +335,5 @@ export interface PendingRefugeeWave {
   originName: string;       // Địa phương trốn chạy: "Triệu Hóa", "Quảng Hóa", "Nông Cống", v.v.
   story: string;            // Lý do quy phụ
   timestamp: number;
+  daysRemaining: number;    // Thời gian lưu lại ngoài cổng (mặc định 7 ngày, sau đó tự rời đi)
 }

@@ -267,8 +267,10 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
     let armorProduced = 0;
     let refundedQueueGold = 0;
     let suspicionGain = 0;
-    let nextPendingRefugees = state.pendingRefugees || [];
-    let newActiveRefugeeModal = state.activeRefugeeModal;
+    // Lưu dân chỉ lưu lại khoảng 7 ngày, nếu không nhận sẽ tự rời đi
+    let nextPendingRefugees = (state.pendingRefugees || [])
+      .map(w => ({ ...w, daysRemaining: (w.daysRemaining ?? 7) - 1 }))
+      .filter(w => w.daysRemaining > 0);
 
     let updatedStructures = state.structures.map(structure => {
       let currentStruct = structure;
@@ -654,24 +656,20 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
           originName: picked.name,
           story: picked.story,
           timestamp: Date.now(),
+          daysRemaining: 7,
         };
 
         nextPendingRefugees = [newWave, ...nextPendingRefugees];
-        if (!newActiveRefugeeModal) {
-          newActiveRefugeeModal = newWave;
-        }
 
         newNotices.push({
           id: `refugee_arrive_${Date.now()}`,
           type: 'general' as const,
           title: 'Đoàn Lưu Dân Xin Quy Phụ',
           dateStr: `Ngày ${newDay}/${newMonth}/${newYear}`,
-          description: `Đoàn ${totalCount} người từ ${picked.name} (${idleCount} tráng phu, ${unfitCount} già yếu) đã tới trước cổng trại Lam Sơn xin được che chở! Hãy quyết định chính sách tiếp nhận.`,
+          description: `Đoàn ${totalCount} người từ ${picked.name} (${idleCount} tráng phu, ${unfitCount} già yếu) đã tới trước cổng trại Lam Sơn xin được che chở.`,
           read: false,
           timestamp: Date.now(),
         });
-
-        notify.info(`⛺ Có đoàn ${totalCount} lưu dân từ ${picked.name} đang chờ trước cổng trại Lam Sơn!`);
       }
     }
 
@@ -903,7 +901,6 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
       formations: formationsChanged ? updatedFormations : state.formations,
       generals: updatedGenerals,
       pendingRefugees: nextPendingRefugees,
-      activeRefugeeModal: newActiveRefugeeModal,
       recruitmentNotice: newNotice,
       militaryNotices: newNotices.length > 0
         ? [...newNotices, ...state.militaryNotices].slice(0, 100)

@@ -1,11 +1,12 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { X, Users, Swords, HeartHandshake, ShieldAlert } from 'lucide-react';
 import { useGameStore } from '../../store/gameStore';
 import { CAMP_CAPACITY_BY_LEVEL } from '../../types';
 
 export const RefugeeIntakeModal: React.FC = () => {
+  const isRefugeeModalOpen = useGameStore((state) => state.isRefugeeModalOpen);
+  const closeRefugeeModal = useGameStore((state) => state.closeRefugeeModal);
   const activeWave = useGameStore((state) => state.activeRefugeeModal);
-  const setActiveRefugeeModal = useGameStore((state) => state.setActiveRefugeeModal);
   const pendingRefugees = useGameStore((state) => state.pendingRefugees);
   const acceptRefugeeWave = useGameStore((state) => state.acceptRefugeeWave);
   const cities = useGameStore((state) => state.cities);
@@ -13,14 +14,14 @@ export const RefugeeIntakeModal: React.FC = () => {
   const structures = useGameStore((state) => state.structures);
   const formations = useGameStore((state) => state.formations);
 
+  if (!isRefugeeModalOpen) return null;
+
   const wave = activeWave || (pendingRefugees.length > 0 ? pendingRefugees[0] : null);
+  if (!wave) return null;
 
-  const city = useMemo(() => {
-    if (!wave) return null;
-    return cities.find((c) => c.id === wave.cityId) || cities.find((c) => c.id === 'lam_son') || null;
-  }, [cities, wave]);
+  const city = cities.find((c) => c.id === wave.cityId) || cities.find((c) => c.id === 'lam_son') || null;
 
-  const { currentPop, maxCapacity, remainingCap } = useMemo(() => {
+  const { currentPop, maxCapacity, remainingCap } = (() => {
     if (!city || !city.population) return { currentPop: 0, maxCapacity: 500, remainingCap: 500 };
     const pop = city.population;
     const builderCount = structures
@@ -49,9 +50,7 @@ export const RefugeeIntakeModal: React.FC = () => {
       maxCapacity: cap,
       remainingCap: Math.max(0, cap - total),
     };
-  }, [city, structures, formations]);
-
-  if (!wave) return null;
+  })();
 
   const halfFood = Math.max(1, Math.round(wave.foodCost * 0.5));
   const canAcceptFull = resources.food >= wave.foodCost && remainingCap >= wave.totalCount;
@@ -59,7 +58,7 @@ export const RefugeeIntakeModal: React.FC = () => {
   const canReliefOnly = resources.food >= 5;
 
   const handleClose = () => {
-    setActiveRefugeeModal(null);
+    closeRefugeeModal();
   };
 
   return (

@@ -76,6 +76,7 @@ export const createMilitarySlice: StateCreator<GameStore, [], [], MilitarySlice>
   scoutMissions: [],
   pendingRefugees: [],
   activeRefugeeModal: null,
+  isRefugeeModalOpen: false,
 
   assignGeneralToCity: (generalId, cityId) => set((state) => ({
     generals: state.generals.map(g => g.id === generalId ? { ...g, locationId: cityId } : g)
@@ -593,6 +594,14 @@ export const createMilitarySlice: StateCreator<GameStore, [], [], MilitarySlice>
     return result;
   },
 
+  openRefugeeModal: (wave) => set(s => ({
+    isRefugeeModalOpen: true,
+    activeRefugeeModal: wave || s.pendingRefugees[0] || null,
+  })),
+  closeRefugeeModal: () => set({
+    isRefugeeModalOpen: false,
+    activeRefugeeModal: null,
+  }),
   setActiveRefugeeModal: (wave) => set({ activeRefugeeModal: wave }),
 
   // Tiếp nhận hoặc xử lý một đoàn lưu dân
@@ -636,7 +645,8 @@ export const createMilitarySlice: StateCreator<GameStore, [], [], MilitarySlice>
           };
         }),
         pendingRefugees: curr.pendingRefugees.filter(w => w.id !== waveId),
-        activeRefugeeModal: curr.activeRefugeeModal?.id === waveId ? null : curr.activeRefugeeModal,
+        activeRefugeeModal: curr.pendingRefugees.filter(w => w.id !== waveId)[0] || null,
+        isRefugeeModalOpen: curr.pendingRefugees.filter(w => w.id !== waveId).length > 0,
       }));
 
       notify.success(`Đã mở cổng cưu mang toàn bộ đoàn ${wave.totalCount} lưu dân từ ${wave.originName} (+${wave.idleCount} tráng phu, +${wave.unfitCount} già yếu)!`);
@@ -668,7 +678,8 @@ export const createMilitarySlice: StateCreator<GameStore, [], [], MilitarySlice>
           };
         }),
         pendingRefugees: curr.pendingRefugees.filter(w => w.id !== waveId),
-        activeRefugeeModal: curr.activeRefugeeModal?.id === waveId ? null : curr.activeRefugeeModal,
+        activeRefugeeModal: curr.pendingRefugees.filter(w => w.id !== waveId)[0] || null,
+        isRefugeeModalOpen: curr.pendingRefugees.filter(w => w.id !== waveId).length > 0,
       }));
 
       notify.success(`Đã chiêu nạp ${wave.idleCount} tráng phu sung sức từ ${wave.originName} vào hàng ngũ nghĩa quân, trợ cấp ${halfFood} lương cho gia quyến nương náu!`);
@@ -687,7 +698,8 @@ export const createMilitarySlice: StateCreator<GameStore, [], [], MilitarySlice>
           food: curr.resources.food - reliefAmt,
         },
         pendingRefugees: curr.pendingRefugees.filter(w => w.id !== waveId),
-        activeRefugeeModal: curr.activeRefugeeModal?.id === waveId ? null : curr.activeRefugeeModal,
+        activeRefugeeModal: curr.pendingRefugees.filter(w => w.id !== waveId)[0] || null,
+        isRefugeeModalOpen: curr.pendingRefugees.filter(w => w.id !== waveId).length > 0,
       }));
 
       notify.info(`Đã xuất ${reliefAmt} thạch lương phát chẩn cứu đói thiện tâm và hướng dẫn đoàn lưu dân tạm lánh nạn an toàn.`);
@@ -697,7 +709,8 @@ export const createMilitarySlice: StateCreator<GameStore, [], [], MilitarySlice>
     if (policy === 'reject') {
       set(curr => ({
         pendingRefugees: curr.pendingRefugees.filter(w => w.id !== waveId),
-        activeRefugeeModal: curr.activeRefugeeModal?.id === waveId ? null : curr.activeRefugeeModal,
+        activeRefugeeModal: curr.pendingRefugees.filter(w => w.id !== waveId)[0] || null,
+        isRefugeeModalOpen: curr.pendingRefugees.filter(w => w.id !== waveId).length > 0,
       }));
 
       notify.warning(`Đã đóng cổng trại từ chối tiếp nhận đoàn lưu dân để giữ gìn bí mật cơ mật quân sự.`);
@@ -728,6 +741,7 @@ export const createMilitarySlice: StateCreator<GameStore, [], [], MilitarySlice>
       }
     }
 
+    set({ isRefugeeModalOpen: false, activeRefugeeModal: null });
     if (acceptedWaves > 0) {
       return { success: true, message: `Đã tiếp nhận thành công ${acceptedWaves} đoàn lưu dân (${acceptedPeople} người)!` };
     }
@@ -771,6 +785,7 @@ export const createMilitarySlice: StateCreator<GameStore, [], [], MilitarySlice>
       originName: picked.name,
       story: picked.story,
       timestamp: Date.now(),
+      daysRemaining: 7,
     };
 
     set(curr => ({
@@ -779,7 +794,6 @@ export const createMilitarySlice: StateCreator<GameStore, [], [], MilitarySlice>
         food: curr.resources.food - 20,
       },
       pendingRefugees: [newWave, ...curr.pendingRefugees],
-      activeRefugeeModal: newWave,
     }));
 
     notify.success(`Nghĩa sĩ đã dẫn đường cho đoàn ${totalCount} người từ ${picked.name} về trước cổng trại Lam Sơn!`);

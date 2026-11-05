@@ -18,9 +18,6 @@ export const TopBar: React.FC = React.memo(() => {
   const activeModal = useUIStore(state => state.activeModal);
   const setActiveModal = useUIStore(state => state.setActiveModal);
   const isWarMode = useGameStore(state => state.isWarMode);
-  const pendingRefugees = useGameStore(state => state.pendingRefugees || []);
-  const setActiveRefugeeModal = useGameStore(state => state.setActiveRefugeeModal);
-  const totalPendingRefugees = pendingRefugees.reduce((acc, w) => acc + w.totalCount, 0);
   const toggleWarMode = useGameStore(state => state.toggleWarMode);
   const activeDropdown = useUIStore(state => state.activeDropdown);
   const setActiveDropdown = useUIStore(state => state.setActiveDropdown);
@@ -208,22 +205,7 @@ export const TopBar: React.FC = React.memo(() => {
               )}
             </button>
 
-            {/* Phân cách & Nút Tiếp Nhận Lưu Dân khi có người chờ */}
-            {pendingRefugees.length > 0 && (
-              <>
-                <div className="w-px h-6 bg-[#8c6b44]/40 shrink-0 self-center" />
-                <button
-                  onClick={() => setActiveRefugeeModal(pendingRefugees[0])}
-                  className="relative px-2 py-1 rounded bg-[#8c2d19]/15 hover:bg-[#8c2d19]/25 border border-[#8c2d19]/40 flex items-center gap-1.5 transition-all cursor-pointer animate-pulse"
-                  title="Có đoàn lưu dân đang chờ ngoài cổng trại Lam Sơn! Bấm để xem xét chính sách tiếp nhận."
-                >
-                  <span className="w-2 h-2 rounded-full bg-[#8c2d19]" />
-                  <span className="font-serif font-bold text-xs text-[#8c2d19] whitespace-nowrap">
-                    Lưu Dân Chờ ({totalPendingRefugees})
-                  </span>
-                </button>
-              </>
-            )}
+
 
             {/* Phân cách */}
             <div className="w-px h-6 bg-[#8c6b44]/40 shrink-0 self-center" />

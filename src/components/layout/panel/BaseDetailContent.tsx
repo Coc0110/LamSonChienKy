@@ -40,7 +40,7 @@ export const BaseDetailContent: React.FC<BaseDetailContentProps> = React.memo(({
   const triggerUprising = useGameStore(state => state.triggerUprising);
   const isWarMode = useGameStore(state => state.isWarMode);
   const pendingRefugees = useGameStore(state => state.pendingRefugees || []);
-  const setActiveRefugeeModal = useGameStore(state => state.setActiveRefugeeModal);
+  const openRefugeeModal = useGameStore(state => state.openRefugeeModal);
   const acceptAllRefugees = useGameStore(state => state.acceptAllRefugees);
   const dispatchRefugeeRecruit = useGameStore(state => state.dispatchRefugeeRecruit);
 
@@ -302,7 +302,7 @@ export const BaseDetailContent: React.FC<BaseDetailContentProps> = React.memo(({
 
                   <div className="flex items-center gap-2 pt-0.5">
                     <button
-                      onClick={() => setActiveRefugeeModal(pendingRefugees[0])}
+                      onClick={() => openRefugeeModal(pendingRefugees[0])}
                       className="flex-1 py-1 px-2 rounded bg-[#8c2d19] hover:bg-[#6b1e10] text-[#fff3db] text-xs font-serif font-bold transition shadow-xs cursor-pointer flex items-center justify-center gap-1"
                     >
                       <span>Xem Xét & Tiếp Nhận</span>

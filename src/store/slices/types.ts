@@ -80,6 +80,9 @@ export interface MilitarySlice {
   // Cơ chế tiếp nhận lưu dân
   pendingRefugees: PendingRefugeeWave[];
   activeRefugeeModal: PendingRefugeeWave | null;
+  isRefugeeModalOpen: boolean;
+  openRefugeeModal: (wave?: PendingRefugeeWave) => void;
+  closeRefugeeModal: () => void;
   setActiveRefugeeModal: (wave: PendingRefugeeWave | null) => void;
   acceptRefugeeWave: (waveId: string, policy: 'full' | 'able_bodied_only' | 'relief_only' | 'reject') => { success: boolean; message: string };
   acceptAllRefugees: (policy: 'full' | 'able_bodied_only') => { success: boolean; message: string };
