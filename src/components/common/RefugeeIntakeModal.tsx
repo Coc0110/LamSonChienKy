@@ -54,7 +54,7 @@ export const RefugeeIntakeModal: React.FC = () => {
       onClick={closeRefugeeModal}
     >
       <div
-        className="relative w-full max-w-xl max-h-[85vh] flex flex-col pointer-events-auto filter drop-shadow-[0_20px_45px_rgba(0,0,0,0.9)]"
+        className="relative w-full max-w-2xl max-h-[85vh] flex flex-col pointer-events-auto filter drop-shadow-[0_20px_45px_rgba(0,0,0,0.9)]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Nền giấy Dó sứt mẻ */}
