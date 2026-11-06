@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { X, Flag, ArrowUpCircle, Users } from 'lucide-react';
+import { X, Flag, ArrowUpCircle, Users, Coins, AlertTriangle } from 'lucide-react';
 import { useGameStore } from '../../../store/gameStore';
 import { useUIStore } from '../../../store/uiStore';
 import { notify } from '../../../store/dialogStore';
@@ -41,6 +41,9 @@ export const BaseDetailContent: React.FC<BaseDetailContentProps> = React.memo(({
   const isWarMode = useGameStore(state => state.isWarMode);
   const pendingRefugees = useGameStore(state => state.pendingRefugees || []);
   const openRefugeeModal = useGameStore(state => state.openRefugeeModal);
+  const tradeFoodForGold = useGameStore(state => state.tradeFoodForGold);
+  const bribeMingOfficials = useGameStore(state => state.bribeMingOfficials);
+  const bribeCount = useGameStore(state => state.bribeCount || 0);
 
   const selectCity = useUIStore(state => state.selectCity);
   const setBaseRelocateMode = useUIStore(state => state.setBaseRelocateMode);
@@ -294,6 +297,98 @@ export const BaseDetailContent: React.FC<BaseDetailContentProps> = React.memo(({
                   </span>
                 )}
               </button>
+            </div>
+
+            {/* 1.1b. BÍ MẬT GIAO THƯƠNG (XUẤT BÁN LƯƠNG ĐỔI VÀNG) */}
+            <div className="p-2.5 rounded-lg border border-[#8c6b44]/40 bg-[#f7eed8]/70 space-y-1.5 text-xs font-serif">
+              <div className="flex items-center justify-between">
+                <span className="text-[#5c3e23] font-bold flex items-center gap-1.5">
+                  <Coins size={14} className="text-[#b45309]" />
+                  Bí Mật Giao Thương:
+                </span>
+                <span className="text-[11px] text-[#704d2e]">
+                  Kho: <strong className="text-[#8c2d19]">{Math.floor(resources.food).toLocaleString()}</strong> lương
+                </span>
+              </div>
+
+              <div className="text-[11px] text-[#704d2e] italic">
+                Bí mật xuất bán thóc lúa thặng dư cho thương lái ven sông Chu gây quỹ ngân khố:
+              </div>
+
+              <div className="grid grid-cols-3 gap-1.5 pt-0.5">
+                <button
+                  disabled={resources.food < 100}
+                  onClick={() => {
+                    const res = tradeFoodForGold(100);
+                    if (res.success) notify.success(res.message);
+                    else notify.warning(res.message);
+                  }}
+                  className="py-1 px-1 rounded border border-[#8c6b44]/40 bg-black/5 hover:bg-black/10 disabled:opacity-40 disabled:cursor-not-allowed text-[#261304] text-[11px] font-serif font-bold text-center transition cursor-pointer"
+                  title="Xuất bán 100 lương thu về 15 vàng"
+                >
+                  -100 🌾 (+15 🪙)
+                </button>
+                <button
+                  disabled={resources.food < 300}
+                  onClick={() => {
+                    const res = tradeFoodForGold(300);
+                    if (res.success) notify.success(res.message);
+                    else notify.warning(res.message);
+                  }}
+                  className="py-1 px-1 rounded border border-[#8c6b44]/40 bg-black/5 hover:bg-black/10 disabled:opacity-40 disabled:cursor-not-allowed text-[#261304] text-[11px] font-serif font-bold text-center transition cursor-pointer"
+                  title="Xuất bán 300 lương thu về 45 vàng"
+                >
+                  -300 🌾 (+45 🪙)
+                </button>
+                <button
+                  disabled={resources.food < 500}
+                  onClick={() => {
+                    const res = tradeFoodForGold(500);
+                    if (res.success) notify.success(res.message);
+                    else notify.warning(res.message);
+                  }}
+                  className="py-1 px-1 rounded border border-[#8c6b44]/40 bg-black/5 hover:bg-black/10 disabled:opacity-40 disabled:cursor-not-allowed text-[#261304] text-[11px] font-serif font-bold text-center transition cursor-pointer"
+                  title="Xuất bán 500 lương thu về 75 vàng"
+                >
+                  -500 🌾 (+75 🪙)
+                </button>
+              </div>
+            </div>
+
+            {/* 1.1c. ĐỘ NGHI NGỜ CỦA QUÂN MINH & ĐÚT LÓT */}
+            <div className="p-2.5 rounded-lg border border-[#8c6b44]/40 bg-[#f7eed8]/70 space-y-1.5 text-xs font-serif">
+              <div className="flex items-center justify-between">
+                <span className="text-[#5c3e23] font-bold flex items-center gap-1.5">
+                  <AlertTriangle size={14} className={suspicion >= 70 ? 'text-[#b91c1c]' : suspicion >= 35 ? 'text-[#d97706]' : 'text-[#15803d]'} />
+                  Độ Nghi Ngờ Của Quân Minh:
+                </span>
+                <span className={`font-serif font-black text-sm ${suspicion >= 70 ? 'text-[#b91c1c]' : suspicion >= 35 ? 'text-[#d97706]' : 'text-[#15803d]'}`}>
+                  {Math.round(suspicion)}%
+                </span>
+              </div>
+
+              <div className="w-full h-1.5 rounded-full bg-[#3d240f]/20 overflow-hidden">
+                <div 
+                  className={`h-full transition-all duration-500 ${
+                    suspicion >= 70 ? 'bg-[#b91c1c]' : suspicion >= 35 ? 'bg-[#d97706]' : 'bg-[#15803d]'
+                  }`}
+                  style={{ width: `${Math.min(100, Math.max(3, suspicion))}%` }}
+                />
+              </div>
+
+              <div className="flex items-center justify-between pt-0.5 text-[11px] text-[#704d2e]">
+                <span className="italic">
+                  {suspicion >= 70 ? '⚠️ Nguy cấp: Giặc sắp kéo quân càn quét!' : suspicion >= 35 ? 'Lò rèn & thao luyện đang khiến địch chú ý' : 'Căn cứ bí mật, giặc chưa cảnh giác'}
+                </span>
+
+                <button
+                  onClick={() => bribeMingOfficials()}
+                  className="px-2 py-0.5 rounded border border-[#8c6b44]/50 bg-[#8c6b44]/20 hover:bg-[#8c6b44]/35 text-[#42250d] font-bold cursor-pointer transition shrink-0 ml-2"
+                  title="Cử người đem vàng đút lót quan tướng giặc hạ độ nghi ngờ"
+                >
+                  Đút lót (-{100 + bribeCount * 60}🪙)
+                </button>
+              </div>
             </div>
 
             {/* 1.2. THÔNG TIN QUÂN LỰC & PHÒNG THỦ */}

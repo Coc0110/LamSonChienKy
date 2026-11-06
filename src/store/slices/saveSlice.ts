@@ -76,7 +76,12 @@ export const createSaveSlice: StateCreator<GameStore, [], [], SaveSlice> = (set,
         resources: saveData.resources,
         cities: saveData.cities || INITIAL_CITIES,
         structures: saveData.structures || INITIAL_STRUCTURES,
-        generals: saveData.generals || INITIAL_GENERALS,
+        generals: (saveData.generals && saveData.generals.length > 0)
+          ? INITIAL_GENERALS.map(initG => {
+              const savedG = saveData.generals.find((sg: General) => sg.id === initG.id);
+              return savedG ? { ...initG, ...savedG } : initG;
+            })
+          : INITIAL_GENERALS,
         formations: saveData.formations || [],
         suspicion: saveData.suspicion ?? 15,
         bribeCount: saveData.bribeCount ?? 0,

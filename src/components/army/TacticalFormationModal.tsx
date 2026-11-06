@@ -261,7 +261,11 @@ export const TacticalFormationModal: React.FC = React.memo(() => {
   const [trainingGeneralId, setTrainingGeneralId] = useState<string>('le_loi');
 
   const currentCity = useMemo(() => {
-    return cities.find(c => c.id === selectedCityId) || cities[0];
+    const sel = cities.find(c => c.id === selectedCityId);
+    if (sel && sel.faction === 'lam_son') return sel;
+    return cities.find(c => c.faction === 'lam_son' && (c.hasBase || c.type === 'camp'))
+      || cities.find(c => c.id === 'lam_son')
+      || cities[0];
   }, [cities, selectedCityId]);
 
   const cityFormations = useMemo(() => {
@@ -345,8 +349,30 @@ export const TacticalFormationModal: React.FC = React.memo(() => {
   }, [hoveredCell, activeFormation]);
 
   const availableGeneralsAtBase = useMemo(() => {
-    return generals.filter(g => g.unlocked && (g.locationId === currentCity.id || !g.locationId));
+    const unlocked = generals.filter(g => g.unlocked);
+    return [...unlocked].sort((a, b) => {
+      const aHere = a.locationId === currentCity.id ? 1 : 0;
+      const bHere = b.locationId === currentCity.id ? 1 : 0;
+      return bHere - aHere;
+    });
   }, [generals, currentCity.id]);
+
+  // Luôn đảm bảo trainingGeneralId trỏ tới vị tướng khả dụng
+  useEffect(() => {
+    if (availableGeneralsAtBase.length > 0 && !availableGeneralsAtBase.some(g => g.id === trainingGeneralId)) {
+      setTrainingGeneralId(availableGeneralsAtBase[0].id);
+    }
+  }, [availableGeneralsAtBase, trainingGeneralId]);
+
+  // Cân đối số lượng tráng phu thao luyện theo dân số thực tế tại căn cứ
+  useEffect(() => {
+    const maxLaborers = currentCity.population?.idleLaborers || 0;
+    if (maxLaborers <= 0) {
+      setTrainingTrainees(1);
+    } else if (trainingTrainees > maxLaborers) {
+      setTrainingTrainees(Math.min(maxLaborers, 50));
+    }
+  }, [currentCity.id, currentCity.population?.idleLaborers]);
 
   // Lắng nghe nhả chuột toàn cục để hủy trạng thái kéo rê
   useEffect(() => {

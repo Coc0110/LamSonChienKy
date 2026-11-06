@@ -132,6 +132,8 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
   setTimeDate: (targetDay: number, targetMonth: number, targetYear: number) => set((state) => {
     const targetVal = targetYear * 10000 + targetMonth * 100 + targetDay;
     const updatedGenerals = state.generals.map(g => {
+      // Nếu tướng đã mở khóa từ trước, luôn giữ nguyên trạng thái mở khóa
+      if (g.unlocked) return g;
       // Các danh tướng lập thề Lũng Nhai ban đầu luôn mở khóa
       if (!g.joinYear || g.joinYear < 1416 || (g.joinYear === 1416 && (g.joinMonth || 1) <= 2)) {
         return { ...g, unlocked: true };
