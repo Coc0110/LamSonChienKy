@@ -50,7 +50,7 @@ Tài liệu này ghi nhớ các bài học tối ưu hóa hiệu năng (60–144
 - **Chế độ Chiến Sự (Chiến Đấu/Hành Quân):** Thay thế nút 50x bằng icon Kiếm Thương (`war_mode_sword_spear.png`). Khi có đạo quân xuất trận hoặc người chơi bật Chế độ Chiến Sự:
   - Thời gian chuyển sang đếm từng **Canh Giờ** (1 ngày = 12 canh giờ).
   - Tốc độ di chuyển và tiêu hao lương thảo được đồng bộ theo từng canh.
-  - Ban đêm (từ 19:00 đến 05:00 / 5 Canh: Tuất, Hợi, Tý, Sửu, Dần), nghĩa quân tạm hạ trại nghỉ ngơi (`⛺ Nghỉ đêm`) để giữ gìn sĩ khí và thể lực, bắt đầu hành quân lại vào 05:00 (Giờ Mão).
+  - Ban đêm (từ 23:00 đến 05:00 / 3 Canh nửa đêm: Tý, Sửu, Dần), nghĩa quân tạm hạ trại nghỉ ngơi (`⛺ Nghỉ đêm`) để giữ gìn sĩ khí và thể lực, bắt đầu hành quân lại vào 05:00 (Giờ Mão).
 
 ---
 

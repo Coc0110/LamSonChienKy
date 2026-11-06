@@ -98,14 +98,14 @@ function App() {
   }, [isPaused, timeMode, isWarMode, tick, tickCanh]);
 
   // Vòng lặp bước đi mượt mà của đạo quân (đồng bộ tốc độ theo Canh Giờ khi ở Chế độ Giờ)
-  // Ban đêm (5 Canh: Giờ Tuất index 10, Hợi 11, Tý 0, Sửu 1, Dần 2 -> từ 19:00 đến 05:00 sáng hôm sau):
-  // Nghĩa quân tạm hạ trại nghỉ ngơi qua đêm, không tiếp tục hành quân cho đến khi bình minh (Giờ Mão 05:00)
+  // Ban đêm (3 Canh nửa đêm: Giờ Tý index 0, Sửu 1, Dần 2 -> từ 23:00 đến 05:00 sáng):
+  // Nghĩa quân tạm hạ trại nghỉ ngơi qua đêm, bắt đầu hành quân lại vào bình minh (Giờ Mão 05:00)
   useEffect(() => {
     if (isPaused) return;
 
     const isHourMode = timeMode === 'hour' || isWarMode;
-    const isNightTime = isHourMode && (canhHour >= 10 || canhHour <= 2);
-    if (isNightTime) return; // Tạm dừng bước chân hành quân khi đêm xuống để hạ trại nghỉ ngơi
+    const isNightTime = isHourMode && (canhHour >= 0 && canhHour <= 2);
+    if (isNightTime) return; // Tạm dừng bước chân hành quân khi đêm xuống để hạ trại nghỉ ngơi (3 canh: Tý, Sửu, Dần)
 
     const stepMs = 50; // Tần số 20 FPS cho bước di chuyển mượt mà
     // Nếu ở Chế độ Giờ: 1 giây thực = 1 canh giờ = 1/12 ngày

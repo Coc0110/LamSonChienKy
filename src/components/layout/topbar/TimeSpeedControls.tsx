@@ -8,14 +8,16 @@ export const TimeSpeedControls: React.FC = React.memo(() => {
   const year = useGameStore(state => state.year);
   const canhHour = useGameStore(state => state.canhHour);
   const timeMode = useGameStore(state => state.timeMode);
+  const previousActiveTimeMode = useGameStore(state => state.previousActiveTimeMode);
   const togglePause = useGameStore(state => state.togglePause);
 
   const currentCanh = getCanhGioInfo(canhHour);
-  const isNight = timeMode === 'hour' && (canhHour >= 10 || canhHour <= 2);
+  const isHourActive = timeMode === 'hour' || (timeMode === 'pause' && previousActiveTimeMode === 'hour');
+  const isNight = isHourActive && (canhHour >= 0 && canhHour <= 2);
 
   return (
-    // Chiều rộng cố định 245px để ngày tháng và Canh Giờ có đủ không gian, không bị chồng đè hay khuất
-    <div className="relative z-10 w-[245px] shrink-0 flex items-center pr-1 select-none">
+    // Chiều rộng cố định theo từng chế độ: 275px khi ở Giờ (đủ chỗ cho Canh Giờ) và 170px khi ở Ngày (ôm sát gọn gàng, không bị trống)
+    <div className={`relative z-10 ${isHourActive ? 'w-[275px]' : 'w-[170px]'} shrink-0 flex items-center pr-1 select-none transition-all duration-300`}>
       <button 
         type="button"
         onClick={togglePause}
@@ -45,14 +47,14 @@ export const TimeSpeedControls: React.FC = React.memo(() => {
           />
         </div>
 
-        {/* Khung chữ ngày tháng & Canh Giờ đặt cạnh nhau tự nhiên với gap-1.5, không chồng đè, không khuất */}
-        <div className="w-[210px] shrink-0 font-serif font-black text-xs md:text-sm tracking-wide text-[#fef2d6] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)] flex items-center gap-1.5 whitespace-nowrap overflow-hidden">
+        {/* Khung chữ ngày tháng & Canh Giờ: hiển thị thoáng đãng, không chồng đè, không khuất chữ */}
+        <div className="font-serif font-black text-xs md:text-sm tracking-wide text-[#fef2d6] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)] flex items-center gap-2 whitespace-nowrap">
           <span>
             Ngày {day}/{month}/{year}
           </span>
-          {timeMode === 'hour' && (
+          {isHourActive && (
             <span className={`text-xs md:text-sm font-black ${isNight ? 'text-cyan-200' : 'text-amber-200'}`}>
-              · {currentCanh.name} {isNight ? '🌙' : '☀️'}
+              · {currentCanh.name}
             </span>
           )}
         </div>

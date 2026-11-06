@@ -19,6 +19,7 @@ export const TopBar: React.FC = React.memo(() => {
   const setActiveModal = useUIStore(state => state.setActiveModal);
   const timeMode = useGameStore(state => state.timeMode);
   const setTimeMode = useGameStore(state => state.setTimeMode);
+  const previousActiveTimeMode = useGameStore(state => state.previousActiveTimeMode);
   const togglePause = useGameStore(state => state.togglePause);
   
   const activeDropdown = useUIStore(state => state.activeDropdown);
@@ -213,9 +214,14 @@ export const TopBar: React.FC = React.memo(() => {
             <div className="w-px h-6 bg-[#8c6b44]/40 shrink-0 self-center" />
 
             {/* CỤM THỜI GIAN & ĐỔI CHẾ ĐỘ: VỆT MỰC PHỦ LÊN TOÀN BỘ Ô NÀY (TỪ NÚT ĐỔI CHẾ ĐỘ ĐẾN HẾT Ô NGÀY THÁNG) */}
-            <div className="relative flex items-center shrink-0 w-[335px] md:w-[345px] h-[34px] px-2 select-none">
-              {/* VỆT MỰC TỰ NHIÊN (KHÔNG DÙNG DROP-SHADOW GAUSSIAN ĐỂ TRÁNH MỜ VIỀN HỘP) */}
-              <div className="absolute -left-6 -right-4 -inset-y-0.5 pointer-events-none z-0 overflow-hidden">
+            {/* CỤM THỜI GIAN & ĐỔI CHẾ ĐỘ: TỰ ĐỘNG THU GỌN VỆT MỰC KHI Ở CHẾ ĐỘ NGÀY, MỞ RỘNG KHI Ở CHẾ ĐỘ GIỜ */}
+            <div className={`relative flex items-center shrink-0 ${
+              (timeMode === 'hour' || (timeMode === 'pause' && previousActiveTimeMode === 'hour'))
+                ? 'w-[405px] md:w-[420px]'
+                : 'w-[295px] md:w-[305px]'
+            } h-[44px] px-2 select-none transition-all duration-300`}>
+              {/* VỆT MỰC BỀ DÀY LỚN GẤP ĐÔI, PHỦ KÉO DÀI SANG TRÁI HÀO PHÓNG */}
+              <div className="absolute -left-14 -right-6 -inset-y-2 pointer-events-none z-0 overflow-hidden">
                 <img
                   src={
                     timeMode === 'pause'
@@ -229,51 +235,76 @@ export const TopBar: React.FC = React.memo(() => {
                 />
               </div>
 
-              {/* 0.8. CỤM NÚT ĐỔI CHẾ ĐỘ: CỐ ĐỊNH CHÍNH XÁC 94px ĐỂ KHÔNG BAO GIỜ LÀM XÊ DỊCH Ô THỜI GIAN */}
-              <div className="relative z-10 w-[94px] shrink-0 flex items-center justify-start gap-1 p-0">
+              {/* 0.8. CỤM NÚT ĐỔI CHẾ ĐỘ: NỀN VỆT MỰC ĐEN THỦY MẶC THAY CHO Ô NỀN MÀU */}
+              <div className="relative z-10 w-[104px] shrink-0 flex items-center justify-start gap-1 p-0">
                 {timeMode === 'pause' ? (
                   <button
                     type="button"
                     onClick={() => togglePause()}
-                    className="w-[88px] h-[22px] rounded font-serif font-black text-xs md:text-sm bg-sky-400 text-sky-950 shadow-sm ring-1 ring-sky-200 transition-transform cursor-pointer hover:scale-105 active:scale-95 whitespace-nowrap text-center"
+                    className="relative w-[100px] h-[28px] flex items-center justify-center transition-transform hover:scale-105 active:scale-95 cursor-pointer text-center"
                     title="Dòng thời gian đang Tạm Ngưng · Nhấp để tiếp tục chạy"
                   >
-                    Ngưng
+                    <img
+                      src="/ink_stroke_1.png"
+                      alt="Vết mực đen"
+                      className="absolute inset-0 w-full h-full object-fill pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]"
+                    />
+                    <span className="relative z-10 font-serif font-black text-xs md:text-sm text-[#fcf4e4] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]">
+                      Ngưng
+                    </span>
                   </button>
                 ) : (
                   <>
                     <button
                       type="button"
                       onClick={() => setTimeMode('day')}
-                      className={`w-[42px] h-[22px] rounded font-serif font-black text-xs md:text-sm transition-transform cursor-pointer text-center ${
-                        timeMode === 'day'
-                          ? 'bg-amber-300 text-stone-950 shadow-sm ring-1 ring-amber-100 scale-105'
-                          : 'text-[#fef2d6]/75 hover:text-white hover:scale-105'
-                      }`}
+                      className="relative w-[48px] h-[28px] flex items-center justify-center transition-transform hover:scale-105 active:scale-95 cursor-pointer text-center"
                       title="Chế độ Ngày (1 ngày / giây)"
                     >
-                      Ngày
+                      {timeMode === 'day' && (
+                        <img
+                          src="/ink_stroke_1.png"
+                          alt="Vết mực đen"
+                          className="absolute inset-0 w-full h-full object-fill pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]"
+                        />
+                      )}
+                      <span className={`relative z-10 font-serif font-black text-xs md:text-sm ${
+                        timeMode === 'day'
+                          ? 'text-[#fcf4e4] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]'
+                          : 'text-[#fef2d6]/75 hover:text-white'
+                      }`}>
+                        Ngày
+                      </span>
                     </button>
                     <button
                       type="button"
                       onClick={() => setTimeMode('hour')}
-                      className={`w-[42px] h-[22px] rounded font-serif font-black text-xs md:text-sm transition-transform cursor-pointer text-center ${
-                        timeMode === 'hour'
-                          ? 'bg-red-400 text-stone-950 shadow-sm ring-1 ring-red-200 scale-105'
-                          : 'text-[#fef2d6]/75 hover:text-white hover:scale-105'
-                      }`}
+                      className="relative w-[48px] h-[28px] flex items-center justify-center transition-transform hover:scale-105 active:scale-95 cursor-pointer text-center"
                       title="Chế độ Giờ (1 canh giờ / giây)"
                     >
-                      Giờ
+                      {timeMode === 'hour' && (
+                        <img
+                          src="/ink_stroke_1.png"
+                          alt="Vết mực đen"
+                          className="absolute inset-0 w-full h-full object-fill pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]"
+                        />
+                      )}
+                      <span className={`relative z-10 font-serif font-black text-xs md:text-sm ${
+                        timeMode === 'hour'
+                          ? 'text-[#fcf4e4] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]'
+                          : 'text-[#fef2d6]/75 hover:text-white'
+                      }`}>
+                        Giờ
+                      </span>
                     </button>
                   </>
                 )}
               </div>
 
               {/* Phân cách mờ thanh mảnh cố định trên nền vệt mực */}
-              <div className="w-px h-5 bg-white/25 shrink-0 self-center mx-1 z-10" />
+              <div className="w-px h-5 bg-white/25 shrink-0 self-center mx-1.5 z-10" />
 
-              {/* 1. KHỐI THỜI GIAN (CỐ ĐỊNH CHIỀU RỘNG 205px) */}
+              {/* 1. KHỐI THỜI GIAN (CỐ ĐỊNH CHIỀU RỘNG 245px ĐỦ KHÔNG GIAN CHO NGÀY & GIỜ) */}
               <TimeSpeedControls />
             </div>
 

@@ -31,10 +31,11 @@ export function useArmyMarchLayer({ mapInstance, armyLayerRef }: UseArmyMarchLay
   const generals = useGameStore(state => state.generals);
   const canhHour = useGameStore(state => state.canhHour);
   const isWarMode = useGameStore(state => state.isWarMode);
+  const timeMode = useGameStore(state => state.timeMode);
   const scoutMissions = useGameStore(state => state.scoutMissions || []);
   const selectedMapFormationId = useUIStore(state => state.selectedMapFormationId);
 
-  const isNight = isWarMode && (canhHour >= 10 || canhHour <= 2);
+  const isNight = (isWarMode || timeMode === 'hour') && (canhHour >= 0 && canhHour <= 2);
   const marchDrawMode = useUIStore(state => state.marchDrawMode);
 
   useEffect(() => {
@@ -390,5 +391,5 @@ export function useArmyMarchLayer({ mapInstance, armyLayerRef }: UseArmyMarchLay
       scoutMarker.addTo(layer);
     });
 
-  }, [mapInstance, armyLayerRef, formations, cities, generals, selectedMapFormationId, marchDrawMode, canhHour, isWarMode, isNight, scoutMissions]);
+  }, [mapInstance, armyLayerRef, formations, cities, generals, selectedMapFormationId, marchDrawMode, canhHour, isWarMode, timeMode, isNight, scoutMissions]);
 }
