@@ -10,6 +10,7 @@ import type {
   PlacedStructure,
   ScoutMission,
   PendingRefugeeWave,
+  TimeMode,
 } from '../../types';
 import type { ArmySlice } from './armySlice';
 import type { SaveSlice, GameStatus } from './saveSlice';
@@ -18,10 +19,16 @@ export interface TimeSlice {
   day: number;
   month: number;
   year: number;
-  canhHour: number; // 0..11 tuong ung 12 Thoi than: Ty, Suu, Dan, Mao, Thin, Ti, Ngo, Mui, Than, Dau, Tuat, Hoi
+  canhHour: number;
+  timeMode: TimeMode;
+  previousActiveTimeMode: 'day' | 'hour';
+  isAutoPaused: boolean;
   isWarMode: boolean; // Che do Chien Su (dem theo Canh gio)
   isPaused: boolean;
   gameSpeed: number;
+  setTimeMode: (mode: TimeMode) => void;
+  enterAutoPause: () => void;
+  exitAutoPause: () => void;
   togglePause: () => void;
   setSpeed: (speed: number) => void;
   setWarMode: (active: boolean) => void;
@@ -56,6 +63,7 @@ export interface StructureSlice {
 
 export interface MilitarySlice {
   resources: Resources;
+  hasUprising: boolean;
   generals: General[];
   recruitmentNotice: RecruitmentEventNotice | null;
   militaryNotices: MilitaryNotice[];

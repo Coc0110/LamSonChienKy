@@ -3,7 +3,6 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useGameStore } from '../../store/gameStore';
 import { useUIStore } from '../../store/uiStore';
-import type { PlacedStructure } from '../../types';
 import type { DistrictInfo, ParchmentMode } from '../../types/map';
 import {
   percentToLatLng,
@@ -115,8 +114,8 @@ export const WorldMap: React.FC = React.memo(() => {
   const setBaseRelocateMode = useUIStore(state => state.setBaseRelocateMode);
   const showGrid = useUIStore(state => state.showGrid);
   const hoveredCell = useUIStore(state => state.hoveredCell);
-
-  const [selectedStructureMenu, setSelectedStructureMenu] = useState<PlacedStructure | null>(null);
+  const selectedStructureMenu = useUIStore(state => state.selectedStructureModal);
+  const setSelectedStructureMenu = useUIStore(state => state.setSelectedStructureModal);
 
   // Xử lý đặt hoặc di dời công trình / căn cứ dùng chung cho mọi sự kiện click
   const handlePlacementAt = useCallback((latlng: L.LatLng) => {

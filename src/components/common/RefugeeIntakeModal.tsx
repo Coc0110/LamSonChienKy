@@ -50,7 +50,7 @@ export const RefugeeIntakeModal: React.FC = () => {
 
   return (
     <div
-      className="fixed inset-0 z-[2500] flex items-center justify-center bg-black/75 backdrop-blur-xs p-4 animate-in fade-in duration-150 select-none"
+      className="fixed inset-0 z-[1500] flex items-center justify-center bg-black/75 backdrop-blur-xs p-4 pt-20 animate-in fade-in duration-150 select-none"
       onClick={closeRefugeeModal}
     >
       <div

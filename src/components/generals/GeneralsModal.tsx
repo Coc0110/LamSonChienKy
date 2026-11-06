@@ -150,7 +150,7 @@ export const GeneralsModal: React.FC = React.memo(() => {
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/55 backdrop-blur-xs flex flex-col items-center justify-center p-2 sm:p-4 md:p-6 pointer-events-auto animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 bg-black/55 backdrop-blur-xs flex flex-col items-center justify-center p-2 sm:p-4 md:p-6 pt-20 sm:pt-20 md:pt-20 pointer-events-auto animate-in fade-in duration-200"
       onClick={() => setActiveModal(null)}
       style={{ perspective: '1600px' }}
     >

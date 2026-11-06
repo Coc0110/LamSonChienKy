@@ -77,6 +77,7 @@ export const createMilitarySlice: StateCreator<GameStore, [], [], MilitarySlice>
   pendingRefugees: [],
   activeRefugeeModal: null,
   isRefugeeModalOpen: false,
+  hasUprising: false,
 
   assignGeneralToCity: (generalId, cityId) => set((state) => ({
     generals: state.generals.map(g => g.id === generalId ? { ...g, locationId: cityId } : g)

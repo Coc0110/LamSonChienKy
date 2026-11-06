@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { StructureType } from '../types';
+import type { StructureType, PlacedStructure } from '../types';
 import type { TerrainType } from '../types/terrain';
 
 export type ModalType = 'army' | 'supplies' | 'generals' | null;
@@ -34,6 +34,7 @@ interface UIState {
   marchDrawMode: MarchDrawMode | null;
   selectedMapFormationId: string | null;
   activeForgeModalStructureId: string | null;
+  selectedStructureModal: PlacedStructure | null;
   isMilitaryBookOpen: boolean;
   isBuildPaperOpen: boolean;
   isTimelineWheelOpen: boolean;
@@ -57,6 +58,7 @@ interface UIState {
   setMarchDrawMode: (mode: MarchDrawMode | null) => void;
   setSelectedMapFormationId: (id: string | null) => void;
   setActiveForgeModalStructureId: (id: string | null) => void;
+  setSelectedStructureModal: (s: PlacedStructure | null) => void;
   toggleMilitaryBook: () => void;
   setMilitaryBookOpen: (open: boolean) => void;
   toggleTimelineWheel: () => void;
@@ -84,6 +86,7 @@ export const useUIStore = create<UIState>((set) => ({
   marchDrawMode: null,
   selectedMapFormationId: null,
   activeForgeModalStructureId: null,
+  selectedStructureModal: null,
   isMilitaryBookOpen: false,
   isBuildPaperOpen: false,
   isTimelineWheelOpen: false,
@@ -121,6 +124,7 @@ export const useUIStore = create<UIState>((set) => ({
   })),
   setSelectedMapFormationId: (id) => set({ selectedMapFormationId: id }),
   setActiveForgeModalStructureId: (id) => set({ activeForgeModalStructureId: id }),
+  setSelectedStructureModal: (s) => set({ selectedStructureModal: s }),
   toggleMilitaryBook: () => set((state) => ({ isMilitaryBookOpen: !state.isMilitaryBookOpen })),
   setMilitaryBookOpen: (open) => set({ isMilitaryBookOpen: open }),
   toggleTimelineWheel: () => set((state) => ({ isTimelineWheelOpen: !state.isTimelineWheelOpen })),

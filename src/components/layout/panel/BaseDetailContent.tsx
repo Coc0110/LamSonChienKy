@@ -38,7 +38,7 @@ export const BaseDetailContent: React.FC<BaseDetailContentProps> = React.memo(({
   const [scoutSendCount, setScoutSendCount] = React.useState(1);
   const upgradeCamp = useGameStore(state => state.upgradeCamp);
   const triggerUprising = useGameStore(state => state.triggerUprising);
-  const isWarMode = useGameStore(state => state.isWarMode);
+  const hasUprising = useGameStore(state => state.hasUprising);
   const pendingRefugees = useGameStore(state => state.pendingRefugees || []);
   const openRefugeeModal = useGameStore(state => state.openRefugeeModal);
   const tradeFoodForGold = useGameStore(state => state.tradeFoodForGold);
@@ -488,7 +488,7 @@ export const BaseDetailContent: React.FC<BaseDetailContentProps> = React.memo(({
             )}
 
             {/* 1.5. NÚT PHẤT CỜ KHỞI NGHĨA (NẾU ĐANG Ở GIAI ĐOẠN TIỀN KHỞI NGHĨA) */}
-            {!isWarMode && (
+            {!hasUprising && (
               <div className="pt-2">
                 <button
                   onClick={() => {

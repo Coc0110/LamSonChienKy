@@ -357,22 +357,14 @@ export const TacticalFormationModal: React.FC = React.memo(() => {
     });
   }, [generals, currentCity.id]);
 
-  // Luôn đảm bảo trainingGeneralId trỏ tới vị tướng khả dụng
-  useEffect(() => {
-    if (availableGeneralsAtBase.length > 0 && !availableGeneralsAtBase.some(g => g.id === trainingGeneralId)) {
-      setTrainingGeneralId(availableGeneralsAtBase[0].id);
-    }
-  }, [availableGeneralsAtBase, trainingGeneralId]);
+  const effectiveTrainingGeneralId = availableGeneralsAtBase.some(g => g.id === trainingGeneralId)
+    ? trainingGeneralId
+    : (availableGeneralsAtBase[0]?.id || 'le_loi');
 
-  // Cân đối số lượng tráng phu thao luyện theo dân số thực tế tại căn cứ
-  useEffect(() => {
-    const maxLaborers = currentCity.population?.idleLaborers || 0;
-    if (maxLaborers <= 0) {
-      setTrainingTrainees(1);
-    } else if (trainingTrainees > maxLaborers) {
-      setTrainingTrainees(Math.min(maxLaborers, 50));
-    }
-  }, [currentCity.id, currentCity.population?.idleLaborers]);
+  const maxLaborers = currentCity.population?.idleLaborers || 0;
+  const effectiveTrainingTrainees = maxLaborers <= 0
+    ? 1
+    : Math.min(trainingTrainees, maxLaborers);
 
   // Lắng nghe nhả chuột toàn cục để hủy trạng thái kéo rê
   useEffect(() => {
@@ -679,23 +671,23 @@ export const TacticalFormationModal: React.FC = React.memo(() => {
       return;
     }
 
-    const trainees = Math.min(idleCount, Math.max(1, trainingTrainees));
+    const trainees = Math.min(idleCount, Math.max(1, effectiveTrainingTrainees));
     if (resources.weapons < trainees) {
       notify.error(`Vũ khí trong kho không đủ để cấp cho ${trainees} người luyện võ!`);
       return;
     }
 
-    const coach = generals.find(g => g.id === trainingGeneralId) || generals[0];
+    const coach = generals.find(g => g.id === effectiveTrainingGeneralId) || generals[0];
     const days = calculateTrainingDays(coach);
 
-    startTraining(currentCity.id, trainingGeneralId, trainees, 0, days);
+    startTraining(currentCity.id, effectiveTrainingGeneralId, trainees, 0, days);
     notify.success(`Đã cử ${coach.name} huấn luyện ${trainees} nghĩa binh tại ${currentCity.name} trong ${days} ngày!`);
   };
 
   if (activeModal !== 'army') return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-6 bg-black/60 backdrop-blur-xs select-none">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-6 pt-20 bg-black/60 backdrop-blur-xs select-none">
       
       {/* KHUNG MODAL CỐ ĐỊNH HOÀN TOÀN */}
       <div 
@@ -1269,7 +1261,7 @@ export const TacticalFormationModal: React.FC = React.memo(() => {
                           Vị Tướng Phụ Trách Thao Luyện:
                         </label>
                         <select
-                          value={trainingGeneralId}
+                          value={effectiveTrainingGeneralId}
                           onChange={(e) => setTrainingGeneralId(e.target.value)}
                           className="w-full p-1.5 text-xs font-bold border border-[#8c6b44] rounded bg-[#fff8eb]"
                         >
@@ -1284,13 +1276,13 @@ export const TacticalFormationModal: React.FC = React.memo(() => {
                       <div>
                         <div className="flex items-center justify-between text-[11px] font-bold mb-1">
                           <span>Số Lượng Tráng Phu Luyện Võ:</span>
-                          <span className="font-mono text-[#8c2d19]">{trainingTrainees} người</span>
+                          <span className="font-mono text-[#8c2d19]">{effectiveTrainingTrainees} người</span>
                         </div>
                         <input
                           type="range"
                           min="1"
-                          max={Math.max(1, currentCity.population?.idleLaborers || 10)}
-                          value={trainingTrainees}
+                          max={Math.max(1, maxLaborers)}
+                          value={effectiveTrainingTrainees}
                           onChange={(e) => setTrainingTrainees(Number(e.target.value))}
                           className="w-full accent-[#8c2d19] cursor-pointer"
                         />
@@ -1305,7 +1297,7 @@ export const TacticalFormationModal: React.FC = React.memo(() => {
                         disabled={!currentCity.population || currentCity.population.idleLaborers <= 0}
                         className="w-full py-2 bg-[#8c2d19] hover:bg-[#6e1e0d] text-white text-xs font-bold rounded shadow cursor-pointer transition disabled:bg-stone-400 disabled:cursor-not-allowed"
                       >
-                        Bắt Đầu Thao Luyện ({trainingTrainees} Quân)
+                        Bắt Đầu Thao Luyện ({effectiveTrainingTrainees} Quân)
                       </button>
                     </div>
                   )}

@@ -15,21 +15,105 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
   month: START_MONTH,
   year: START_YEAR,
   canhHour: 4, // Bắt đầu lúc Giờ Thìn (07:00 - 09:00 sớm mai)
+  timeMode: 'day',
+  previousActiveTimeMode: 'day',
+  isAutoPaused: false,
   isWarMode: false,
   isPaused: false,
   gameSpeed: 1,
 
-  togglePause: () => set((state) => ({ isPaused: !state.isPaused })),
-
-  setSpeed: (speed) => set(() => {
-    if (speed === 0) {
-      return { isPaused: true };
+  setTimeMode: (mode) => set(() => {
+    if (mode === 'pause') {
+      return {
+        timeMode: 'pause',
+        isPaused: true,
+        isAutoPaused: false,
+      };
     }
-    return { gameSpeed: speed, isPaused: false };
+    return {
+      timeMode: mode,
+      previousActiveTimeMode: mode,
+      isPaused: false,
+      isWarMode: mode === 'hour',
+      isAutoPaused: false,
+    };
   }),
 
-  setWarMode: (active: boolean) => set(() => ({ isWarMode: active })),
-  toggleWarMode: () => set((state) => ({ isWarMode: !state.isWarMode })),
+  enterAutoPause: () => set((state) => {
+    if (state.timeMode === 'pause') return {};
+    return {
+      previousActiveTimeMode: state.timeMode,
+      isAutoPaused: true,
+      timeMode: 'pause',
+      isPaused: true,
+    };
+  }),
+
+  exitAutoPause: () => set((state) => {
+    if (!state.isAutoPaused) return {};
+    const restoreMode = state.previousActiveTimeMode || 'day';
+    return {
+      isAutoPaused: false,
+      timeMode: restoreMode,
+      isPaused: false,
+      isWarMode: restoreMode === 'hour',
+    };
+  }),
+
+  togglePause: () => set((state) => {
+    if (state.timeMode === 'pause') {
+      const restoreMode = state.previousActiveTimeMode || 'day';
+      return {
+        timeMode: restoreMode,
+        isPaused: false,
+        isWarMode: restoreMode === 'hour',
+        isAutoPaused: false,
+      };
+    }
+    return {
+      previousActiveTimeMode: state.timeMode,
+      timeMode: 'pause',
+      isPaused: true,
+      isAutoPaused: false,
+    };
+  }),
+
+  setSpeed: (speed) => set((state) => {
+    if (speed === 0) {
+      return {
+        timeMode: 'pause',
+        isPaused: true,
+        isAutoPaused: false,
+      };
+    }
+    const mode = state.timeMode === 'pause' ? state.previousActiveTimeMode : state.timeMode;
+    return {
+      timeMode: mode,
+      isPaused: false,
+      isWarMode: mode === 'hour',
+      gameSpeed: 1,
+      isAutoPaused: false,
+    };
+  }),
+
+  setWarMode: (active: boolean) => set((state) => {
+    const nextMode = active ? 'hour' : 'day';
+    return {
+      timeMode: state.timeMode === 'pause' ? 'pause' : nextMode,
+      previousActiveTimeMode: nextMode,
+      isWarMode: active,
+    };
+  }),
+
+  toggleWarMode: () => set((state) => {
+    const nextActive = !state.isWarMode;
+    const nextMode = nextActive ? 'hour' : 'day';
+    return {
+      timeMode: state.timeMode === 'pause' ? 'pause' : nextMode,
+      previousActiveTimeMode: nextMode,
+      isWarMode: nextActive,
+    };
+  }),
 
   tickCanh: () => {
     const state = get();

@@ -12,6 +12,7 @@ export interface Resources {
   morale: number;
 }
 
+export type TimeMode = 'pause' | 'day' | 'hour';
 export type Faction = 'lam_son' | 'ming' | 'neutral';
 export type NodeType = 'city' | 'camp' | 'chokepoint';
 

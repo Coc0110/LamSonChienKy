@@ -63,7 +63,7 @@ export const StructureDetailModal: React.FC<StructureDetailModalProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 z-[1200] flex items-center justify-center bg-black/65 backdrop-blur-xs p-4 animate-in fade-in duration-150 select-none"
+      className="fixed inset-0 z-[1200] flex items-center justify-center bg-black/65 backdrop-blur-xs p-4 pt-20 animate-in fade-in duration-150 select-none"
       onClick={onClose}
     >
       <div 

@@ -1,5 +1,6 @@
 import type { StateCreator } from 'zustand';
 import type { GameStore } from './types';
+import type { General } from '../../types';
 import { notify } from '../dialogStore';
 import { START_DAY, START_MONTH, START_YEAR, INITIAL_CITIES, INITIAL_CONNECTIONS, INITIAL_STRUCTURES } from '../../data/mapData';
 import { INITIAL_GENERALS } from '../../data/generalsData';
@@ -34,6 +35,8 @@ export const createSaveSlice: StateCreator<GameStore, [], [], SaveSlice> = (set,
         month: state.month,
         year: state.year,
         isPaused: state.isPaused,
+        timeMode: state.timeMode,
+        hasUprising: state.hasUprising || false,
         gameSpeed: state.gameSpeed,
         resources: state.resources,
         cities: state.cities,
