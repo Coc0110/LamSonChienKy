@@ -28,18 +28,14 @@ export const TimeSpeedControls: React.FC = React.memo(() => {
         }`}
         title="Nhấp để mở Thước Cuộn Bánh Xe Thời Gian (Tua chính xác từng ngày để thử nghiệm)"
       >
-        <div 
-          className="relative w-7 h-7 md:w-8 md:h-8 shrink-0 flex items-center justify-center"
-          style={{ perspective: '400px' }}
-        >
+        {/* Đồng hồ cát (giữ nguyên phương vị 2D phẳng, lật 180 độ qua lại theo ngày, không bao giờ bị dẹp ngang làm biến mất) */}
+        <div className="relative w-6 h-6 md:w-7 md:h-7 shrink-0 flex items-center justify-center">
           <img
             src="/icons/hourglass.png"
             alt="Đồng hồ cát"
             style={{
-              transform: `rotateX(${(day * 12 + canhHour) * 30}deg)`,
-              transformOrigin: '50% 50%',
+              transform: `rotate(${((day % 2) * 180)}deg)`,
               transition: 'transform 0.6s cubic-bezier(0.4, 0, 0.2, 1)',
-              transformStyle: 'preserve-3d'
             }}
             className={`w-full h-full object-contain filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)] ${
               timeMode === 'pause'
@@ -51,34 +47,17 @@ export const TimeSpeedControls: React.FC = React.memo(() => {
           />
         </div>
 
-        {/* Chữ hiển thị ngày và Canh Giờ */}
-        <div className="flex flex-col items-start leading-tight">
-          <span className="font-serif font-black text-xs md:text-sm tracking-wide text-[#fef2d6] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)] flex items-center whitespace-nowrap">
-            <span className="inline-block">
-              Ngày {day}/{month}/{year}
+        {/* Chữ hiển thị ngày và Canh Giờ (ngắn gọn, không tag thừa, không dòng giải thích) */}
+        <span className="font-serif font-black text-xs md:text-sm tracking-wide text-[#fef2d6] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)] flex items-center whitespace-nowrap">
+          <span>
+            Ngày {day}/{month}/{year}
+          </span>
+          {timeMode === 'hour' && (
+            <span className={`ml-1 text-[11px] md:text-xs font-extrabold ${isNight ? 'text-cyan-200' : 'text-amber-200'}`}>
+              · {currentCanh.name} {isNight ? '🌙' : '☀️'}
             </span>
-            {timeMode === 'hour' && (
-              <span className={`inline-block ml-1 text-[11px] md:text-xs font-extrabold ${isNight ? 'text-cyan-200' : 'text-amber-200'}`}>
-                · {currentCanh.name} {isNight ? '🌙' : '☀️'}
-              </span>
-            )}
-            {timeMode === 'pause' && (
-              <span className="inline-block ml-1 text-[10px] md:text-[11px] font-bold px-1.5 py-0.2 rounded bg-sky-200/20 text-cyan-200 border border-sky-300/40">
-                Tạm Ngưng
-              </span>
-            )}
-          </span>
-
-          {/* Dòng phụ: Mô tả nhịp thời gian hiện tại */}
-          <span className="text-[10px] md:text-[10.5px] font-serif text-[#fef2d6]/75 drop-shadow-[0_1px_1px_rgba(0,0,0,0.9)] tracking-tight">
-            {timeMode === 'hour' 
-              ? `${currentCanh.period} ${isNight ? '· Ban đêm hạ trại' : '· Đang hành quân'}`
-              : timeMode === 'pause'
-              ? 'Dòng thời gian tạm ngưng'
-              : 'Chiến lược Lam Sơn (1 ngày / s)'
-            }
-          </span>
-        </div>
+          )}
+        </span>
       </button>
     </div>
   );
