@@ -381,8 +381,8 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
         
         // Tiếng đe búa tạo độ nghi ngờ theo địa hình
         const isQuietTerrain = s.terrain === 'mountain' || s.terrain === 'forest';
-        const noiseFactor = isQuietTerrain ? 0.25 : 1.6;
-        suspicionGain += order.assignedSmiths * 0.012 * noiseFactor;
+        const noiseFactor = isQuietTerrain ? 0.6 : 1.5;
+        suspicionGain += order.assignedSmiths * 0.05 * noiseFactor;
 
         order.remainingDays -= 1;
         if (order.remainingDays <= 0) {
@@ -639,9 +639,12 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
     if (isRefugeeDay && lamSonBase && lamSonBase.population) {
       // Giữ tối đa 5 đoàn lưu dân chờ cùng lúc trước cổng trại để tránh dồn ứ vô hạn
       if (nextPendingRefugees.filter(w => !w.departed && (w.daysRemaining ?? 0) > 0).length < 10) {
-        const totalCount = Math.floor(Math.random() * 7) + 15; // 15 - 21 người
-        const unfitCount = Math.max(1, Math.round(totalCount * 0.15)); // ~15% già yếu
-        const idleCount = totalCount - unfitCount; // ~85% tráng đinh
+        const unfitCount = Math.floor(Math.random() * 5) + 2; // 2 - 6 lão, ấu
+        const idleCount = Math.floor(Math.random() * 8) + 12; // 12 - 19 tráng phu
+        const totalCount = idleCount + unfitCount; // Tổng số người (14 - 25)
+        const goldContribution = Math.floor(Math.random() * 11) + 5; // 5 - 15 Vàng mang theo ủng hộ nghĩa quân
+
+
         const foodCost = totalCount * 1;
 
         const origins = [
@@ -663,6 +666,7 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
           idleCount,
           unfitCount,
           foodCost,
+          goldContribution,
           originName: picked.name,
           story: picked.story,
           timestamp: Date.now(),
@@ -693,7 +697,34 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
       (raidWeaponsDaily - Math.ceil(raidWeaponsDaily * 0.4) - Math.floor(raidWeaponsDaily * 0.3));
     const newWeapons = newSwords + newBows + newSpears;
     const newClothes = state.resources.clothes + armorProduced;
-    const newGold = state.resources.gold + refundedQueueGold;
+    let newGold = state.resources.gold + refundedQueueGold;
+
+    // Nguồn thu ngân khố:
+    // 1. Dân chúng, tráng đinh nhàn rỗi khai thác mộc nhĩ, mật ong, sa khoáng Lam Sơn hàng ngày
+    const lamSonBaseRevenue = updatedCities.find(c => c.id === 'lam_son' && c.faction === 'lam_son');
+    if (lamSonBaseRevenue && lamSonBaseRevenue.population) {
+      const dailyCraftGold = Math.max(1, Math.floor((lamSonBaseRevenue.population.idleLaborers || 0) * 0.015));
+      newGold += dailyCraftGold;
+
+      // 2. Thuế khóa định kỳ, lâm thổ sản & đóng góp từ hào tộc các lộ vào ngày mùng 1 hàng tháng
+      if (newDay === 1) {
+        const campTierGold = (lamSonBaseRevenue.level || 1) * 45;
+        const craftMonthly = Math.floor((lamSonBaseRevenue.population.idleLaborers || 0) * 0.15);
+        const gentryDonation = Math.floor(Math.random() * 25) + 20;
+        const totalMonthlyRevenue = campTierGold + craftMonthly + gentryDonation;
+        newGold += totalMonthlyRevenue;
+
+        newNotices.push({
+          id: `monthly_gold_${Date.now()}`,
+          type: 'general' as const,
+          title: 'Ngân Khố Đầu Tháng',
+          dateStr: `Ngày 1/${newMonth}/${newYear}`,
+          description: `Đầu tháng, căn cứ Lam Sơn thu thuế lâm thổ sản và hào kiệt quyên góp: +${totalMonthlyRevenue} Vàng nạp vào ngân khố.`,
+          read: false,
+          timestamp: Date.now(),
+        });
+      }
+    }
     let newMorale = state.resources.morale;
 
     if (newFood <= 0) {
@@ -703,7 +734,19 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
       newMorale = Math.min(100, newMorale + 0.05);
     }
 
-    // 4. Mức nghi ngờ: Tính từ tiếng búa lò rèn + Quy mô quân đội đã thao luyện
+    // 4. Mức nghi ngờ: Tính từ tiếng búa lò rèn + Thao luyện quân + Quy mô quân đội sẵn sàng
+    // 4.1. Thao luyện tân binh: Tiếng hò reo, múa giáo, bắn cung tập kích khiến giặc chú ý
+    updatedCities.forEach(c => {
+      if (c.training) {
+        const trainees = c.training.traineesCount || 0;
+        const general = state.generals.find(g => g.id === c.training?.generalId);
+        const commandSkill = general ? (general.stats.command || 70) : 70;
+        const disciplineFactor = Math.max(0.5, 1.3 - (commandSkill / 130));
+        suspicionGain += trainees * 0.013 * disciplineFactor;
+      }
+    });
+
+    // 4.2. Quy mô quân đội đã thao luyện sẵn sàng chiến đấu
     let totalCombatTroops = 0;
     updatedCities.forEach(c => {
       totalCombatTroops += c.population?.combatTroops || 0;
@@ -713,11 +756,11 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
     });
 
     // Nếu quân số thao luyện vượt mốc 120 tên, mỗi ngày tăng nhẹ độ chú ý của giặc Minh
-    if (totalCombatTroops > 120) {
-      suspicionGain += (totalCombatTroops - 120) * 0.00035;
+    if (totalCombatTroops > 60) {
+      suspicionGain += (totalCombatTroops - 60) * 0.0015;
     }
 
-    let nextSuspicion = Math.min(100, Math.max(0, state.suspicion + suspicionGain - 0.025));
+    let nextSuspicion = Math.min(100, Math.max(0, state.suspicion + suspicionGain - 0.06));
 
     if (nextSuspicion >= 100) {
       // Giặc Minh tại thành Tây Đô mở cuộc hành quân càn quét bất ngờ vào Lam Sơn!

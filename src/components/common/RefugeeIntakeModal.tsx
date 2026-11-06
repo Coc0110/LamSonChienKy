@@ -173,7 +173,7 @@ export const RefugeeIntakeModal: React.FC = () => {
                           className="flex-1 py-1.5 px-2 text-center rounded bg-[#8c2d19] hover:bg-[#6b1e10] disabled:opacity-40 disabled:cursor-not-allowed text-[#fff3db] text-xs font-serif font-bold transition shadow-xs cursor-pointer whitespace-nowrap"
                           title={`Cần ${wave.foodCost} lương, ${wave.totalCount} chỗ`}
                         >
-                          Nhận toàn bộ (-{wave.foodCost} lương)
+                          Nhận toàn bộ (-{wave.foodCost} lương{wave.goldContribution ? `, +${wave.goldContribution}v` : ''})
                         </button>
 
                         {/* 2. Chỉ nhận tráng đinh */}

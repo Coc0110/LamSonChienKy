@@ -633,6 +633,7 @@ export const createMilitarySlice: StateCreator<GameStore, [], [], MilitarySlice>
         resources: {
           ...curr.resources,
           food: curr.resources.food - wave.foodCost,
+          gold: curr.resources.gold + (wave.goldContribution || 0),
         },
         cities: curr.cities.map(c => {
           if (c.id !== wave.cityId || !c.population) return c;
@@ -650,7 +651,7 @@ export const createMilitarySlice: StateCreator<GameStore, [], [], MilitarySlice>
         isRefugeeModalOpen: curr.pendingRefugees.filter(w => w.id !== waveId).length > 0,
       }));
 
-      notify.success(`Đã mở cổng cưu mang toàn bộ đoàn ${wave.totalCount} lưu dân từ ${wave.originName} (+${wave.idleCount} tráng phu, +${wave.unfitCount} già yếu)!`);
+      notify.success(`Đã mở cổng cưu mang toàn bộ đoàn ${wave.totalCount} lưu dân từ ${wave.originName} (+${wave.idleCount} tráng phu, +${wave.unfitCount} già yếu${wave.goldContribution ? `, +${wave.goldContribution} Vàng quyên góp` : ''})!`);
       return { success: true, message: `Đã tiếp nhận ${wave.totalCount} người vào căn cứ.` };
     }
 
@@ -667,6 +668,7 @@ export const createMilitarySlice: StateCreator<GameStore, [], [], MilitarySlice>
         resources: {
           ...curr.resources,
           food: curr.resources.food - halfFood,
+          gold: curr.resources.gold + Math.floor((wave.goldContribution || 0) * 0.5),
         },
         cities: curr.cities.map(c => {
           if (c.id !== wave.cityId || !c.population) return c;
@@ -683,7 +685,8 @@ export const createMilitarySlice: StateCreator<GameStore, [], [], MilitarySlice>
         isRefugeeModalOpen: curr.pendingRefugees.filter(w => w.id !== waveId).length > 0,
       }));
 
-      notify.success(`Đã chiêu nạp ${wave.idleCount} tráng phu sung sức từ ${wave.originName} vào hàng ngũ nghĩa quân, trợ cấp ${halfFood} lương cho gia quyến nương náu!`);
+      const halfGold = Math.floor((wave.goldContribution || 0) * 0.5);
+      notify.success(`Đã chiêu nạp ${wave.idleCount} tráng phu sung sức từ ${wave.originName} vào hàng ngũ nghĩa quân, trợ cấp ${halfFood} lương cho gia quyến nương náu${halfGold > 0 ? `, nhận +${halfGold} Vàng ủng hộ` : ''}!`);
       return { success: true, message: `Đã chiêu nạp ${wave.idleCount} tráng phu.` };
     }
 
@@ -760,9 +763,12 @@ export const createMilitarySlice: StateCreator<GameStore, [], [], MilitarySlice>
     const city = state.cities.find(c => c.id === cityId);
     if (!city) return { success: false, message: 'Không tìm thấy căn cứ sở tại!' };
 
-    const totalCount = Math.floor(Math.random() * 8) + 16; // 16 - 23 người
-    const unfitCount = Math.max(1, Math.round(totalCount * 0.15));
-    const idleCount = totalCount - unfitCount;
+    const unfitCount = Math.floor(Math.random() * 5) + 2; // 2 - 6 lão, ấu
+    const idleCount = Math.floor(Math.random() * 8) + 12; // 12 - 19 tráng phu
+    const totalCount = idleCount + unfitCount;
+    const goldContribution = Math.floor(Math.random() * 11) + 5; // 5 - 15 Vàng mang theo ủng hộ nghĩa quân
+
+
     const foodCost = totalCount * 1;
 
     const origins = [
@@ -784,6 +790,8 @@ export const createMilitarySlice: StateCreator<GameStore, [], [], MilitarySlice>
       idleCount,
       unfitCount,
       foodCost,
+      goldContribution,
+
       originName: picked.name,
       story: picked.story,
       timestamp: Date.now(),

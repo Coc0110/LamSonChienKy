@@ -332,6 +332,7 @@ export interface PendingRefugeeWave {
   idleCount: number;        // Số tráng đinh (ví dụ: 15)
   unfitCount: number;       // Số người già, phụ nữ, trẻ nhỏ (ví dụ: 3)
   foodCost: number;         // Lượng lương thực cần xuất kho cứu tế (1 thạch/người)
+  goldContribution?: number;// Lượng bạc vàng lưu dân mang theo ủng hộ nghĩa quân (ví dụ: 5 - 15 Vàng)
   originName: string;       // Địa phương trốn chạy: "Triệu Hóa", "Quảng Hóa", "Nông Cống", v.v.
   story: string;            // Lý do quy phụ
   timestamp: number;
