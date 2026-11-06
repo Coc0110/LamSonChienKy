@@ -19,6 +19,7 @@ export const TopBar: React.FC = React.memo(() => {
   const setActiveModal = useUIStore(state => state.setActiveModal);
   const timeMode = useGameStore(state => state.timeMode);
   const setTimeMode = useGameStore(state => state.setTimeMode);
+  const togglePause = useGameStore(state => state.togglePause);
   
   const activeDropdown = useUIStore(state => state.activeDropdown);
   const setActiveDropdown = useUIStore(state => state.setActiveDropdown);
@@ -228,44 +229,45 @@ export const TopBar: React.FC = React.memo(() => {
                 />
               </div>
 
-              {/* 0.8. NÚT ĐỔI CHẾ ĐỘ THỜI GIAN: NGƯNG / NGÀY / GIỜ (GỌN GÀNG, KHÔNG DÙNG ICON) */}
-              <div className="relative z-10 flex items-center gap-1 shrink-0 p-0.5">
-                <button
-                  type="button"
-                  onClick={() => setTimeMode('pause')}
-                  className={`px-2.5 py-0.5 rounded font-serif font-black text-xs md:text-sm transition-all cursor-pointer whitespace-nowrap ${
-                    timeMode === 'pause'
-                      ? 'bg-sky-400 text-sky-950 shadow-md ring-1 ring-sky-200 scale-105'
-                      : 'text-[#fef2d6]/75 hover:text-white hover:bg-white/10'
-                  }`}
-                  title="Ngưng dòng thời gian"
-                >
-                  Ngưng
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTimeMode('day')}
-                  className={`px-2.5 py-0.5 rounded font-serif font-black text-xs md:text-sm transition-all cursor-pointer whitespace-nowrap ${
-                    timeMode === 'day'
-                      ? 'bg-amber-300 text-stone-950 shadow-md ring-1 ring-amber-100 scale-105'
-                      : 'text-[#fef2d6]/75 hover:text-white hover:bg-white/10'
-                  }`}
-                  title="Chế độ Ngày (1 ngày / giây)"
-                >
-                  Ngày
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTimeMode('hour')}
-                  className={`px-2.5 py-0.5 rounded font-serif font-black text-xs md:text-sm transition-all cursor-pointer whitespace-nowrap ${
-                    timeMode === 'hour'
-                      ? 'bg-red-400 text-stone-950 shadow-md ring-1 ring-red-200 scale-105'
-                      : 'text-[#fef2d6]/75 hover:text-white hover:bg-white/10'
-                  }`}
-                  title="Chế độ Giờ (1 canh giờ / giây)"
-                >
-                  Giờ
-                </button>
+              {/* 0.8. NÚT ĐỔI CHẾ ĐỘ THỜI GIAN: BÌNH THƯỜNG 2 NÚT [NGÀY][GIỜ], KHI NGƯNG THAY THẾ BẰNG 1 NÚT [NGƯNG] */}
+              <div className="relative z-10 flex items-center gap-1.5 shrink-0 p-0.5">
+                {timeMode === 'pause' ? (
+                  <button
+                    type="button"
+                    onClick={() => togglePause()}
+                    className="px-3.5 py-0.5 rounded font-serif font-black text-xs md:text-sm bg-sky-400 text-sky-950 shadow-md ring-1 ring-sky-200 transition-all cursor-pointer hover:scale-105 active:scale-95 whitespace-nowrap animate-in fade-in duration-150"
+                    title="Dòng thời gian đang Tạm Ngưng · Nhấp để tiếp tục chạy"
+                  >
+                    Ngưng
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setTimeMode('day')}
+                      className={`px-2.5 py-0.5 rounded font-serif font-black text-xs md:text-sm transition-all cursor-pointer whitespace-nowrap ${
+                        timeMode === 'day'
+                          ? 'bg-amber-300 text-stone-950 shadow-md ring-1 ring-amber-100 scale-105'
+                          : 'text-[#fef2d6]/75 hover:text-white hover:bg-white/10'
+                      }`}
+                      title="Chế độ Ngày (1 ngày / giây)"
+                    >
+                      Ngày
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTimeMode('hour')}
+                      className={`px-2.5 py-0.5 rounded font-serif font-black text-xs md:text-sm transition-all cursor-pointer whitespace-nowrap ${
+                        timeMode === 'hour'
+                          ? 'bg-red-400 text-stone-950 shadow-md ring-1 ring-red-200 scale-105'
+                          : 'text-[#fef2d6]/75 hover:text-white hover:bg-white/10'
+                      }`}
+                      title="Chế độ Giờ (1 canh giờ / giây)"
+                    >
+                      Giờ
+                    </button>
+                  </>
+                )}
               </div>
 
               {/* Phân cách mờ trên nền vệt mực */}

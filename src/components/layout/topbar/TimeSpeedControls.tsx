@@ -14,20 +14,20 @@ export const TimeSpeedControls: React.FC = React.memo(() => {
   const isNight = timeMode === 'hour' && (canhHour >= 10 || canhHour <= 2);
 
   return (
-    <div className="relative z-10 flex flex-col items-start justify-center shrink-0 pr-1">
-      {/* Ô HIỂN THỊ THỜI GIAN (BẤM VÀO Ô ĐỂ TẠM NGƯNG / TIẾP TỤC DÒNG THỜI GIAN) */}
+    // Chiều rộng cố định 205px để biên phải không bao giờ bị xê dịch khi đổi số ngày hoặc canh giờ
+    <div className="relative z-10 w-[205px] shrink-0 flex items-center pr-1 select-none">
       <button 
         type="button"
         onClick={togglePause}
-        className="relative z-10 flex items-center gap-1.5 py-0.5 px-1.5 rounded transition-all text-left cursor-pointer hover:bg-white/10 active:scale-98"
+        className="relative z-10 flex items-center gap-1.5 py-0.5 px-0.5 rounded transition-transform text-left cursor-pointer hover:scale-[1.02] active:scale-98 w-full"
         title={
           timeMode === 'pause'
             ? "Dòng thời gian đang Tạm Ngưng · Nhấp vào để tiếp tục chạy"
             : "Nhấp vào ô thời gian để Tạm Ngưng"
         }
       >
-        {/* Đồng hồ cát (2D phẳng lật 180 độ theo chu kỳ ngày, giữ trọn vẹn hình ảnh) */}
-        <div className="relative w-6 h-6 md:w-7 md:h-7 shrink-0 flex items-center justify-center">
+        {/* Đồng hồ cát (2D phẳng lật 180 độ theo chu kỳ ngày, không xoay 3D làm biến mất) */}
+        <div className="relative w-6 h-6 shrink-0 flex items-center justify-center">
           <img
             src="/icons/hourglass.png"
             alt="Đồng hồ cát"
@@ -45,17 +45,17 @@ export const TimeSpeedControls: React.FC = React.memo(() => {
           />
         </div>
 
-        {/* Chữ hiển thị ngày và Canh Giờ */}
-        <span className="font-serif font-black text-xs md:text-sm tracking-wide text-[#fef2d6] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)] flex items-center whitespace-nowrap">
-          <span>
+        {/* Khung chữ ngày tháng & Canh Giờ cố định chiều rộng, tránh xê dịch khi chữ dài/ngắn */}
+        <div className="w-[170px] shrink-0 font-serif font-black text-xs md:text-sm tracking-wide text-[#fef2d6] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)] flex items-center whitespace-nowrap overflow-hidden">
+          <span className="inline-block min-w-[105px]">
             Ngày {day}/{month}/{year}
           </span>
           {timeMode === 'hour' && (
-            <span className={`ml-1 text-[11px] md:text-xs font-extrabold ${isNight ? 'text-cyan-200' : 'text-amber-200'}`}>
+            <span className={`inline-block ml-1 text-[11px] md:text-xs font-extrabold ${isNight ? 'text-cyan-200' : 'text-amber-200'}`}>
               · {currentCanh.name} {isNight ? '🌙' : '☀️'}
             </span>
           )}
-        </span>
+        </div>
       </button>
     </div>
   );

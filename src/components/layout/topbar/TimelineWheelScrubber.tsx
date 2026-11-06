@@ -146,7 +146,7 @@ export const TimelineWheelScrubber: React.FC = () => {
   if (!isTimelineWheelOpen) return null;
 
   return (
-    <div className="fixed top-[72px] md:top-[78px] left-1/2 -translate-x-1/2 z-40 select-none pointer-events-auto filter drop-shadow-[0_12px_24px_rgba(0,0,0,0.6)] drop-shadow-[0_2px_6px_rgba(0,0,0,0.4)] animate-fade-in">
+    <div className="fixed bottom-20 md:bottom-22 left-1/2 -translate-x-1/2 z-[950] select-none pointer-events-auto filter drop-shadow-[0_12px_24px_rgba(0,0,0,0.6)] drop-shadow-[0_2px_6px_rgba(0,0,0,0.4)] animate-fade-in">
       {/* KHUNG THƯỚC NHỎ GỌN, ĐỒNG BỘ MÀU GIẤY (~480px - 520px, CAO ~76px - 80px) */}
       <div 
         ref={containerRef}
