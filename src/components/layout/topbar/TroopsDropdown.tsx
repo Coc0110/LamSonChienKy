@@ -89,6 +89,13 @@ export const TroopsDropdown: React.FC = React.memo(() => {
     // Tổng quân số tác chiến (dự bị tại căn cứ + trong đạo quân)
     const totalCombatPersonnel = combatTroops + formationTroops;
 
+    let swappedCombatants = 0;
+    cities.forEach(c => {
+      if (c.faction === 'lam_son' && c.population) {
+        swappedCombatants += c.population.swappedCombatants || 0;
+      }
+    });
+
     // Tổng tráng đinh lao động (nhàn rỗi, làm ruộng, rèn đúc, thao luyện, thi công)
     const totalLaborers = idleLaborers + farmLaborers + forgeLaborers + trainingCount + campBuilders + structureBuilders;
 
@@ -104,6 +111,7 @@ export const TroopsDropdown: React.FC = React.memo(() => {
       farmLaborers,
       forgeLaborers,
       trainingCount,
+      swappedCombatants,
     };
   }, [cities, structures, formations]);
 

@@ -135,7 +135,14 @@ export const CityPopulationModal: React.FC<CityPopulationModalProps> = ({
                   <img src="/icons/structure_farm.png" alt="Ruộng" className="w-3.5 h-3.5 object-contain inline-block" />
                   Cày cấy đồn điền:
                 </span>
-                <strong className="text-amber-300">{pop.farmLaborers} người</strong>
+                <strong className="text-amber-300">
+                  {pop.farmLaborers} người
+                  {pop.swappedCombatants > 0 && (
+                    <span className="text-[10px] text-emerald-400 font-normal ml-1">
+                      (đủ lính thế chỗ)
+                    </span>
+                  )}
+                </strong>
               </div>
               <div className="flex justify-between text-stone-300">
                 <span className="flex items-center gap-1">

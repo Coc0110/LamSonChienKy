@@ -152,8 +152,10 @@ export const createMilitarySlice: StateCreator<GameStore, [], [], MilitarySlice>
           ...c.population,
           combatTroops: c.population.combatTroops - actualSwapped,
           idleLaborers: c.population.idleLaborers - takenFromIdle,
-          farmLaborers: c.population.farmLaborers - takenFromFarm,
-          forgeLaborers: c.population.forgeLaborers - takenFromForge,
+          // Binh sĩ rảnh rỗi tự động thế chỗ vào đồn điền và lò rèn ngay lập tức
+          // Giữ nguyên 100% nhân lực làm việc để công việc không bị đình trệ
+          farmLaborers: c.population.farmLaborers,
+          forgeLaborers: c.population.forgeLaborers,
           swappedCombatants: (c.population.swappedCombatants || 0) + actualSwapped,
         },
         training: {
@@ -197,8 +199,9 @@ export const createMilitarySlice: StateCreator<GameStore, [], [], MilitarySlice>
           ...c.population,
           combatTroops: c.population.combatTroops + swappedCount,
           idleLaborers: c.population.idleLaborers + takenFromIdle,
-          farmLaborers: c.population.farmLaborers + takenFromFarm,
-          forgeLaborers: c.population.forgeLaborers + takenFromForge,
+          // Khi hủy thao luyện, tráng phu trở về vị trí cũ, trả nghĩa binh về hàng ngũ dự bị
+          farmLaborers: c.population.farmLaborers,
+          forgeLaborers: c.population.forgeLaborers,
           swappedCombatants: Math.max(0, (c.population.swappedCombatants || 0) - swappedCount),
         },
         training: null,

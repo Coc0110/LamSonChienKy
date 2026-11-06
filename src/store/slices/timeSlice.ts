@@ -258,8 +258,7 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
     // 1. Cập nhật tiến độ thao luyện võ nghệ
     let citiesChanged = false;
     let trainedTroopsAdded = 0;
-    const farmWorkersToReduceByCity = new Map<string, number>();
-
+    
     const updatedCities = state.cities.map(city => {
       if (!city.population) return city;
       let pop = { ...city.population };
@@ -307,21 +306,16 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
         const training = currentCity.training;
         const newRemaining = training.remainingDays - 1;
         if (newRemaining <= 0) {
-          const { traineesCount, swappedCount = 0, takenFromFarm = 0, takenFromForge = 0 } = training;
+          const { traineesCount, swappedCount = 0 } = training;
           trainedTroopsAdded += traineesCount;
 
-          if (takenFromFarm > 0) {
-            farmWorkersToReduceByCity.set(city.id, takenFromFarm);
-          }
-
-          const combatReturned = Math.max(0, swappedCount - takenFromForge);
-
+          // Thao luyện hoàn tất: Tráng phu tốt nghiệp thành nghĩa binh mới
+          // Binh sĩ thế chỗ trước đó vẫn tiếp tục duy trì đồn điền/lò rèn không để đình trệ
           return {
             ...currentCity,
             population: {
               ...pop,
-              combatTroops: pop.combatTroops + combatReturned + traineesCount,
-              forgeLaborers: pop.forgeLaborers + takenFromForge,
+              combatTroops: pop.combatTroops + traineesCount,
               swappedCombatants: Math.max(0, (pop.swappedCombatants || 0) - swappedCount),
             },
             troops: currentCity.troops + traineesCount,
@@ -371,16 +365,7 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
     let updatedStructures = state.structures.map(structure => {
       let currentStruct = structure;
 
-      // Đồng bộ số nông đinh trên ruộng nếu đợt thao luyện vùng Cam vừa hoàn tất
-      if (currentStruct.type === 'farm' && currentStruct.status === 'active' && farmWorkersToReduceByCity.has(currentStruct.cityId)) {
-        const toReduce = farmWorkersToReduceByCity.get(currentStruct.cityId)!;
-        if (toReduce > 0 && currentStruct.assignedWorkers > 0) {
-          const deduct = Math.min(currentStruct.assignedWorkers, toReduce);
-          currentStruct = { ...currentStruct, assignedWorkers: currentStruct.assignedWorkers - deduct };
-          farmWorkersToReduceByCity.set(currentStruct.cityId, toReduce - deduct);
-          structuresChanged = true;
-        }
-      }
+
 
       // Thi công xây dựng công trình mới
       if (currentStruct.status === 'building') {

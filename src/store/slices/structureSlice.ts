@@ -358,19 +358,31 @@ export const createStructureSlice: StateCreator<GameStore, [], [], StructureSlic
     let desired = Math.max(0, Math.min(max, targetCount));
     let diff = desired - current;
 
+    const availIdle = city.population.idleLaborers || 0;
+    const availCombat = city.population.combatTroops || 0;
+    const totalAvail = availIdle + availCombat;
+
+    let fromIdle = 0;
+    let fromCombat = 0;
+    let returnIdle = 0;
+    let returnCombat = 0;
+
     if (diff > 0) {
-      const available = city.population.idleLaborers;
-      if (available < diff) {
-        desired = current + available;
-        diff = available;
+      if (diff > totalAvail) {
+        desired = current + totalAvail;
+        diff = totalAvail;
       }
+      fromIdle = Math.min(availIdle, diff);
+      fromCombat = diff - fromIdle;
     } else if (diff < 0) {
-      // Không cho rút nhiều hơn số farmLaborers thực tế (tránh rút nhầm nghĩa binh đang thế chỗ)
-      const maxRemovable = Math.min(current, city.population.farmLaborers);
+      const maxRemovable = current;
       if (-diff > maxRemovable) {
-        desired = current - maxRemovable;
+        desired = 0;
         diff = -maxRemovable;
       }
+      const toReturn = -diff;
+      returnCombat = Math.min(city.population.swappedCombatants || 0, toReturn);
+      returnIdle = toReturn - returnCombat;
     }
 
     if (diff === 0) {
@@ -384,8 +396,10 @@ export const createStructureSlice: StateCreator<GameStore, [], [], StructureSlic
           ...c,
           population: {
             ...c.population,
-            idleLaborers: Math.max(0, c.population.idleLaborers - diff),
-            farmLaborers: Math.max(0, c.population.farmLaborers + diff),
+            idleLaborers: Math.max(0, (c.population.idleLaborers || 0) - fromIdle + returnIdle),
+            combatTroops: Math.max(0, (c.population.combatTroops || 0) - fromCombat + returnCombat),
+            swappedCombatants: Math.max(0, (c.population.swappedCombatants || 0) + fromCombat - returnCombat),
+            farmLaborers: Math.max(0, (c.population.farmLaborers || 0) + diff),
           }
         };
       }),
@@ -395,7 +409,12 @@ export const createStructureSlice: StateCreator<GameStore, [], [], StructureSlic
       }),
     }));
 
-    return { success: true, message: `Đã điều động ${desired}/${max} nông đinh.` };
+    return { 
+      success: true, 
+      message: fromCombat > 0
+        ? `Đã điều động ${desired}/${max} nhân lực (${fromCombat} nghĩa binh thế chỗ cày cấy).`
+        : `Đã điều động ${desired}/${max} nông đinh.`
+    };
   },
 
   // Đặt mẻ rèn vũ khí tại lò rèn

@@ -361,7 +361,12 @@ export const TacticalFormationModal: React.FC = React.memo(() => {
     ? trainingGeneralId
     : (availableGeneralsAtBase[0]?.id || 'le_loi');
 
-  const maxLaborers = currentCity.population?.idleLaborers || 0;
+  const currentPop = currentCity.population;
+  const idleLaborersCount = currentPop?.idleLaborers || 0;
+  const workingLaborersCount = (currentPop?.farmLaborers || 0) + (currentPop?.forgeLaborers || 0);
+  const availableCombatTroops = currentPop?.combatTroops || 0;
+  // Cho phép lấy tráng phu nhàn rỗi + tráng phu đang làm việc (nếu có binh sĩ rảnh rỗi thế chỗ)
+  const maxLaborers = idleLaborersCount + Math.min(workingLaborersCount, availableCombatTroops);
   const effectiveTrainingTrainees = maxLaborers <= 0
     ? 1
     : Math.min(trainingTrainees, maxLaborers);
@@ -665,23 +670,34 @@ export const TacticalFormationModal: React.FC = React.memo(() => {
   // Xử lý bắt đầu Thao Luyện nhanh ngay trong modal (đồng bộ công thức với TrainingSlider)
   const handleStartQuickTraining = () => {
     if (!currentCity.population) return;
-    const idleCount = currentCity.population.idleLaborers;
-    if (idleCount <= 0) {
-      notify.error(`Căn cứ ${currentCity.name} không còn tráng phu nhàn rỗi để thao luyện!`);
+    const pop = currentCity.population;
+    const idleCount = pop.idleLaborers || 0;
+    const workingCount = (pop.farmLaborers || 0) + (pop.forgeLaborers || 0);
+    const availableSoldiers = pop.combatTroops || 0;
+    const totalTrainable = idleCount + Math.min(workingCount, availableSoldiers);
+
+    if (totalTrainable <= 0) {
+      notify.error(`Căn cứ ${currentCity.name} không còn tráng phu hoặc không đủ binh sĩ rảnh rỗi thế chỗ!`);
       return;
     }
 
-    const trainees = Math.min(idleCount, Math.max(1, effectiveTrainingTrainees));
+    const trainees = Math.min(totalTrainable, Math.max(1, effectiveTrainingTrainees));
     if (resources.weapons < trainees) {
       notify.error(`Vũ khí trong kho không đủ để cấp cho ${trainees} người luyện võ!`);
       return;
     }
 
+    const takenFromIdle = Math.min(idleCount, trainees);
+    const neededFromWorking = trainees - takenFromIdle;
     const coach = generals.find(g => g.id === effectiveTrainingGeneralId) || generals[0];
     const days = calculateTrainingDays(coach);
 
-    startTraining(currentCity.id, effectiveTrainingGeneralId, trainees, 0, days);
-    notify.success(`Đã cử ${coach.name} huấn luyện ${trainees} nghĩa binh tại ${currentCity.name} trong ${days} ngày!`);
+    startTraining(currentCity.id, effectiveTrainingGeneralId, trainees, neededFromWorking, days);
+    notify.success(
+      neededFromWorking > 0
+        ? `Đã cử ${coach.name} huấn luyện ${trainees} nghĩa binh (${neededFromWorking} binh sĩ rảnh tự động thế chỗ làm việc) trong ${days} ngày!`
+        : `Đã cử ${coach.name} huấn luyện ${trainees} nghĩa binh tại ${currentCity.name} trong ${days} ngày!`
+    );
   };
 
   if (activeModal !== 'army') return null;
@@ -1288,13 +1304,13 @@ export const TacticalFormationModal: React.FC = React.memo(() => {
                         />
                         <div className="flex justify-between text-[9px] text-[#78350f]">
                           <span>1 người</span>
-                          <span>Tối đa: {currentCity.population?.idleLaborers || 0} tráng phu</span>
+                          <span>Tối đa: {maxLaborers} tráng phu {workingLaborersCount > 0 && availableCombatTroops > 0 && '(gồm lính thế chỗ)'}</span>
                         </div>
                       </div>
 
                       <button
                         onClick={handleStartQuickTraining}
-                        disabled={!currentCity.population || currentCity.population.idleLaborers <= 0}
+                        disabled={!currentCity.population || maxLaborers <= 0}
                         className="w-full py-2 bg-[#8c2d19] hover:bg-[#6e1e0d] text-white text-xs font-bold rounded shadow cursor-pointer transition disabled:bg-stone-400 disabled:cursor-not-allowed"
                       >
                         Bắt Đầu Thao Luyện ({effectiveTrainingTrainees} Quân)
