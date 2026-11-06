@@ -14,20 +14,20 @@ export const TimeSpeedControls: React.FC = React.memo(() => {
   const isNight = timeMode === 'hour' && (canhHour >= 10 || canhHour <= 2);
 
   return (
-    // Chiều rộng cố định 205px để biên phải không bao giờ bị xê dịch khi đổi số ngày hoặc canh giờ
-    <div className="relative z-10 w-[205px] shrink-0 flex items-center pr-1 select-none">
+    // Chiều rộng cố định 245px để ngày tháng và Canh Giờ có đủ không gian, không bị chồng đè hay khuất
+    <div className="relative z-10 w-[245px] shrink-0 flex items-center pr-1 select-none">
       <button 
         type="button"
         onClick={togglePause}
-        className="relative z-10 flex items-center gap-1.5 py-0.5 px-0.5 rounded transition-transform text-left cursor-pointer hover:scale-[1.02] active:scale-98 w-full"
+        className="relative z-10 flex items-center gap-2 py-0.5 px-0.5 rounded transition-transform text-left cursor-pointer hover:scale-[1.02] active:scale-98 w-full"
         title={
           timeMode === 'pause'
             ? "Dòng thời gian đang Tạm Ngưng · Nhấp vào để tiếp tục chạy"
             : "Nhấp vào ô thời gian để Tạm Ngưng"
         }
       >
-        {/* Đồng hồ cát (2D phẳng lật 180 độ theo chu kỳ ngày, không xoay 3D làm biến mất) */}
-        <div className="relative w-6 h-6 shrink-0 flex items-center justify-center">
+        {/* Đồng hồ cát (2D phẳng lật 180 độ theo chu kỳ ngày, giữ trọn vẹn hình ảnh) */}
+        <div className="relative w-6 h-6 md:w-7 md:h-7 shrink-0 flex items-center justify-center">
           <img
             src="/icons/hourglass.png"
             alt="Đồng hồ cát"
@@ -45,13 +45,13 @@ export const TimeSpeedControls: React.FC = React.memo(() => {
           />
         </div>
 
-        {/* Khung chữ ngày tháng & Canh Giờ cố định chiều rộng, tránh xê dịch khi chữ dài/ngắn */}
-        <div className="w-[170px] shrink-0 font-serif font-black text-xs md:text-sm tracking-wide text-[#fef2d6] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)] flex items-center whitespace-nowrap overflow-hidden">
-          <span className="inline-block min-w-[105px]">
+        {/* Khung chữ ngày tháng & Canh Giờ đặt cạnh nhau tự nhiên với gap-1.5, không chồng đè, không khuất */}
+        <div className="w-[210px] shrink-0 font-serif font-black text-xs md:text-sm tracking-wide text-[#fef2d6] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)] flex items-center gap-1.5 whitespace-nowrap overflow-hidden">
+          <span>
             Ngày {day}/{month}/{year}
           </span>
           {timeMode === 'hour' && (
-            <span className={`inline-block ml-1 text-[11px] md:text-xs font-extrabold ${isNight ? 'text-cyan-200' : 'text-amber-200'}`}>
+            <span className={`text-xs md:text-sm font-black ${isNight ? 'text-cyan-200' : 'text-amber-200'}`}>
               · {currentCanh.name} {isNight ? '🌙' : '☀️'}
             </span>
           )}

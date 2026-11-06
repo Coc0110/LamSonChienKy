@@ -63,7 +63,7 @@ export const TopBar: React.FC = React.memo(() => {
             <button
               onClick={toggleMilitaryBook}
               className={`relative px-1.5 py-0.5 rounded flex items-center gap-1.5 transition-all cursor-pointer ${
-                isMilitaryBookOpen ? 'scale-105' : 'hover:bg-black/[0.04] active:scale-95'
+                isMilitaryBookOpen ? 'scale-105' : 'hover:brightness-110 active:scale-95'
               }`}
               title="Mở Quân Thư (Xem thư từ quân sự & lịch sử thu hoạch/rèn khí giới)"
             >
@@ -106,7 +106,7 @@ export const TopBar: React.FC = React.memo(() => {
             <button
               onClick={toggleBuildPaper}
               className={`relative px-1.5 py-0.5 rounded flex items-center gap-1.5 transition-all cursor-pointer ${
-                isBuildPaperOpen ? 'scale-105' : 'hover:bg-black/[0.04] active:scale-95'
+                isBuildPaperOpen ? 'scale-105' : 'hover:brightness-110 active:scale-95'
               }`}
               title="Mở bảng xây dựng công trình (Căn cứ, Ruộng, Lò rèn)"
             >
@@ -142,7 +142,7 @@ export const TopBar: React.FC = React.memo(() => {
             <button
               onClick={() => setActiveModal(activeModal === 'generals' ? null : 'generals')}
               className={`relative px-1.5 py-0.5 rounded flex items-center gap-1.5 transition-all cursor-pointer ${
-                activeModal === 'generals' ? 'scale-105' : 'hover:bg-black/[0.04] active:scale-95'
+                activeModal === 'generals' ? 'scale-105' : 'hover:brightness-110 active:scale-95'
               }`}
               title="Mở Thẻ Tướng (Bảng Lệnh Bài Danh Tướng Lam Sơn)"
             >
@@ -178,7 +178,7 @@ export const TopBar: React.FC = React.memo(() => {
             <button
               onClick={() => setActiveModal(activeModal === 'army' ? null : 'army')}
               className={`relative px-1.5 py-0.5 rounded flex items-center gap-1.5 transition-all cursor-pointer ${
-                activeModal === 'army' ? 'scale-105' : 'hover:bg-black/[0.04] active:scale-95'
+                activeModal === 'army' ? 'scale-105' : 'hover:brightness-110 active:scale-95'
               }`}
               title="Mở Sa Bàn Bố Trận (Sắp xếp từng người lính và quản lý các đạo quân chờ)"
             >
@@ -213,9 +213,9 @@ export const TopBar: React.FC = React.memo(() => {
             <div className="w-px h-6 bg-[#8c6b44]/40 shrink-0 self-center" />
 
             {/* CỤM THỜI GIAN & ĐỔI CHẾ ĐỘ: VỆT MỰC PHỦ LÊN TOÀN BỘ Ô NÀY (TỪ NÚT ĐỔI CHẾ ĐỘ ĐẾN HẾT Ô NGÀY THÁNG) */}
-            <div className="relative flex items-center shrink-0 gap-2 pl-2 pr-3 py-0.5 min-w-[340px] md:min-w-[370px]">
-              {/* VỆT MỰC PHỦ TOÀN BỘ CỤM NÀY THEO MÀU CỦA CHẾ ĐỘ */}
-              <div className="absolute -left-10 -right-6 -inset-y-1.5 pointer-events-none z-0 overflow-hidden animate-fade-in">
+            <div className="relative flex items-center shrink-0 w-[335px] md:w-[345px] h-[34px] px-2 select-none">
+              {/* VỆT MỰC TỰ NHIÊN (KHÔNG DÙNG DROP-SHADOW GAUSSIAN ĐỂ TRÁNH MỜ VIỀN HỘP) */}
+              <div className="absolute -left-6 -right-4 -inset-y-0.5 pointer-events-none z-0 overflow-hidden">
                 <img
                   src={
                     timeMode === 'pause'
@@ -225,17 +225,17 @@ export const TopBar: React.FC = React.memo(() => {
                       : "/ink_stroke_brown.png"
                   }
                   alt="Vệt mực thời gian"
-                  className="w-full h-full object-fill opacity-95 filter drop-shadow-[0_0_12px_rgba(0,0,0,0.5)] transition-all duration-300"
+                  className="w-full h-full object-fill pointer-events-none"
                 />
               </div>
 
-              {/* 0.8. NÚT ĐỔI CHẾ ĐỘ THỜI GIAN: BÌNH THƯỜNG 2 NÚT [NGÀY][GIỜ], KHI NGƯNG THAY THẾ BẰNG 1 NÚT [NGƯNG] */}
-              <div className="relative z-10 flex items-center gap-1.5 shrink-0 p-0.5">
+              {/* 0.8. CỤM NÚT ĐỔI CHẾ ĐỘ: CỐ ĐỊNH CHÍNH XÁC 94px ĐỂ KHÔNG BAO GIỜ LÀM XÊ DỊCH Ô THỜI GIAN */}
+              <div className="relative z-10 w-[94px] shrink-0 flex items-center justify-start gap-1 p-0">
                 {timeMode === 'pause' ? (
                   <button
                     type="button"
                     onClick={() => togglePause()}
-                    className="px-3.5 py-0.5 rounded font-serif font-black text-xs md:text-sm bg-sky-400 text-sky-950 shadow-md ring-1 ring-sky-200 transition-all cursor-pointer hover:scale-105 active:scale-95 whitespace-nowrap animate-in fade-in duration-150"
+                    className="w-[88px] h-[22px] rounded font-serif font-black text-xs md:text-sm bg-sky-400 text-sky-950 shadow-sm ring-1 ring-sky-200 transition-transform cursor-pointer hover:scale-105 active:scale-95 whitespace-nowrap text-center"
                     title="Dòng thời gian đang Tạm Ngưng · Nhấp để tiếp tục chạy"
                   >
                     Ngưng
@@ -245,10 +245,10 @@ export const TopBar: React.FC = React.memo(() => {
                     <button
                       type="button"
                       onClick={() => setTimeMode('day')}
-                      className={`px-2.5 py-0.5 rounded font-serif font-black text-xs md:text-sm transition-all cursor-pointer whitespace-nowrap ${
+                      className={`w-[42px] h-[22px] rounded font-serif font-black text-xs md:text-sm transition-transform cursor-pointer text-center ${
                         timeMode === 'day'
-                          ? 'bg-amber-300 text-stone-950 shadow-md ring-1 ring-amber-100 scale-105'
-                          : 'text-[#fef2d6]/75 hover:text-white hover:bg-white/10'
+                          ? 'bg-amber-300 text-stone-950 shadow-sm ring-1 ring-amber-100 scale-105'
+                          : 'text-[#fef2d6]/75 hover:text-white hover:scale-105'
                       }`}
                       title="Chế độ Ngày (1 ngày / giây)"
                     >
@@ -257,10 +257,10 @@ export const TopBar: React.FC = React.memo(() => {
                     <button
                       type="button"
                       onClick={() => setTimeMode('hour')}
-                      className={`px-2.5 py-0.5 rounded font-serif font-black text-xs md:text-sm transition-all cursor-pointer whitespace-nowrap ${
+                      className={`w-[42px] h-[22px] rounded font-serif font-black text-xs md:text-sm transition-transform cursor-pointer text-center ${
                         timeMode === 'hour'
-                          ? 'bg-red-400 text-stone-950 shadow-md ring-1 ring-red-200 scale-105'
-                          : 'text-[#fef2d6]/75 hover:text-white hover:bg-white/10'
+                          ? 'bg-red-400 text-stone-950 shadow-sm ring-1 ring-red-200 scale-105'
+                          : 'text-[#fef2d6]/75 hover:text-white hover:scale-105'
                       }`}
                       title="Chế độ Giờ (1 canh giờ / giây)"
                     >
@@ -270,10 +270,10 @@ export const TopBar: React.FC = React.memo(() => {
                 )}
               </div>
 
-              {/* Phân cách mờ trên nền vệt mực */}
-              <div className="w-px h-6 bg-white/20 shrink-0 self-center mx-0.5 z-10" />
+              {/* Phân cách mờ thanh mảnh cố định trên nền vệt mực */}
+              <div className="w-px h-5 bg-white/25 shrink-0 self-center mx-1 z-10" />
 
-              {/* 1. KHỐI THỜI GIAN */}
+              {/* 1. KHỐI THỜI GIAN (CỐ ĐỊNH CHIỀU RỘNG 205px) */}
               <TimeSpeedControls />
             </div>
 
