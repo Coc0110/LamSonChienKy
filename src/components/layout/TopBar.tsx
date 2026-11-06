@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { Sun, Pause } from 'lucide-react';
 import { useGameStore } from '../../store/gameStore';
 import { useUIStore } from '../../store/uiStore';
 import { TimeSpeedControls } from './topbar/TimeSpeedControls';
@@ -17,6 +18,8 @@ export const TopBar: React.FC = React.memo(() => {
   const toggleBuildPaper = useUIStore(state => state.toggleBuildPaper);
   const activeModal = useUIStore(state => state.activeModal);
   const setActiveModal = useUIStore(state => state.setActiveModal);
+  const timeMode = useGameStore(state => state.timeMode);
+  const setTimeMode = useGameStore(state => state.setTimeMode);
   
   const activeDropdown = useUIStore(state => state.activeDropdown);
   const setActiveDropdown = useUIStore(state => state.setActiveDropdown);
@@ -209,8 +212,115 @@ export const TopBar: React.FC = React.memo(() => {
             {/* Phân cách */}
             <div className="w-px h-6 bg-[#8c6b44]/40 shrink-0 self-center" />
 
-            {/* 1. KHỐI THỜI GIAN (3 CHẾ ĐỘ MỰC: NGƯNG, NGÀY, GIỜ) */}
-            <TimeSpeedControls />
+            {/* CỤM THỜI GIAN & ĐỔI CHẾ ĐỘ: VỆT MỰC PHỦ LÊN TOÀN BỘ Ô NÀY (TỪ NÚT ĐỔI CHẾ ĐỘ ĐẾN HẾT Ô NGÀY THÁNG) */}
+            <div className="relative flex items-center shrink-0 gap-2 pl-2 pr-3 py-0.5 min-w-[340px] md:min-w-[370px]">
+              {/* VỆT MỰC PHỦ TOÀN BỘ CỤM NÀY THEO MÀU CỦA CHẾ ĐỘ */}
+              <div className="absolute -left-10 -right-6 -inset-y-1.5 pointer-events-none z-0 overflow-hidden animate-fade-in">
+                <img
+                  src={
+                    timeMode === 'pause'
+                      ? "/ink_stroke_blue.png"
+                      : timeMode === 'hour'
+                      ? "/ink_stroke_red.png"
+                      : "/ink_stroke_brown.png"
+                  }
+                  alt="Vệt mực thời gian"
+                  className="w-full h-full object-fill opacity-95 filter drop-shadow-[0_0_12px_rgba(0,0,0,0.5)] transition-all duration-300"
+                />
+              </div>
+
+              {/* 0.8. NÚT ĐỔI CHẾ ĐỘ (NGÀY, GIỜ, NGƯNG) NẰM Ở BÊN NGOÀI, Y NHƯ NÚT CHIẾN SỰ */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (timeMode === 'day') setTimeMode('hour');
+                  else if (timeMode === 'hour') setTimeMode('pause');
+                  else setTimeMode('day');
+                }}
+                className="relative z-10 px-1 py-0.5 rounded flex items-center gap-2 transition-all cursor-pointer hover:scale-105 active:scale-95 group text-left"
+                title={
+                  timeMode === 'day'
+                    ? "Chế độ Ngày (Đếm theo từng Ngày) · Bấm để đổi sang Giờ"
+                    : timeMode === 'hour'
+                    ? "Chế độ Giờ (Đếm theo 12 Canh Giờ) · Bấm để Ngưng thời gian"
+                    : "Đang Ngưng thời gian · Bấm để chạy tiếp Chế độ Ngày"
+                }
+              >
+                {/* Icon chế độ */}
+                <div className="relative w-9 h-9 md:w-10 md:h-10 shrink-0 flex items-center justify-center">
+                  {timeMode === 'hour' ? (
+                    <img
+                      src="/icons/war_mode_sword_spear_gold.png"
+                      alt="Giờ"
+                      className="w-full h-full object-contain filter drop-shadow-[0_0_8px_rgba(255,215,0,0.95)] animate-pulse"
+                    />
+                  ) : timeMode === 'pause' ? (
+                    <div className="w-8 h-8 rounded-full border-2 border-sky-300 bg-sky-950/70 flex items-center justify-center filter drop-shadow-[0_0_8px_rgba(56,189,248,0.85)]">
+                      <Pause size={18} className="text-sky-200 fill-sky-200" />
+                    </div>
+                  ) : (
+                    <div className="w-8 h-8 rounded-full border-2 border-amber-300/80 bg-amber-950/70 flex items-center justify-center filter drop-shadow-[0_0_6px_rgba(245,158,11,0.7)]">
+                      <Sun size={19} className="text-amber-200" />
+                    </div>
+                  )}
+                </div>
+
+                {/* Tiêu đề chế độ & 3 lựa chọn trực tiếp */}
+                <div className="flex flex-col items-start leading-tight">
+                  <span className="relative z-10 font-serif font-black text-xs md:text-sm text-[#fef2d6] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)] tracking-wide whitespace-nowrap">
+                    {timeMode === 'day' ? 'Chế Độ Ngày' : timeMode === 'hour' ? 'Chế Độ Giờ' : 'Tạm Ngưng'}
+                  </span>
+                  {/* 3 nút con chọn trực tiếp (nhỏ gọn) */}
+                  <div className="flex items-center gap-1 mt-0.5">
+                    <span
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setTimeMode('pause');
+                      }}
+                      className={`px-1 py-0.2 rounded text-[9.5px] font-serif font-bold transition-all cursor-pointer ${
+                        timeMode === 'pause'
+                          ? 'bg-sky-400 text-sky-950 font-black shadow-xs scale-105'
+                          : 'text-sky-200/70 hover:text-white hover:bg-sky-500/20'
+                      }`}
+                    >
+                      Ngưng
+                    </span>
+                    <span
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setTimeMode('day');
+                      }}
+                      className={`px-1 py-0.2 rounded text-[9.5px] font-serif font-bold transition-all cursor-pointer ${
+                        timeMode === 'day'
+                          ? 'bg-amber-300 text-stone-950 font-black shadow-xs scale-105'
+                          : 'text-amber-200/70 hover:text-white hover:bg-amber-500/20'
+                      }`}
+                    >
+                      Ngày
+                    </span>
+                    <span
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setTimeMode('hour');
+                      }}
+                      className={`px-1 py-0.2 rounded text-[9.5px] font-serif font-bold transition-all cursor-pointer ${
+                        timeMode === 'hour'
+                          ? 'bg-red-400 text-stone-950 font-black shadow-xs scale-105'
+                          : 'text-red-200/70 hover:text-white hover:bg-red-500/20'
+                      }`}
+                    >
+                      Giờ
+                    </span>
+                  </div>
+                </div>
+              </button>
+
+              {/* Phân cách mờ trên nền vệt mực */}
+              <div className="w-px h-6 bg-white/20 shrink-0 self-center mx-0.5 z-10" />
+
+              {/* 1. KHỐI THỜI GIAN */}
+              <TimeSpeedControls />
+            </div>
 
             {/* Phân cách */}
             <div className="w-px h-8 bg-[#8c6b44]/40 shrink-0 self-center" />
