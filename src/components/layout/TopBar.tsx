@@ -43,7 +43,7 @@ export const TopBar: React.FC = React.memo(() => {
   return (
     <header className="fixed top-0 left-0 right-0 w-full z-[2600] pointer-events-none filter drop-shadow-[0_10px_20px_rgba(0,0,0,0.65)] drop-shadow-[0_2px_5px_rgba(0,0,0,0.4)]">
       {/* 1 TỜ GIẤY PHỦ KÍN 3 MẶT (TRÊN, TRÁI, PHẢI), SỨT MẺ DƯỚI */}
-      <div className="relative w-full h-[72px] md:h-[78px] pointer-events-auto select-none flex items-start">
+      <div className="relative w-full h-[72px] md:h-[78px] pointer-events-auto select-none flex items-center">
         {/* Nền giấy cổ sáng sạch, mép dưới rách sứt mẻ tự nhiên */}
         <img
           src="/parchment_header_full.png"
@@ -53,7 +53,7 @@ export const TopBar: React.FC = React.memo(() => {
         />
 
         {/* Toàn bộ chữ và số nằm ở vùng giấy sáng sạch phía trên */}
-        <div className="relative z-10 w-full pt-1 px-3 md:px-5 flex items-center justify-between text-xs md:text-sm font-serif font-bold text-[#2a1708]">
+        <div className="relative z-10 w-full px-3 md:px-5 flex items-center justify-between pb-2 md:pb-2.5 text-xs md:text-sm font-serif font-bold text-[#2a1708]">
           
           {/* DÃY CHỈ SỐ QUÂN LƯƠNG & CỤM THỜI GIAN */}
           <div className="flex items-center gap-1.5 md:gap-2.5 overflow-x-auto no-scrollbar whitespace-nowrap py-0.5">
