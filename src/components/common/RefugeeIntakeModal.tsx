@@ -141,28 +141,51 @@ export const RefugeeIntakeModal: React.FC = () => {
                       )}
                     </div>
 
-                    {/* Dòng 3: Tráng đinh & Lão ấu tách biệt rõ ràng */}
+                    {/* Dòng 3: Tráng đinh & Lão ấu đặt trong 2 vết mực */}
                     <div className="flex items-center gap-2.5 text-xs font-serif pt-0.5">
-                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-[#15803d]/15 text-[#14532d] font-bold border border-[#15803d]/25">
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#15803d]" />
-                        {wave.idleCount} tráng phu
-                      </span>
+                      {/* Vết mực Tráng phu */}
+                      <div className="relative h-[25px] px-3.5 flex items-center justify-center select-none">
+                        <img
+                          src="/ink_stroke_1.png"
+                          alt="Vết mực tráng phu"
+                          className="absolute inset-0 w-full h-full object-fill pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]"
+                        />
+                        <span className="relative z-10 flex items-center gap-1.5 font-serif font-bold text-xs text-[#a7f3d0] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                          {wave.idleCount} tráng phu
+                        </span>
+                      </div>
 
-                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-[#8c6b44]/15 text-[#5c3e23] font-medium border border-[#8c6b44]/25">
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#8c6b44]" />
-                        {wave.unfitCount} lão, ấu
-                      </span>
+                      {/* Vết mực Lão ấu */}
+                      <div className="relative h-[25px] px-3.5 flex items-center justify-center select-none">
+                        <img
+                          src="/ink_stroke_brown.png"
+                          alt="Vết mực lão ấu"
+                          className="absolute inset-0 w-full h-full object-fill pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]"
+                        />
+                        <span className="relative z-10 flex items-center gap-1.5 font-serif font-bold text-xs text-[#fef2d6] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                          {wave.unfitCount} lão, ấu
+                        </span>
+                      </div>
                     </div>
 
-                    {/* Dòng 4: 1 dòng 3 nút chọn HOẶC hiển thị 'Đã rời đi' */}
+                    {/* Dòng 4: 1 dòng 3 nút chọn đặt trên các vết mực, thông tin lương xuống dòng */}
                     {isDeparted ? (
                       <div className="flex items-center justify-between pt-2 border-t border-[#8c6b44]/20 mt-1">
                         <span className="text-xs italic text-[#704d2e] font-serif">
                           Đoàn lưu dân đã rời đi tìm nơi nương tựa khác...
                         </span>
-                        <span className="py-1 px-3.5 rounded bg-[#8c6b44]/20 border border-[#8c6b44]/40 text-[#704d2e] text-xs font-serif font-bold select-none">
-                          Đã rời đi
-                        </span>
+                        <div className="relative min-w-[90px] h-[30px] flex items-center justify-center px-3 select-none">
+                          <img
+                            src="/ink_stroke_1.png"
+                            alt="Đã rời đi"
+                            className="absolute inset-0 w-full h-full object-fill opacity-60 pointer-events-none"
+                          />
+                          <span className="relative z-10 text-[#fcf4e4]/70 text-xs font-serif font-bold">
+                            Đã rời đi
+                          </span>
+                        </div>
                       </div>
                     ) : (
                       <div className="flex items-center gap-2 pt-2 border-t border-[#8c6b44]/20 mt-1">
@@ -170,29 +193,56 @@ export const RefugeeIntakeModal: React.FC = () => {
                         <button
                           disabled={!canAcceptFull}
                           onClick={() => acceptRefugeeWave(wave.id, 'full')}
-                          className="flex-1 py-1.5 px-2 text-center rounded bg-[#8c2d19] hover:bg-[#6b1e10] disabled:opacity-40 disabled:cursor-not-allowed text-[#fff3db] text-xs font-serif font-bold transition shadow-xs cursor-pointer whitespace-nowrap"
+                          className="relative group flex-1 min-h-[44px] py-1 px-2 flex flex-col items-center justify-center transition-transform hover:scale-[1.02] active:scale-98 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100 cursor-pointer"
                           title={`Cần ${wave.foodCost} lương, ${wave.totalCount} chỗ`}
                         >
-                          Nhận toàn bộ (-{wave.foodCost} lương{wave.goldContribution ? `, +${wave.goldContribution}v` : ''})
+                          <img
+                            src="/ink_stroke_red.png"
+                            alt="Vết mực nhận toàn bộ"
+                            className="absolute inset-0 w-full h-full object-fill pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)] group-hover:brightness-110 transition-all"
+                          />
+                          <span className="relative z-10 text-[#fcf4e4] font-serif font-black text-xs drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)] leading-tight whitespace-nowrap">
+                            Nhận toàn bộ
+                          </span>
+                          <span className="relative z-10 text-[#fef2d6]/90 text-[10.5px] font-sans font-bold drop-shadow-[0_1px_1px_rgba(0,0,0,0.9)] leading-tight whitespace-nowrap">
+                            (-{wave.foodCost} lương{wave.goldContribution ? `, +${wave.goldContribution}v` : ''})
+                          </span>
                         </button>
 
                         {/* 2. Chỉ nhận tráng đinh */}
                         <button
                           disabled={!canAcceptAbleOnly}
                           onClick={() => acceptRefugeeWave(wave.id, 'able_bodied_only')}
-                          className="flex-1 py-1.5 px-2 text-center rounded border border-[#8c6b44]/50 bg-[#8c6b44]/20 hover:bg-[#8c6b44]/35 disabled:opacity-40 disabled:cursor-not-allowed text-[#42250d] text-xs font-serif font-bold transition cursor-pointer whitespace-nowrap"
+                          className="relative group flex-1 min-h-[44px] py-1 px-2 flex flex-col items-center justify-center transition-transform hover:scale-[1.02] active:scale-98 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100 cursor-pointer"
                           title={`Cần ${halfFood} lương, ${wave.idleCount} chỗ`}
                         >
-                          Chỉ nhận tráng đinh (-{halfFood} lương)
+                          <img
+                            src="/ink_stroke_brown.png"
+                            alt="Vết mực chỉ nhận tráng đinh"
+                            className="absolute inset-0 w-full h-full object-fill pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)] group-hover:brightness-115 transition-all"
+                          />
+                          <span className="relative z-10 text-[#fcf4e4] font-serif font-black text-xs drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)] leading-tight whitespace-nowrap">
+                            Chỉ nhận tráng đinh
+                          </span>
+                          <span className="relative z-10 text-[#fef2d6]/90 text-[10.5px] font-sans font-bold drop-shadow-[0_1px_1px_rgba(0,0,0,0.9)] leading-tight whitespace-nowrap">
+                            (-{halfFood} lương)
+                          </span>
                         </button>
 
                         {/* 3. Từ chối */}
                         <button
                           onClick={() => acceptRefugeeWave(wave.id, 'reject')}
-                          className="py-1.5 px-3.5 text-center rounded border border-[#8c6b44]/35 bg-black/5 hover:bg-black/15 text-[#704d2e] hover:text-[#261304] text-xs font-serif font-bold transition cursor-pointer whitespace-nowrap shrink-0"
+                          className="relative group w-24 shrink-0 min-h-[44px] py-1 px-2 flex flex-col items-center justify-center transition-transform hover:scale-[1.02] active:scale-98 cursor-pointer"
                           title="Từ chối đoàn lưu dân này"
                         >
-                          Từ chối
+                          <img
+                            src="/ink_stroke_1.png"
+                            alt="Vết mực từ chối"
+                            className="absolute inset-0 w-full h-full object-fill pointer-events-none opacity-80 group-hover:opacity-100 drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)] group-hover:brightness-125 transition-all"
+                          />
+                          <span className="relative z-10 text-[#e6d5bc] group-hover:text-white font-serif font-black text-xs drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)] leading-tight whitespace-nowrap">
+                            Từ chối
+                          </span>
                         </button>
                       </div>
                     )}
