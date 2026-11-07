@@ -450,6 +450,23 @@ export const WorldMap: React.FC = React.memo(() => {
     }
   }, [selectedCityId]);
 
+  // Lướt camera tới tọa độ được yêu cầu từ thanh lệnh hoặc bảng quản lý
+  const flyToTarget = useUIStore(state => state.flyToTarget);
+  const setFlyToTarget = useUIStore(state => state.setFlyToTarget);
+
+  useEffect(() => {
+    if (!flyToTarget) return;
+    const map = mapInstanceRef.current;
+    if (!map) return;
+    try {
+      const targetLatLng = percentToLatLng(flyToTarget.x, flyToTarget.y);
+      map.flyTo(targetLatLng, Math.max(map.getZoom(), 2.4), { duration: 0.8 });
+    } catch {
+      // ignore
+    }
+    setFlyToTarget(null);
+  }, [flyToTarget, setFlyToTarget]);
+
   // Hook quản lý Polygon ranh giới huyện
   const { resetSingleDistrict, importDistrictsList } = useDistrictPolygons({
     mapInstance,

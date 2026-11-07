@@ -4,19 +4,10 @@ import { useUIStore } from '../../store/uiStore';
 import { TimeSpeedControls } from './topbar/TimeSpeedControls';
 import { TroopsDropdown } from './topbar/TroopsDropdown';
 import { SuppliesDropdown } from './topbar/SuppliesDropdown';
-// import { GameSaveMenu } from './topbar/GameSaveMenu'; // Tạm thời ẩn theo yêu cầu
 
 export const TopBar: React.FC = React.memo(() => {
   const food = useGameStore(state => state.resources.food);
   const gold = useGameStore(state => state.resources.gold);
-  // const morale = useGameStore(state => state.resources.morale);
-  const militaryNotices = useGameStore(state => state.militaryNotices);
-  const isMilitaryBookOpen = useUIStore(state => state.isMilitaryBookOpen);
-  const toggleMilitaryBook = useUIStore(state => state.toggleMilitaryBook);
-  const isBuildPaperOpen = useUIStore(state => state.isBuildPaperOpen);
-  const toggleBuildPaper = useUIStore(state => state.toggleBuildPaper);
-  const activeModal = useUIStore(state => state.activeModal);
-  const setActiveModal = useUIStore(state => state.setActiveModal);
   const timeMode = useGameStore(state => state.timeMode);
   const setTimeMode = useGameStore(state => state.setTimeMode);
   const previousActiveTimeMode = useGameStore(state => state.previousActiveTimeMode);
@@ -24,8 +15,6 @@ export const TopBar: React.FC = React.memo(() => {
   
   const activeDropdown = useUIStore(state => state.activeDropdown);
   const setActiveDropdown = useUIStore(state => state.setActiveDropdown);
-
-  const unreadNoticesCount = (militaryNotices || []).filter(n => !n.read).length;
 
   useEffect(() => {
     const handleOutsideClick = (e: MouseEvent) => {
@@ -57,267 +46,109 @@ export const TopBar: React.FC = React.memo(() => {
         {/* Toàn bộ chữ và số nằm ở vùng giấy sáng sạch phía trên */}
         <div className="relative z-10 w-full px-3 md:px-5 flex items-center justify-between pb-2 md:pb-2.5 text-xs md:text-sm font-serif font-bold text-[#2a1708]">
           
-          {/* DÃY CHỈ SỐ QUÂN LƯƠNG & CỤM THỜI GIAN */}
-          <div className="flex items-center gap-1.5 md:gap-2.5 overflow-x-auto no-scrollbar whitespace-nowrap py-0.5">
-            
-            {/* 0. NÚT QUÂN THƯ */}
-            <button
-              onClick={toggleMilitaryBook}
-              className={`relative px-1.5 py-0.5 rounded flex items-center gap-1.5 transition-all cursor-pointer ${
-                isMilitaryBookOpen ? 'scale-105' : 'hover:brightness-110 active:scale-95'
-              }`}
-              title="Mở Quân Thư (Xem thư từ quân sự & lịch sử thu hoạch/rèn khí giới)"
-            >
-              {!isMilitaryBookOpen && (
-                <div className="relative w-8 h-8 flex items-center justify-center shrink-0">
-                  <img 
-                    src="/icons/scroll.png" 
-                    alt="Quân Thư" 
-                    className="w-full h-full object-contain filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]"
-                  />
-                  {unreadNoticesCount > 0 && (
-                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-[#8c2d19] text-[#fff3db] border border-[#fef08a] rounded-full text-[9px] font-mono font-bold flex items-center justify-center shadow-md animate-pulse">
-                      {unreadNoticesCount}
-                    </span>
-                  )}
-                </div>
-              )}
-              {isMilitaryBookOpen ? (
-                <div className="relative px-3.5 py-1 flex items-center justify-center">
-                  <img
-                    src="/ink_stroke_1.png"
-                    alt="Vết mực"
-                    className="absolute inset-0 w-full h-full object-fill pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]"
-                  />
-                  <span className="relative z-10 font-serif font-bold text-xs md:text-sm text-[#fcf4e4] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]">
-                    Quân Thư
-                  </span>
-                </div>
-              ) : (
-                <span className="relative z-10 font-serif font-bold text-[#2a1708]">
-                  Quân Thư
-                </span>
-              )}
-            </button>
-
-            {/* Phân cách */}
-            <div className="w-px h-6 bg-[#8c6b44]/40 shrink-0 self-center" />
-
-            {/* 0.5. NÚT XÂY DỰNG CÔNG TRÌNH */}
-            <button
-              onClick={toggleBuildPaper}
-              className={`relative px-1.5 py-0.5 rounded flex items-center gap-1.5 transition-all cursor-pointer ${
-                isBuildPaperOpen ? 'scale-105' : 'hover:brightness-110 active:scale-95'
-              }`}
-              title="Mở bảng xây dựng công trình (Căn cứ, Ruộng, Lò rèn)"
-            >
-              {!isBuildPaperOpen && (
-                <img 
-                  src="/icons/structure_camp.png" 
-                  alt="Xây Dựng" 
-                  className="w-8 h-8 object-contain filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]"
-                />
-              )}
-              {isBuildPaperOpen ? (
-                <div className="relative px-3.5 py-1 flex items-center justify-center">
-                  <img
-                    src="/ink_stroke_1.png"
-                    alt="Vết mực"
-                    className="absolute inset-0 w-full h-full object-fill pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]"
-                  />
-                  <span className="relative z-10 font-serif font-bold text-xs md:text-sm text-[#fcf4e4] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]">
-                    Xây Dựng
-                  </span>
-                </div>
-              ) : (
-                <span className="relative z-10 font-serif font-bold text-[#2a1708]">
-                  Xây Dựng
-                </span>
-              )}
-            </button>
-
-            {/* Phân cách */}
-            <div className="w-px h-6 bg-[#8c6b44]/40 shrink-0 self-center" />
-
-            {/* 0.6. NÚT THẺ TƯỚNG */}
-            <button
-              onClick={() => setActiveModal(activeModal === 'generals' ? null : 'generals')}
-              className={`relative px-1.5 py-0.5 rounded flex items-center gap-1.5 transition-all cursor-pointer ${
-                activeModal === 'generals' ? 'scale-105' : 'hover:brightness-110 active:scale-95'
-              }`}
-              title="Mở Thẻ Tướng (Bảng Lệnh Bài Danh Tướng Lam Sơn)"
-            >
-              {activeModal !== 'generals' && (
-                <img 
-                  src="/icons/general_token.png" 
-                  alt="Thẻ Tướng" 
-                  className="w-8 h-8 object-contain filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]"
-                />
-              )}
-              {activeModal === 'generals' ? (
-                <div className="relative px-3.5 py-1 flex items-center justify-center">
-                  <img
-                    src="/ink_stroke_1.png"
-                    alt="Vết mực"
-                    className="absolute inset-0 w-full h-full object-fill pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]"
-                  />
-                  <span className="relative z-10 font-serif font-bold text-xs md:text-sm text-[#fcf4e4] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]">
-                    Thẻ Tướng
-                  </span>
-                </div>
-              ) : (
-                <span className="relative z-10 font-serif font-bold text-[#2a1708]">
-                  Thẻ Tướng
-                </span>
-              )}
-            </button>
-
-            {/* Phân cách */}
-            <div className="w-px h-6 bg-[#8c6b44]/40 shrink-0 self-center" />
-
-            {/* 0.7. NÚT BỐ TRẬN SA BÀN */}
-            <button
-              onClick={() => setActiveModal(activeModal === 'army' ? null : 'army')}
-              className={`relative px-1.5 py-0.5 rounded flex items-center gap-1.5 transition-all cursor-pointer ${
-                activeModal === 'army' ? 'scale-105' : 'hover:brightness-110 active:scale-95'
-              }`}
-              title="Mở Sa Bàn Bố Trận (Sắp xếp từng người lính và quản lý các đạo quân chờ)"
-            >
-              {activeModal !== 'army' && (
-                <img 
-                  src="/icons/flag.png" 
-                  alt="Bố Trận" 
-                  className="w-8 h-8 object-contain filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]"
-                />
-              )}
-              {activeModal === 'army' ? (
-                <div className="relative px-3.5 py-1 flex items-center justify-center">
-                  <img
-                    src="/ink_stroke_1.png"
-                    alt="Vết mực"
-                    className="absolute inset-0 w-full h-full object-fill pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]"
-                  />
-                  <span className="relative z-10 font-serif font-bold text-xs md:text-sm text-[#fcf4e4] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]">
-                    Bố Trận
-                  </span>
-                </div>
-              ) : (
-                <span className="relative z-10 font-serif font-bold text-[#2a1708]">
-                  Bố Trận
-                </span>
-              )}
-            </button>
-
-
-
-            {/* Phân cách */}
-            <div className="w-px h-6 bg-[#8c6b44]/40 shrink-0 self-center" />
-
-            {/* CỤM THỜI GIAN & ĐỔI CHẾ ĐỘ: VỆT MỰC PHỦ LÊN TOÀN BỘ Ô NÀY (TỪ NÚT ĐỔI CHẾ ĐỘ ĐẾN HẾT Ô NGÀY THÁNG) */}
-            {/* CỤM THỜI GIAN & ĐỔI CHẾ ĐỘ: TỰ ĐỘNG THU GỌN VỆT MỰC KHI Ở CHẾ ĐỘ NGÀY, MỞ RỘNG KHI Ở CHẾ ĐỘ GIỜ */}
-            <div className={`relative flex items-center shrink-0 ${
-              (timeMode === 'hour' || (timeMode === 'pause' && previousActiveTimeMode === 'hour'))
-                ? 'w-[405px] md:w-[420px]'
-                : 'w-[295px] md:w-[305px]'
-            } h-[44px] px-2 select-none transition-all duration-300`}>
-              {/* VỆT MỰC BỀ DÀY LỚN GẤP ĐÔI, PHỦ KÉO DÀI SANG TRÁI HÀO PHÓNG */}
-              <div className="absolute -left-14 -right-6 -inset-y-2 pointer-events-none z-0 overflow-hidden">
-                <img
-                  src={
-                    timeMode === 'pause'
-                      ? "/ink_stroke_blue.png"
-                      : timeMode === 'hour'
-                      ? "/ink_stroke_red.png"
-                      : "/ink_stroke_brown.png"
-                  }
-                  alt="Vệt mực thời gian"
-                  className="w-full h-full object-fill pointer-events-none"
-                />
-              </div>
-
-              {/* 0.8. CỤM NÚT ĐỔI CHẾ ĐỘ: NỀN VỆT MỰC ĐEN THỦY MẶC THAY CHO Ô NỀN MÀU */}
-              <div className="relative z-10 w-[104px] shrink-0 flex items-center justify-start gap-1 p-0">
-                {timeMode === 'pause' ? (
-                  <button
-                    type="button"
-                    onClick={() => togglePause()}
-                    className="relative w-[100px] h-[28px] flex items-center justify-center transition-transform hover:scale-105 active:scale-95 cursor-pointer text-center"
-                    title="Dòng thời gian đang Tạm Ngưng · Nhấp để tiếp tục chạy"
-                  >
-                    <img
-                      src="/ink_stroke_1.png"
-                      alt="Vết mực đen"
-                      className="absolute inset-0 w-full h-full object-fill pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]"
-                    />
-                    <span className="relative z-10 font-serif font-black text-xs md:text-sm text-[#fcf4e4] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]">
-                      Ngưng
-                    </span>
-                  </button>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => setTimeMode('day')}
-                      className="relative w-[48px] h-[28px] flex items-center justify-center transition-transform hover:scale-105 active:scale-95 cursor-pointer text-center"
-                      title="Chế độ Ngày (1 ngày / giây)"
-                    >
-                      {timeMode === 'day' && (
-                        <img
-                          src="/ink_stroke_1.png"
-                          alt="Vết mực đen"
-                          className="absolute inset-0 w-full h-full object-fill pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]"
-                        />
-                      )}
-                      <span className={`relative z-10 font-serif font-black text-xs md:text-sm ${
-                        timeMode === 'day'
-                          ? 'text-[#fcf4e4] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]'
-                          : 'text-[#fef2d6]/75 hover:text-white'
-                      }`}>
-                        Ngày
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setTimeMode('hour')}
-                      className="relative w-[48px] h-[28px] flex items-center justify-center transition-transform hover:scale-105 active:scale-95 cursor-pointer text-center"
-                      title="Chế độ Giờ (1 canh giờ / giây)"
-                    >
-                      {timeMode === 'hour' && (
-                        <img
-                          src="/ink_stroke_1.png"
-                          alt="Vết mực đen"
-                          className="absolute inset-0 w-full h-full object-fill pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]"
-                        />
-                      )}
-                      <span className={`relative z-10 font-serif font-black text-xs md:text-sm ${
-                        timeMode === 'hour'
-                          ? 'text-[#fcf4e4] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]'
-                          : 'text-[#fef2d6]/75 hover:text-white'
-                      }`}>
-                        Giờ
-                      </span>
-                    </button>
-                  </>
-                )}
-              </div>
-
-              {/* Phân cách mờ thanh mảnh cố định trên nền vệt mực */}
-              <div className="w-px h-5 bg-white/25 shrink-0 self-center mx-1.5 z-10" />
-
-              {/* 1. KHỐI THỜI GIAN (CỐ ĐỊNH CHIỀU RỘNG 245px ĐỦ KHÔNG GIAN CHO NGÀY & GIỜ) */}
-              <TimeSpeedControls />
+          {/* CỤM THỜI GIAN & ĐỔI CHẾ ĐỘ: VỆT MỰC PHỦ LÊN TOÀN BỘ Ô NÀY (TỪ NÚT ĐỔI CHẾ ĐỘ ĐẾN HẾT Ô NGÀY THÁNG) */}
+          <div className={`relative flex items-center shrink-0 ml-1 md:ml-3 ${
+            (timeMode === 'hour' || (timeMode === 'pause' && previousActiveTimeMode === 'hour'))
+              ? 'w-[405px] md:w-[420px]'
+              : 'w-[295px] md:w-[305px]'
+          } h-[44px] px-2 select-none transition-all duration-300`}>
+            {/* VỆT MỰC BỀ DÀY LỚN GẤP ĐÔI, PHỦ KÉO DÀI SANG TRÁI HÀO PHÓNG */}
+            <div className="absolute -left-14 -right-6 -inset-y-2 pointer-events-none z-0 overflow-hidden">
+              <img
+                src={
+                  timeMode === 'pause'
+                    ? "/ink_stroke_blue.png"
+                    : timeMode === 'hour'
+                    ? "/ink_stroke_red.png"
+                    : "/ink_stroke_brown.png"
+                }
+                alt="Vệt mực thời gian"
+                className="w-full h-full object-fill pointer-events-none"
+              />
             </div>
 
-            {/* Phân cách */}
-            <div className="w-px h-8 bg-[#8c6b44]/40 shrink-0 self-center" />
+            {/* CỤM NÚT ĐỔI CHẾ ĐỘ: NỀN VỆT MỰC ĐEN THỦY MẶC THAY CHO Ô NỀN MÀU */}
+            <div className="relative z-10 w-[104px] shrink-0 flex items-center justify-start gap-1 p-0">
+              {timeMode === 'pause' ? (
+                <button
+                  type="button"
+                  onClick={() => togglePause()}
+                  className="relative w-[100px] h-[28px] flex items-center justify-center transition-transform hover:scale-105 active:scale-95 cursor-pointer text-center"
+                  title="Dòng thời gian đang Tạm Ngưng · Nhấp để tiếp tục chạy"
+                >
+                  <img
+                    src="/ink_stroke_1.png"
+                    alt="Vết mực đen"
+                    className="absolute inset-0 w-full h-full object-fill pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]"
+                  />
+                  <span className="relative z-10 font-serif font-black text-xs md:text-sm text-[#fcf4e4] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]">
+                    Ngưng
+                  </span>
+                </button>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setTimeMode('day')}
+                    className="relative w-[48px] h-[28px] flex items-center justify-center transition-transform hover:scale-105 active:scale-95 cursor-pointer text-center"
+                    title="Chế độ Ngày (1 ngày / giây)"
+                  >
+                    {timeMode === 'day' && (
+                      <img
+                        src="/ink_stroke_1.png"
+                        alt="Vết mực đen"
+                        className="absolute inset-0 w-full h-full object-fill pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]"
+                      />
+                    )}
+                    <span className={`relative z-10 font-serif font-black text-xs md:text-sm ${
+                      timeMode === 'day'
+                        ? 'text-[#fcf4e4] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]'
+                        : 'text-[#fef2d6]/75 hover:text-white'
+                    }`}>
+                      Ngày
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTimeMode('hour')}
+                    className="relative w-[48px] h-[28px] flex items-center justify-center transition-transform hover:scale-105 active:scale-95 cursor-pointer text-center"
+                    title="Chế độ Giờ (1 canh giờ / giây)"
+                  >
+                    {timeMode === 'hour' && (
+                      <img
+                        src="/ink_stroke_1.png"
+                        alt="Vết mực đen"
+                        className="absolute inset-0 w-full h-full object-fill pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]"
+                      />
+                    )}
+                    <span className={`relative z-10 font-serif font-black text-xs md:text-sm ${
+                      timeMode === 'hour'
+                        ? 'text-[#fcf4e4] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]'
+                        : 'text-[#fef2d6]/75 hover:text-white'
+                    }`}>
+                      Giờ
+                    </span>
+                  </button>
+                </>
+              )}
+            </div>
 
-            {/* 2. QUÂN LỰC DROPDOWN */}
+            {/* Phân cách mờ thanh mảnh cố định trên nền vệt mực */}
+            <div className="w-px h-5 bg-white/25 shrink-0 self-center mx-1.5 z-10" />
+
+            {/* KHỐI THỜI GIAN */}
+            <TimeSpeedControls />
+          </div>
+
+          {/* DÃY CHỈ SỐ QUÂN LƯƠNG & TÀI NGUYÊN QUỐC GIA PHÍA BÊN PHẢI */}
+          <div className="flex items-center gap-2 md:gap-3.5 mr-2 md:mr-4 overflow-x-auto no-scrollbar whitespace-nowrap py-0.5">
+            {/* QUÂN LỰC DROPDOWN */}
             <TroopsDropdown />
 
             {/* Phân cách */}
             <div className="w-px h-6 bg-[#8c6b44]/40 shrink-0 self-center" />
 
-            {/* 3. QUÂN LƯƠNG */}
+            {/* QUÂN LƯƠNG */}
             <div className="flex items-center gap-1.5 shrink-0 self-center" title="Quân lương dự trữ">
               <img 
                 src="/icons/food.png" 
@@ -332,13 +163,13 @@ export const TopBar: React.FC = React.memo(() => {
             {/* Phân cách */}
             <div className="w-px h-6 bg-[#8c6b44]/40 shrink-0 self-center" />
 
-            {/* 4. KHÍ GIỚI DROPDOWN */}
+            {/* KHÍ GIỚI DROPDOWN */}
             <SuppliesDropdown />
 
             {/* Phân cách */}
             <div className="w-px h-6 bg-[#8c6b44]/40 shrink-0 self-center" />
 
-            {/* 5. VÀNG (NGÂN KHỐ) */}
+            {/* VÀNG (NGÂN KHỐ) */}
             <div className="flex items-center gap-1.5 shrink-0 self-center" title="Ngân quỹ vàng">
               <img 
                 src="/icons/gold.png" 
@@ -347,11 +178,7 @@ export const TopBar: React.FC = React.memo(() => {
               />
               <span className="leading-none">Ngân khố: {Math.floor(gold).toLocaleString()}</span>
             </div>
-
-{/* Tạm thời ẩn mục Sĩ Khí theo yêu cầu người dùng */}
           </div>
-
-          {/* Tạm thời ẩn chế độ lưu trữ và chuyển nút Sửa Map xuống thanh dưới */}
 
         </div>
       </div>

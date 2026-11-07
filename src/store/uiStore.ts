@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import type { StructureType, PlacedStructure } from '../types';
 import type { TerrainType } from '../types/terrain';
 
-export type ModalType = 'army' | 'supplies' | 'generals' | null;
+export type ModalType = 'army' | 'supplies' | 'generals' | 'training' | 'march' | 'farms' | 'forges' | null;
 
 export type SelectionType = 'base' | 'district';
 
@@ -47,8 +47,10 @@ interface UIState {
   brushTerrain: TerrainType;
   brushSize: 1 | 3 | 5 | 9;
   hoveredCell: { col: number; row: number } | null;
+  flyToTarget: { x: number; y: number } | null;
 
   setActiveModal: (modal: ModalType) => void;
+  setFlyToTarget: (target: { x: number; y: number } | null) => void;
   toggleEditMode: () => void;
   selectCity: (id: string | null) => void;
   selectBase: (baseId: string | null) => void;
@@ -98,8 +100,10 @@ export const useUIStore = create<UIState>((set) => ({
   brushTerrain: 'forest',
   brushSize: 1,
   hoveredCell: null,
+  flyToTarget: null,
 
   setActiveModal: (modal) => set({ activeModal: modal }),
+  setFlyToTarget: (target) => set({ flyToTarget: target }),
   toggleEditMode: () => set((state) => ({ 
     isEditMode: !state.isEditMode, 
     terrainEditMode: false,
