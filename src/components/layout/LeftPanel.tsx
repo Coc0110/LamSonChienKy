@@ -13,6 +13,8 @@ export const LeftPanel: React.FC = React.memo(() => {
   const selectCity = useUIStore(state => state.selectCity);
   const isListOpen = useUIStore(state => state.isMilitaryBookOpen);
   const marchDrawMode = useUIStore(state => state.marchDrawMode);
+  const activeModal = useUIStore(state => state.activeModal);
+  const setActiveModal = useUIStore(state => state.setActiveModal);
 
   const cities = useGameStore(state => state.cities);
   const generals = useGameStore(state => state.generals);
@@ -37,6 +39,13 @@ export const LeftPanel: React.FC = React.memo(() => {
   const activeLamSonBase = useMemo(
     () => (selectedCity && selectedCity.faction === 'lam_son') ? selectedCity : (lamSonBases[0] || cities.find(c => c.faction === 'lam_son')),
     [selectedCity, lamSonBases, cities]
+  );
+
+  const isTrainingOpen = isPopulationModalOpen || activeModal === 'training';
+  const targetCityForTraining = (selectedCity && selectedCity.faction === 'lam_son') ? selectedCity : activeLamSonBase;
+  const trainingGenerals = useMemo(
+    () => unlockedGenerals.filter(g => g.locationId === targetCityForTraining?.id),
+    [unlockedGenerals, targetCityForTraining]
   );
 
   // Khi đang trong chế độ vẽ đường hành quân, ẩn hoàn toàn bảng thông tin tỉnh/căn cứ bên trái
@@ -81,12 +90,17 @@ export const LeftPanel: React.FC = React.memo(() => {
       />
 
       {/* 4. MODAL ĐIỀU CHỈNH DÂN SỐ & THAO LUYỆN NGHĨA BINH */}
-      {isPopulationModalOpen && selectedCity && (
+      {isTrainingOpen && targetCityForTraining && (
         <CityPopulationModal
-          city={selectedCity}
-          generals={stationedGenerals}
+          city={targetCityForTraining}
+          generals={trainingGenerals}
           weaponsAvailable={resources.weapons}
-          onClose={() => setIsPopulationModalOpen(false)}
+          onClose={() => {
+            setIsPopulationModalOpen(false);
+            if (activeModal === 'training') {
+              setActiveModal(null);
+            }
+          }}
           onStartTraining={startTraining}
           onCancelTraining={cancelTraining}
         />

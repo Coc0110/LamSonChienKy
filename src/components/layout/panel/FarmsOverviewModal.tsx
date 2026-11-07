@@ -14,7 +14,7 @@ export const FarmsOverviewModal: React.FC = React.memo(() => {
   const month = useGameStore(state => state.month);
   const year = useGameStore(state => state.year);
   const structures = useGameStore(state => state.structures);
-  const changeFarmWorkers = useGameStore(state => state.changeFarmWorkers);
+  const assignFarmWorkers = useGameStore(state => state.assignFarmWorkers);
 
   if (activeModal !== 'farms') return null;
 
@@ -151,7 +151,7 @@ export const FarmsOverviewModal: React.FC = React.memo(() => {
                       {!isBuilding && (
                         <div className="flex items-center gap-1.5 bg-[#8c6b44]/10 p-1 rounded border border-[#8c6b44]/25">
                           <button
-                            onClick={() => changeFarmWorkers(farm.id, -1)}
+                            onClick={() => assignFarmWorkers(farm.id, -1)}
                             disabled={assigned <= 0}
                             className="w-5 h-5 rounded flex items-center justify-center bg-white/70 hover:bg-white border border-[#8c6b44]/40 text-[#261304] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
                             title="Bớt 1 nông đinh"
@@ -162,7 +162,7 @@ export const FarmsOverviewModal: React.FC = React.memo(() => {
                             {assigned}/{max}
                           </span>
                           <button
-                            onClick={() => changeFarmWorkers(farm.id, 1)}
+                            onClick={() => assignFarmWorkers(farm.id, 1)}
                             disabled={assigned >= max}
                             className="w-5 h-5 rounded flex items-center justify-center bg-white/70 hover:bg-white border border-[#8c6b44]/40 text-[#261304] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
                             title="Thêm 1 nông đinh (tự động điều động lính rảnh nếu thiếu tráng phu)"

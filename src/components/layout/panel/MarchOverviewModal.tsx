@@ -14,7 +14,7 @@ export const MarchOverviewModal: React.FC = React.memo(() => {
   const cities = useGameStore(state => state.cities);
   const generals = useGameStore(state => state.generals);
   const scoutMissions = useGameStore(state => state.scoutMissions || []);
-  const selectFormation = useGameStore(state => state.selectFormation);
+  const setActiveFormationId = useGameStore(state => state.setActiveFormationId);
 
   if (activeModal !== 'march') return null;
 
@@ -93,8 +93,20 @@ export const MarchOverviewModal: React.FC = React.memo(() => {
             ) : (
               validFormations.map(form => {
                 const commander = generals.find(g => g.id === form.commanderGeneralId);
-                const statusMeta = STATUS_LABELS[form.status] || STATUS_LABELS.garrison;
+                const statusMeta = STATUS_LABELS[form.status] || STATUS_LABELS.stationed;
                 const pos = getFormationMapPos(form, cities);
+
+                let unitCount = 0;
+                let totalMorale = 0;
+                for (const row of form.grid) {
+                  for (const cell of row) {
+                    if (cell) {
+                      unitCount++;
+                      totalMorale += cell.morale || 100;
+                    }
+                  }
+                }
+                const avgMorale = unitCount > 0 ? Math.round(totalMorale / unitCount) : 100;
 
                 return (
                   <div
@@ -118,14 +130,14 @@ export const MarchOverviewModal: React.FC = React.memo(() => {
                       <div className="text-[11px] text-[#704d2e] flex items-center gap-3">
                         <span>Quân số: <b>{form.totalTroops.toLocaleString()}</b> người</span>
                         <span>Lương thảo: <b>{Math.floor(form.totalFoodCarried).toLocaleString()}</b> thạch</span>
-                        <span>Sĩ khí: <b>{Math.round(form.averageMorale || 100)}/100</b></span>
+                        <span>Sĩ khí: <b>{avgMorale}/100</b></span>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
                       <button
                         onClick={() => {
-                          selectFormation(form.id);
+                          setActiveFormationId(form.id);
                           setSelectedMapFormationId(form.id);
                           setActiveModal('army');
                         }}
@@ -167,16 +179,16 @@ export const MarchOverviewModal: React.FC = React.memo(() => {
                     >
                       <div>
                         <div className="font-bold text-[#261304]">
-                          {scout.generalName || 'Thám mã Lam Sơn'} — Hướng do thám ({scout.targetCol}, {scout.targetRow})
+                          {scout.originCityName} → {scout.targetCityName} ({scout.scoutCount} thám mã)
                         </div>
                         <div className="text-[11px] text-[#704d2e]">
-                          Còn {scout.remainingDays || 1} ngày trước khi vẽ xong sương mù hồi doanh
+                          Còn {scout.daysRemaining} ngày trước khi vẽ xong sương mù hồi doanh
                         </div>
                       </div>
 
                       <button
                         onClick={() => {
-                          setFlyToTarget({ x: scout.currentX, y: scout.currentY });
+                          setFlyToTarget({ x: scout.currentPos.x, y: scout.currentPos.y });
                           setActiveModal(null);
                         }}
                         className="p-1.5 rounded hover:bg-[#8c6b44]/20 text-[#5c3e23] hover:text-[#8c2d19] transition cursor-pointer"

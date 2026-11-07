@@ -7,6 +7,10 @@ import { ParchmentConfirmModal } from './components/common/ParchmentConfirmModal
 import { EndgameModal } from './components/common/EndgameModal';
 import { RefugeeIntakeModal } from './components/common/RefugeeIntakeModal';
 import { TimelineWheelScrubber } from './components/layout/topbar/TimelineWheelScrubber';
+import { RightCommandDock } from './components/layout/RightCommandDock';
+import { FarmsOverviewModal } from './components/layout/panel/FarmsOverviewModal';
+import { ForgesOverviewModal } from './components/layout/panel/ForgesOverviewModal';
+import { MarchOverviewModal } from './components/layout/panel/MarchOverviewModal';
 import { useGameStore } from './store/gameStore';
 import { useUIStore } from './store/uiStore';
 
@@ -45,6 +49,10 @@ function App() {
     baseRelocateMode ||
     activeModal === 'generals' ||
     activeModal === 'army' ||
+    activeModal === 'training' ||
+    activeModal === 'farms' ||
+    activeModal === 'forges' ||
+    activeModal === 'march' ||
     selectedStructureModal ||
     activeForgeModalStructureId ||
     isRefugeeModalOpen
@@ -126,10 +134,14 @@ function App() {
       <TopBar />
       <TimelineWheelScrubber />
       <LeftPanel />
+      <RightCommandDock />
       <Suspense fallback={null}>
         <GeneralsModal />
         <TacticalFormationModal />
       </Suspense>
+      <FarmsOverviewModal />
+      <ForgesOverviewModal />
+      <MarchOverviewModal />
       <ParchmentToastContainer />
       <ParchmentConfirmModal />
       <RefugeeIntakeModal />
