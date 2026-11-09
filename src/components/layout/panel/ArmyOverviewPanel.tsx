@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { X, MapPin, Flag, Plus, Shield } from 'lucide-react';
+import { X } from 'lucide-react';
 import { useGameStore } from '../../../store/gameStore';
 import { useUIStore } from '../../../store/uiStore';
 import { STATUS_LABELS, getFormationMapPos } from '../../../utils/marchPathUtils';
@@ -41,19 +41,9 @@ export const ArmyOverviewPanel: React.FC = React.memo(() => {
       <div className="relative z-10 p-5 md:p-6 flex flex-col h-full font-serif text-[#261304] overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-[#8c6b44]/35 pb-2.5 mb-2.5 shrink-0">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-[#8c2d19]/15 flex items-center justify-center text-[#8c2d19] border border-[#8c6b44]/40">
-              <Flag size={18} />
-            </div>
-            <div>
-              <h3 className="font-serif font-black text-lg text-[#261304] leading-tight">
-                {UI_TEXT.armyPanel.title}
-              </h3>
-              <p className="text-[11px] text-[#704d2e] font-sans">
-                {UI_TEXT.armyPanel.subtitle}
-              </p>
-            </div>
-          </div>
+          <h3 className="font-serif font-black text-lg text-[#261304] leading-tight tracking-wide">
+            {UI_TEXT.armyPanel.title}
+          </h3>
 
           <button
             onClick={() => setActiveModal(null)}
@@ -99,7 +89,6 @@ export const ArmyOverviewPanel: React.FC = React.memo(() => {
             alt="Mở sa bàn"
             className="absolute inset-0 w-full h-full object-fill pointer-events-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.35)] group-hover:brightness-110"
           />
-          <Flag size={15} className="relative z-10 text-[#fef08a]" />
           <span className="relative z-10 font-serif font-black text-xs uppercase tracking-wider text-[#fef2d6] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]">
             {UI_TEXT.armyPanel.openTacticalGridBtn}
           </span>
@@ -107,8 +96,8 @@ export const ArmyOverviewPanel: React.FC = React.memo(() => {
 
         {/* Danh Sách Các Đạo Quân */}
         <div className="flex-1 overflow-y-auto no-scrollbar space-y-2 pr-1">
-          <div className="text-xs font-bold text-[#8c2d19] uppercase tracking-wider mb-1 flex items-center gap-1.5">
-            <Shield size={14} /> {UI_TEXT.armyPanel.sectionTitle} ({validFormations.length})
+          <div className="text-xs font-bold text-[#8c2d19] uppercase tracking-wider mb-1 font-serif">
+            {UI_TEXT.armyPanel.sectionTitle} ({validFormations.length})
           </div>
 
           {validFormations.length === 0 ? (
@@ -136,66 +125,81 @@ export const ArmyOverviewPanel: React.FC = React.memo(() => {
               return (
                 <div
                   key={form.id}
-                  className="p-2.5 rounded-lg border border-[#8c6b44]/30 bg-[#8c6b44]/5 flex items-center justify-between gap-2.5 text-xs"
+                  className="p-3 rounded-lg border border-[#8c6b44]/30 bg-[#8c6b44]/5 flex flex-col gap-2 font-serif text-xs"
                 >
-                  <div className="space-y-1 flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-bold text-sm text-[#8c2d19] truncate">{form.name}</span>
-                      <span
-                        className="px-1.5 py-0.5 rounded text-[10px] font-bold"
-                        style={{ backgroundColor: `${statusMeta.color}25`, color: statusMeta.color }}
-                      >
-                        {statusMeta.icon} {statusMeta.label}
-                      </span>
-                    </div>
-
-                    <div className="text-[11px] text-[#5c3e23]">
-                      {UI_TEXT.armyPanel.commanderLabel} <b>{commander?.name || UI_TEXT.armyPanel.unassignedCommander}</b>
-                    </div>
-
-                    <div className="text-[10.5px] text-[#704d2e] flex items-center gap-3">
-                      <span>Quân: <b>{form.totalTroops.toLocaleString()}</b></span>
-                      <span>Khí giới: <b>{form.totalWeapons}</b></span>
-                      <span>Lương: <b>{Math.floor(form.totalFoodCarried)}</b></span>
-                      <span>Sĩ khí: <b>{avgMorale}/100</b></span>
-                    </div>
+                  {/* Đầu mục: Tên đạo quân & Trạng thái */}
+                  <div className="flex items-center justify-between border-b border-[#8c6b44]/20 pb-1.5">
+                    <h4 className="font-serif font-black text-sm text-[#8c2d19] tracking-wide">
+                      {form.name}
+                    </h4>
+                    <span
+                      className="px-1.5 py-0.5 rounded text-[10px] font-bold"
+                      style={{ backgroundColor: `${statusMeta.color}20`, color: statusMeta.color }}
+                    >
+                      {statusMeta.label}
+                    </span>
                   </div>
 
-                  {/* Cụm Thao tác 1-click */}
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    {/* Nút Vẽ đường hành quân */}
+                  {/* Danh sách thông tin báo cáo: mỗi thông tin một dòng, không có icon */}
+                  <ul className="space-y-1.5 text-xs text-[#261304] border-l-2 border-[#8c2d19]/40 pl-3 py-0.5">
+                    <li>
+                      <span className="text-[#6b4423]">{UI_TEXT.armyPanel.commanderLabel} </span>
+                      <strong className="text-[#261304] font-bold">
+                        {commander?.name || UI_TEXT.armyPanel.unassignedCommander}
+                      </strong>
+                    </li>
+                    <li>
+                      <span className="text-[#6b4423]">Binh lực: </span>
+                      <strong className="text-[#b45309] font-bold">
+                        {form.totalTroops.toLocaleString()} quân
+                      </strong>
+                    </li>
+                    <li>
+                      <span className="text-[#6b4423]">Khí giới & Lương: </span>
+                      <strong className="text-[#15803d] font-bold">
+                        {form.totalWeapons} khí / {Math.floor(form.totalFoodCarried)} thạch
+                      </strong>
+                    </li>
+                    <li>
+                      <span className="text-[#6b4423]">Sĩ khí: </span>
+                      <strong className="text-[#8c2d19] font-bold">
+                        {avgMorale}/100
+                      </strong>
+                    </li>
+                  </ul>
+
+                  {/* Dòng thao tác: Định vị, Sa bàn, Vẽ đường */}
+                  <div className="flex items-center justify-end gap-2 pt-1.5 border-t border-[#8c6b44]/20">
                     <button
                       onClick={() => {
-                        setMarchDrawMode({ formationId: form.id });
-                        setActiveModal(null);
+                        setFlyToTarget({ x: pos.x, y: pos.y });
                       }}
-                      className="px-2 py-1 rounded bg-[#8c2d19] hover:bg-[#6e1e0d] text-white font-bold text-[11px] shadow cursor-pointer transition"
-                      title={UI_TEXT.armyPanel.actions.drawRouteTooltip}
+                      className="px-2.5 py-1 rounded border border-[#8c6b44]/40 bg-[#8c6b44]/10 hover:bg-[#8c6b44]/25 text-[#5c3e23] hover:text-[#8c2d19] text-xs font-bold transition cursor-pointer active:scale-95"
+                      title={UI_TEXT.armyPanel.actions.locate}
                     >
-                      {UI_TEXT.armyPanel.actions.drawRoute}
+                      Định vị
                     </button>
 
-                    {/* Nút Xếp ô trên sa bàn */}
                     <button
                       onClick={() => {
                         setActiveFormationId(form.id);
                         setActiveModal('tactical_grid');
                       }}
-                      className="px-2 py-1 rounded bg-[#8c6b44]/20 hover:bg-[#8c6b44]/35 text-[#3a2010] font-bold text-[11px] cursor-pointer transition"
+                      className="px-2.5 py-1 rounded bg-[#8c6b44]/15 hover:bg-[#8c6b44]/25 text-[#3a2010] border border-[#8c6b44]/35 text-xs font-bold transition cursor-pointer active:scale-95"
                       title={UI_TEXT.armyPanel.actions.tacticalGridTooltip}
                     >
                       {UI_TEXT.armyPanel.actions.tacticalGrid}
                     </button>
 
-                    {/* Nút Định vị trên bản đồ */}
                     <button
                       onClick={() => {
-                        setFlyToTarget({ x: pos.x, y: pos.y });
+                        setMarchDrawMode({ formationId: form.id });
+                        setActiveModal(null);
                       }}
-                      className="p-1 rounded hover:bg-[#8c6b44]/20 text-[#5c3e23] hover:text-[#8c2d19] transition cursor-pointer"
-                      title={UI_TEXT.armyPanel.actions.locate}
+                      className="px-3 py-1 rounded bg-[#8c2d19] hover:bg-[#6e1e0d] text-white font-bold text-xs shadow transition cursor-pointer active:scale-95"
+                      title={UI_TEXT.armyPanel.actions.drawRouteTooltip}
                     >
-                      <MapPin size={15} />
+                      {UI_TEXT.armyPanel.actions.drawRoute}
                     </button>
                   </div>
                 </div>
@@ -212,10 +216,9 @@ export const ArmyOverviewPanel: React.FC = React.memo(() => {
                 createFormation(originBase.id);
               }
             }}
-            className="flex items-center gap-1 px-3 py-1 rounded border border-[#8c6b44]/40 bg-[#8c6b44]/15 hover:bg-[#8c6b44]/25 text-[#3a2010] font-bold text-xs cursor-pointer transition"
+            className="flex items-center gap-1 px-3 py-1 rounded border border-[#8c6b44]/40 bg-[#8c6b44]/15 hover:bg-[#8c6b44]/25 text-[#3a2010] font-bold text-xs cursor-pointer transition active:scale-95"
           >
-            <Plus size={14} />
-            <span>{UI_TEXT.armyPanel.createFormationBtn}</span>
+            <span>+ {UI_TEXT.armyPanel.createFormationBtn}</span>
           </button>
         </div>
       </div>

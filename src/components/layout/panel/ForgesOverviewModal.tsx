@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, MapPin, Hammer, Swords } from 'lucide-react';
+import { X } from 'lucide-react';
 import { useGameStore } from '../../../store/gameStore';
 import { useUIStore } from '../../../store/uiStore';
 import { UI_TEXT } from '../../../data/uiText';
@@ -32,18 +32,13 @@ export const ForgesOverviewModal: React.FC = React.memo(() => {
       <div className="relative z-10 p-5 md:p-6 flex flex-col h-full font-serif text-[#261304] overflow-hidden">
           {/* Header */}
           <div className="flex items-center justify-between border-b border-[#8c6b44]/35 pb-2.5 mb-3 shrink-0">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-[#8c2d19]/15 flex items-center justify-center text-[#8c2d19] border border-[#8c6b44]/40">
-                <Hammer size={18} />
-              </div>
-              <div>
-                <h3 className="font-serif font-black text-lg text-[#261304] leading-tight">
-                  {UI_TEXT.forgesPanel.title}
-                </h3>
-                <p className="text-[11px] text-[#704d2e] font-sans">
-                  {UI_TEXT.forgesPanel.subtitle}
-                </p>
-              </div>
+            <div>
+              <h3 className="font-serif font-black text-lg text-[#261304] leading-tight tracking-wide">
+                {UI_TEXT.forgesPanel.title}
+              </h3>
+              <p className="text-[11px] text-[#704d2e] font-sans">
+                {UI_TEXT.forgesPanel.subtitle}
+              </p>
             </div>
 
             <button
@@ -81,58 +76,78 @@ export const ForgesOverviewModal: React.FC = React.memo(() => {
                 return (
                   <div
                     key={forge.id}
-                    className="p-3 rounded-lg border border-[#8c6b44]/30 bg-[#8c6b44]/5 flex items-center justify-between gap-3 text-xs"
+                    className="p-3 rounded-lg border border-[#8c6b44]/30 bg-[#8c6b44]/5 flex flex-col gap-2 font-serif text-xs"
                   >
-                    <div className="space-y-1 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-sm text-[#8c2d19]">{forge.name}</span>
+                    {/* Đầu mục: Tên lò rèn */}
+                    <div className="flex items-center justify-between border-b border-[#8c6b44]/20 pb-1.5">
+                      <h4 className="font-serif font-black text-sm text-[#8c2d19] tracking-wide">
+                        {forge.name}
+                      </h4>
+                    </div>
+
+                    {/* Danh sách thông tin báo cáo: mỗi thông tin một dòng, không có icon */}
+                    <ul className="space-y-1.5 text-xs text-[#261304] border-l-2 border-[#8c2d19]/40 pl-3 py-0.5">
+                      <li>
+                        <span className="text-[#6b4423]">Tình trạng: </span>
                         {isBuilding ? (
-                          <span className="px-1.5 py-0.5 rounded text-[10px] bg-amber-500/20 text-amber-800 font-bold">
+                          <strong className="text-amber-800 font-bold">
                             Đang dựng lò (còn {Math.ceil(forge.buildDaysRemaining)} ngày)
-                          </span>
+                          </strong>
                         ) : order ? (
-                          <span className="px-1.5 py-0.5 rounded text-[10px] bg-red-600/15 text-red-800 font-bold flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-pulse" />
-                            Đang đúc: {order.name} ({order.quantity} chiếc, còn {order.remainingDays} ngày)
-                          </span>
+                          <strong className="text-[#8c2d19] font-bold">
+                            Đang đúc {order.name} ({order.quantity} chiếc, còn {order.remainingDays} ngày)
+                          </strong>
                         ) : (
-                          <span className="px-1.5 py-0.5 rounded text-[10px] bg-stone-500/15 text-stone-700 font-bold">
+                          <span className="text-[#704d2e] italic">
                             Bễ lò rảnh rỗi
                           </span>
                         )}
-                      </div>
+                      </li>
+                      <li>
+                        <span className="text-[#6b4423]">Địa hình: </span>
+                        <span className="text-[#261304]">
+                          {forge.terrain === 'mountain' ? 'Hẻm núi hiểm trở (giảm tiếng ồn)' : forge.terrain === 'forest' ? 'Khuất trong rừng sâu' : 'Đồng bằng'}
+                        </span>
+                      </li>
+                      {order && (
+                        <li>
+                          <span className="text-[#6b4423]">Thợ rèn: </span>
+                          <strong className="text-[#15803d] font-bold">
+                            {order.assignedSmiths} thợ rèn
+                          </strong>
+                          {forge.forgeQueue && forge.forgeQueue.length > 0 && (
+                            <span className="text-[#704d2e] ml-1.5">
+                              ({forge.forgeQueue.length} mẻ trong hàng chờ)
+                            </span>
+                          )}
+                        </li>
+                      )}
+                    </ul>
 
-                      <div className="text-[11px] text-[#704d2e]">
-                        Địa hình: {forge.terrain === 'mountain' ? 'Hẻm núi hiểm trở (giảm tiếng ồn)' : forge.terrain === 'forest' ? 'Khuất trong rừng sâu' : 'Đồng bằng'}
-                        {order && ` • Điều động ${order.assignedSmiths} thợ rèn`}
-                        {forge.forgeQueue && forge.forgeQueue.length > 0 && ` • ${forge.forgeQueue.length} mẻ trong hàng chờ`}
-                      </div>
-                    </div>
+                    {/* Dòng thao tác: Định vị, Hạ lệnh rèn/Xem lò */}
+                    <div className="flex items-center justify-end gap-2 pt-1.5 border-t border-[#8c6b44]/20">
+                      <button
+                        onClick={() => {
+                          setFlyToTarget({ x: forge.x, y: forge.y });
+                          setActiveModal(null);
+                        }}
+                        className="px-2.5 py-1 rounded border border-[#8c6b44]/40 bg-[#8c6b44]/10 hover:bg-[#8c6b44]/25 text-[#5c3e23] hover:text-[#8c2d19] text-xs font-bold transition cursor-pointer active:scale-95"
+                        title={UI_TEXT.forgesPanel.actions.locate}
+                      >
+                        Định vị
+                      </button>
 
-                    <div className="flex items-center gap-2 shrink-0">
                       {!isBuilding && (
                         <button
                           onClick={() => {
                             setActiveForgeModalStructureId(forge.id);
                             setActiveModal(null);
                           }}
-                          className="px-2.5 py-1 rounded bg-[#8c2d19]/15 hover:bg-[#8c2d19]/25 text-[#8c2d19] border border-[#8c6b44]/40 font-bold text-xs transition cursor-pointer flex items-center gap-1"
+                          className="px-3 py-1 rounded bg-[#8c2d19] hover:bg-[#6e1e0d] text-[#fff3db] text-xs font-bold transition cursor-pointer active:scale-95 shadow"
                         >
-                          <Swords size={12} />
-                          <span>{order ? 'Xem Lò' : UI_TEXT.forgesPanel.actions.orderForge}</span>
+                          {order ? 'Xem Lò' : UI_TEXT.forgesPanel.actions.orderForge}
                         </button>
                       )}
-
-                      <button
-                        onClick={() => {
-                          setFlyToTarget({ x: forge.x, y: forge.y });
-                          setActiveModal(null);
-                        }}
-                        className="p-1.5 rounded hover:bg-[#8c6b44]/20 text-[#5c3e23] hover:text-[#8c2d19] transition cursor-pointer"
-                        title={UI_TEXT.forgesPanel.actions.locate}
-                      >
-                        <MapPin size={16} />
-                      </button>
                     </div>
                   </div>
                 );
@@ -150,16 +165,9 @@ export const ForgesOverviewModal: React.FC = React.memo(() => {
                 setActiveModal(null);
                 toggleBuildPaper();
               }}
-              className="relative group px-4 py-1.5 flex items-center justify-center cursor-pointer transition-transform hover:scale-105 active:scale-95"
+              className="px-4 py-1.5 rounded bg-[#8c2d19] hover:bg-[#6e1e0d] text-[#fff3db] font-serif font-black text-xs shadow transition cursor-pointer active:scale-95"
             >
-              <img
-                src="/ink_stroke_red.png"
-                alt="Dựng lò mới"
-                className="absolute inset-0 w-full h-full object-fill pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]"
-              />
-              <span className="relative z-10 text-[#fcf4e4] font-serif font-black text-xs drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
-                {UI_TEXT.forgesPanel.actions.buildNew}
-              </span>
+              <span>{UI_TEXT.forgesPanel.actions.buildNew}</span>
             </button>
           </div>
         </div>

@@ -109,13 +109,20 @@ export const ScoutOverviewModal: React.FC = React.memo(() => {
                   key={city.id}
                   className="p-3 rounded-lg border border-[#8c6b44]/30 bg-[#8c6b44]/5 flex flex-col gap-2 font-serif text-xs"
                 >
+                  {/* Đầu mục: Tên thành trì */}
+                  <div className="flex items-center justify-between border-b border-[#8c6b44]/20 pb-1.5">
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-serif font-black text-sm text-[#8c2d19] tracking-wide">
+                        {city.name}
+                      </h4>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#3a2010]/10 text-[#5c3e23] font-bold">
+                        {city.type === 'city' ? 'Kiên thành' : 'Đồn lũy hiểm'}
+                      </span>
+                    </div>
+                  </div>
+
                   {/* Báo cáo từng dòng dạng công văn thời xưa */}
                   <ul className="space-y-1.5 text-xs text-[#261304] border-l-2 border-[#8c2d19]/40 pl-3 py-0.5">
-                    <li>
-                      <span className="text-[#6b4423]">Thành trì: </span>
-                      <strong className="font-bold text-[#8c2d19] text-sm">{city.name}</strong>
-                      <span className="text-[#704d2e] text-[11px] ml-1.5">({city.type === 'city' ? 'Kiên thành' : 'Đồn lũy hiểm'})</span>
-                    </li>
                     <li>
                       <span className="text-[#6b4423]">Thám mã: </span>
                       <strong className={assignedScouts > 0 ? "text-[#15803d] font-bold" : traveling.length > 0 ? "text-[#b45309] font-bold" : "text-[#704d2e]"}>
@@ -197,11 +204,12 @@ export const ScoutOverviewModal: React.FC = React.memo(() => {
                       key={scout.id}
                       className="p-3 rounded-lg border border-[#8c6b44]/30 bg-[#8c6b44]/5 flex flex-col gap-2 font-serif text-xs"
                     >
+                      <div className="flex items-center justify-between border-b border-[#8c6b44]/20 pb-1">
+                        <h4 className="font-serif font-bold text-sm text-[#261304]">
+                          {scout.originCityName} → {scout.targetCityName}
+                        </h4>
+                      </div>
                       <ul className="space-y-1 text-xs text-[#261304] border-l-2 border-[#b45309]/50 pl-3 py-0.5">
-                        <li>
-                          <span className="text-[#6b4423]">Lộ trình: </span>
-                          <strong className="text-[#261304] font-bold">{scout.originCityName} → {scout.targetCityName}</strong>
-                        </li>
                         <li>
                           <span className="text-[#6b4423]">Lực lượng: </span>
                           <strong className="text-[#b45309] font-bold">{scout.scoutCount} thám mã</strong>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, MapPin, Plus, Minus, Wheat, Calendar } from 'lucide-react';
+import { X } from 'lucide-react';
 import { useGameStore } from '../../../store/gameStore';
 import { useUIStore } from '../../../store/uiStore';
 import { getNextHarvestSeason } from '../../../utils/harvestSeasons';
@@ -50,18 +50,13 @@ export const FarmsOverviewModal: React.FC = React.memo(() => {
       <div className="relative z-10 p-5 md:p-6 flex flex-col h-full font-serif text-[#261304] overflow-hidden">
           {/* Header */}
           <div className="flex items-center justify-between border-b border-[#8c6b44]/35 pb-2.5 mb-3 shrink-0">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-[#8c2d19]/15 flex items-center justify-center text-[#8c2d19] border border-[#8c6b44]/40">
-                <Wheat size={18} />
-              </div>
-              <div>
-                <h3 className="font-serif font-black text-lg text-[#261304] leading-tight">
-                  {UI_TEXT.farmsPanel.title}
-                </h3>
-                <p className="text-[11px] text-[#704d2e] font-sans">
-                  {UI_TEXT.farmsPanel.subtitle}
-                </p>
-              </div>
+            <div>
+              <h3 className="font-serif font-black text-lg text-[#261304] leading-tight tracking-wide">
+                {UI_TEXT.farmsPanel.title}
+              </h3>
+              <p className="text-[11px] text-[#704d2e] font-sans">
+                {UI_TEXT.farmsPanel.subtitle}
+              </p>
             </div>
 
             <button
@@ -75,13 +70,10 @@ export const FarmsOverviewModal: React.FC = React.memo(() => {
 
           {/* Banner Thông Tin Mùa Vụ & Chỉ Số Chung */}
           <div className="grid grid-cols-2 gap-2.5 mb-3 p-2.5 rounded bg-black/[0.04] border border-[#8c6b44]/25 shrink-0 text-xs">
-            <div className="flex items-center gap-2">
-              <Calendar size={16} className="text-[#8c2d19] shrink-0" />
-              <div>
-                <div className="text-[11px] text-[#5c3e23]">{UI_TEXT.farmsPanel.stats.nextSeason}</div>
-                <div className="font-bold text-[#8c2d19]">
-                  {nextHarvest.season.name} ({nextHarvest.targetDay}/{nextHarvest.targetMonth}) — còn {nextHarvest.daysRemaining} ngày
-                </div>
+            <div>
+              <div className="text-[11px] text-[#5c3e23]">{UI_TEXT.farmsPanel.stats.nextSeason}</div>
+              <div className="font-bold text-[#8c2d19]">
+                {nextHarvest.season.name} ({nextHarvest.targetDay}/{nextHarvest.targetMonth}) — còn {nextHarvest.daysRemaining} ngày
               </div>
             </div>
 
@@ -117,67 +109,81 @@ export const FarmsOverviewModal: React.FC = React.memo(() => {
                 return (
                   <div
                     key={farm.id}
-                    className="p-3 rounded-lg border border-[#8c6b44]/30 bg-[#8c6b44]/5 flex items-center justify-between gap-3 text-xs"
+                    className="p-3 rounded-lg border border-[#8c6b44]/30 bg-[#8c6b44]/5 flex flex-col gap-2 font-serif text-xs"
                   >
-                    <div className="space-y-1 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-sm text-[#8c2d19]">{farm.name}</span>
-                        <span className="px-1.5 py-0.5 rounded text-[10px] bg-[#8c6b44]/15 border border-[#8c6b44]/25 text-[#5c3e23] font-bold">
-                          {tierName}
-                        </span>
+                    {/* Đầu mục: Tên khu ruộng & Cấp bậc */}
+                    <div className="flex items-center justify-between border-b border-[#8c6b44]/20 pb-1.5">
+                      <h4 className="font-serif font-black text-sm text-[#8c2d19] tracking-wide">
+                        {farm.name}
+                      </h4>
+                      <span className="px-1.5 py-0.5 rounded text-[10px] bg-[#8c6b44]/15 border border-[#8c6b44]/25 text-[#5c3e23] font-bold">
+                        {tierName}
+                      </span>
+                    </div>
+
+                    {/* Danh sách thông tin báo cáo: mỗi thông tin một dòng, không có icon */}
+                    <ul className="space-y-1.5 text-xs text-[#261304] border-l-2 border-[#8c2d19]/40 pl-3 py-0.5">
+                      <li>
+                        <span className="text-[#6b4423]">Tình trạng: </span>
                         {isBuilding ? (
-                          <span className="px-1.5 py-0.5 rounded text-[10px] bg-amber-500/20 text-amber-800 font-bold">
+                          <strong className="text-amber-800 font-bold">
                             Đang đắp bờ (còn {Math.ceil(farm.buildDaysRemaining)} ngày)
-                          </span>
+                          </strong>
                         ) : (
-                          <span className="px-1.5 py-0.5 rounded text-[10px] bg-emerald-500/15 text-emerald-800 font-bold">
-                            Đã canh tác {farm.cropDays || 0} ngày
-                          </span>
+                          <strong className="text-emerald-800 font-bold">
+                            Đang canh tác ({farm.cropDays || 0} ngày)
+                          </strong>
+                        )}
+                      </li>
+                      <li>
+                        <span className="text-[#6b4423]">Địa thế: </span>
+                        <span className="text-[#261304]">
+                          {farm.terrain === 'plains' ? 'Bãi bồi phù sa' : farm.terrain === 'forest' ? 'Nương rẫy ven rừng' : 'Bán sơn địa'}
+                          {farm.recentEvent && ` • ${farm.recentEvent}`}
+                        </span>
+                      </li>
+                      <li>
+                        <span className="text-[#6b4423]">Nông đinh: </span>
+                        <strong className="text-[#15803d] font-bold">
+                          {assigned} / {max} người
+                        </strong>
+                      </li>
+                    </ul>
+
+                    {/* Dòng thao tác: Điều chỉnh nông đinh, Định vị */}
+                    <div className="flex items-center justify-between pt-1.5 border-t border-[#8c6b44]/20">
+                      <div>
+                        {!isBuilding && (
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => assignFarmWorkers(farm.id, -1)}
+                              disabled={assigned <= 0}
+                              className="px-2 py-0.5 rounded border border-[#8c6b44]/40 bg-white/70 hover:bg-white text-[#261304] text-[11px] font-bold disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition active:scale-95"
+                              title={UI_TEXT.farmsPanel.actions.decreaseWorker}
+                            >
+                              - Bớt Đinh
+                            </button>
+                            <button
+                              onClick={() => assignFarmWorkers(farm.id, 1)}
+                              disabled={assigned >= max}
+                              className="px-2 py-0.5 rounded border border-[#8c6b44]/40 bg-white/70 hover:bg-white text-[#8c2d19] text-[11px] font-bold disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition active:scale-95"
+                              title={UI_TEXT.farmsPanel.actions.increaseWorker}
+                            >
+                              + Thêm Đinh
+                            </button>
+                          </div>
                         )}
                       </div>
 
-                      <div className="text-[11px] text-[#704d2e]">
-                        Địa thế: {farm.terrain === 'plains' ? 'Bãi bồi phù sa' : farm.terrain === 'forest' ? 'Nương rẫy ven rừng' : 'Bán sơn địa'}
-                        {farm.recentEvent && ` • ${farm.recentEvent}`}
-                      </div>
-                    </div>
-
-                    {/* Phân bổ Nông đinh & Nút tăng giảm */}
-                    <div className="flex items-center gap-3 shrink-0">
-                      {!isBuilding && (
-                        <div className="flex items-center gap-1.5 bg-[#8c6b44]/10 p-1 rounded border border-[#8c6b44]/25">
-                          <button
-                            onClick={() => assignFarmWorkers(farm.id, -1)}
-                            disabled={assigned <= 0}
-                            className="w-5 h-5 rounded flex items-center justify-center bg-white/70 hover:bg-white border border-[#8c6b44]/40 text-[#261304] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
-                            title={UI_TEXT.farmsPanel.actions.decreaseWorker}
-                          >
-                            <Minus size={11} />
-                          </button>
-                          <span className="font-bold text-xs px-1 text-[#8c2d19] min-w-[42px] text-center font-mono">
-                            {assigned}/{max}
-                          </span>
-                          <button
-                            onClick={() => assignFarmWorkers(farm.id, 1)}
-                            disabled={assigned >= max}
-                            className="w-5 h-5 rounded flex items-center justify-center bg-white/70 hover:bg-white border border-[#8c6b44]/40 text-[#261304] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
-                            title={UI_TEXT.farmsPanel.actions.increaseWorker}
-                          >
-                            <Plus size={11} />
-                          </button>
-                        </div>
-                      )}
-
-                      {/* Nút Định Vị Trên Bản Đồ */}
                       <button
                         onClick={() => {
                           setFlyToTarget({ x: farm.x, y: farm.y });
                           setActiveModal(null);
                         }}
-                        className="p-1.5 rounded hover:bg-[#8c6b44]/20 text-[#5c3e23] hover:text-[#8c2d19] transition cursor-pointer"
+                        className="px-2.5 py-1 rounded border border-[#8c6b44]/40 bg-[#8c6b44]/10 hover:bg-[#8c6b44]/25 text-[#5c3e23] hover:text-[#8c2d19] text-xs font-bold transition cursor-pointer active:scale-95"
                         title={UI_TEXT.farmsPanel.actions.locate}
                       >
-                        <MapPin size={16} />
+                        Định vị
                       </button>
                     </div>
                   </div>
@@ -196,16 +202,9 @@ export const FarmsOverviewModal: React.FC = React.memo(() => {
                 setActiveModal(null);
                 toggleBuildPaper();
               }}
-              className="relative group px-4 py-1.5 flex items-center justify-center cursor-pointer transition-transform hover:scale-105 active:scale-95"
+              className="px-4 py-1.5 rounded bg-[#8c2d19] hover:bg-[#6e1e0d] text-[#fff3db] font-serif font-black text-xs shadow transition cursor-pointer active:scale-95"
             >
-              <img
-                src="/ink_stroke_red.png"
-                alt="Khai hoang"
-                className="absolute inset-0 w-full h-full object-fill pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]"
-              />
-              <span className="relative z-10 text-[#fcf4e4] font-serif font-black text-xs drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
-                {UI_TEXT.farmsPanel.actions.buildNew}
-              </span>
+              <span>{UI_TEXT.farmsPanel.actions.buildNew}</span>
             </button>
           </div>
         </div>

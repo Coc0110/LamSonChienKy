@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Users } from 'lucide-react';
+import { X } from 'lucide-react';
 import { useGameStore } from '../../store/gameStore';
 import { CAMP_CAPACITY_BY_LEVEL } from '../../types';
 import { UI_TEXT } from '../../data/uiText';
@@ -63,24 +63,19 @@ export const RefugeeIntakeModal: React.FC = () => {
 
       <div className="relative z-10 px-6 pt-6 pb-6 flex flex-col h-full font-serif text-[#261304] overflow-hidden">
         {/* Header */}
-          <div className="flex items-center justify-between border-b border-[#8c6b44]/35 pb-2.5 mb-2.5 shrink-0">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-[#8c2d19]/15 flex items-center justify-center text-[#8c2d19] border border-[#8c6b44]/40">
-                <Users size={18} />
-              </div>
-              <h3 className="font-serif font-black text-lg text-[#261304] leading-tight">
-                {UI_TEXT.refugeesPanel.title}
-              </h3>
-            </div>
+        <div className="flex items-center justify-between border-b border-[#8c6b44]/35 pb-2.5 mb-2.5 shrink-0">
+          <h3 className="font-serif font-black text-lg text-[#261304] leading-tight tracking-wide">
+            {UI_TEXT.refugeesPanel.title}
+          </h3>
 
-            <button
-              onClick={closeRefugeeModal}
-              className="text-[#6e4927] hover:text-[#261304] transition p-1 hover:bg-[#8c6b44]/15 rounded cursor-pointer"
-              title="Đóng"
-            >
-              <X size={18} />
-            </button>
-          </div>
+          <button
+            onClick={closeRefugeeModal}
+            className="text-[#6e4927] hover:text-[#261304] transition p-1 hover:bg-[#8c6b44]/15 rounded cursor-pointer"
+            title="Đóng"
+          >
+            <X size={18} />
+          </button>
+        </div>
 
           {/* Thông tin chung: Trại còn trống & Kho lương */}
           <div className="p-2.5 rounded bg-black/[0.04] border border-[#8c6b44]/25 mb-3 flex items-center justify-between text-xs shrink-0 font-serif">

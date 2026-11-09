@@ -76,7 +76,7 @@ export const UI_TEXT = {
     commanderLabel: 'Chủ tướng:',
     unassignedCommander: 'Chưa chỉ định',
     actions: {
-      drawRoute: '✍️ Vẽ Đường',
+      drawRoute: 'Vẽ Đường',
       drawRouteTooltip: 'Vẽ lộ trình hành quân trên bản đồ',
       tacticalGrid: 'Sa Bàn',
       tacticalGridTooltip: 'Mở sa bàn xếp quân',
