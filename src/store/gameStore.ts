@@ -6,6 +6,7 @@ import { createStructureSlice } from './slices/structureSlice';
 import { createMilitarySlice } from './slices/militarySlice';
 import { createArmySlice } from './slices/armySlice';
 import { createSaveSlice } from './slices/saveSlice';
+import { createBattleSlice } from './slices/battleSlice';
 
 export type GameState = GameStore;
 
@@ -16,6 +17,7 @@ export const useGameStore = create<GameStore>()((...a) => ({
   ...createMilitarySlice(...a),
   ...createArmySlice(...a),
   ...createSaveSlice(...a),
+  ...createBattleSlice(...a),
 }));
 
 export * from './slices/types';

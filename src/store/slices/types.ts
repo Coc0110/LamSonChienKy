@@ -97,5 +97,7 @@ export interface MilitarySlice {
   dispatchRefugeeRecruit: (cityId: string) => { success: boolean; message: string };
 }
 
-export type { ArmySlice, SaveSlice, GameStatus };
-export type GameStore = TimeSlice & CitySlice & StructureSlice & MilitarySlice & ArmySlice & SaveSlice;
+import type { BattleSlice } from './battleSlice';
+
+export type { ArmySlice, SaveSlice, GameStatus, BattleSlice };
+export type GameStore = TimeSlice & CitySlice & StructureSlice & MilitarySlice & ArmySlice & SaveSlice & BattleSlice;

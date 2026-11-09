@@ -12,6 +12,8 @@ import { ArmyOverviewPanel } from './components/layout/panel/ArmyOverviewPanel';
 import { FarmsOverviewModal } from './components/layout/panel/FarmsOverviewModal';
 import { ForgesOverviewModal } from './components/layout/panel/ForgesOverviewModal';
 import { ScoutOverviewModal } from './components/layout/panel/ScoutOverviewModal';
+import { BattlefieldModal } from './components/battle/BattlefieldModal';
+import { BattleResultModal } from './components/battle/BattleResultModal';
 import { useGameStore } from './store/gameStore';
 import { useUIStore } from './store/uiStore';
 
@@ -32,6 +34,13 @@ function App() {
   const stepArmies = useGameStore(state => state.stepArmies);
   const stepScoutMissions = useGameStore(state => state.stepScoutMissions);
   const formations = useGameStore(state => state.formations);
+  const isBattleModalOpen = useGameStore(state => state.isBattleModalOpen);
+  const currentBattle = useGameStore(state => state.currentBattle);
+  const battleResultToReport = useGameStore(state => state.battleResultToReport);
+  const tickBattle = useGameStore(state => state.tickBattle);
+  const retreatBattle = useGameStore(state => state.retreatBattle);
+  const closeBattleModal = useGameStore(state => state.closeBattleModal);
+  const closeBattleResultModal = useGameStore(state => state.closeBattleResultModal);
 
   // Trạng thái các giao diện "không trên dòng thời gian"
   const activeModal = useUIStore(state => state.activeModal);
@@ -140,6 +149,20 @@ function App() {
       <ParchmentConfirmModal />
       <RefugeeIntakeModal />
       <EndgameModal />
+      {isBattleModalOpen && currentBattle && (
+        <BattlefieldModal
+          battleState={currentBattle}
+          onTick={tickBattle}
+          onRetreat={retreatBattle}
+          onClose={closeBattleModal}
+        />
+      )}
+      {battleResultToReport && (
+        <BattleResultModal
+          battleState={battleResultToReport}
+          onClose={closeBattleResultModal}
+        />
+      )}
     </div>
   );
 }
