@@ -31,10 +31,10 @@ console.log('✓ Xác định cấp độ quy mô scale chính xác');
 
 // 2. Kiểm tra sinh bàn cờ cấp 1x (Nghìn quân)
 const bf1x = generateBattlefieldTerrain(400, 500, '1x');
-assert.strictEqual(bf1x.cols, 96, 'Kích thước cột phải là 96');
-assert.strictEqual(bf1x.rows, 32, 'Kích thước hàng phải là 32');
-assert.strictEqual(bf1x.tiles.length, 32, 'Mảng hàng phải có 32 hàng');
-assert.strictEqual(bf1x.tiles[0].length, 96, 'Mỗi hàng phải có 96 cột');
+assert.strictEqual(bf1x.cols, BATTLEFIELD_COLS, 'Kích thước cột phải là 96');
+assert.strictEqual(bf1x.rows, BATTLEFIELD_ROWS, 'Kích thước hàng phải là 32');
+assert.strictEqual(bf1x.tiles.length, BATTLEFIELD_ROWS, 'Mảng hàng phải có 32 hàng');
+assert.strictEqual(bf1x.tiles[0].length, BATTLEFIELD_COLS, 'Mỗi hàng phải có 96 cột');
 assert.strictEqual(bf1x.sampleWindow.sampleCols, 12, '1x quét 12 cột bản đồ');
 assert.strictEqual(bf1x.sampleWindow.sampleRows, 4, '1x quét 4 hàng bản đồ');
 console.log('✓ Bàn cờ 1x có kích thước 96x32 và cửa sổ lấy mẫu 12x4');

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { X, Play, Pause, FastForward, ShieldAlert } from 'lucide-react';
+import { X, Play, Pause, ShieldAlert } from 'lucide-react';
 import type { BattlefieldState, BattlefieldTile, BattlefieldUnit } from '../../types/battlefield';
 import { BattlefieldRow } from './BattlefieldRow';
 import { BattlefieldInspectorBar } from './BattlefieldInspectorBar';

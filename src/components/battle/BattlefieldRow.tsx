@@ -18,7 +18,7 @@ const TERRAIN_BG_MAP: Record<string, string> = {
 };
 
 export const BattlefieldRow: React.FC<BattlefieldRowProps> = React.memo(({
-  rowIndex,
+  rowIndex: _rowIndex,
   tiles,
   rowUnits,
   cellSize,

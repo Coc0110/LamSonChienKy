@@ -39,7 +39,7 @@ export const createBattleSlice: StateCreator<GameStore, [], [], BattleSlice> = (
     locationName,
     mapCol,
     mapRow,
-    targetCityId,
+    targetCityId: _targetCityId,
   }) => {
     const state = get();
     const formation = state.formations.find(f => f.id === formationId);

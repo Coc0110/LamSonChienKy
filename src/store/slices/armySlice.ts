@@ -1191,6 +1191,15 @@ export const createArmySlice: StateCreator<GameStore, [], [], ArmySlice> = (set,
     if (!hasMovingArmy) return;
 
     const toastsToEmit: { type: 'success' | 'warning' | 'info'; text: string }[] = [];
+    let battleToTrigger: {
+      formationId: string;
+      mingTroops: number;
+      battleName: string;
+      locationName: string;
+      mapCol: number;
+      mapRow: number;
+      targetCityId?: string;
+    } | null = null;
 
     set(prev => {
       let foodConsumedTotal = 0;
@@ -1287,34 +1296,15 @@ export const createArmySlice: StateCreator<GameStore, [], [], ArmySlice> = (set,
             const ambPos = getFormationMapPos(triggeredAmbush, prev.cities);
             const ambTerrain = getGridTerrain(ambPos.col, ambPos.row);
             const tDef = TERRAIN_DEFINITIONS[ambTerrain];
-            const ambushRate = (tDef?.ambushSuccessRate || 75) / 100;
 
-            const combinedTroops = triggeredAmbush.totalTroops + form.totalTroops;
-            const enemyKilled = Math.min(
-              pursuingEnemy.troops,
-              Math.max(10, Math.round(combinedTroops * (1.2 + ambushRate) * 0.85))
-            );
-            const prevLoss = enemyTroopLossesByCity.get(pursuingEnemy.sourceCityId) || 0;
-            enemyTroopLossesByCity.set(pursuingEnemy.sourceCityId, prevLoss + enemyKilled);
-
-            const lootWeapons = Math.max(5, Math.round(enemyKilled * 0.6));
-            const lootFood = Math.max(30, Math.round(enemyKilled * 2.5));
-            const lootGold = Math.max(15, Math.round(enemyKilled * 0.8));
-            capturedWeapons += lootWeapons;
-            capturedFood += lootFood;
-            capturedGold += lootGold;
-
-            const msg = `🔥 ĐẠI THẮNG PHỤC KÍCH! [${form.name}] trá bại dụ ${pursuingEnemy.troops} quân Minh từ ${pursuingEnemy.sourceCityName} lọt vào ổ phục kích của [${triggeredAmbush.name}] tại ${tDef?.name || 'hiểm địa'}! Tiêu diệt ${enemyKilled} giặc, thu ${lootWeapons} vũ khí & ${lootFood} lương thảo!`;
-            toastsToEmit.push({ type: 'success', text: msg });
-            newNotices.unshift({
-              id: `ambush_win_${Date.now()}_${form.id}`,
-              type: 'general',
-              title: 'Đại Thắng Trá Bại Phục Kích',
-              dateStr: `Ngày ${prev.day}/${prev.month}/${prev.year}`,
-              description: msg,
-              read: false,
-              timestamp: Date.now(),
-            });
+            battleToTrigger = {
+              formationId: triggeredAmbush.id,
+              mingTroops: pursuingEnemy.troops,
+              battleName: 'Phục Kích Hiểm Địa',
+              locationName: tDef?.name || 'Trận Địa Mai Phục',
+              mapCol: ambPos.col,
+              mapRow: ambPos.row,
+            };
 
             return {
               ...form,
@@ -1455,18 +1445,15 @@ export const createArmySlice: StateCreator<GameStore, [], [], ArmySlice> = (set,
             if (nearMing) {
               finalStatus = 'engaging';
               engagedTargetCityId = nearMing.id;
-              const raidKill = Math.min(nearMing.troops, Math.max(8, Math.round(form.totalTroops * 0.85)));
-              const prevLoss = enemyTroopLossesByCity.get(nearMing.id) || 0;
-              enemyTroopLossesByCity.set(nearMing.id, prevLoss + raidKill);
-              const raidFood = Math.max(25, Math.round(raidKill * 2.2));
-              const raidWeapons = Math.max(4, Math.round(raidKill * 0.5));
-              capturedFood += raidFood;
-              capturedWeapons += raidWeapons;
-
-              toastsToEmit.push({
-                type: 'success',
-                text: `⚔️ TẬP KÍCH BẤT NGỜ! [${form.name}] đánh úp ${nearMing.name}, diệt ${raidKill} quân Minh, đoạt ${raidFood} lương & ${raidWeapons} vũ khí! (Đang tiếp tục giao chiến)`,
-              });
+              battleToTrigger = {
+                formationId: form.id,
+                mingTroops: Math.min(nearMing.troops, Math.max(15, form.totalTroops * 2)),
+                battleName: 'Tập Kích Cứ Điểm',
+                locationName: nearMing.name,
+                mapCol: currentPos.col,
+                mapRow: currentPos.row,
+                targetCityId: nearMing.id,
+              };
             } else {
               finalStatus = 'stationed';
               toastsToEmit.push({
@@ -1560,5 +1547,9 @@ export const createArmySlice: StateCreator<GameStore, [], [], ArmySlice> = (set,
       else if (t.type === 'warning') notify.warning(t.text);
       else notify.info(t.text);
     });
+
+    if (battleToTrigger) {
+      get().startBattle(battleToTrigger);
+    }
   },
 });
