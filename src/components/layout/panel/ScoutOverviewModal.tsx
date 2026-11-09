@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { X, MapPin, Eye, AlertTriangle } from 'lucide-react';
+import { X } from 'lucide-react';
 import { useGameStore } from '../../../store/gameStore';
 import { useUIStore } from '../../../store/uiStore';
 import { notify } from '../../../store/dialogStore';
@@ -46,14 +46,9 @@ export const ScoutOverviewModal: React.FC = React.memo(() => {
       <div className="relative z-10 p-5 md:p-6 flex flex-col h-full font-serif text-[#261304] overflow-hidden">
           {/* Header */}
           <div className="flex items-center justify-between border-b border-[#8c6b44]/35 pb-2.5 mb-3 shrink-0">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-[#8c2d19]/15 flex items-center justify-center text-[#8c2d19] border border-[#8c6b44]/40">
-                <Eye size={18} />
-              </div>
-              <h3 className="font-serif font-black text-lg text-[#261304] leading-tight">
-                {UI_TEXT.scoutPanel.title}
-              </h3>
-            </div>
+            <h3 className="font-serif font-black text-lg text-[#261304] leading-tight tracking-wide">
+              {UI_TEXT.scoutPanel.title}
+            </h3>
 
             <button
               onClick={() => setActiveModal(null)}
@@ -81,16 +76,13 @@ export const ScoutOverviewModal: React.FC = React.memo(() => {
           </div>
 
           {/* Danh Sách Mục Tiêu Đồn Lũy Đã Phái Do Thám */}
-          <div className="flex-1 overflow-y-auto no-scrollbar space-y-2 pr-1">
-            <div className="text-xs font-bold text-[#8c2d19] uppercase tracking-wider mb-1 flex items-center gap-1.5">
-              <Eye size={14} /> {UI_TEXT.scoutPanel.sectionTitle} ({scoutedCities.length})
+          <div className="flex-1 overflow-y-auto no-scrollbar space-y-3 pr-1">
+            <div className="text-xs font-bold text-[#8c2d19] uppercase tracking-wider mb-1 font-serif">
+              {UI_TEXT.scoutPanel.sectionTitle} ({scoutedCities.length})
             </div>
 
             {scoutedCities.length === 0 ? (
               <div className="py-8 px-4 text-center space-y-2 border border-[#8c6b44]/25 rounded-lg bg-black/[0.02]">
-                <div className="w-9 h-9 mx-auto rounded-full bg-[#8c6b44]/15 flex items-center justify-center text-[#8c6b44]">
-                  <Eye size={18} />
-                </div>
                 <p className="text-xs text-[#704d2e] font-serif italic font-bold">
                   {UI_TEXT.scoutPanel.emptyText}
                 </p>
@@ -106,69 +98,57 @@ export const ScoutOverviewModal: React.FC = React.memo(() => {
 
               const canDispatch = originBase && idleLaborers >= 1 && resources.food >= 30;
 
+              const scoutStatusText = assignedScouts > 0
+                ? UI_TEXT.scoutPanel.badges.stationed(assignedScouts)
+                : traveling.length > 0
+                ? UI_TEXT.scoutPanel.badges.traveling(traveling.length, Number(traveling[0].daysRemaining.toFixed(1)))
+                : UI_TEXT.scoutPanel.badges.unknown;
+
               return (
                 <div
                   key={city.id}
-                  className="p-3 rounded-lg border border-[#8c6b44]/30 bg-[#8c6b44]/5 flex flex-col gap-2 text-xs"
+                  className="p-3 rounded-lg border border-[#8c6b44]/30 bg-[#8c6b44]/5 flex flex-col gap-2 font-serif text-xs"
                 >
-                  {/* Hàng 1: Tên thành trì + Kiểu thành + Định vị */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="font-serif font-black text-sm text-[#8c2d19]">{city.name}</span>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#3a2010]/10 text-[#5c3e23] font-bold">
-                        {city.type === 'city' ? 'Kiên thành' : 'Đồn lũy hiểm'}
-                      </span>
-                    </div>
+                  {/* Báo cáo từng dòng dạng công văn thời xưa */}
+                  <ul className="space-y-1.5 text-xs text-[#261304] border-l-2 border-[#8c2d19]/40 pl-3 py-0.5">
+                    <li>
+                      <span className="text-[#6b4423]">Thành trì: </span>
+                      <strong className="font-bold text-[#8c2d19] text-sm">{city.name}</strong>
+                      <span className="text-[#704d2e] text-[11px] ml-1.5">({city.type === 'city' ? 'Kiên thành' : 'Đồn lũy hiểm'})</span>
+                    </li>
+                    <li>
+                      <span className="text-[#6b4423]">Thám mã: </span>
+                      <strong className={assignedScouts > 0 ? "text-[#15803d] font-bold" : traveling.length > 0 ? "text-[#b45309] font-bold" : "text-[#704d2e]"}>
+                        {scoutStatusText}
+                      </strong>
+                    </li>
+                    <li>
+                      <span className="text-[#6b4423]">{UI_TEXT.scoutPanel.labels.troops} </span>
+                      <strong className={assignedScouts > 0 ? "text-[#261304] font-bold" : "text-[#704d2e] italic"}>
+                        {intelReport.displayedTroops}
+                      </strong>
+                    </li>
+                    <li>
+                      <span className="text-[#6b4423]">{UI_TEXT.scoutPanel.labels.suspicion} </span>
+                      <strong className="text-[#8c2d19] font-bold">
+                        {intelReport.displayedSuspicion}
+                      </strong>
+                    </li>
+                  </ul>
 
+                  {/* Dòng thao tác: Định vị, Rút về, Phái thêm/Phái do thám */}
+                  <div className="flex items-center justify-end gap-2 pt-1.5 border-t border-[#8c6b44]/20">
                     <button
                       onClick={() => {
                         setFlyToTarget({ x: city.x, y: city.y });
                         setActiveModal(null);
                       }}
-                      className="p-1 rounded hover:bg-[#8c6b44]/20 text-[#5c3e23] hover:text-[#8c2d19] transition cursor-pointer"
+                      className="px-2.5 py-1 rounded border border-[#8c6b44]/40 bg-[#8c6b44]/10 hover:bg-[#8c6b44]/25 text-[#5c3e23] hover:text-[#8c2d19] text-xs font-bold transition cursor-pointer active:scale-95"
                       title={UI_TEXT.scoutPanel.actions.locate}
                     >
-                      <MapPin size={16} />
+                      Định vị
                     </button>
-                  </div>
 
-                  {/* Hàng 2: Huy hiệu tình báo & Chỉ số quân đồn trú / Độ nghi ngờ (rộng rãi, không xuống dòng) */}
-                  <div className="flex items-center justify-between gap-2 text-xs bg-black/[0.03] px-2.5 py-1.5 rounded border border-[#8c6b44]/15">
-                    <div className="shrink-0">
-                      {assignedScouts > 0 ? (
-                        <span className="px-2 py-0.5 rounded text-[10.5px] font-bold bg-[#15803d]/15 text-[#15803d] border border-[#15803d]/30 whitespace-nowrap inline-flex items-center gap-1">
-                          {UI_TEXT.scoutPanel.badges.stationed(assignedScouts)}
-                        </span>
-                      ) : traveling.length > 0 ? (
-                        <span className="px-2 py-0.5 rounded text-[10.5px] font-bold bg-[#b45309]/15 text-[#b45309] border border-[#b45309]/30 whitespace-nowrap inline-flex items-center gap-1">
-                          {UI_TEXT.scoutPanel.badges.traveling(traveling.length, Number(traveling[0].daysRemaining.toFixed(1)))}
-                        </span>
-                      ) : (
-                        <span className="px-2 py-0.5 rounded text-[10.5px] font-bold bg-black/10 text-[#704d2e] whitespace-nowrap inline-flex items-center gap-1">
-                          {UI_TEXT.scoutPanel.badges.unknown}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-2.5 text-[11px] text-[#5c3e23]">
-                      <span className="whitespace-nowrap">
-                        {UI_TEXT.scoutPanel.labels.troops}{' '}
-                        <strong className={assignedScouts > 0 ? "text-[#261304] font-bold" : "text-[#704d2e] italic"}>
-                          {intelReport.displayedTroops}
-                        </strong>
-                      </span>
-                      <span className="text-[#8c6b44]/40">•</span>
-                      <span className="whitespace-nowrap">
-                        {UI_TEXT.scoutPanel.labels.suspicion}{' '}
-                        <strong className="text-[#8c2d19] font-bold">
-                          {intelReport.displayedSuspicion}
-                        </strong>
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Hàng 3: Cụm thao tác hành động */}
-                  <div className="flex items-center justify-end gap-2 pt-0.5">
                     {assignedScouts > 0 && (
                       <button
                         onClick={() => {
@@ -190,7 +170,7 @@ export const ScoutOverviewModal: React.FC = React.memo(() => {
                         const res = dispatchScoutMission(originBase.id, city.id, 1);
                         if (res.success) notify.success(`Đã phái 1 thám mã thâm nhập ${city.name}!`);
                       }}
-                      className="px-3.5 py-1 rounded bg-[#8c2d19] hover:bg-[#6e1e0d] text-[#fff3db] font-bold text-xs transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow active:scale-95 flex items-center gap-1"
+                      className="px-3.5 py-1 rounded bg-[#8c2d19] hover:bg-[#6e1e0d] text-[#fff3db] font-bold text-xs transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow active:scale-95"
                       title={
                         !canDispatch
                           ? 'Cần ít nhất 1 tráng phu nhàn rỗi và 30 lương để phái thám mã'
@@ -206,39 +186,46 @@ export const ScoutOverviewModal: React.FC = React.memo(() => {
 
             {/* PHẦN 2: CÁC ĐỘI THÁM MÃ ĐANG DI CHUYỂN */}
             {scoutMissions.length > 0 && (
-              <div className="pt-2">
-                <div className="text-xs font-bold text-[#b45309] uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                  ⏳ {UI_TEXT.scoutPanel.travelingSectionTitle} ({scoutMissions.length})
+              <div className="pt-3 border-t border-[#8c6b44]/25">
+                <div className="text-xs font-bold text-[#8c2d19] uppercase tracking-wider mb-2 font-serif">
+                  {UI_TEXT.scoutPanel.travelingSectionTitle} ({scoutMissions.length})
                 </div>
 
-                <div className="space-y-1.5">
+                <div className="space-y-2">
                   {scoutMissions.map(scout => (
                     <div
                       key={scout.id}
-                      className="p-2.5 rounded-lg border border-[#8c6b44]/25 bg-black/[0.02] flex items-center justify-between text-xs"
+                      className="p-3 rounded-lg border border-[#8c6b44]/30 bg-[#8c6b44]/5 flex flex-col gap-2 font-serif text-xs"
                     >
-                      <div className="space-y-0.5">
-                        <div className="font-serif font-bold text-[#261304] flex items-center gap-2">
-                          <span>{scout.originCityName} → {scout.targetCityName}</span>
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#b45309]/15 text-[#b45309] font-sans font-bold">
-                            {scout.scoutCount} thám mã
+                      <ul className="space-y-1 text-xs text-[#261304] border-l-2 border-[#b45309]/50 pl-3 py-0.5">
+                        <li>
+                          <span className="text-[#6b4423]">Lộ trình: </span>
+                          <strong className="text-[#261304] font-bold">{scout.originCityName} → {scout.targetCityName}</strong>
+                        </li>
+                        <li>
+                          <span className="text-[#6b4423]">Lực lượng: </span>
+                          <strong className="text-[#b45309] font-bold">{scout.scoutCount} thám mã</strong>
+                        </li>
+                        <li>
+                          <span className="text-[#6b4423]">Hạn định: </span>
+                          <span className="text-[#704d2e]">
+                            Còn ~{scout.daysRemaining.toFixed(1)} ngày ({Math.round(scout.daysRemaining * 12)} canh) trước khi cắm chốt
                           </span>
-                        </div>
-                        <div className="text-[11px] text-[#704d2e] font-sans">
-                          Còn ~{scout.daysRemaining.toFixed(1)} ngày ({Math.round(scout.daysRemaining * 12)} canh) trước khi cắm chốt
-                        </div>
-                      </div>
+                        </li>
+                      </ul>
 
-                      <button
-                        onClick={() => {
-                          setFlyToTarget({ x: scout.currentPos.x, y: scout.currentPos.y });
-                          setActiveModal(null);
-                        }}
-                        className="p-1.5 rounded hover:bg-[#8c6b44]/20 text-[#5c3e23] hover:text-[#8c2d19] transition cursor-pointer"
-                        title="Định vị thám mã trên bản đồ"
-                      >
-                        <MapPin size={16} />
-                      </button>
+                      <div className="flex justify-end pt-1.5 border-t border-[#8c6b44]/15">
+                        <button
+                          onClick={() => {
+                            setFlyToTarget({ x: scout.currentPos.x, y: scout.currentPos.y });
+                            setActiveModal(null);
+                          }}
+                          className="px-2.5 py-1 rounded border border-[#8c6b44]/40 bg-[#8c6b44]/10 hover:bg-[#8c6b44]/25 text-[#5c3e23] hover:text-[#8c2d19] text-xs font-bold transition cursor-pointer"
+                          title="Định vị thám mã trên bản đồ"
+                        >
+                          Định vị
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -247,10 +234,9 @@ export const ScoutOverviewModal: React.FC = React.memo(() => {
           </div>
 
           {/* Footer */}
-          <div className="pt-2.5 border-t border-[#8c6b44]/30 mt-2 flex items-center justify-between shrink-0">
-            <span className="text-[11px] text-[#704d2e] italic flex items-center gap-1">
-              <AlertTriangle size={13} className="text-[#8c2d19]" />
-              {UI_TEXT.scoutPanel.footerTip}
+          <div className="pt-2.5 border-t border-[#8c6b44]/30 mt-2 shrink-0">
+            <span className="text-[11px] text-[#704d2e] italic">
+              * {UI_TEXT.scoutPanel.footerTip}
             </span>
           </div>
         </div>

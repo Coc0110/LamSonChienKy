@@ -98,9 +98,9 @@ export const UI_TEXT = {
     emptyText: 'Chưa do thám thành trì nào.',
     emptySubtext: 'Chọn một đồn lũy quân Minh trên bản đồ để phái thám mã.',
     badges: {
-      stationed: (count: number) => `👁️ Cắm chốt ${count} thám mã`,
-      traveling: (count: number, days: number) => `⏳ Đang tới (${count} thám mã • còn ~${days} ngày)`,
-      unknown: '🌫️ Chưa rõ tình báo',
+      stationed: (count: number) => `Đã cắm chốt ${count} thám mã`,
+      traveling: (count: number, days: number) => `Đang tới (${count} thám mã • còn ~${days} ngày)`,
+      unknown: 'Chưa rõ tình báo',
     },
     labels: {
       troops: 'Quân đồn trú:',
