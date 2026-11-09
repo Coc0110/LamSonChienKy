@@ -5,6 +5,7 @@ import { useUIStore } from '../../../store/uiStore';
 import districtData from '../../../data/districtPolygons.json';
 import type { DistrictInfo } from '../../../types/map';
 import { STATUS_LABELS, getFormationMapPos } from '../../../utils/marchPathUtils';
+import { UI_TEXT } from '../../../data/uiText';
 
 const DEFAULT_DISTRICTS: DistrictInfo[] = (districtData as any).districts || [];
 
@@ -45,7 +46,7 @@ export const MilitaryBookPanel: React.FC = React.memo(() => {
         <div className="flex items-center gap-2">
           <img src="/icons/scroll.png" alt="Quân Thư" className="w-5 h-5 object-contain filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.45)]" />
           <h2 className="font-serif font-bold text-[#261304] text-lg tracking-wide">
-            Quân Cơ Bản Đồ
+            {UI_TEXT.militaryBook.title}
           </h2>
         </div>
         <button 

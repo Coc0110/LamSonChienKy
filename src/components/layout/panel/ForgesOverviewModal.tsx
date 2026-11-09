@@ -2,6 +2,7 @@ import React from 'react';
 import { X, MapPin, Hammer, Swords } from 'lucide-react';
 import { useGameStore } from '../../../store/gameStore';
 import { useUIStore } from '../../../store/uiStore';
+import { UI_TEXT } from '../../../data/uiText';
 
 export const ForgesOverviewModal: React.FC = React.memo(() => {
   const activeModal = useUIStore(state => state.activeModal);
@@ -37,10 +38,10 @@ export const ForgesOverviewModal: React.FC = React.memo(() => {
               </div>
               <div>
                 <h3 className="font-serif font-black text-lg text-[#261304] leading-tight">
-                  Tổng Quản Lò Rèn Binh Khí
+                  {UI_TEXT.forgesPanel.title}
                 </h3>
                 <p className="text-[11px] text-[#704d2e] font-sans">
-                  Chế tác gươm giáo, cung nỏ và thiết giáp cho nghĩa quân Lam Sơn
+                  {UI_TEXT.forgesPanel.subtitle}
                 </p>
               </div>
             </div>
@@ -57,11 +58,11 @@ export const ForgesOverviewModal: React.FC = React.memo(() => {
           {/* Banner Thống kê */}
           <div className="flex items-center justify-between mb-3 p-2.5 rounded bg-black/[0.04] border border-[#8c6b44]/25 shrink-0 text-xs">
             <div>
-              <span className="text-[#5c3e23]">Quy mô bễ đúc: </span>
+              <span className="text-[#5c3e23]">{UI_TEXT.forgesPanel.stats.totalForges} </span>
               <strong className="text-[#8c2d19] font-bold">{forgeStructures.length} lò rèn</strong>
             </div>
             <div>
-              <span className="text-[#5c3e23]">Lò đang đỏ lửa: </span>
+              <span className="text-[#5c3e23]">{UI_TEXT.forgesPanel.stats.activeForging} </span>
               <strong className="text-[#15803d] font-bold">{activeOrdersCount} / {forgeStructures.length}</strong>
             </div>
           </div>
@@ -70,7 +71,7 @@ export const ForgesOverviewModal: React.FC = React.memo(() => {
           <div className="flex-1 overflow-y-auto no-scrollbar space-y-2.5 pr-1">
             {forgeStructures.length === 0 ? (
               <div className="py-12 text-center text-xs text-[#704d2e] italic">
-                Chưa có lò rèn nào được dựng. Hãy bấm Dựng Lò Rèn Mới bên dưới để rèn binh khí!
+                {UI_TEXT.forgesPanel.emptyText}
               </div>
             ) : (
               forgeStructures.map(forge => {
@@ -118,7 +119,7 @@ export const ForgesOverviewModal: React.FC = React.memo(() => {
                           className="px-2.5 py-1 rounded bg-[#8c2d19]/15 hover:bg-[#8c2d19]/25 text-[#8c2d19] border border-[#8c6b44]/40 font-bold text-xs transition cursor-pointer flex items-center gap-1"
                         >
                           <Swords size={12} />
-                          <span>{order ? 'Xem Lò' : 'Hạ Lệnh Rèn'}</span>
+                          <span>{order ? 'Xem Lò' : UI_TEXT.forgesPanel.actions.orderForge}</span>
                         </button>
                       )}
 
@@ -128,7 +129,7 @@ export const ForgesOverviewModal: React.FC = React.memo(() => {
                           setActiveModal(null);
                         }}
                         className="p-1.5 rounded hover:bg-[#8c6b44]/20 text-[#5c3e23] hover:text-[#8c2d19] transition cursor-pointer"
-                        title="Định vị lò rèn này trên bản đồ"
+                        title={UI_TEXT.forgesPanel.actions.locate}
                       >
                         <MapPin size={16} />
                       </button>
@@ -157,7 +158,7 @@ export const ForgesOverviewModal: React.FC = React.memo(() => {
                 className="absolute inset-0 w-full h-full object-fill pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]"
               />
               <span className="relative z-10 text-[#fcf4e4] font-serif font-black text-xs drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
-                + Dựng Lò Rèn Mới
+                {UI_TEXT.forgesPanel.actions.buildNew}
               </span>
             </button>
           </div>

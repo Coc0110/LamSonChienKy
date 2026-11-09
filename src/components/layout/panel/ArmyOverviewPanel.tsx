@@ -3,6 +3,7 @@ import { X, MapPin, Flag, Plus, Shield } from 'lucide-react';
 import { useGameStore } from '../../../store/gameStore';
 import { useUIStore } from '../../../store/uiStore';
 import { STATUS_LABELS, getFormationMapPos } from '../../../utils/marchPathUtils';
+import { UI_TEXT } from '../../../data/uiText';
 
 export const ArmyOverviewPanel: React.FC = React.memo(() => {
   const activeModal = useUIStore(state => state.activeModal);
@@ -46,10 +47,10 @@ export const ArmyOverviewPanel: React.FC = React.memo(() => {
             </div>
             <div>
               <h3 className="font-serif font-black text-lg text-[#261304] leading-tight">
-                Bố Trận & Binh Lực Lam Sơn
+                {UI_TEXT.armyPanel.title}
               </h3>
               <p className="text-[11px] text-[#704d2e] font-sans">
-                Quản lý các đạo quân, vẽ lộ trình hành quân và bố trí sa bàn
+                {UI_TEXT.armyPanel.subtitle}
               </p>
             </div>
           </div>
@@ -66,19 +67,19 @@ export const ArmyOverviewPanel: React.FC = React.memo(() => {
         {/* Banner Tổng kết lực lượng */}
         <div className="grid grid-cols-3 gap-2 mb-2.5 p-2 rounded bg-black/[0.04] border border-[#8c6b44]/25 shrink-0 text-xs text-center">
           <div>
-            <span className="text-[#5c3e23] block text-[11px]">Tổng đạo quân:</span>
+            <span className="text-[#5c3e23] block text-[11px]">{UI_TEXT.armyPanel.stats.totalArmies}:</span>
             <strong className="text-[#8c2d19] font-bold text-sm">
               {formations.length} đạo
             </strong>
           </div>
           <div>
-            <span className="text-[#5c3e23] block text-[11px]">Tổng binh lực:</span>
+            <span className="text-[#5c3e23] block text-[11px]">{UI_TEXT.armyPanel.stats.totalTroops}:</span>
             <strong className="text-[#b45309] font-bold text-sm">
               {totalTroops.toLocaleString()} quân
             </strong>
           </div>
           <div>
-            <span className="text-[#5c3e23] block text-[11px]">Khí giới & Lương:</span>
+            <span className="text-[#5c3e23] block text-[11px]">{UI_TEXT.armyPanel.stats.supplies}:</span>
             <strong className="text-[#15803d] font-bold text-sm">
               {totalWeapons} khí / {Math.floor(totalFood)} thạch
             </strong>
@@ -91,7 +92,7 @@ export const ArmyOverviewPanel: React.FC = React.memo(() => {
             setActiveModal('tactical_grid');
           }}
           className="relative w-full py-2 px-3 rounded flex items-center justify-center gap-2 group transition-transform hover:scale-[1.01] active:scale-95 cursor-pointer shadow-md mb-2.5 shrink-0"
-          title="Mở Sa Bàn 32x32 để kéo thả, sắp xếp vị trí từng ô lính và đại tướng"
+          title={UI_TEXT.armyPanel.openTacticalGridTooltip}
         >
           <img
             src="/ink_stroke_red.png"
@@ -100,19 +101,19 @@ export const ArmyOverviewPanel: React.FC = React.memo(() => {
           />
           <Flag size={15} className="relative z-10 text-[#fef08a]" />
           <span className="relative z-10 font-serif font-black text-xs uppercase tracking-wider text-[#fef2d6] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]">
-            Mở Sa Bàn 32×32 (Kéo Thả Từng Ô Lính)
+            {UI_TEXT.armyPanel.openTacticalGridBtn}
           </span>
         </button>
 
         {/* Danh Sách Các Đạo Quân */}
         <div className="flex-1 overflow-y-auto no-scrollbar space-y-2 pr-1">
           <div className="text-xs font-bold text-[#8c2d19] uppercase tracking-wider mb-1 flex items-center gap-1.5">
-            <Shield size={14} /> Danh Sách Các Đạo Quân Thuộc Quyền
+            <Shield size={14} /> {UI_TEXT.armyPanel.sectionTitle} ({validFormations.length})
           </div>
 
           {validFormations.length === 0 ? (
             <div className="py-6 text-center text-xs text-[#704d2e] italic">
-              Chưa có đạo quân nào được biên chế. Hãy nhấn &quot;Lập Đạo Quân Mới&quot; bên dưới!
+              {UI_TEXT.armyPanel.emptyText}
             </div>
           ) : (
             validFormations.map(form => {
@@ -149,7 +150,7 @@ export const ArmyOverviewPanel: React.FC = React.memo(() => {
                     </div>
 
                     <div className="text-[11px] text-[#5c3e23]">
-                      Chủ tướng: <b>{commander?.name || 'Chưa chỉ định'}</b>
+                      {UI_TEXT.armyPanel.commanderLabel} <b>{commander?.name || UI_TEXT.armyPanel.unassignedCommander}</b>
                     </div>
 
                     <div className="text-[10.5px] text-[#704d2e] flex items-center gap-3">
@@ -169,9 +170,9 @@ export const ArmyOverviewPanel: React.FC = React.memo(() => {
                         setActiveModal(null);
                       }}
                       className="px-2 py-1 rounded bg-[#8c2d19] hover:bg-[#6e1e0d] text-white font-bold text-[11px] shadow cursor-pointer transition"
-                      title="Vẽ lộ trình hành quân trực tiếp trên bản đồ thế giới"
+                      title={UI_TEXT.armyPanel.actions.drawRouteTooltip}
                     >
-                      ✍️ Vẽ Đường
+                      {UI_TEXT.armyPanel.actions.drawRoute}
                     </button>
 
                     {/* Nút Xếp ô trên sa bàn */}
@@ -181,9 +182,9 @@ export const ArmyOverviewPanel: React.FC = React.memo(() => {
                         setActiveModal('tactical_grid');
                       }}
                       className="px-2 py-1 rounded bg-[#8c6b44]/20 hover:bg-[#8c6b44]/35 text-[#3a2010] font-bold text-[11px] cursor-pointer transition"
-                      title="Mở sa bàn 32x32 xếp ô cho đạo quân này"
+                      title={UI_TEXT.armyPanel.actions.tacticalGridTooltip}
                     >
-                      Sa Bàn
+                      {UI_TEXT.armyPanel.actions.tacticalGrid}
                     </button>
 
                     {/* Nút Định vị trên bản đồ */}
@@ -192,7 +193,7 @@ export const ArmyOverviewPanel: React.FC = React.memo(() => {
                         setFlyToTarget({ x: pos.x, y: pos.y });
                       }}
                       className="p-1 rounded hover:bg-[#8c6b44]/20 text-[#5c3e23] hover:text-[#8c2d19] transition cursor-pointer"
-                      title="Định vị đạo quân này trên bản đồ"
+                      title={UI_TEXT.armyPanel.actions.locate}
                     >
                       <MapPin size={15} />
                     </button>
@@ -214,7 +215,7 @@ export const ArmyOverviewPanel: React.FC = React.memo(() => {
             className="flex items-center gap-1 px-3 py-1 rounded border border-[#8c6b44]/40 bg-[#8c6b44]/15 hover:bg-[#8c6b44]/25 text-[#3a2010] font-bold text-xs cursor-pointer transition"
           >
             <Plus size={14} />
-            <span>Lập Đạo Quân Mới</span>
+            <span>{UI_TEXT.armyPanel.createFormationBtn}</span>
           </button>
         </div>
       </div>

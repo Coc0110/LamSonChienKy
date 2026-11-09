@@ -3,6 +3,7 @@ import { X } from 'lucide-react';
 import { useUIStore } from '../../../store/uiStore';
 import { useGameStore } from '../../../store/gameStore';
 import type { CityNode } from '../../../types';
+import { UI_TEXT } from '../../../data/uiText';
 
 interface BuildPaperPanelProps {
   activeLamSonBase?: CityNode;
@@ -64,7 +65,7 @@ export const BuildPaperPanel: React.FC<BuildPaperPanelProps> = React.memo(({
         {/* Header tờ giấy công trình */}
         <div className="flex items-center justify-between pb-1.5 mb-1 border-b border-[#8c6b44]/25">
           <span className="font-serif font-black text-xs uppercase tracking-wider text-[#8c2d19]">
-            Công Trình
+            {UI_TEXT.buildPanel.title}
           </span>
           <button 
             onClick={handleClose}

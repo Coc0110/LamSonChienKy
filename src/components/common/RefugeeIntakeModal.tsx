@@ -2,6 +2,7 @@ import React from 'react';
 import { X, Users } from 'lucide-react';
 import { useGameStore } from '../../store/gameStore';
 import { CAMP_CAPACITY_BY_LEVEL } from '../../types';
+import { UI_TEXT } from '../../data/uiText';
 
 export const RefugeeIntakeModal: React.FC = () => {
   const isRefugeeModalOpen = useGameStore((state) => state.isRefugeeModalOpen);
@@ -68,7 +69,7 @@ export const RefugeeIntakeModal: React.FC = () => {
                 <Users size={18} />
               </div>
               <h3 className="font-serif font-black text-lg text-[#261304] leading-tight">
-                Danh sách lưu dân
+                {UI_TEXT.refugeesPanel.title}
               </h3>
             </div>
 
@@ -103,7 +104,7 @@ export const RefugeeIntakeModal: React.FC = () => {
           <div className="flex-1 overflow-y-auto no-scrollbar space-y-2.5 pr-1">
             {pendingRefugees.length === 0 ? (
               <div className="py-8 text-center text-xs text-[#704d2e] italic font-serif">
-                Hiện không có đoàn lưu dân nào đang chờ trước cổng trại.
+                {UI_TEXT.refugeesPanel.emptyText}
               </div>
             ) : (
               pendingRefugees.map((wave) => {
@@ -197,7 +198,7 @@ export const RefugeeIntakeModal: React.FC = () => {
                             className="absolute inset-0 w-full h-full object-fill pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)] group-hover:brightness-110 transition-all"
                           />
                           <span className="relative z-10 text-[#fcf4e4] font-serif font-black text-xs drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)] leading-tight whitespace-nowrap">
-                            Nhận toàn bộ
+                            {UI_TEXT.refugeesPanel.actions.acceptAll}
                           </span>
                           <span className="relative z-10 text-[#fef2d6]/90 text-[10.5px] font-sans font-bold drop-shadow-[0_1px_1px_rgba(0,0,0,0.9)] leading-tight whitespace-nowrap">
                             (-{wave.foodCost} lương{wave.goldContribution ? `, +${wave.goldContribution}v` : ''})
@@ -217,7 +218,7 @@ export const RefugeeIntakeModal: React.FC = () => {
                             className="absolute inset-0 w-full h-full object-fill pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)] group-hover:brightness-115 transition-all"
                           />
                           <span className="relative z-10 text-[#fcf4e4] font-serif font-black text-xs drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)] leading-tight whitespace-nowrap">
-                            Chỉ nhận tráng đinh
+                            {UI_TEXT.refugeesPanel.actions.acceptAbleOnly}
                           </span>
                           <span className="relative z-10 text-[#fef2d6]/90 text-[10.5px] font-sans font-bold drop-shadow-[0_1px_1px_rgba(0,0,0,0.9)] leading-tight whitespace-nowrap">
                             (-{halfFood} lương)
@@ -236,7 +237,7 @@ export const RefugeeIntakeModal: React.FC = () => {
                             className="absolute inset-0 w-full h-full object-fill pointer-events-none opacity-80 group-hover:opacity-100 drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)] group-hover:brightness-125 transition-all"
                           />
                           <span className="relative z-10 text-[#e6d5bc] group-hover:text-white font-serif font-black text-xs drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)] leading-tight whitespace-nowrap">
-                            Từ chối
+                            {UI_TEXT.refugeesPanel.actions.reject}
                           </span>
                         </button>
                       </div>

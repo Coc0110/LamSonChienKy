@@ -2,6 +2,7 @@ import React from 'react';
 import { Eye, Users } from 'lucide-react';
 import { useGameStore } from '../../store/gameStore';
 import { useUIStore } from '../../store/uiStore';
+import { UI_TEXT } from '../../data/uiText';
 
 type DockTarget = 'army' | 'training' | 'scout' | 'farms' | 'forges' | 'build' | 'refugees' | 'generals' | 'military_book';
 
@@ -79,7 +80,7 @@ export const LeftCommandDock: React.FC = React.memo(() => {
         {/* NHÓM 1: QUÂN VỤ (BINH LỰC & TÁC CHIẾN)                                     */}
         {/* ========================================================================= */}
         <span className="text-[9px] font-serif font-black uppercase tracking-widest text-[#8c5828]/80 pb-0.5">
-          Quân Vụ
+          {UI_TEXT.leftDock.groups.military}
         </span>
 
         {/* 1.1. BỐ TRẬN SA BÀN */}
@@ -89,7 +90,7 @@ export const LeftCommandDock: React.FC = React.memo(() => {
           className={`relative w-[74px] py-1 px-1 rounded flex flex-col items-center justify-center transition-all cursor-pointer ${
             activeModal === 'army' ? 'scale-105' : 'hover:bg-black/[0.05] active:scale-95'
           }`}
-          title="Mở Sa Bàn Bố Trận 32x32 (Sắp xếp từng người lính và quản lý quân chờ)"
+          title={UI_TEXT.leftDock.buttons.army.tooltip}
         >
           {activeModal === 'army' && (
             <img
@@ -100,7 +101,7 @@ export const LeftCommandDock: React.FC = React.memo(() => {
           )}
           <img
             src="/icons/flag.png"
-            alt="Bố Trận"
+            alt={UI_TEXT.leftDock.buttons.army.label}
             className="relative z-10 w-6 h-6 object-contain filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]"
           />
           <span className={`relative z-10 font-serif font-black text-[11px] mt-0.5 leading-tight ${
@@ -108,7 +109,7 @@ export const LeftCommandDock: React.FC = React.memo(() => {
               ? 'text-[#fcf4e4] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]'
               : 'text-[#2a1708]'
           }`}>
-            Bố Trận
+            {UI_TEXT.leftDock.buttons.army.label}
           </span>
         </button>
 
@@ -119,7 +120,7 @@ export const LeftCommandDock: React.FC = React.memo(() => {
           className={`relative w-[74px] py-1 px-1 rounded flex flex-col items-center justify-center transition-all cursor-pointer ${
             activeModal === 'training' ? 'scale-105' : 'hover:bg-black/[0.05] active:scale-95'
           }`}
-          title="Mở bảng Thao Luyện Dân Binh & Bổ Sung Quân Số Lam Sơn"
+          title={UI_TEXT.leftDock.buttons.training.tooltip}
         >
           {activeModal === 'training' && (
             <img
@@ -130,7 +131,7 @@ export const LeftCommandDock: React.FC = React.memo(() => {
           )}
           <img
             src="/icons/war_mode_sword_spear.png"
-            alt="Thao Luyện"
+            alt={UI_TEXT.leftDock.buttons.training.label}
             className="relative z-10 w-6 h-6 object-contain filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]"
           />
           <span className={`relative z-10 font-serif font-black text-[11px] mt-0.5 leading-tight ${
@@ -138,7 +139,7 @@ export const LeftCommandDock: React.FC = React.memo(() => {
               ? 'text-[#fcf4e4] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]'
               : 'text-[#2a1708]'
           }`}>
-            Thao Luyện
+            {UI_TEXT.leftDock.buttons.training.label}
           </span>
         </button>
 
@@ -149,7 +150,7 @@ export const LeftCommandDock: React.FC = React.memo(() => {
           className={`relative w-[74px] py-1 px-1 rounded flex flex-col items-center justify-center transition-all cursor-pointer ${
             activeModal === 'scout' ? 'scale-105' : 'hover:bg-black/[0.05] active:scale-95'
           }`}
-          title="Mở bảng Tình Báo Do Thám & Điều động thám mã trinh sát đồn địch"
+          title={UI_TEXT.leftDock.buttons.scout.tooltip}
         >
           {activeModal === 'scout' && (
             <img
@@ -166,7 +167,7 @@ export const LeftCommandDock: React.FC = React.memo(() => {
               ? 'text-[#fcf4e4] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]'
               : 'text-[#2a1708]'
           }`}>
-            Do Thám
+            {UI_TEXT.leftDock.buttons.scout.label}
           </span>
         </button>
 
@@ -177,7 +178,7 @@ export const LeftCommandDock: React.FC = React.memo(() => {
         {/* NHÓM 2: NỘI CHÍNH (ĐỒN ĐIỀN, LÒ RÈN, XÂY DỰNG)                           */}
         {/* ========================================================================= */}
         <span className="text-[9px] font-serif font-black uppercase tracking-widest text-[#8c5828]/80 pb-0.5">
-          Nội Chính
+          {UI_TEXT.leftDock.groups.domestic}
         </span>
 
         {/* 2.1. ĐỒN ĐIỀN */}
@@ -187,7 +188,7 @@ export const LeftCommandDock: React.FC = React.memo(() => {
           className={`relative w-[74px] py-1 px-1 rounded flex flex-col items-center justify-center transition-all cursor-pointer ${
             activeModal === 'farms' ? 'scale-105' : 'hover:bg-black/[0.05] active:scale-95'
           }`}
-          title="Quản lý toàn bộ ruộng đồn điền, ngày thu hoạch và phân bổ nông đinh"
+          title={UI_TEXT.leftDock.buttons.farms.tooltip}
         >
           {activeModal === 'farms' && (
             <img
@@ -198,7 +199,7 @@ export const LeftCommandDock: React.FC = React.memo(() => {
           )}
           <img
             src="/icons/structure_farm.png"
-            alt="Đồn Điền"
+            alt={UI_TEXT.leftDock.buttons.farms.label}
             className="relative z-10 w-6 h-6 object-contain filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]"
           />
           <span className={`relative z-10 font-serif font-black text-[11px] mt-0.5 leading-tight ${
@@ -206,7 +207,7 @@ export const LeftCommandDock: React.FC = React.memo(() => {
               ? 'text-[#fcf4e4] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]'
               : 'text-[#2a1708]'
           }`}>
-            Đồn Điền
+            {UI_TEXT.leftDock.buttons.farms.label}
           </span>
         </button>
 
@@ -217,7 +218,7 @@ export const LeftCommandDock: React.FC = React.memo(() => {
           className={`relative w-[74px] py-1 px-1 rounded flex flex-col items-center justify-center transition-all cursor-pointer ${
             activeModal === 'forges' ? 'scale-105' : 'hover:bg-black/[0.05] active:scale-95'
           }`}
-          title="Quản lý các lò rèn vũ khí, tiến độ đúc đao kiếm cung tên và thợ rèn"
+          title={UI_TEXT.leftDock.buttons.forges.tooltip}
         >
           {activeModal === 'forges' && (
             <img
@@ -228,7 +229,7 @@ export const LeftCommandDock: React.FC = React.memo(() => {
           )}
           <img
             src="/icons/structure_forge.png"
-            alt="Lò Rèn"
+            alt={UI_TEXT.leftDock.buttons.forges.label}
             className="relative z-10 w-6 h-6 object-contain filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]"
           />
           <span className={`relative z-10 font-serif font-black text-[11px] mt-0.5 leading-tight ${
@@ -236,7 +237,7 @@ export const LeftCommandDock: React.FC = React.memo(() => {
               ? 'text-[#fcf4e4] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]'
               : 'text-[#2a1708]'
           }`}>
-            Lò Rèn
+            {UI_TEXT.leftDock.buttons.forges.label}
           </span>
         </button>
 
@@ -247,7 +248,7 @@ export const LeftCommandDock: React.FC = React.memo(() => {
           className={`relative w-[74px] py-1 px-1 rounded flex flex-col items-center justify-center transition-all cursor-pointer ${
             isBuildPaperOpen ? 'scale-105' : 'hover:bg-black/[0.05] active:scale-95'
           }`}
-          title="Mở bảng xây dựng công trình (Căn cứ, Ruộng, Lò rèn)"
+          title={UI_TEXT.leftDock.buttons.build.tooltip}
         >
           {isBuildPaperOpen && (
             <img
@@ -258,7 +259,7 @@ export const LeftCommandDock: React.FC = React.memo(() => {
           )}
           <img
             src="/icons/structure_camp.png"
-            alt="Xây Dựng"
+            alt={UI_TEXT.leftDock.buttons.build.label}
             className="relative z-10 w-6 h-6 object-contain filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]"
           />
           <span className={`relative z-10 font-serif font-black text-[11px] mt-0.5 leading-tight ${
@@ -266,7 +267,7 @@ export const LeftCommandDock: React.FC = React.memo(() => {
               ? 'text-[#fcf4e4] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]'
               : 'text-[#2a1708]'
           }`}>
-            Xây Dựng
+            {UI_TEXT.leftDock.buttons.build.label}
           </span>
         </button>
 
@@ -277,7 +278,7 @@ export const LeftCommandDock: React.FC = React.memo(() => {
         {/* NHÓM 3: NHÂN SỰ & QUÂN CƠ                                                  */}
         {/* ========================================================================= */}
         <span className="text-[9px] font-serif font-black uppercase tracking-widest text-[#8c5828]/80 pb-0.5">
-          Quân Cơ
+          {UI_TEXT.leftDock.groups.intelligence}
         </span>
 
         {/* 3.1. LƯU DÂN */}
@@ -287,7 +288,7 @@ export const LeftCommandDock: React.FC = React.memo(() => {
           className={`relative w-[74px] py-1 px-1 rounded flex flex-col items-center justify-center transition-all cursor-pointer ${
             isRefugeeModalOpen ? 'scale-105' : 'hover:bg-black/[0.05] active:scale-95'
           }`}
-          title="Xem các toán lưu dân quy phụ đang chờ ngoài cổng thành"
+          title={UI_TEXT.leftDock.buttons.refugees.tooltip}
         >
           {isRefugeeModalOpen && (
             <img
@@ -309,7 +310,7 @@ export const LeftCommandDock: React.FC = React.memo(() => {
               ? 'text-[#fcf4e4] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]'
               : 'text-[#2a1708]'
           }`}>
-            Lưu Dân
+            {UI_TEXT.leftDock.buttons.refugees.label}
           </span>
         </button>
 
@@ -320,7 +321,7 @@ export const LeftCommandDock: React.FC = React.memo(() => {
           className={`relative w-[74px] py-1 px-1 rounded flex flex-col items-center justify-center transition-all cursor-pointer ${
             activeModal === 'generals' ? 'scale-105' : 'hover:bg-black/[0.05] active:scale-95'
           }`}
-          title="Mở Thẻ Tướng (Bảng Lệnh Bài Danh Tướng Lam Sơn)"
+          title={UI_TEXT.leftDock.buttons.generals.tooltip}
         >
           {activeModal === 'generals' && (
             <img
@@ -331,7 +332,7 @@ export const LeftCommandDock: React.FC = React.memo(() => {
           )}
           <img
             src="/icons/general_token.png"
-            alt="Thẻ Tướng"
+            alt={UI_TEXT.leftDock.buttons.generals.label}
             className="relative z-10 w-6 h-6 object-contain filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]"
           />
           <span className={`relative z-10 font-serif font-black text-[11px] mt-0.5 leading-tight ${
@@ -339,7 +340,7 @@ export const LeftCommandDock: React.FC = React.memo(() => {
               ? 'text-[#fcf4e4] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]'
               : 'text-[#2a1708]'
           }`}>
-            Thẻ Tướng
+            {UI_TEXT.leftDock.buttons.generals.label}
           </span>
         </button>
 
@@ -350,7 +351,7 @@ export const LeftCommandDock: React.FC = React.memo(() => {
           className={`relative w-[74px] py-1 px-1 rounded flex flex-col items-center justify-center transition-all cursor-pointer ${
             isMilitaryBookOpen ? 'scale-105' : 'hover:bg-black/[0.05] active:scale-95'
           }`}
-          title="Mở Quân Thư (Xem thư từ quân sự & lịch sử thu hoạch/rèn khí giới)"
+          title={UI_TEXT.leftDock.buttons.military_book.tooltip}
         >
           {isMilitaryBookOpen && (
             <img
@@ -362,7 +363,7 @@ export const LeftCommandDock: React.FC = React.memo(() => {
           <div className="relative z-10 w-6 h-6 flex items-center justify-center">
             <img
               src="/icons/scroll.png"
-              alt="Quân Thư"
+              alt={UI_TEXT.leftDock.buttons.military_book.label}
               className="w-full h-full object-contain filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]"
             />
             {unreadNoticesCount > 0 && (
@@ -376,7 +377,7 @@ export const LeftCommandDock: React.FC = React.memo(() => {
               ? 'text-[#fcf4e4] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]'
               : 'text-[#2a1708]'
           }`}>
-            Quân Thư
+            {UI_TEXT.leftDock.buttons.military_book.label}
           </span>
         </button>
 

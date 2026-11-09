@@ -3,6 +3,7 @@ import { Users, Swords, Clock, X, AlertCircle } from 'lucide-react';
 import { useGameStore } from '../../../store/gameStore';
 import type { CityNode, General } from '../../../types';
 import { TrainingSlider } from './TrainingSlider';
+import { UI_TEXT } from '../../../data/uiText';
 
 interface CityPopulationModalProps {
   city: CityNode;
@@ -78,10 +79,10 @@ export const CityPopulationModal: React.FC<CityPopulationModalProps> = ({
             </div>
             <div>
               <h2 className="font-serif font-black text-base text-[#261304] tracking-wide">
-                Thao Luyện & Dân Cư — {city.name}
+                {UI_TEXT.trainingPanel.title(city.name)}
               </h2>
               <p className="text-[11px] text-[#704d2e] font-sans">
-                Tổng nhân khẩu quy tụ: <strong className="text-[#8c2d19] font-bold">{totalPop}</strong> người
+                {UI_TEXT.trainingPanel.subtitle(totalPop)}
               </p>
             </div>
           </div>
@@ -102,7 +103,7 @@ export const CityPopulationModal: React.FC<CityPopulationModalProps> = ({
               <div className="flex items-center justify-between text-xs text-amber-200/90 font-bold">
                 <span className="flex items-center gap-1.5">
                   <Swords size={15} className="text-red-400" />
-                  Nghĩa Binh (Chiến binh)
+                  {UI_TEXT.trainingPanel.combatTroops}
                 </span>
               </div>
               <div className="mt-1 text-2xl font-black text-amber-300">
@@ -207,7 +208,7 @@ export const CityPopulationModal: React.FC<CityPopulationModalProps> = ({
                 onClick={() => onCancelTraining(city.id)}
                 className="text-xs text-red-400 hover:text-red-300 underline cursor-pointer"
               >
-                Hủy bỏ đợt thao luyện (Hoàn trả khí giới)
+                {UI_TEXT.trainingPanel.cancelTrainingBtn}
               </button>
             </div>
           </div>
@@ -234,7 +235,7 @@ export const CityPopulationModal: React.FC<CityPopulationModalProps> = ({
               className="px-5 py-2.5 rounded-lg bg-gradient-to-r from-[#991b1b] to-[#7f1d1d] hover:brightness-110 text-amber-100 font-serif font-black text-sm uppercase tracking-wider border border-[#b91c1c] shadow-lg flex items-center gap-1.5 transition cursor-pointer"
             >
               <Swords size={16} />
-              <span>Thao Luyện Nghĩa Binh</span>
+              <span>{UI_TEXT.trainingPanel.startTrainingBtn}</span>
             </button>
           </div>
         )}

@@ -3,6 +3,7 @@ import { X, MapPin, Plus, Minus, Wheat, Calendar } from 'lucide-react';
 import { useGameStore } from '../../../store/gameStore';
 import { useUIStore } from '../../../store/uiStore';
 import { getNextHarvestSeason } from '../../../utils/harvestSeasons';
+import { UI_TEXT } from '../../../data/uiText';
 
 export const FarmsOverviewModal: React.FC = React.memo(() => {
   const activeModal = useUIStore(state => state.activeModal);
@@ -55,10 +56,10 @@ export const FarmsOverviewModal: React.FC = React.memo(() => {
               </div>
               <div>
                 <h3 className="font-serif font-black text-lg text-[#261304] leading-tight">
-                  Tổng Quản Đồn Điền & Mùa Vụ
+                  {UI_TEXT.farmsPanel.title}
                 </h3>
                 <p className="text-[11px] text-[#704d2e] font-sans">
-                  Quản lý khai hoang, tiến độ canh tác và sản lượng kho lương nghĩa quân
+                  {UI_TEXT.farmsPanel.subtitle}
                 </p>
               </div>
             </div>
@@ -77,7 +78,7 @@ export const FarmsOverviewModal: React.FC = React.memo(() => {
             <div className="flex items-center gap-2">
               <Calendar size={16} className="text-[#8c2d19] shrink-0" />
               <div>
-                <div className="text-[11px] text-[#5c3e23]">Mùa gặt kế tiếp:</div>
+                <div className="text-[11px] text-[#5c3e23]">{UI_TEXT.farmsPanel.stats.nextSeason}</div>
                 <div className="font-bold text-[#8c2d19]">
                   {nextHarvest.season.name} ({nextHarvest.targetDay}/{nextHarvest.targetMonth}) — còn {nextHarvest.daysRemaining} ngày
                 </div>
@@ -86,13 +87,13 @@ export const FarmsOverviewModal: React.FC = React.memo(() => {
 
             <div className="flex items-center justify-between pl-3 border-l border-[#8c6b44]/25">
               <div>
-                <div className="text-[11px] text-[#5c3e23]">Nông đinh canh tác:</div>
+                <div className="text-[11px] text-[#5c3e23]">{UI_TEXT.farmsPanel.stats.workers}</div>
                 <div className="font-bold text-[#15803d]">
                   {totalAssignedWorkers} / {totalMaxWorkers} người
                 </div>
               </div>
               <div className="text-right">
-                <div className="text-[11px] text-[#5c3e23]">Dự thu vụ này:</div>
+                <div className="text-[11px] text-[#5c3e23]">{UI_TEXT.farmsPanel.stats.expectedYield}</div>
                 <div className="font-bold text-[#b45309]">
                   +{totalExpectedHarvest.toLocaleString()} thạch
                 </div>
@@ -104,7 +105,7 @@ export const FarmsOverviewModal: React.FC = React.memo(() => {
           <div className="flex-1 overflow-y-auto no-scrollbar space-y-2.5 pr-1">
             {farmStructures.length === 0 ? (
               <div className="py-12 text-center text-xs text-[#704d2e] italic">
-                Nghĩa quân chưa khai hoang thửa ruộng nào. Hãy bấm Khai Hoang bên dưới để mở đất!
+                {UI_TEXT.farmsPanel.emptyText}
               </div>
             ) : (
               farmStructures.map(farm => {
@@ -149,7 +150,7 @@ export const FarmsOverviewModal: React.FC = React.memo(() => {
                             onClick={() => assignFarmWorkers(farm.id, -1)}
                             disabled={assigned <= 0}
                             className="w-5 h-5 rounded flex items-center justify-center bg-white/70 hover:bg-white border border-[#8c6b44]/40 text-[#261304] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
-                            title="Bớt 1 nông đinh"
+                            title={UI_TEXT.farmsPanel.actions.decreaseWorker}
                           >
                             <Minus size={11} />
                           </button>
@@ -160,7 +161,7 @@ export const FarmsOverviewModal: React.FC = React.memo(() => {
                             onClick={() => assignFarmWorkers(farm.id, 1)}
                             disabled={assigned >= max}
                             className="w-5 h-5 rounded flex items-center justify-center bg-white/70 hover:bg-white border border-[#8c6b44]/40 text-[#261304] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
-                            title="Thêm 1 nông đinh (tự động điều động lính rảnh nếu thiếu tráng phu)"
+                            title={UI_TEXT.farmsPanel.actions.increaseWorker}
                           >
                             <Plus size={11} />
                           </button>
@@ -174,7 +175,7 @@ export const FarmsOverviewModal: React.FC = React.memo(() => {
                           setActiveModal(null);
                         }}
                         className="p-1.5 rounded hover:bg-[#8c6b44]/20 text-[#5c3e23] hover:text-[#8c2d19] transition cursor-pointer"
-                        title="Định vị thửa ruộng này trên bản đồ"
+                        title={UI_TEXT.farmsPanel.actions.locate}
                       >
                         <MapPin size={16} />
                       </button>
@@ -203,7 +204,7 @@ export const FarmsOverviewModal: React.FC = React.memo(() => {
                 className="absolute inset-0 w-full h-full object-fill pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]"
               />
               <span className="relative z-10 text-[#fcf4e4] font-serif font-black text-xs drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
-                + Khai Hoang Ruộng Mới
+                {UI_TEXT.farmsPanel.actions.buildNew}
               </span>
             </button>
           </div>

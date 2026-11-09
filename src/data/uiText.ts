@@ -21,7 +21,7 @@ export const UI_TEXT = {
     buttons: {
       army: {
         label: 'Bố Trận',
-        tooltip: 'Bố trận đạo quân & Sa bàn',
+        tooltip: 'Sa bàn bày binh bố trận',
       },
       training: {
         label: 'Thao Luyện',
@@ -29,11 +29,11 @@ export const UI_TEXT = {
       },
       scout: {
         label: 'Do Thám',
-        tooltip: 'Tình báo đồn lũy & Thám mã',
+        tooltip: 'Cử quân do thám',
       },
       farms: {
         label: 'Đồn Điền',
-        tooltip: 'Quản lý ruộng lúa & Mùa vụ',
+        tooltip: 'Quản lý đồn điền, mùa vụ',
       },
       forges: {
         label: 'Lò Rèn',
@@ -90,14 +90,12 @@ export const UI_TEXT = {
   // --------------------------------------------------------------------------
   scoutPanel: {
     title: 'Tình Báo Do Thám',
-    subtitle: 'Theo dõi các đồn lũy đã cử thám mã thâm nhập',
     stats: {
       scouted: 'Đã do thám:',
-      traveling: 'Thám mã đang tới:',
       laborers: 'Tráng phu rảnh:',
     },
-    sectionTitle: 'Thành Trì Đang Do Thám',
-    emptyText: 'Chưa phái thám mã đến thành trì nào.',
+    sectionTitle: 'Danh sách Do Thám',
+    emptyText: 'Chưa do thám thành trì nào.',
     emptySubtext: 'Chọn một đồn lũy quân Minh trên bản đồ để phái thám mã.',
     badges: {
       stationed: (count: number) => `👁️ Cắm chốt ${count} thám mã`,
