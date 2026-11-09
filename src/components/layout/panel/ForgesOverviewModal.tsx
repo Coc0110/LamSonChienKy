@@ -19,21 +19,16 @@ export const ForgesOverviewModal: React.FC = React.memo(() => {
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-6 pt-20 bg-black/70 backdrop-blur-xs select-none"
-      onClick={() => setActiveModal(null)}
+      className="fixed inset-x-3 bottom-3 md:inset-auto md:absolute md:top-[82px] md:left-[98px] z-40 md:w-[450px] max-h-[82vh] flex flex-col pointer-events-auto transition-all duration-300 select-none filter drop-shadow-[0_18px_30px_rgba(0,0,0,0.7)] drop-shadow-[0_3px_8px_rgba(0,0,0,0.45)]"
     >
-      <div 
-        className="relative w-full max-w-2xl max-h-[85vh] flex flex-col pointer-events-auto filter drop-shadow-[0_20px_45px_rgba(0,0,0,0.9)]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <img
-          src="/parchment_torn_panel.png"
-          alt="Bảng Tổng Quản Lò Rèn"
-          className="absolute inset-0 w-full h-full object-fill pointer-events-none select-none z-0"
-          draggable={false}
-        />
+      <img
+        src="/parchment_torn_panel.png"
+        alt="Bảng Tổng Quản Lò Rèn"
+        className="absolute inset-0 w-full h-full object-fill pointer-events-none select-none z-0"
+        draggable={false}
+      />
 
-        <div className="relative z-10 p-6 md:p-8 flex flex-col h-full font-serif text-[#261304] overflow-hidden">
+      <div className="relative z-10 p-5 md:p-6 flex flex-col h-full font-serif text-[#261304] overflow-hidden">
           {/* Header */}
           <div className="flex items-center justify-between border-b border-[#8c6b44]/35 pb-2.5 mb-3 shrink-0">
             <div className="flex items-center gap-2.5">
@@ -168,7 +163,6 @@ export const ForgesOverviewModal: React.FC = React.memo(() => {
           </div>
         </div>
       </div>
-    </div>
   );
 });
 

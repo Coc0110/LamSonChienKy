@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { useGameStore } from '../../store/gameStore';
 import { useUIStore } from '../../store/uiStore';
 import { CityPopulationModal } from './panel/CityPopulationModal';
@@ -22,8 +22,6 @@ export const LeftPanel: React.FC = React.memo(() => {
   const startTraining = useGameStore(state => state.startTraining);
   const cancelTraining = useGameStore(state => state.cancelTraining);
 
-  const [isPopulationModalOpen, setIsPopulationModalOpen] = useState(false);
-
   const selectedCity = useMemo(() => cities.find(c => c.id === selectedCityId), [cities, selectedCityId]);
   const unlockedGenerals = useMemo(() => generals.filter(g => g.unlocked), [generals]);
   const stationedGenerals = useMemo(
@@ -41,7 +39,7 @@ export const LeftPanel: React.FC = React.memo(() => {
     [selectedCity, lamSonBases, cities]
   );
 
-  const isTrainingOpen = isPopulationModalOpen || activeModal === 'training';
+  const isTrainingOpen = activeModal === 'training';
   const targetCityForTraining = (selectedCity && selectedCity.faction === 'lam_son') ? selectedCity : activeLamSonBase;
   const trainingGenerals = useMemo(
     () => unlockedGenerals.filter(g => g.locationId === targetCityForTraining?.id),
@@ -61,7 +59,7 @@ export const LeftPanel: React.FC = React.memo(() => {
       {/* 2. CHIẾN THƯ CHI TIẾT (KHI KHÔNG MỞ QUÂN THƯ) */}
       {!isListOpen && selectedCityId && (
         <div 
-          className="fixed inset-x-3 bottom-3 md:inset-auto md:absolute md:top-24 md:left-6 z-30 md:w-[410px] max-h-[82vh] flex flex-col pointer-events-auto transition-all duration-300 select-none filter drop-shadow-[0_18px_30px_rgba(0,0,0,0.7)] drop-shadow-[0_3px_8px_rgba(0,0,0,0.45)]"
+          className="fixed inset-x-3 bottom-3 md:inset-auto md:absolute md:top-24 md:left-[98px] z-30 md:w-[410px] max-h-[82vh] flex flex-col pointer-events-auto transition-all duration-300 select-none filter drop-shadow-[0_18px_30px_rgba(0,0,0,0.7)] drop-shadow-[0_3px_8px_rgba(0,0,0,0.45)]"
         >
           <img
             src="/parchment_torn_panel.png"
@@ -77,7 +75,6 @@ export const LeftPanel: React.FC = React.memo(() => {
               selectedCity={selectedCity}
               stationedGenerals={stationedGenerals}
               lamSonBasesCount={lamSonBasesCount}
-              onOpenPopulationModal={() => setIsPopulationModalOpen(true)}
             />
           ) : null}
         </div>
@@ -95,12 +92,7 @@ export const LeftPanel: React.FC = React.memo(() => {
           city={targetCityForTraining}
           generals={trainingGenerals}
           weaponsAvailable={resources.weapons}
-          onClose={() => {
-            setIsPopulationModalOpen(false);
-            if (activeModal === 'training') {
-              setActiveModal(null);
-            }
-          }}
+          onClose={() => setActiveModal(null)}
           onStartTraining={startTraining}
           onCancelTraining={cancelTraining}
         />

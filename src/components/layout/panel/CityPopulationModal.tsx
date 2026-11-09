@@ -61,27 +61,36 @@ export const CityPopulationModal: React.FC<CityPopulationModalProps> = ({
     formationTroops;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-3 pointer-events-auto">
-      <div className="relative w-full max-w-lg rounded-2xl overflow-hidden border-2 border-[#b89158] shadow-[0_20px_60px_rgba(0,0,0,0.85)] bg-gradient-to-br from-[#2a1a0e] via-[#1f130a] to-[#140b05] text-[#f7ecd7] p-5 space-y-4">
-        
+    <div className="fixed inset-x-3 bottom-3 md:inset-auto md:absolute md:top-[82px] md:left-[98px] z-40 md:w-[480px] max-h-[85vh] flex flex-col pointer-events-auto transition-all duration-300 select-none filter drop-shadow-[0_18px_30px_rgba(0,0,0,0.7)] drop-shadow-[0_3px_8px_rgba(0,0,0,0.45)]">
+      <img
+        src="/parchment_torn_panel.png"
+        alt="Sớ Thao Luyện"
+        className="absolute inset-0 w-full h-full object-fill pointer-events-none select-none z-0"
+        draggable={false}
+      />
+      
+      <div className="relative z-10 p-5 md:p-6 flex flex-col h-full font-serif text-[#261304] overflow-y-auto no-scrollbar space-y-3">
         {/* Header Modal */}
-        <div className="flex items-center justify-between border-b border-[#6e4622] pb-3">
+        <div className="flex items-center justify-between border-b border-[#8c6b44]/35 pb-2.5">
           <div className="flex items-center gap-2.5">
-            <Users className="text-[#f59e0b]" size={22} />
+            <div className="w-8 h-8 rounded-lg bg-[#8c2d19]/15 flex items-center justify-center text-[#8c2d19] border border-[#8c6b44]/40">
+              <Users size={18} />
+            </div>
             <div>
-              <h2 className="font-serif font-black text-lg text-[#f5e2c4] tracking-wide">
-                Tổng Quản Binh Lực & Dân Cư — {city.name}
+              <h2 className="font-serif font-black text-base text-[#261304] tracking-wide">
+                Thao Luyện & Dân Cư — {city.name}
               </h2>
-              <p className="text-xs text-[#b8956e] font-sans">
-                Tổng nhân khẩu quy tụ: <strong className="text-amber-300 font-bold">{totalPop}</strong> người
+              <p className="text-[11px] text-[#704d2e] font-sans">
+                Tổng nhân khẩu quy tụ: <strong className="text-[#8c2d19] font-bold">{totalPop}</strong> người
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-full hover:bg-black/40 text-stone-400 hover:text-white transition cursor-pointer"
+            className="text-[#6e4927] hover:text-[#261304] transition p-1 hover:bg-[#8c6b44]/15 rounded cursor-pointer"
+            title="Đóng bảng"
           >
-            <X size={20} />
+            <X size={18} />
           </button>
         </div>
 

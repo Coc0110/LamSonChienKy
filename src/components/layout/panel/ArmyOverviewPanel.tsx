@@ -1,0 +1,225 @@
+import React, { useMemo } from 'react';
+import { X, MapPin, Flag, Plus, Shield } from 'lucide-react';
+import { useGameStore } from '../../../store/gameStore';
+import { useUIStore } from '../../../store/uiStore';
+import { STATUS_LABELS, getFormationMapPos } from '../../../utils/marchPathUtils';
+
+export const ArmyOverviewPanel: React.FC = React.memo(() => {
+  const activeModal = useUIStore(state => state.activeModal);
+  const setActiveModal = useUIStore(state => state.setActiveModal);
+  const setFlyToTarget = useUIStore(state => state.setFlyToTarget);
+  const setMarchDrawMode = useUIStore(state => state.setMarchDrawMode);
+
+  const formations = useGameStore(state => state.formations);
+  const cities = useGameStore(state => state.cities);
+  const generals = useGameStore(state => state.generals);
+  const createFormation = useGameStore(state => state.createFormation);
+  const setActiveFormationId = useGameStore(state => state.setActiveFormationId);
+
+  const originBase = useMemo(() => cities.find(c => c.faction === 'lam_son') || cities[0], [cities]);
+
+  if (activeModal !== 'army') return null;
+
+  const validFormations = formations.filter(f => f.totalTroops >= 0);
+  const totalTroops = formations.reduce((acc, f) => acc + (f.totalTroops || 0), 0);
+  const totalWeapons = formations.reduce((acc, f) => acc + (f.totalWeapons || 0), 0);
+  const totalFood = formations.reduce((acc, f) => acc + (f.totalFoodCarried || 0), 0);
+
+  return (
+    <div 
+      className="fixed inset-x-3 bottom-3 md:inset-auto md:absolute md:top-[82px] md:left-[98px] z-40 md:w-[470px] max-h-[82vh] flex flex-col pointer-events-auto transition-all duration-300 select-none filter drop-shadow-[0_18px_30px_rgba(0,0,0,0.7)] drop-shadow-[0_3px_8px_rgba(0,0,0,0.45)]"
+    >
+      {/* Nền Giấy Dó cổ sứt mẻ tự nhiên */}
+      <img
+        src="/parchment_torn_panel.png"
+        alt="Sớ Bố Trận & Binh Lực"
+        className="absolute inset-0 w-full h-full object-fill pointer-events-none select-none z-0"
+        draggable={false}
+      />
+
+      <div className="relative z-10 p-5 md:p-6 flex flex-col h-full font-serif text-[#261304] overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-[#8c6b44]/35 pb-2.5 mb-2.5 shrink-0">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-[#8c2d19]/15 flex items-center justify-center text-[#8c2d19] border border-[#8c6b44]/40">
+              <Flag size={18} />
+            </div>
+            <div>
+              <h3 className="font-serif font-black text-lg text-[#261304] leading-tight">
+                Bố Trận & Binh Lực Lam Sơn
+              </h3>
+              <p className="text-[11px] text-[#704d2e] font-sans">
+                Quản lý các đạo quân, vẽ lộ trình hành quân và bố trí sa bàn
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => setActiveModal(null)}
+            className="text-[#6e4927] hover:text-[#261304] transition p-1 hover:bg-[#8c6b44]/15 rounded cursor-pointer"
+            title="Đóng bảng"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Banner Tổng kết lực lượng */}
+        <div className="grid grid-cols-3 gap-2 mb-2.5 p-2 rounded bg-black/[0.04] border border-[#8c6b44]/25 shrink-0 text-xs text-center">
+          <div>
+            <span className="text-[#5c3e23] block text-[11px]">Tổng đạo quân:</span>
+            <strong className="text-[#8c2d19] font-bold text-sm">
+              {formations.length} đạo
+            </strong>
+          </div>
+          <div>
+            <span className="text-[#5c3e23] block text-[11px]">Tổng binh lực:</span>
+            <strong className="text-[#b45309] font-bold text-sm">
+              {totalTroops.toLocaleString()} quân
+            </strong>
+          </div>
+          <div>
+            <span className="text-[#5c3e23] block text-[11px]">Khí giới & Lương:</span>
+            <strong className="text-[#15803d] font-bold text-sm">
+              {totalWeapons} khí / {Math.floor(totalFood)} thạch
+            </strong>
+          </div>
+        </div>
+
+        {/* Nút Mở Sa Bàn 32x32 Nổi Bật */}
+        <button
+          onClick={() => {
+            setActiveModal('tactical_grid');
+          }}
+          className="relative w-full py-2 px-3 rounded flex items-center justify-center gap-2 group transition-transform hover:scale-[1.01] active:scale-95 cursor-pointer shadow-md mb-2.5 shrink-0"
+          title="Mở Sa Bàn 32x32 để kéo thả, sắp xếp vị trí từng ô lính và đại tướng"
+        >
+          <img
+            src="/ink_stroke_red.png"
+            alt="Mở sa bàn"
+            className="absolute inset-0 w-full h-full object-fill pointer-events-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.35)] group-hover:brightness-110"
+          />
+          <Flag size={15} className="relative z-10 text-[#fef08a]" />
+          <span className="relative z-10 font-serif font-black text-xs uppercase tracking-wider text-[#fef2d6] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]">
+            Mở Sa Bàn 32×32 (Kéo Thả Từng Ô Lính)
+          </span>
+        </button>
+
+        {/* Danh Sách Các Đạo Quân */}
+        <div className="flex-1 overflow-y-auto no-scrollbar space-y-2 pr-1">
+          <div className="text-xs font-bold text-[#8c2d19] uppercase tracking-wider mb-1 flex items-center gap-1.5">
+            <Shield size={14} /> Danh Sách Các Đạo Quân Thuộc Quyền
+          </div>
+
+          {validFormations.length === 0 ? (
+            <div className="py-6 text-center text-xs text-[#704d2e] italic">
+              Chưa có đạo quân nào được biên chế. Hãy nhấn &quot;Lập Đạo Quân Mới&quot; bên dưới!
+            </div>
+          ) : (
+            validFormations.map(form => {
+              const commander = generals.find(g => g.id === form.commanderGeneralId);
+              const statusMeta = STATUS_LABELS[form.status] || STATUS_LABELS.stationed;
+              const pos = getFormationMapPos(form, cities);
+
+              let unitCount = 0;
+              let totalMorale = 0;
+              for (const row of form.grid) {
+                for (const cell of row) {
+                  if (cell) {
+                    unitCount++;
+                    totalMorale += cell.morale || 100;
+                  }
+                }
+              }
+              const avgMorale = unitCount > 0 ? Math.round(totalMorale / unitCount) : 100;
+
+              return (
+                <div
+                  key={form.id}
+                  className="p-2.5 rounded-lg border border-[#8c6b44]/30 bg-[#8c6b44]/5 flex items-center justify-between gap-2.5 text-xs"
+                >
+                  <div className="space-y-1 flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-bold text-sm text-[#8c2d19] truncate">{form.name}</span>
+                      <span
+                        className="px-1.5 py-0.5 rounded text-[10px] font-bold"
+                        style={{ backgroundColor: `${statusMeta.color}25`, color: statusMeta.color }}
+                      >
+                        {statusMeta.icon} {statusMeta.label}
+                      </span>
+                    </div>
+
+                    <div className="text-[11px] text-[#5c3e23]">
+                      Chủ tướng: <b>{commander?.name || 'Chưa chỉ định'}</b>
+                    </div>
+
+                    <div className="text-[10.5px] text-[#704d2e] flex items-center gap-3">
+                      <span>Quân: <b>{form.totalTroops.toLocaleString()}</b></span>
+                      <span>Khí giới: <b>{form.totalWeapons}</b></span>
+                      <span>Lương: <b>{Math.floor(form.totalFoodCarried)}</b></span>
+                      <span>Sĩ khí: <b>{avgMorale}/100</b></span>
+                    </div>
+                  </div>
+
+                  {/* Cụm Thao tác 1-click */}
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {/* Nút Vẽ đường hành quân */}
+                    <button
+                      onClick={() => {
+                        setMarchDrawMode({ formationId: form.id });
+                        setActiveModal(null);
+                      }}
+                      className="px-2 py-1 rounded bg-[#8c2d19] hover:bg-[#6e1e0d] text-white font-bold text-[11px] shadow cursor-pointer transition"
+                      title="Vẽ lộ trình hành quân trực tiếp trên bản đồ thế giới"
+                    >
+                      ✍️ Vẽ Đường
+                    </button>
+
+                    {/* Nút Xếp ô trên sa bàn */}
+                    <button
+                      onClick={() => {
+                        setActiveFormationId(form.id);
+                        setActiveModal('tactical_grid');
+                      }}
+                      className="px-2 py-1 rounded bg-[#8c6b44]/20 hover:bg-[#8c6b44]/35 text-[#3a2010] font-bold text-[11px] cursor-pointer transition"
+                      title="Mở sa bàn 32x32 xếp ô cho đạo quân này"
+                    >
+                      Sa Bàn
+                    </button>
+
+                    {/* Nút Định vị trên bản đồ */}
+                    <button
+                      onClick={() => {
+                        setFlyToTarget({ x: pos.x, y: pos.y });
+                      }}
+                      className="p-1 rounded hover:bg-[#8c6b44]/20 text-[#5c3e23] hover:text-[#8c2d19] transition cursor-pointer"
+                      title="Định vị đạo quân này trên bản đồ"
+                    >
+                      <MapPin size={15} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Footer: Nút Lập Đạo Quân Mới */}
+        <div className="pt-2 border-t border-[#8c6b44]/30 mt-2 flex items-center justify-between shrink-0">
+          <button
+            onClick={() => {
+              if (originBase) {
+                createFormation(originBase.id);
+              }
+            }}
+            className="flex items-center gap-1 px-3 py-1 rounded border border-[#8c6b44]/40 bg-[#8c6b44]/15 hover:bg-[#8c6b44]/25 text-[#3a2010] font-bold text-xs cursor-pointer transition"
+          >
+            <Plus size={14} />
+            <span>Lập Đạo Quân Mới</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+});
+
+ArmyOverviewPanel.displayName = 'ArmyOverviewPanel';

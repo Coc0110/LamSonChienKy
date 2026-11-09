@@ -700,7 +700,7 @@ export const TacticalFormationModal: React.FC = React.memo(() => {
     );
   };
 
-  if (activeModal !== 'army') return null;
+  if (activeModal !== 'tactical_grid') return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-6 pt-20 bg-black/60 backdrop-blur-xs select-none">
@@ -753,9 +753,9 @@ export const TacticalFormationModal: React.FC = React.memo(() => {
           </div>
           
           <button
-            onClick={() => setActiveModal(null)}
+            onClick={() => setActiveModal('army')}
             className="p-1.5 text-[#d4af82] hover:text-[#fff] hover:bg-[#5c3417] rounded transition cursor-pointer"
-            title="Đóng Sa Bàn"
+            title="Trở về danh sách đạo quân"
           >
             <X size={20} />
           </button>

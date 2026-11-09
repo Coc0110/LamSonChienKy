@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { X, Flag, ArrowUpCircle, Users, Coins, AlertTriangle } from 'lucide-react';
+import { X, Flag, ArrowUpCircle, Coins, AlertTriangle } from 'lucide-react';
 import { useGameStore } from '../../../store/gameStore';
 import { useUIStore } from '../../../store/uiStore';
 import { notify } from '../../../store/dialogStore';
@@ -16,14 +16,12 @@ interface BaseDetailContentProps {
   selectedCity: CityNode;
   stationedGenerals: General[];
   lamSonBasesCount: number;
-  onOpenPopulationModal: () => void;
 }
 
 export const BaseDetailContent: React.FC<BaseDetailContentProps> = React.memo(({
   selectedCity,
   stationedGenerals,
   lamSonBasesCount,
-  onOpenPopulationModal,
 }) => {
   const structures = useGameStore(state => state.structures);
   const formations = useGameStore(state => state.formations);
@@ -39,8 +37,6 @@ export const BaseDetailContent: React.FC<BaseDetailContentProps> = React.memo(({
   const upgradeCamp = useGameStore(state => state.upgradeCamp);
   const triggerUprising = useGameStore(state => state.triggerUprising);
   const hasUprising = useGameStore(state => state.hasUprising);
-  const pendingRefugees = useGameStore(state => state.pendingRefugees || []);
-  const openRefugeeModal = useGameStore(state => state.openRefugeeModal);
   const tradeFoodForGold = useGameStore(state => state.tradeFoodForGold);
   const bribeMingOfficials = useGameStore(state => state.bribeMingOfficials);
   const bribeCount = useGameStore(state => state.bribeCount || 0);
@@ -49,7 +45,6 @@ export const BaseDetailContent: React.FC<BaseDetailContentProps> = React.memo(({
   const setBaseRelocateMode = useUIStore(state => state.setBaseRelocateMode);
   const isBuildPaperOpen = useUIStore(state => state.isBuildPaperOpen);
   const setIsBuildPaperOpen = useUIStore(state => state.setBuildPaperOpen);
-  const setActiveModal = useUIStore(state => state.setActiveModal);
   const setMarchDrawMode = useUIStore(state => state.setMarchDrawMode);
   const setSelectedMapFormationId = useUIStore(state => state.setSelectedMapFormationId);
 
@@ -279,26 +274,6 @@ export const BaseDetailContent: React.FC<BaseDetailContentProps> = React.memo(({
               )}
             </div>
 
-            {/* LƯU DÂN CHỜ TRƯỚC CỔNG: 1 NÚT XEM CHI TIẾT */}
-            <div className="p-2.5 rounded-lg border border-[#8c6b44]/40 bg-[#f7eed8]/70 flex items-center justify-between text-xs font-serif">
-              <span className="text-[#5c3e23] font-bold flex items-center gap-1.5">
-                <Users size={14} className="text-[#8c2d19]" />
-                Lưu dân chờ trước cổng:
-              </span>
-
-              <button
-                onClick={() => openRefugeeModal()}
-                className="px-3 py-1 rounded bg-[#8c2d19] hover:bg-[#6b1e10] text-[#fff3db] text-xs font-serif font-bold transition shadow-xs cursor-pointer flex items-center gap-1.5"
-              >
-                <span>Xem chi tiết</span>
-                {pendingRefugees.filter(w => !w.departed && (w.daysRemaining ?? 0) > 0).length > 0 && (
-                  <span className="px-1.5 py-0.2 bg-[#fff3db] text-[#8c2d19] rounded-full text-[10px] font-bold font-mono">
-                    {pendingRefugees.filter(w => !w.departed && (w.daysRemaining ?? 0) > 0).length}
-                  </span>
-                )}
-              </button>
-            </div>
-
             {/* 1.1b. BÍ MẬT GIAO THƯƠNG (XUẤT BÁN LƯƠNG ĐỔI VÀNG) */}
             <div className="p-2.5 rounded-lg border border-[#8c6b44]/40 bg-[#f7eed8]/70 space-y-1.5 text-xs font-serif">
               <div className="flex items-center justify-between">
@@ -393,11 +368,7 @@ export const BaseDetailContent: React.FC<BaseDetailContentProps> = React.memo(({
 
             {/* 1.2. THÔNG TIN QUÂN LỰC & PHÒNG THỦ */}
             <div className="grid grid-cols-2 gap-4">
-              <div 
-                onClick={onOpenPopulationModal}
-                className="cursor-pointer group p-2 rounded hover:bg-black/[0.03] transition"
-                title="Bấm vào để xem chi tiết Nghĩa binh, Tráng phu và Thao luyện võ nghệ"
-              >
+              <div className="p-2 rounded">
                 <div className="text-xs font-serif font-bold text-[#704d2e]">
                   Quân đồn trú
                 </div>
@@ -405,9 +376,8 @@ export const BaseDetailContent: React.FC<BaseDetailContentProps> = React.memo(({
                   <span className="font-serif font-bold">{selectedCity.troops.toLocaleString()}</span>
                   <span className="text-xs font-normal text-[#5c3e23]">binh</span>
                 </div>
-                <div className="mt-0.5 text-[11px] text-[#8c4b26] font-serif">
-                  <span>Chi tiết nhân lực • </span>
-                  <span className="text-[#a82415] underline font-serif font-bold">Thao luyện</span>
+                <div className="mt-0.5 text-[11px] text-[#704d2e] font-serif">
+                  Lực lượng bảo vệ căn cứ
                 </div>
               </div>
 
@@ -439,7 +409,6 @@ export const BaseDetailContent: React.FC<BaseDetailContentProps> = React.memo(({
                     <MiniGeneralCard
                       key={gen.id}
                       general={gen}
-                      onClick={() => setActiveModal('generals')}
                     />
                   ))}
                 </div>

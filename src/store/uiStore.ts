@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import type { StructureType, PlacedStructure } from '../types';
 import type { TerrainType } from '../types/terrain';
 
-export type ModalType = 'army' | 'supplies' | 'generals' | 'training' | 'march' | 'farms' | 'forges' | null;
+export type ModalType = 'army' | 'tactical_grid' | 'supplies' | 'generals' | 'training' | 'scout' | 'farms' | 'forges' | null;
 
 export type SelectionType = 'base' | 'district';
 
@@ -102,14 +102,25 @@ export const useUIStore = create<UIState>((set) => ({
   hoveredCell: null,
   flyToTarget: null,
 
-  setActiveModal: (modal) => set({ activeModal: modal }),
+  setActiveModal: (modal) => set({ 
+    activeModal: modal,
+    ...(modal ? { 
+      isBuildPaperOpen: false, 
+      isMilitaryBookOpen: false,
+      placementMode: null,
+      baseRelocateMode: null,
+    } : {}),
+  }),
   setFlyToTarget: (target) => set({ flyToTarget: target }),
   toggleEditMode: () => set((state) => ({ 
     isEditMode: !state.isEditMode, 
     terrainEditMode: false,
     selectionType: 'district' 
   })),
-  selectCity: (id) => set({ selectedCityId: id }),
+  selectCity: (id) => set({ 
+    selectedCityId: id,
+    ...(id ? { activeModal: null, isMilitaryBookOpen: false } : {}),
+  }),
   selectBase: (baseId) => set({ selectedCityId: baseId, selectionType: 'base' }),
   selectDistrict: (districtId) => set({ selectedCityId: districtId, selectionType: 'district' }),
   setPlacementMode: (mode) => set({ placementMode: mode }),
@@ -129,8 +140,17 @@ export const useUIStore = create<UIState>((set) => ({
   setSelectedMapFormationId: (id) => set({ selectedMapFormationId: id }),
   setActiveForgeModalStructureId: (id) => set({ activeForgeModalStructureId: id }),
   setSelectedStructureModal: (s) => set({ selectedStructureModal: s }),
-  toggleMilitaryBook: () => set((state) => ({ isMilitaryBookOpen: !state.isMilitaryBookOpen })),
-  setMilitaryBookOpen: (open) => set({ isMilitaryBookOpen: open }),
+  toggleMilitaryBook: () => set((state) => {
+    const nextOpen = !state.isMilitaryBookOpen;
+    return {
+      isMilitaryBookOpen: nextOpen,
+      ...(nextOpen ? { activeModal: null, isBuildPaperOpen: false, placementMode: null, baseRelocateMode: null } : {}),
+    };
+  }),
+  setMilitaryBookOpen: (open) => set(() => ({ 
+    isMilitaryBookOpen: open,
+    ...(open ? { activeModal: null, isBuildPaperOpen: false, placementMode: null, baseRelocateMode: null } : {}),
+  })),
   toggleTimelineWheel: () => set((state) => ({ isTimelineWheelOpen: !state.isTimelineWheelOpen })),
   setTimelineWheelOpen: (open) => set({ isTimelineWheelOpen: open }),
   toggleBuildPaper: () => set((state) => {
@@ -138,13 +158,13 @@ export const useUIStore = create<UIState>((set) => ({
     return {
       isBuildPaperOpen: nextOpen,
       showGrid: nextOpen,
-      ...(nextOpen ? {} : { placementMode: null, baseRelocateMode: null }),
+      ...(nextOpen ? { activeModal: null, isMilitaryBookOpen: false } : { placementMode: null, baseRelocateMode: null }),
     };
   }),
   setBuildPaperOpen: (open) => set(() => ({
     isBuildPaperOpen: open,
     showGrid: open,
-    ...(open ? {} : { placementMode: null, baseRelocateMode: null }),
+    ...(open ? { activeModal: null, isMilitaryBookOpen: false } : { placementMode: null, baseRelocateMode: null }),
   })),
   toggleDropdown: (dropdown) => set((state) => ({
     activeDropdown: state.activeDropdown === dropdown ? null : dropdown

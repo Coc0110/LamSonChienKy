@@ -7,10 +7,11 @@ import { ParchmentConfirmModal } from './components/common/ParchmentConfirmModal
 import { EndgameModal } from './components/common/EndgameModal';
 import { RefugeeIntakeModal } from './components/common/RefugeeIntakeModal';
 import { TimelineWheelScrubber } from './components/layout/topbar/TimelineWheelScrubber';
-import { RightCommandDock } from './components/layout/RightCommandDock';
+import { LeftCommandDock } from './components/layout/LeftCommandDock';
+import { ArmyOverviewPanel } from './components/layout/panel/ArmyOverviewPanel';
 import { FarmsOverviewModal } from './components/layout/panel/FarmsOverviewModal';
 import { ForgesOverviewModal } from './components/layout/panel/ForgesOverviewModal';
-import { MarchOverviewModal } from './components/layout/panel/MarchOverviewModal';
+import { ScoutOverviewModal } from './components/layout/panel/ScoutOverviewModal';
 import { useGameStore } from './store/gameStore';
 import { useUIStore } from './store/uiStore';
 
@@ -31,31 +32,23 @@ function App() {
   const stepArmies = useGameStore(state => state.stepArmies);
   const stepScoutMissions = useGameStore(state => state.stepScoutMissions);
   const formations = useGameStore(state => state.formations);
-  const isRefugeeModalOpen = useGameStore(state => state.isRefugeeModalOpen);
 
   // Trạng thái các giao diện "không trên dòng thời gian"
   const activeModal = useUIStore(state => state.activeModal);
-  const isBuildPaperOpen = useUIStore(state => state.isBuildPaperOpen);
   const placementMode = useUIStore(state => state.placementMode);
   const baseRelocateMode = useUIStore(state => state.baseRelocateMode);
   const selectedStructureModal = useUIStore(state => state.selectedStructureModal);
   const activeForgeModalStructureId = useUIStore(state => state.activeForgeModalStructureId);
 
-  // Tự động ngưng thời gian khi mở các chế độ "không trên dòng thời gian"
-  // (xây dựng, di dời, xem chi tiết công trình, xem danh tướng, sa bàn bố trận, danh sách lưu dân)
+  // Tự động ngưng thời gian khi mở các chế độ toàn màn hình không xem bản đồ
+  // (xây dựng ô lưới, di dời căn cứ, xem danh tướng toàn màn hình, sa bàn 32x32)
   const isOutOfTime = Boolean(
-    isBuildPaperOpen ||
     placementMode ||
     baseRelocateMode ||
     activeModal === 'generals' ||
-    activeModal === 'army' ||
-    activeModal === 'training' ||
-    activeModal === 'farms' ||
-    activeModal === 'forges' ||
-    activeModal === 'march' ||
+    activeModal === 'tactical_grid' ||
     selectedStructureModal ||
-    activeForgeModalStructureId ||
-    isRefugeeModalOpen
+    activeForgeModalStructureId
   );
 
   const prevOutOfTimeRef = useRef(false);
@@ -134,14 +127,15 @@ function App() {
       <TopBar />
       <TimelineWheelScrubber />
       <LeftPanel />
-      <RightCommandDock />
+      <LeftCommandDock />
+      <ArmyOverviewPanel />
       <Suspense fallback={null}>
         <GeneralsModal />
         <TacticalFormationModal />
       </Suspense>
       <FarmsOverviewModal />
       <ForgesOverviewModal />
-      <MarchOverviewModal />
+      <ScoutOverviewModal />
       <ParchmentToastContainer />
       <ParchmentConfirmModal />
       <RefugeeIntakeModal />

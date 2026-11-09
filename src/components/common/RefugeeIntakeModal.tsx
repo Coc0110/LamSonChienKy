@@ -50,23 +50,18 @@ export const RefugeeIntakeModal: React.FC = () => {
 
   return (
     <div
-      className="fixed inset-0 z-[1500] flex items-center justify-center bg-black/75 backdrop-blur-xs p-4 pt-20 animate-in fade-in duration-150 select-none"
-      onClick={closeRefugeeModal}
+      className="fixed inset-x-3 bottom-3 md:inset-auto md:absolute md:top-[82px] md:left-[98px] z-40 md:w-[460px] max-h-[82vh] flex flex-col pointer-events-auto transition-all duration-300 select-none filter drop-shadow-[0_18px_30px_rgba(0,0,0,0.7)] drop-shadow-[0_3px_8px_rgba(0,0,0,0.45)]"
     >
-      <div
-        className="relative w-full max-w-2xl max-h-[85vh] flex flex-col pointer-events-auto filter drop-shadow-[0_20px_45px_rgba(0,0,0,0.9)]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Nền giấy Dó sứt mẻ */}
-        <img
-          src="/parchment_torn_panel.png"
-          alt="Khung quân lệnh"
-          className="absolute inset-0 w-full h-full object-fill pointer-events-none select-none z-0"
-          draggable={false}
-        />
+      {/* Nền giấy Dó sứt mẻ */}
+      <img
+        src="/parchment_torn_panel.png"
+        alt="Khung quân lệnh"
+        className="absolute inset-0 w-full h-full object-fill pointer-events-none select-none z-0"
+        draggable={false}
+      />
 
-        <div className="relative z-10 px-8 pt-7 pb-7 flex flex-col h-full font-serif text-[#261304] overflow-hidden">
-          {/* Header */}
+      <div className="relative z-10 px-6 pt-6 pb-6 flex flex-col h-full font-serif text-[#261304] overflow-hidden">
+        {/* Header */}
           <div className="flex items-center justify-between border-b border-[#8c6b44]/35 pb-2.5 mb-2.5 shrink-0">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-lg bg-[#8c2d19]/15 flex items-center justify-center text-[#8c2d19] border border-[#8c6b44]/40">
@@ -253,6 +248,5 @@ export const RefugeeIntakeModal: React.FC = () => {
           </div>
         </div>
       </div>
-    </div>
   );
 };
