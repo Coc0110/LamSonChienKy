@@ -1,19 +1,13 @@
-// Setup polyfill for Leaflet import in Node test environment
-if (typeof (globalThis as any).window === 'undefined') {
-  (globalThis as any).window = {
-    requestAnimationFrame: (cb: any) => setTimeout(cb, 16),
-    cancelAnimationFrame: (id: any) => clearTimeout(id),
-  };
-  (globalThis as any).document = {
-    createElement: () => ({}),
-    documentElement: {},
-  };
-  (globalThis as any).navigator = {
-    userAgent: 'node',
-  };
+function assert(condition: any, message?: string) {
+  if (!condition) throw new Error(message || 'Assertion failed');
 }
+assert.strictEqual = (a: any, b: any, msg?: string) => {
+  if (a !== b) throw new Error(`${msg || 'Assertion failed'}: ${a} !== ${b}`);
+};
+assert.ok = (a: any, msg?: string) => {
+  if (!a) throw new Error(msg || 'Assertion failed');
+};
 
-import assert from 'node:assert';
 import { 
   generateBattlefieldTerrain, 
   determineScaleFromTroops, 

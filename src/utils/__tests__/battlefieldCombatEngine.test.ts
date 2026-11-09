@@ -1,13 +1,21 @@
-import assert from 'node:assert';
 import { resolveBattlefieldTick } from '../battlefieldCombatEngine';
 import { generateBattlefieldTerrain } from '../battlefieldTerrainGenerator';
 import type { BattlefieldState, BattlefieldUnit } from '../../types/battlefield';
+
+function assert(condition: any, message?: string) {
+  if (!condition) throw new Error(message || 'Assertion failed');
+}
+assert.strictEqual = (a: any, b: any, msg?: string) => {
+  if (a !== b) throw new Error(`${msg || 'Assertion failed'}: ${a} !== ${b}`);
+};
+assert.ok = (a: any, msg?: string) => {
+  if (!a) throw new Error(msg || 'Assertion failed');
+};
 
 console.log('--- Đang kiểm thử battlefieldCombatEngine ---');
 
 const mockGrid = generateBattlefieldTerrain(400, 500, '1x');
 
-// Mock 1 cung thủ Lam Sơn ở (col: 10, row: 15) và 1 đao binh Minh ở (col: 13, row: 15) - cách nhau 3 ô (trong tầm bắn cung)
 const lsArcher: BattlefieldUnit = {
   id: 'ls_archer',
   formationId: 'f1',
@@ -69,19 +77,15 @@ const initialBattle: BattlefieldState = {
   logs: [],
 };
 
-// Chạy 1 nhịp giao tranh
 const nextBattle = resolveBattlefieldTick(initialBattle);
 
-// 1. Kiểm tra lượt tăng lên 1
 assert.strictEqual(nextBattle.turn, 1, 'Lượt phải tăng lên 1');
 
-// 2. Kiểm tra cung thủ bắn rỉa làm giảm máu/lính quân Minh từ xa
 const updatedMing = nextBattle.units.find(u => u.id === 'ming_sword');
 assert.ok(updatedMing, 'Quân Minh phải còn tồn tại');
 assert.ok((updatedMing?.hp || 0) < 500, `Quân Minh phải bị trừ máu do trúng tên (HP còn lại: ${updatedMing?.hp})`);
 console.log('✓ Cung thủ bắn tỉa chính xác từ khoảng cách 3 ô');
 
-// 3. Kiểm tra nhật ký giao tranh có ghi lại sự kiện
 assert.ok(nextBattle.logs.length > 0, 'Phải có ghi nhận nhật ký giao tranh');
 console.log('✓ Nhật ký chiến trận ghi nhận đầy đủ sự kiện');
 

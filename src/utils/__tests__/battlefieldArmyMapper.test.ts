@@ -1,7 +1,16 @@
-import assert from 'node:assert';
 import { mapArmiesToBattlefield } from '../battlefieldArmyMapper';
 import type { TacticalFormation } from '../../types/armyFormation';
 import type { General } from '../../types';
+
+function assert(condition: any, message?: string) {
+  if (!condition) throw new Error(message || 'Assertion failed');
+}
+assert.strictEqual = (a: any, b: any, msg?: string) => {
+  if (a !== b) throw new Error(`${msg || 'Assertion failed'}: ${a} !== ${b}`);
+};
+assert.ok = (a: any, msg?: string) => {
+  if (!a) throw new Error(msg || 'Assertion failed');
+};
 
 console.log('--- Đang kiểm thử battlefieldArmyMapper ---');
 
@@ -17,20 +26,27 @@ const mockFormation: TacticalFormation = {
   commanderGeneralId: 'le_loi',
   status: 'stationed',
   createdAt: Date.now(),
+  totalTroops: 47,
+  totalWeapons: 27,
+  totalHorses: 0,
+  totalElephants: 0,
+  totalFoodCarried: 100,
 };
 
 // Đặt 1 kiếm binh tại (col: 10, row: 15) và 1 cung thủ tại (col: 8, row: 15) xen kẽ
 mockFormation.grid[15][10] = {
   id: 'unit_sword_1',
-  unitTypeId: 'swordsman',
-  soldiersCount: 15,
+  parentUnitId: 'unit_sword_1',
+  type: 'swordsman',
+  name: 'Đao Khiên Binh',
+  rootRow: 15,
+  rootCol: 10,
   col: 10,
   row: 15,
-  spanCols: 1,
-  spanRows: 1,
   isRoot: true,
   offsetCol: 0,
   offsetRow: 0,
+  multiplier: 15,
   hp: 150,
   maxHp: 150,
   morale: 100,
@@ -39,15 +55,17 @@ mockFormation.grid[15][10] = {
 
 mockFormation.grid[15][8] = {
   id: 'unit_bow_1',
-  unitTypeId: 'archer',
-  soldiersCount: 12,
+  parentUnitId: 'unit_bow_1',
+  type: 'archer',
+  name: 'Cung Nỏ Binh',
+  rootRow: 15,
+  rootCol: 8,
   col: 8,
   row: 15,
-  spanCols: 1,
-  spanRows: 1,
   isRoot: true,
   offsetCol: 0,
   offsetRow: 0,
+  multiplier: 12,
   hp: 120,
   maxHp: 120,
   morale: 100,
@@ -57,16 +75,18 @@ mockFormation.grid[15][8] = {
 // Đặt chủ tướng Lê Lợi tại (col: 5, row: 16)
 mockFormation.grid[16][5] = {
   id: 'unit_general_1',
-  unitTypeId: 'general',
+  parentUnitId: 'unit_general_1',
+  type: 'general',
+  name: 'Chủ Tướng',
   generalId: 'le_loi',
-  soldiersCount: 20,
+  rootRow: 16,
+  rootCol: 5,
   col: 5,
   row: 16,
-  spanCols: 1,
-  spanRows: 1,
   isRoot: true,
   offsetCol: 0,
   offsetRow: 0,
+  multiplier: 20,
   hp: 300,
   maxHp: 300,
   morale: 100,
@@ -77,10 +97,19 @@ const mockGenerals: General[] = [
     id: 'le_loi',
     name: 'Lê Lợi',
     title: 'Bình Định Vương',
+    hanzi: '黎利',
+    epithet: 'Chủ Tướng',
+    group: 'lung_nhai_1416',
+    stars: 5,
+    starTier: 'red',
+    joinYear: 1416,
+    joinMonth: 1,
+    joinDay: 1,
     unlocked: true,
     locationId: 'lam_son',
-    stats: { command: 95, martial: 85, intellect: 92, politics: 90 },
-    biography: '',
+    stats: { command: 95, martial: 85, intellect: 92 },
+    specialty: 'Khích lệ sĩ khí',
+    lore: 'Bình Định Vương khởi nghĩa Lam Sơn',
   },
 ];
 

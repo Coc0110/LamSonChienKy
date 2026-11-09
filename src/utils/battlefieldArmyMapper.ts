@@ -1,4 +1,5 @@
 import type { TacticalFormation } from '../types/armyFormation';
+import { TACTICAL_UNIT_CONFIGS } from '../types/armyFormation';
 import type { General } from '../types';
 import type { BattlefieldScaleLevel, BattlefieldUnit } from '../types/battlefield';
 
@@ -15,9 +16,17 @@ export function mapArmiesToBattlefield(
     for (let c = 0; c < 32; c++) {
       const cell = lamSonFormation.grid[r]?.[c];
       if (cell && cell.isRoot) {
-        const genId = cell.generalId || (cell.unitTypeId === 'general' ? lamSonFormation.commanderGeneralId : undefined);
+        const genId = cell.generalId || (cell.type === 'general' ? lamSonFormation.commanderGeneralId : undefined);
         const general = genId ? generals.find(g => g.id === genId) : undefined;
-        const count = Math.max(1, cell.soldiersCount || 10);
+        
+        const unitCfg = TACTICAL_UNIT_CONFIGS[cell.type];
+        const spanCols = unitCfg?.spanCols || 1;
+        const spanRows = unitCfg?.spanRows || 1;
+        
+        const troopsBase = unitCfg?.cost.combatTroops || 1;
+        const multiplier = cell.multiplier || 1;
+        const count = Math.max(1, troopsBase * multiplier);
+        
         const hp = cell.hp || count * 10;
         const maxHp = cell.maxHp || hp;
 
@@ -25,11 +34,11 @@ export function mapArmiesToBattlefield(
           id: `ls_${cell.id}`,
           formationId: lamSonFormation.id,
           faction: 'lam_son',
-          unitTypeId: cell.unitTypeId,
+          unitTypeId: cell.type,
           col: cell.col,
           row: cell.row,
-          spanCols: cell.spanCols || 1,
-          spanRows: cell.spanRows || 1,
+          spanCols,
+          spanRows,
           soldiersCount: count,
           maxSoldiersCount: count,
           hp,
@@ -47,7 +56,6 @@ export function mapArmiesToBattlefield(
   }
 
   // 2. Sinh lực lượng quân Minh ở cánh phải (Cột 64..95) theo Trọng Lượng Quân Cờ
-  // Xác định số lượng đơn vị giặc theo scale
   let targetUnitCount: number;
   let unitSoldiersBase: number;
 
@@ -70,8 +78,7 @@ export function mapArmiesToBattlefield(
   let remainingTroops = mingTroopsCount;
   const occupiedPositions = new Set<string>();
 
-  // Sinh vị trí ngẫu nhiên nhưng theo hàng lối quân đội:
-  // Tiên phong (Cột 66..72), Trung quân (Cột 74..80), Hậu quân (Cột 82..90)
+  // Sinh vị trí ngẫu nhiên theo hàng lối quân đội
   for (let i = 0; i < targetUnitCount; i++) {
     const isCommander = i === targetUnitCount - 1;
     let unitType: BattlefieldUnit['unitTypeId'] = 'swordsman';
@@ -96,7 +103,6 @@ export function mapArmiesToBattlefield(
       targetColMax = 90;
     }
 
-    // Tìm tọa độ trống
     let placedCol = targetColMin;
     let placedRow = 4 + (i % 24);
     let attempts = 0;
@@ -114,7 +120,6 @@ export function mapArmiesToBattlefield(
       attempts++;
     }
 
-    // Phân bổ quân số
     const isLast = i === targetUnitCount - 1;
     const count = isLast 
       ? Math.max(1, remainingTroops) 
