@@ -50,6 +50,23 @@ export const CityPopulationModal: React.FC<CityPopulationModalProps> = ({
   const training = city.training;
   const trainingGeneral = training ? generals.find(g => g.id === training.generalId) : null;
 
+  // Lọc các tướng đang dẫn quân (commander hoặc assigned trong bất kỳ formation nào)
+  const commandingGeneralIds = useMemo(() => {
+    const ids = new Set<string>();
+    formations.forEach(f => {
+      if (f.commanderGeneralId) ids.add(f.commanderGeneralId);
+      if (f.assignedGeneralIds && Array.isArray(f.assignedGeneralIds)) {
+        f.assignedGeneralIds.forEach(id => ids.add(id));
+      }
+    });
+    return ids;
+  }, [formations]);
+
+  const availableGenerals = useMemo(
+    () => generals.filter(g => !commandingGeneralIds.has(g.id)),
+    [generals, commandingGeneralIds]
+  );
+
   const totalPop =
     pop.combatTroops +
     pop.idleLaborers +
@@ -90,43 +107,42 @@ export const CityPopulationModal: React.FC<CityPopulationModalProps> = ({
           </button>
         </div>
 
-        {/* 1. KHỐI THỐNG KÊ CHI TIẾT 3 TẦNG NHÂN LỰC DẠNG BÁO CÁO CÔNG VĂN */}
-        <div className="grid grid-cols-2 gap-3 font-serif">
-          {/* Cột 1: Nghĩa Binh (Chiến đấu) */}
-          <div className="p-3 rounded-lg border border-[#8c6b44]/30 bg-[#8c6b44]/5 flex flex-col justify-between gap-2 text-xs">
+        {/* 1. KHỐI THỐNG KÊ CHI TIẾT DẠNG BÁO CÁO CÔNG VĂN (DÒNG CHẢY DỌC TOÀN TRANG, KHÔNG CHIA ĐÔI CỘT) */}
+        <div className="flex flex-col gap-2.5 font-serif">
+          {/* Mục 1: Nghĩa Binh (Chiến đấu) */}
+          <div className="p-3 rounded-lg border border-[#8c6b44]/30 bg-[#8c6b44]/5 flex flex-col gap-2 text-xs">
             <div className="flex items-center justify-between border-b border-[#8c6b44]/20 pb-1">
-              <h4 className="font-serif font-bold text-sm text-[#8c2d19]">
+              <h4 className="font-serif font-black text-sm text-[#8c2d19] tracking-wide">
                 {UI_TEXT.trainingPanel.combatTroops}
               </h4>
+              <strong className="text-sm font-bold text-[#8c2d19]">
+                {pop.combatTroops + formationTroops} người
+              </strong>
             </div>
             <ul className="space-y-1.5 text-xs text-[#261304] border-l-2 border-[#8c2d19]/40 pl-3 py-0.5">
-              <li>
-                <span className="text-[#6b4423]">Tổng lực lượng: </span>
-                <strong className="text-sm font-bold text-[#8c2d19]">{pop.combatTroops + formationTroops} người</strong>
-              </li>
               <li>
                 <span className="text-[#6b4423]">Dự bị tại trại: </span>
                 <strong className="text-[#261304] font-bold">{pop.combatTroops} người</strong>
               </li>
               {formationTroops > 0 && (
                 <li>
-                  <span className="text-[#6b4423]">Trong đội hình: </span>
+                  <span className="text-[#6b4423]">Trong biên chế đạo quân: </span>
                   <strong className="text-[#b45309] font-bold">{formationTroops} người</strong>
                 </li>
               )}
               {pop.swappedCombatants > 0 && (
                 <li>
-                  <span className="text-[#6b4423]">Thế chỗ cày/rèn: </span>
+                  <span className="text-[#6b4423]">Nghĩa binh thế chỗ cày cấy / rèn đúc: </span>
                   <strong className="text-[#15803d] font-bold">{pop.swappedCombatants} người</strong>
                 </li>
               )}
             </ul>
           </div>
 
-          {/* Cột 2: Tráng Phu & Dân cư */}
-          <div className="p-3 rounded-lg border border-[#8c6b44]/30 bg-[#8c6b44]/5 flex flex-col justify-between gap-2 text-xs">
+          {/* Mục 2: Tráng Phu & Dân cư */}
+          <div className="p-3 rounded-lg border border-[#8c6b44]/30 bg-[#8c6b44]/5 flex flex-col gap-2 text-xs">
             <div className="flex items-center justify-between border-b border-[#8c6b44]/20 pb-1">
-              <h4 className="font-serif font-bold text-sm text-[#8c2d19]">
+              <h4 className="font-serif font-black text-sm text-[#8c2d19] tracking-wide">
                 Tráng Phu & Hậu Cần
               </h4>
             </div>
@@ -145,7 +161,7 @@ export const CityPopulationModal: React.FC<CityPopulationModalProps> = ({
               </li>
               {builderWorkers > 0 && (
                 <li>
-                  <span className="text-[#6b4423]">Đang thi công: </span>
+                  <span className="text-[#6b4423]">Đang thi công công trình: </span>
                   <strong className="text-[#704d2e] font-bold">{builderWorkers} người</strong>
                 </li>
               )}
@@ -204,7 +220,7 @@ export const CityPopulationModal: React.FC<CityPopulationModalProps> = ({
           /* Giao diện Thanh Kéo 3 Màu */
           <TrainingSlider
             population={pop}
-            generals={generals}
+            generals={availableGenerals}
             weaponsAvailable={weaponsAvailable}
             onCancel={() => setIsSliderOpen(false)}
             onConfirm={(genId, count, swapped, days) => {
@@ -214,17 +230,28 @@ export const CityPopulationModal: React.FC<CityPopulationModalProps> = ({
           />
         ) : (
           /* Nút mở thao luyện */
-          <div className="pt-1 flex items-center justify-between gap-3 font-serif">
-            <div className="text-xs text-[#704d2e]">
-              Có <strong className="text-[#15803d] font-bold">{pop.idleLaborers}</strong> tráng phu nhàn rỗi sẵn sàng tiếp nhận cung kiếm để học võ.
+          availableGenerals.length === 0 ? (
+            <div className="pt-1 flex flex-col gap-1.5 font-serif border border-[#8c6b44]/35 bg-[#8c6b44]/10 rounded-lg p-3">
+              <p className="text-xs font-bold text-[#8c2d19]">
+                Không thể hạ lệnh thao luyện tân binh
+              </p>
+              <p className="text-[11px] text-[#6b4423] leading-relaxed">
+                Toàn bộ tướng lĩnh hiện đang thống lĩnh các đạo quân ngoài chiến tuyến. Cần có ít nhất một vị tướng rảnh rỗi tại căn cứ để chủ trì thao luyện binh sĩ.
+              </p>
             </div>
-            <button
-              onClick={() => setIsSliderOpen(true)}
-              className="px-5 py-2.5 rounded-lg bg-[#8c2d19] hover:bg-[#6e1e0d] text-[#fff3db] font-serif font-black text-xs uppercase tracking-wider shadow transition cursor-pointer active:scale-95"
-            >
-              <span>{UI_TEXT.trainingPanel.startTrainingBtn}</span>
-            </button>
-          </div>
+          ) : (
+            <div className="pt-1 flex items-center justify-between gap-3 font-serif">
+              <div className="text-xs text-[#704d2e]">
+                Có <strong className="text-[#15803d] font-bold">{pop.idleLaborers}</strong> tráng phu nhàn rỗi sẵn sàng tiếp nhận cung kiếm để học võ.
+              </div>
+              <button
+                onClick={() => setIsSliderOpen(true)}
+                className="px-5 py-2.5 rounded-lg bg-[#8c2d19] hover:bg-[#6e1e0d] text-[#fff3db] font-serif font-black text-xs uppercase tracking-wider shadow transition cursor-pointer active:scale-95"
+              >
+                <span>{UI_TEXT.trainingPanel.startTrainingBtn}</span>
+              </button>
+            </div>
+          )
         )}
 
       </div>

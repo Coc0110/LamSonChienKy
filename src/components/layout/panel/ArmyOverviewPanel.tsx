@@ -54,22 +54,22 @@ export const ArmyOverviewPanel: React.FC = React.memo(() => {
           </button>
         </div>
 
-        {/* Banner Tổng kết lực lượng */}
-        <div className="grid grid-cols-3 gap-2 mb-2.5 p-2 rounded bg-black/[0.04] border border-[#8c6b44]/25 shrink-0 text-xs text-center">
+        {/* Banner Tổng kết lực lượng (Đơn dòng trải đều, không chia dọc tờ giấy) */}
+        <div className="flex items-center justify-between mb-2.5 p-2 rounded bg-black/[0.04] border border-[#8c6b44]/25 shrink-0 text-xs font-serif">
           <div>
-            <span className="text-[#5c3e23] block text-[11px]">{UI_TEXT.armyPanel.stats.totalArmies}:</span>
+            <span className="text-[#5c3e23]">{UI_TEXT.armyPanel.stats.totalArmies}: </span>
             <strong className="text-[#8c2d19] font-bold text-sm">
               {formations.length} đạo
             </strong>
           </div>
           <div>
-            <span className="text-[#5c3e23] block text-[11px]">{UI_TEXT.armyPanel.stats.totalTroops}:</span>
+            <span className="text-[#5c3e23]">{UI_TEXT.armyPanel.stats.totalTroops}: </span>
             <strong className="text-[#b45309] font-bold text-sm">
               {totalTroops.toLocaleString()} quân
             </strong>
           </div>
           <div>
-            <span className="text-[#5c3e23] block text-[11px]">{UI_TEXT.armyPanel.stats.supplies}:</span>
+            <span className="text-[#5c3e23]">{UI_TEXT.armyPanel.stats.supplies}: </span>
             <strong className="text-[#15803d] font-bold text-sm">
               {totalWeapons} khí / {Math.floor(totalFood)} thạch
             </strong>

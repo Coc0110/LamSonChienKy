@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Swords, AlertTriangle, Shield, Check, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import { notify } from '../../../store/dialogStore';
 import { calculateTrainingDays } from '../../../store/slices/militarySlice';
 import type { CityPopulation, General } from '../../../types';
@@ -31,12 +31,16 @@ export const TrainingSlider: React.FC<TrainingSliderProps> = ({
   const initialCount = Math.min(Math.max(1, idleLaborers), weaponsAvailable > 0 ? weaponsAvailable : 1);
   const [trainCount, setTrainCount] = useState<number>(initialCount);
 
-  // Chọn tướng phụ trách
+  // Chọn tướng phụ trách (chỉ các tướng rảnh rỗi tại căn cứ)
   const [selectedGeneralId, setSelectedGeneralId] = useState<string>(
-    generals.length > 0 ? generals[0].id : 'le_loi'
+    generals[0]?.id || ''
   );
 
-  const selectedCoach = generals.find(g => g.id === selectedGeneralId) || generals[0];
+  const effectiveGeneralId = generals.some(g => g.id === selectedGeneralId)
+    ? selectedGeneralId
+    : (generals[0]?.id || '');
+
+  const selectedCoach = generals.find(g => g.id === effectiveGeneralId) || generals[0];
 
   // Tính số lượng rơi vào từng vùng màu
   const idleUsed = Math.min(trainCount, idleLaborers);
@@ -65,17 +69,16 @@ export const TrainingSlider: React.FC<TrainingSliderProps> = ({
   const isWeaponShortage = trainCount > weaponsAvailable;
 
   return (
-    <div className="p-3.5 rounded-xl bg-[#26170c] border border-[#a87c4f] shadow-xl text-[#f7ecd7] space-y-3.5">
-      <div className="flex items-center justify-between border-b border-[#59391e] pb-2">
-        <div className="flex items-center gap-2">
-          <Swords size={18} className="text-[#f59e0b]" />
-          <span className="font-serif font-black text-sm tracking-wide text-amber-200">
-            Hạ Lệnh Thao Luyện Nghĩa Binh
-          </span>
-        </div>
+    <div className="p-3.5 rounded-lg bg-[#8c6b44]/10 border border-[#8c6b44]/40 text-[#261304] space-y-3 font-serif">
+      {/* Tiêu đề mục */}
+      <div className="flex items-center justify-between border-b border-[#8c6b44]/30 pb-2">
+        <span className="font-serif font-black text-sm tracking-wide text-[#8c2d19]">
+          Hạ Lệnh Thao Luyện Nghĩa Binh
+        </span>
         <button
           onClick={onCancel}
-          className="text-stone-400 hover:text-white transition p-1"
+          className="text-[#6e4927] hover:text-[#261304] transition p-1 hover:bg-[#8c6b44]/15 rounded cursor-pointer"
+          title="Hủy bỏ"
         >
           <X size={16} />
         </button>
@@ -83,67 +86,73 @@ export const TrainingSlider: React.FC<TrainingSliderProps> = ({
 
       {/* 1. Chọn Tướng Phụ Trách */}
       <div className="space-y-1">
-        <label className="text-xs font-bold text-stone-300">
+        <label className="text-xs font-bold text-[#6b4423]">
           Vị Tướng Phụ Trách Huấn Luyện:
         </label>
-        <select
-          value={selectedGeneralId}
-          onChange={(e) => setSelectedGeneralId(e.target.value)}
-          className="w-full bg-[#3d2514] border border-[#7a4e28] text-amber-100 rounded px-2.5 py-1.5 text-xs font-serif font-bold focus:outline-none focus:ring-1 focus:ring-amber-400"
-        >
-          {generals.map(g => (
-            <option key={g.id} value={g.id}>
-              {g.name} ({g.title}) — Thống {g.stats.command} / Võ {g.stats.martial}
-            </option>
-          ))}
-        </select>
+        {generals.length === 0 ? (
+          <div className="p-2 rounded bg-[#8c2d19]/10 border border-[#8c2d19]/30 text-xs text-[#8c2d19]">
+            Không có tướng lĩnh rảnh rỗi tại căn cứ (toàn bộ tướng đều đang chỉ huy đạo quân).
+          </div>
+        ) : (
+          <select
+            value={effectiveGeneralId}
+            onChange={(e) => setSelectedGeneralId(e.target.value)}
+            className="w-full bg-[#fdf8f0] border border-[#8c6b44]/40 text-[#261304] rounded px-2.5 py-1.5 text-xs font-serif font-bold focus:outline-none focus:ring-1 focus:ring-[#8c2d19]"
+          >
+            {generals.map(g => (
+              <option key={g.id} value={g.id}>
+                {g.name} ({g.title}) — Thống {g.stats.command} / Võ {g.stats.martial}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
 
       {/* 2. Thanh trượt 3 màu trực quan */}
       <div className="space-y-2 pt-1">
         <div className="flex items-center justify-between text-xs">
-          <span className="font-bold text-stone-200">
-            Số tráng đinh thao luyện: <strong className="text-amber-300 text-sm font-sans">{trainCount}</strong> người
+          <span className="text-[#261304]">
+            Số tráng đinh thao luyện: <strong className="text-[#8c2d19] text-sm">{trainCount}</strong> người
           </span>
-          <span className="text-[11px] text-stone-400 font-sans">
-            Thời gian: <strong className="text-emerald-400">{trainingDays} ngày</strong>
+          <span className="text-[11px] text-[#6b4423]">
+            Thời gian: <strong className="text-[#15803d]">{trainingDays} ngày</strong>
           </span>
         </div>
 
         {/* Thanh màu nền đa phân đoạn (Multi-color bar) */}
-        <div className="relative w-full h-3.5 rounded-full overflow-hidden flex border border-[#59391e] shadow-inner bg-stone-900">
+        <div className="relative w-full h-3 rounded-full overflow-hidden flex border border-[#8c6b44]/40 bg-[#dfceb7] shadow-inner">
           {/* Vùng Xanh Lá: Tráng phu rảnh rỗi */}
           <div
             style={{ width: `${idlePercent}%` }}
-            className="h-full bg-emerald-600 transition-all"
+            className="h-full bg-[#15803d] transition-all"
             title={`Tráng phu rảnh rỗi: ${idleLaborers} người`}
           />
           {/* Vùng Cam: Tráng phu đang có việc (cày ruộng, rèn đúc) */}
           <div
             style={{ width: `${workingPercent}%` }}
-            className="h-full bg-amber-600 transition-all"
+            className="h-full bg-[#b45309] transition-all"
             title={`Tráng phu đang làm việc: ${workingLaborers} người (Nghĩa binh sẽ thế chỗ)`}
           />
-          {/* Vùng Đen: Không thể huấn luyện (người già, phụ nữ, trẻ nhỏ) */}
+          {/* Vùng Xám: Không thể huấn luyện (người già, phụ nữ, trẻ nhỏ) */}
           <div
             style={{ width: `${unfitPercent}%` }}
-            className="h-full bg-stone-800 border-l border-stone-700"
+            className="h-full bg-[#78716c] border-l border-[#57534e]/40"
             title={`Dân cư phi chiến đấu: ${unfitPopulation} người (Không thể thao luyện)`}
           />
         </div>
 
-        {/* Chú giải 3 màu */}
-        <div className="flex items-center justify-between text-[10px] text-stone-300 pt-0.5">
-          <span className="flex items-center gap-1">
-            <span className="w-2.5 h-2.5 rounded-xs bg-emerald-600 inline-block" />
-            <span>Rảnh: {idleLaborers}</span>
+        {/* Chú giải 3 màu - không dùng icon */}
+        <div className="flex items-center justify-between text-[11px] text-[#261304] pt-0.5">
+          <span className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-xs bg-[#15803d] inline-block" />
+            <span>Rảnh rỗi: {idleLaborers}</span>
           </span>
-          <span className="flex items-center gap-1">
-            <span className="w-2.5 h-2.5 rounded-xs bg-amber-600 inline-block" />
+          <span className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-xs bg-[#b45309] inline-block" />
             <span>Đang làm: {workingLaborers}</span>
           </span>
-          <span className="flex items-center gap-1 text-stone-400">
-            <span className="w-2.5 h-2.5 rounded-xs bg-stone-800 border border-stone-600 inline-block" />
+          <span className="flex items-center gap-1.5 text-[#704d2e]">
+            <span className="w-2.5 h-2.5 rounded-xs bg-[#78716c] inline-block" />
             <span>Không luyện: {unfitPopulation}</span>
           </span>
         </div>
@@ -155,57 +164,54 @@ export const TrainingSlider: React.FC<TrainingSliderProps> = ({
           max={totalTrainable > 0 ? totalTrainable : 1}
           value={trainCount}
           onChange={handleSliderChange}
-          className="w-full accent-amber-500 cursor-pointer h-2 bg-stone-800 rounded-lg"
+          className="w-full accent-[#8c2d19] cursor-pointer h-2 bg-[#d7c4ab] rounded-lg"
         />
       </div>
 
-      {/* 3. Diễn giải tác động chiến lược */}
-      <div className="text-[11px] leading-relaxed p-2.5 rounded-lg bg-[#1c1108] border border-[#59391e]/60 space-y-1">
+      {/* 3. Diễn giải tác động chiến lược - phong cách công văn, không icon */}
+      <div className="text-xs leading-relaxed p-2.5 rounded-lg bg-[#8c6b44]/5 border border-[#8c6b44]/25 space-y-1.5 text-[#261304]">
         {workingUsed > 0 ? (
-          <div className="text-amber-300 flex items-start gap-1.5 font-sans">
-            <AlertTriangle size={14} className="shrink-0 mt-0.5 text-amber-400" />
-            <span>
-              Kéo lấn vào vùng Cam: Dùng <strong>{idleUsed}</strong> tráng phu nhàn rỗi và rút <strong>{workingUsed}</strong> tráng phu đang làm việc → Điều động <strong>{swappedCombatantsNeeded} Nghĩa Binh</strong> thế chỗ cày cấy/rèn đúc để duy trì sản xuất!
-            </span>
+          <div className="text-[#b45309]">
+            * Cảnh báo sản xuất: Điều động <strong>{idleUsed}</strong> tráng phu nhàn rỗi và rút <strong>{workingUsed}</strong> tráng phu đang làm việc → Cắt cử <strong>{swappedCombatantsNeeded} Nghĩa Binh</strong> dày dạn thế chỗ cày cấy / rèn đúc để duy trì sản lượng!
           </div>
         ) : (
-          <div className="text-emerald-300 flex items-center gap-1.5 font-sans">
-            <Shield size={14} className="text-emerald-400" />
-            <span>
-              Vùng Xanh an toàn: Huấn luyện <strong>{idleUsed}</strong> tráng phu nhàn rỗi, không làm gián đoạn sản xuất đồn điền.
-            </span>
+          <div className="text-[#15803d]">
+            * Điều động an toàn: Huấn luyện <strong>{idleUsed}</strong> tráng phu nhàn rỗi, không làm gián đoạn sản xuất nông vụ và lò rèn.
           </div>
         )}
 
-        <div className="text-[11px] text-stone-400 pt-1 border-t border-stone-800 flex justify-between">
-          <span>Khí giới tiêu tốn: <strong className={isWeaponShortage ? 'text-red-400' : 'text-stone-200'}>{trainCount} món</strong> (Hiện có: {weaponsAvailable})</span>
+        <div className="text-xs text-[#6b4423] pt-1 border-t border-[#8c6b44]/20 flex justify-between">
+          <span>Khí giới tiêu hao: <strong className={isWeaponShortage ? 'text-[#8c2d19]' : 'text-[#261304]'}>{trainCount} món</strong> (Kho hiện có: {weaponsAvailable})</span>
         </div>
       </div>
 
-      {/* 4. Nút bấm Xác nhận */}
-      <div className="flex items-center gap-2 pt-1">
+      {/* 4. Nút bấm thao tác - thuần chữ */}
+      <div className="flex items-center gap-2 pt-1 font-serif">
         <button
           onClick={onCancel}
-          className="flex-1 py-1.5 rounded-lg bg-[#3d2514] hover:bg-[#4a2e18] text-stone-300 font-sans font-bold text-xs border border-[#6e4321] transition cursor-pointer"
+          className="flex-1 py-2 rounded-lg bg-[#8c6b44]/15 hover:bg-[#8c6b44]/25 text-[#6e4927] font-serif font-bold text-xs border border-[#8c6b44]/35 transition cursor-pointer"
         >
           Hủy Bỏ
         </button>
         <button
           onClick={() => {
+            if (generals.length === 0 || !effectiveGeneralId) {
+              notify.error('Cần có một vị tướng rảnh rỗi tại căn cứ để chủ trì thao luyện!');
+              return;
+            }
             if (isWeaponShortage) {
               notify.error('Khí giới trong kho không đủ để trang bị cho đợt thao luyện này!');
               return;
             }
-            onConfirm(selectedGeneralId, trainCount, swappedCombatantsNeeded, trainingDays);
+            onConfirm(effectiveGeneralId, trainCount, swappedCombatantsNeeded, trainingDays);
           }}
-          disabled={isWeaponShortage}
-          className={`flex-1 py-1.5 rounded-lg flex items-center justify-center gap-1 font-sans font-bold text-xs uppercase tracking-wider shadow-md transition cursor-pointer ${
-            isWeaponShortage
-              ? 'bg-stone-700 text-stone-400 border border-stone-600 cursor-not-allowed'
-              : 'bg-gradient-to-r from-[#991b1b] to-[#7f1d1d] hover:brightness-110 text-amber-100 border border-[#b91c1c]'
+          disabled={isWeaponShortage || generals.length === 0}
+          className={`flex-1 py-2 rounded-lg flex items-center justify-center font-serif font-black text-xs uppercase tracking-wider shadow transition cursor-pointer ${
+            isWeaponShortage || generals.length === 0
+              ? 'bg-[#78716c]/40 text-[#57534e] border border-[#78716c]/40 cursor-not-allowed'
+              : 'bg-[#8c2d19] hover:bg-[#6e1e0d] text-[#fff3db] active:scale-95'
           }`}
         >
-          <Check size={14} />
           <span>Hạ Lệnh Thao Luyện</span>
         </button>
       </div>

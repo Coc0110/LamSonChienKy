@@ -349,13 +349,21 @@ export const TacticalFormationModal: React.FC = React.memo(() => {
   }, [hoveredCell, activeFormation]);
 
   const availableGeneralsAtBase = useMemo(() => {
-    const unlocked = generals.filter(g => g.unlocked);
+    const commandingIds = new Set<string>();
+    formations.forEach(f => {
+      if (f.commanderGeneralId) commandingIds.add(f.commanderGeneralId);
+      if (f.assignedGeneralIds && Array.isArray(f.assignedGeneralIds)) {
+        f.assignedGeneralIds.forEach(id => commandingIds.add(id));
+      }
+    });
+
+    const unlocked = generals.filter(g => g.unlocked && !commandingIds.has(g.id));
     return [...unlocked].sort((a, b) => {
       const aHere = a.locationId === currentCity.id ? 1 : 0;
       const bHere = b.locationId === currentCity.id ? 1 : 0;
       return bHere - aHere;
     });
-  }, [generals, currentCity.id]);
+  }, [generals, formations, currentCity.id]);
 
   const effectiveTrainingGeneralId = availableGeneralsAtBase.some(g => g.id === trainingGeneralId)
     ? trainingGeneralId

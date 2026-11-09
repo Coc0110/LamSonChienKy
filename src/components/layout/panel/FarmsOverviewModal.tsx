@@ -68,27 +68,23 @@ export const FarmsOverviewModal: React.FC = React.memo(() => {
             </button>
           </div>
 
-          {/* Banner Thông Tin Mùa Vụ & Chỉ Số Chung */}
-          <div className="grid grid-cols-2 gap-2.5 mb-3 p-2.5 rounded bg-black/[0.04] border border-[#8c6b44]/25 shrink-0 text-xs">
-            <div>
-              <div className="text-[11px] text-[#5c3e23]">{UI_TEXT.farmsPanel.stats.nextSeason}</div>
-              <div className="font-bold text-[#8c2d19]">
+          {/* Banner Thông Tin Mùa Vụ & Chỉ Số Chung (Trải đều tuần tự, không chia dọc) */}
+          <div className="flex flex-col gap-1.5 mb-3 p-2.5 rounded bg-black/[0.04] border border-[#8c6b44]/25 shrink-0 text-xs font-serif">
+            <div className="flex items-center justify-between">
+              <span className="text-[#5c3e23]">{UI_TEXT.farmsPanel.stats.nextSeason}</span>
+              <strong className="text-[#8c2d19] font-bold">
                 {nextHarvest.season.name} ({nextHarvest.targetDay}/{nextHarvest.targetMonth}) — còn {nextHarvest.daysRemaining} ngày
-              </div>
+              </strong>
             </div>
 
-            <div className="flex items-center justify-between pl-3 border-l border-[#8c6b44]/25">
+            <div className="flex items-center justify-between pt-1 border-t border-[#8c6b44]/15">
               <div>
-                <div className="text-[11px] text-[#5c3e23]">{UI_TEXT.farmsPanel.stats.workers}</div>
-                <div className="font-bold text-[#15803d]">
-                  {totalAssignedWorkers} / {totalMaxWorkers} người
-                </div>
+                <span className="text-[#5c3e23]">{UI_TEXT.farmsPanel.stats.workers} </span>
+                <strong className="text-[#15803d] font-bold">{totalAssignedWorkers} / {totalMaxWorkers} người</strong>
               </div>
-              <div className="text-right">
-                <div className="text-[11px] text-[#5c3e23]">{UI_TEXT.farmsPanel.stats.expectedYield}</div>
-                <div className="font-bold text-[#b45309]">
-                  +{totalExpectedHarvest.toLocaleString()} thạch
-                </div>
+              <div>
+                <span className="text-[#5c3e23]">{UI_TEXT.farmsPanel.stats.expectedYield} </span>
+                <strong className="text-[#b45309] font-bold">+{totalExpectedHarvest.toLocaleString()} thạch</strong>
               </div>
             </div>
           </div>

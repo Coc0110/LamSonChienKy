@@ -59,16 +59,16 @@ export const ScoutOverviewModal: React.FC = React.memo(() => {
             </button>
           </div>
 
-          {/* Banner Thống kê Tình Báo (2 Cột rộng rãi, bỏ số lượng đội đang di chuyển) */}
-          <div className="grid grid-cols-2 gap-2 mb-3 p-2.5 rounded bg-black/[0.04] border border-[#8c6b44]/25 shrink-0 text-xs text-center">
-            <div className="border-r border-[#8c6b44]/20 pr-1">
-              <span className="text-[#5c3e23] block text-[11px]">{UI_TEXT.scoutPanel.stats.scouted}</span>
+          {/* Banner Thống kê Tình Báo (Đơn dòng trải đều, không chia dọc tờ giấy) */}
+          <div className="flex items-center justify-between mb-3 p-2.5 rounded bg-black/[0.04] border border-[#8c6b44]/25 shrink-0 text-xs font-serif">
+            <div>
+              <span className="text-[#5c3e23]">{UI_TEXT.scoutPanel.stats.scouted} </span>
               <strong className="text-[#8c2d19] font-bold text-sm">
                 {scoutedCities.length} thành trì
               </strong>
             </div>
-            <div className="pl-1">
-              <span className="text-[#5c3e23] block text-[11px]">{UI_TEXT.scoutPanel.stats.laborers}</span>
+            <div>
+              <span className="text-[#5c3e23]">{UI_TEXT.scoutPanel.stats.laborers} </span>
               <strong className="text-[#15803d] font-bold text-sm">
                 {idleLaborers} người ({Math.floor(resources.food).toLocaleString()} lương)
               </strong>
