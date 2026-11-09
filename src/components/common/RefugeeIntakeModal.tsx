@@ -117,49 +117,34 @@ export const RefugeeIntakeModal: React.FC = () => {
                         : 'border-[#8c6b44]/30 bg-[#8c6b44]/5'
                     } flex flex-col gap-1.5`}
                   >
-                    {/* Dòng 1: Tên đoàn */}
-                    <div className="font-serif font-black text-sm text-[#8c2d19] leading-snug">
-                      Lưu dân từ {wave.originName}
+                    {/* Đầu mục: Tên đoàn lưu dân */}
+                    <div className="flex items-center justify-between border-b border-[#8c6b44]/20 pb-1">
+                      <h4 className="font-serif font-black text-sm text-[#8c2d19] leading-snug">
+                        Lưu dân từ {wave.originName}
+                      </h4>
                     </div>
 
-                    {/* Dòng 2: Ngày tới & hạn chờ */}
-                    <div className="text-[11px] text-[#704d2e] font-sans leading-snug">
-                      Ngày tới: {wave.dateStr} •{' '}
-                      {isDeparted ? (
-                        <span className="text-[#8c2d19] font-bold italic">Đã hết hạn chờ</span>
-                      ) : (
-                        <span className="text-[#8c2d19] font-bold">còn {wave.daysRemaining ?? 30} ngày</span>
-                      )}
-                    </div>
-
-                    {/* Dòng 3: Tráng đinh & Lão ấu đặt trong 2 vết mực */}
-                    <div className="flex items-center gap-2.5 text-xs font-serif pt-0.5">
-                      {/* Vết mực Tráng phu */}
-                      <div className="relative h-[25px] px-3.5 flex items-center justify-center select-none">
-                        <img
-                          src="/ink_stroke_1.png"
-                          alt="Vết mực tráng phu"
-                          className="absolute inset-0 w-full h-full object-fill pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]"
-                        />
-                        <span className="relative z-10 flex items-center gap-1.5 font-serif font-bold text-xs text-[#a7f3d0] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                          {wave.idleCount} tráng phu
-                        </span>
-                      </div>
-
-                      {/* Vết mực Lão ấu */}
-                      <div className="relative h-[25px] px-3.5 flex items-center justify-center select-none">
-                        <img
-                          src="/ink_stroke_brown.png"
-                          alt="Vết mực lão ấu"
-                          className="absolute inset-0 w-full h-full object-fill pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]"
-                        />
-                        <span className="relative z-10 flex items-center gap-1.5 font-serif font-bold text-xs text-[#fef2d6] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]">
-                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                          {wave.unfitCount} lão, ấu
-                        </span>
-                      </div>
-                    </div>
+                    {/* Danh sách thông tin báo cáo: mỗi thông tin một dòng, không có icon */}
+                    <ul className="space-y-1 text-xs text-[#261304] border-l-2 border-[#8c2d19]/40 pl-3 py-0.5 font-serif">
+                      <li>
+                        <span className="text-[#6b4423]">Hạn chờ: </span>
+                        {isDeparted ? (
+                          <span className="text-[#8c2d19] font-bold italic">Đã hết hạn chờ ({wave.dateStr})</span>
+                        ) : (
+                          <span className="text-[#261304]">
+                            Ngày tới: {wave.dateStr} • <strong className="text-[#8c2d19] font-bold">còn {wave.daysRemaining ?? 30} ngày</strong>
+                          </span>
+                        )}
+                      </li>
+                      <li>
+                        <span className="text-[#6b4423]">Tráng phu: </span>
+                        <strong className="text-[#15803d] font-bold">{wave.idleCount} người</strong>
+                      </li>
+                      <li>
+                        <span className="text-[#6b4423]">Lão, ấu: </span>
+                        <strong className="text-[#b45309] font-bold">{wave.unfitCount} người</strong>
+                      </li>
+                    </ul>
 
                     {/* Dòng 4: 1 dòng 3 nút chọn đặt trên các vết mực, thông tin lương xuống dòng */}
                     {isDeparted ? (
