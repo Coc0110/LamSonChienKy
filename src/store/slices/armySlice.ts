@@ -1436,7 +1436,7 @@ export const createArmySlice: StateCreator<GameStore, [], [], ArmySlice> = (set,
             for (const c of prev.cities) {
               if (c.faction === 'ming' && c.troops > 0) {
                 const d = Math.hypot(c.x - currentPos.x, c.y - currentPos.y);
-                if (d <= 3.2 && d < minDist) {
+                if (d <= 1.2 && d < minDist) {
                   minDist = d;
                   nearMing = c;
                 }
@@ -1445,9 +1445,13 @@ export const createArmySlice: StateCreator<GameStore, [], [], ArmySlice> = (set,
             if (nearMing) {
               finalStatus = 'engaging';
               engagedTargetCityId = nearMing.id;
+              const defendingMingTroops = nearMing.id === 'tay_do'
+                ? Math.min(nearMing.troops, Math.max(1500, Math.round(nearMing.troops * 0.25)))
+                : Math.min(nearMing.troops, Math.max(120, Math.round(nearMing.troops * 0.4)));
+
               battleToTrigger = {
                 formationId: form.id,
-                mingTroops: Math.min(nearMing.troops, Math.max(15, form.totalTroops * 2)),
+                mingTroops: defendingMingTroops,
                 battleName: 'Tập Kích Cứ Điểm',
                 locationName: nearMing.name,
                 mapCol: currentPos.col,
@@ -1458,7 +1462,7 @@ export const createArmySlice: StateCreator<GameStore, [], [], ArmySlice> = (set,
               finalStatus = 'stationed';
               toastsToEmit.push({
                 type: 'info',
-                text: `⛺ [${form.name}] đã tới điểm đích và hạ trại cảnh giới (Không phát hiện đồn địch trong tầm tập kích).`,
+                text: `⛺ [${form.name}] đã tới điểm đích tại ô (${currentPos.col}, ${currentPos.row}) và hạ trại (Vị trí không có thành trì giặc để tập kích).`,
               });
             }
           } else {

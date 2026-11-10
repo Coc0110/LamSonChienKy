@@ -122,8 +122,8 @@ assert.strictEqual(lsUnits.length, 3, 'Phải có đúng 3 đơn vị Lam Sơn')
 
 const swordUnit = lsUnits.find(u => u.unitTypeId === 'swordsman');
 assert.ok(swordUnit, 'Phải có đơn vị kiếm');
-assert.strictEqual(swordUnit?.col, 10, 'Tọa độ cột kiếm phải giữ nguyên là 10');
-assert.strictEqual(swordUnit?.row, 15, 'Tọa độ hàng kiếm phải giữ nguyên là 15');
+assert.strictEqual(swordUnit?.col, 16, 'Tọa độ cột kiếm sau khi xoay 90 độ hướng sang phải là 16');
+assert.strictEqual(swordUnit?.row, 10, 'Tọa độ hàng kiếm sau khi xoay 90 độ là 10');
 assert.strictEqual(swordUnit?.soldiersCount, 15, 'Quân số kiếm phải là 15');
 
 const generalUnit = lsUnits.find(u => u.unitTypeId === 'general');

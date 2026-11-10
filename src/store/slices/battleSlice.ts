@@ -53,6 +53,14 @@ export const createBattleSlice: StateCreator<GameStore, [], [], BattleSlice> = (
     const grid = generateBattlefieldTerrain(mapCol, mapRow, scale);
     const units = mapArmiesToBattlefield(formation, state.generals, mingTroops, scale);
 
+    const actualLamSonTroops = units
+      .filter(u => u.faction === 'lam_son')
+      .reduce((sum, u) => sum + u.soldiersCount, 0);
+
+    const actualMingTroops = units
+      .filter(u => u.faction === 'ming')
+      .reduce((sum, u) => sum + u.soldiersCount, 0);
+
     const newBattle: BattlefieldState = {
       id: `battle_${Date.now()}_${formationId}`,
       battleName,
@@ -65,8 +73,8 @@ export const createBattleSlice: StateCreator<GameStore, [], [], BattleSlice> = (
       phase: 'in_progress',
       lamSonMorale: 100,
       mingMorale: 100,
-      initialLamSonSoldiers: lamSonTroops,
-      initialMingSoldiers: mingTroops,
+      initialLamSonSoldiers: actualLamSonTroops,
+      initialMingSoldiers: actualMingTroops,
       casualties: {
         lamSonKilled: 0,
         mingKilled: 0,

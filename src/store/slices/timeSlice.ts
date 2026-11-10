@@ -237,7 +237,17 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
     };
   }),
 
-  tick: () => set((state) => {
+  tick: () => {
+    let raidBattleToTrigger: {
+      formationId: string;
+      mingTroops: number;
+      battleName: string;
+      locationName: string;
+      mapCol: number;
+      mapRow: number;
+    } | null = null;
+
+    set((state) => {
     if (state.isPaused) return state;
 
     let newDay = state.day + 1;
@@ -766,7 +776,7 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
       state.resources.spears +
       spearsProduced +
       (raidWeaponsDaily - Math.ceil(raidWeaponsDaily * 0.4) - Math.floor(raidWeaponsDaily * 0.3));
-    const newWeapons = newSwords + newBows + newSpears;
+    let newWeapons = newSwords + newBows + newSpears;
     const newClothes = state.resources.clothes + armorProduced;
     let newGold = state.resources.gold + refundedQueueGold;
 
@@ -834,85 +844,33 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
     let nextSuspicion = Math.min(100, Math.max(0, state.suspicion + suspicionGain - 0.06));
 
     if (nextSuspicion >= 100) {
-      // Giặc Minh tại thành Tây Đô mở cuộc hành quân càn quét bất ngờ vào Lam Sơn!
-      nextSuspicion = 35; // Sau trận càn quét, địch rút quân tạm lắng, nghi ngờ hạ về 35%
+      // Độ nghi ngờ đạt 100%: Quan quân giặc Minh tại thành Tây Đô mở cuộc càn quét bất ngờ vào Lam Sơn!
+      nextSuspicion = 35; // Sau trận càn quét, địch tạm lui binh, nghi ngờ hạ về 35%
 
       const baseIdx = updatedCities.findIndex(c => c.id === 'lam_son' && c.faction === 'lam_son');
       const baseCity = baseIdx !== -1 ? updatedCities[baseIdx] : null;
 
-      const baseCombatTroops = baseCity?.population?.combatTroops || 0;
-      const stationedFormationTroops = state.formations
-        .filter(f => f.cityId === 'lam_son' && f.status === 'stationed')
-        .reduce((sum, f) => sum + f.totalTroops, 0);
-      const totalDefenders = baseCombatTroops + stationedFormationTroops;
+      const baseFormation = state.formations.find(f => f.cityId === 'lam_son' && f.status === 'stationed') || state.formations[0];
+      const enemyRaiders = Math.floor(Math.random() * 36) + 60; // Toán quân càn quét 60 - 95 tên
 
-      // Toán quân càn quét ngẫu nhiên 60 - 95 tên
-      const enemyRaiders = Math.floor(Math.random() * 36) + 60;
-
-      if (totalDefenders >= Math.round(enemyRaiders * 0.7)) {
-        // Nghĩa quân phòng thủ vững chắc hoặc phục kích đánh tan toán càn quét!
-        const enemyKilled = Math.min(enemyRaiders, Math.floor(enemyRaiders * 0.6) + 12);
-        const ourLosses = Math.min(baseCombatTroops, Math.max(1, Math.floor(enemyKilled * 0.25)));
-        const lootWeapons = Math.floor(enemyKilled * 0.35);
-        const lootFood = Math.floor(enemyKilled * 1.4);
-
-        if (baseIdx !== -1 && baseCity && baseCity.population) {
-          citiesChanged = true;
-          updatedCities[baseIdx] = {
-            ...baseCity,
-            troops: Math.max(0, baseCity.troops - ourLosses),
-            population: {
-              ...baseCity.population,
-              combatTroops: Math.max(0, baseCity.population.combatTroops - ourLosses),
-            },
-          };
-        }
-
-        newFood += lootFood;
-        newMorale = Math.min(100, newMorale + 4);
-
-        notify.success(`⚔️ ĐẠI THẮNG ĐẨY LÙI QUÂN MINH CÀN QUÉT! Quân ta phục binh đánh tan ${enemyRaiders} quân Minh lục soát Lam Sơn! Diệt ${enemyKilled} giặc, thu ${lootWeapons} vũ khí & ${lootFood} lương!`);
-
-        newNotices.push({
-          id: `ming_raid_win_${Date.now()}`,
-          type: 'combat' as const,
-          title: 'Đẩy Lùi Quân Minh Càn Quét',
-          dateStr: `Ngày ${newDay}/${newMonth}/${newYear}`,
-          description: `Độ nghi ngờ chạm đỉnh khiến giặc Minh phái ${enemyRaiders} quân càn quét Lam Sơn. Nhờ có quân phòng thủ vững vàng, nghĩa quân đã đánh tan giặc, tiêu diệt ${enemyKilled} tên, thu chiến lợi phẩm dồi dào!`,
-          read: false,
-          timestamp: Date.now(),
-        });
+      if (baseFormation) {
+        const baseCol = baseCity ? Math.round((baseCity.x / 100) * 800) : 445;
+        const baseRow = baseCity ? Math.round((baseCity.y / 100) * 1052) : 506;
+        raidBattleToTrigger = {
+          formationId: baseFormation.id,
+          mingTroops: enemyRaiders,
+          battleName: 'Thủ Hộ Căn Cứ Lam Sơn',
+          locationName: 'Doanh Trại Lam Sơn',
+          mapCol: baseCol,
+          mapRow: baseRow,
+        };
       } else {
-        // Quân ta mỏng manh, không kịp phòng ngự, giặc cướp bóc một phần tài nguyên
         const foodPlundered = Math.min(newFood, Math.floor(newFood * 0.2) + 150);
         const weaponPlundered = Math.min(newWeapons, 25);
         newFood = Math.max(0, newFood - foodPlundered);
         newMorale = Math.max(0, newMorale - 12);
-
-        if (baseIdx !== -1 && baseCity && baseCity.population) {
-          const casualties = Math.min(baseCombatTroops, 10);
-          citiesChanged = true;
-          updatedCities[baseIdx] = {
-            ...baseCity,
-            troops: Math.max(0, baseCity.troops - casualties),
-            population: {
-              ...baseCity.population,
-              combatTroops: Math.max(0, baseCity.population.combatTroops - casualties),
-            },
-          };
-        }
-
-        notify.error(`🚨 NGUY CẤP: Quân Minh bất ngờ càn quét Lam Sơn! Do quân số phòng thủ mỏng, giặc đã cướp mất ${foodPlundered} hộc lương, ${weaponPlundered} khí giới!`);
-
-        newNotices.push({
-          id: `ming_raid_loss_${Date.now()}`,
-          type: 'combat' as const,
-          title: 'Quân Minh Đột Kích Lam Sơn',
-          dateStr: `Ngày ${newDay}/${newMonth}/${newYear}`,
-          description: `Mức nghi ngờ đạt 100%, quan quân Tây Đô kéo đến càn quét bất ngờ! Ta thiếu quân phòng thủ, giặc cướp phá ${foodPlundered} lương thảo, ${weaponPlundered} vũ khí, sĩ khí nghĩa quân sa sút.`,
-          read: false,
-          timestamp: Date.now(),
-        });
+        newWeapons = Math.max(0, newWeapons - weaponPlundered);
+        notify.error(`GIẶC MINH CÀN QUÉT! Căn cứ không có đạo quân chốt giữ, bị cướp ${foodPlundered} lương & ${weaponPlundered} vũ khí!`);
       }
     } else if (nextSuspicion >= 85 && Math.random() < 0.06) {
       notify.warning('CẢNH BÁO QUÂN CƠ: Mật thám Tây Đô phát giác khói lửa lò rèn Lam Sơn! Nghi ngờ dâng cao, mau lo vàng đút lót trước khi giặc kéo quân càn quét!');
@@ -1032,5 +990,10 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
       suspicion: nextSuspicion,
       gameStatus: nextGameStatus,
     };
-  })
+  });
+
+  if (raidBattleToTrigger) {
+    get().startBattle(raidBattleToTrigger);
+  }
+  },
 });

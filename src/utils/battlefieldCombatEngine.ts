@@ -40,51 +40,101 @@ export function resolveBattlefieldTick(prevState: BattlefieldState): Battlefield
     }
   });
 
-  // 1. DI CHUYỂN ĐƠN VỊ THEO AI
+  const canMoveTo = (c: number, r: number) => {
+    if (c < 0 || c >= grid.cols || r < 0 || r >= grid.rows) return false;
+    const tile = grid.tiles[r]?.[c];
+    if (!tile || !tile.isPassable) return false;
+    return !occupied.has(`${c},${r}`);
+  };
+
+  // 1. DI CHUYỂN ĐƠN VỊ 2D THEO AI HƯỚNG TỚI KẺ ĐỊCH GẦN NHẤT
   for (const unit of units) {
     if (unit.status === 'eliminated') continue;
 
-    // Đơn vị đang vỡ trận: Tháo chạy về hậu phương
-    if (unit.status === 'routing') {
-      const escapeDir = unit.faction === 'lam_son' ? -1 : 1;
-      const targetCol = unit.col + escapeDir;
-      if (targetCol >= 0 && targetCol < grid.cols) {
-        const destKey = `${targetCol},${unit.row}`;
-        const tile = grid.tiles[unit.row]?.[targetCol];
-        if (tile && tile.isPassable && !occupied.has(destKey)) {
-          occupied.delete(`${unit.col},${unit.row}`);
-          unit.col = targetCol;
-          occupied.add(destKey);
-        }
-      }
-      continue;
-    }
-
-    // Kiểm tra xem có địch trong tầm đánh không
     const enemies = units.filter(
       e => e.faction !== unit.faction && e.status !== 'eliminated' && e.soldiersCount > 0
     );
-    const range = unit.unitTypeId === 'archer' && (grid.tiles[unit.row]?.[unit.col]?.elevation || 0) > 0 ? 5 : UNIT_ATTACK_RANGE[unit.unitTypeId];
-    const enemyInRange = enemies.some(e => getDistance(unit, e) <= range);
 
-    // Nếu đã có địch trong tầm đánh hoặc đang giữ thế phòng thủ -> Không cần tiến
-    if (enemyInRange || unit.status === 'holding') {
+    // Nếu không còn kẻ địch sống, không cần di chuyển
+    if (enemies.length === 0) continue;
+
+    // Đơn vị đang vỡ trận: Tháo chạy ra xa khỏi kẻ địch
+    if (unit.status === 'routing') {
+      const escapeDir = unit.faction === 'lam_son' ? -1 : 1;
+      const stepC = unit.col + escapeDir;
+      if (canMoveTo(stepC, unit.row)) {
+        occupied.delete(`${unit.col},${unit.row}`);
+        unit.col = stepC;
+        occupied.add(`${unit.col},${unit.row}`);
+      }
       continue;
     }
 
-    // Đang tiến công: Di chuyển về phía trung lộ / phía đối phương
-    if (unit.status === 'advancing') {
-      const moveDir = unit.faction === 'lam_son' ? 1 : -1;
-      const targetCol = unit.col + moveDir;
-      if (targetCol >= 0 && targetCol < grid.cols) {
-        const destKey = `${targetCol},${unit.row}`;
-        const tile = grid.tiles[unit.row]?.[targetCol];
-        if (tile && tile.isPassable && !occupied.has(destKey)) {
-          occupied.delete(`${unit.col},${unit.row}`);
-          unit.col = targetCol;
-          occupied.add(destKey);
-        }
+    // Tìm kẻ địch gần nhất trên bản đồ
+    let closestEnemy: BattlefieldUnit | null = null;
+    let minDist = Infinity;
+    for (const enemy of enemies) {
+      const dist = getDistance(unit, enemy);
+      if (dist < minDist) {
+        minDist = dist;
+        closestEnemy = enemy;
       }
+    }
+
+    if (!closestEnemy) continue;
+
+    // Kiểm tra xem đã trong tầm đánh chưa
+    const effectiveRange = unit.unitTypeId === 'archer' && (grid.tiles[unit.row]?.[unit.col]?.elevation || 0) > 0 
+      ? 5 
+      : UNIT_ATTACK_RANGE[unit.unitTypeId];
+
+    const inRange = minDist <= effectiveRange;
+
+    // Nếu đã trong tầm bắn/đánh -> Giữ vị trí tấn công, không cần di chuyển
+    if (inRange) {
+      continue;
+    }
+
+    // Đối với quân Lam Sơn đang giữ thế thủ ('holding'):
+    // Nếu là cận chiến và kẻ địch đã áp sát trong cự ly 8 ô -> Tự động nghênh chiến
+    const isMelee = unit.unitTypeId === 'swordsman' || unit.unitTypeId === 'spearman' || unit.unitTypeId === 'cavalry' || unit.unitTypeId === 'elephant';
+    const shouldEngage = unit.status === 'advancing' || (unit.status === 'holding' && isMelee && minDist <= 10);
+
+    if (!shouldEngage) {
+      continue;
+    }
+
+    // THUẬT TOÁN ĐIỀU HƯỚNG 2D (Tiến về phía mục tiêu trên cả 2 trục X và Y)
+    const dx = closestEnemy.col - unit.col;
+    const dy = closestEnemy.row - unit.row;
+
+    const stepCol = unit.col + (dx !== 0 ? Math.sign(dx) : (unit.faction === 'lam_son' ? 1 : -1));
+    const stepRow = unit.row + (dy !== 0 ? Math.sign(dy) : 0);
+
+    // Ưu tiên trục có khoảng cách lớn hơn hoặc tìm đường né vật cản
+    let firstChoice = { c: stepCol, r: unit.row };
+    let secondChoice = { c: unit.col, r: stepRow };
+
+    if (Math.abs(dy) > Math.abs(dx)) {
+      firstChoice = { c: unit.col, r: stepRow };
+      secondChoice = { c: stepCol, r: unit.row };
+    }
+
+    if (canMoveTo(firstChoice.c, firstChoice.r)) {
+      occupied.delete(`${unit.col},${unit.row}`);
+      unit.col = firstChoice.c;
+      unit.row = firstChoice.r;
+      occupied.add(`${unit.col},${unit.row}`);
+    } else if (canMoveTo(secondChoice.c, secondChoice.r)) {
+      occupied.delete(`${unit.col},${unit.row}`);
+      unit.col = secondChoice.c;
+      unit.row = secondChoice.r;
+      occupied.add(`${unit.col},${unit.row}`);
+    } else if (canMoveTo(stepCol, stepRow)) {
+      occupied.delete(`${unit.col},${unit.row}`);
+      unit.col = stepCol;
+      unit.row = stepRow;
+      occupied.add(`${unit.col},${unit.row}`);
     }
   }
 
@@ -123,43 +173,39 @@ export function resolveBattlefieldTick(prevState: BattlefieldState): Battlefield
     if (!closestEnemy) continue;
 
     // TÍNH TOÁN SÁT THƯƠNG
-    // 1. Sát thương cơ bản dựa trên quân số thực
-    let attackPower = attacker.soldiersCount * 1.5;
+    let attackPower = attacker.soldiersCount * 1.6;
 
-    // 2. Hệ số khắc chế binh chủng
+    // Khắc chế binh chủng
     if (attacker.unitTypeId === 'spearman' && closestEnemy.unitTypeId === 'cavalry') {
-      attackPower *= 1.8; // Trường giáo khắc cứng thiết kỵ
+      attackPower *= 1.8;
     } else if (attacker.unitTypeId === 'swordsman' && closestEnemy.unitTypeId === 'archer') {
-      attackPower *= 1.4; // Đao khiên ép sát cung thủ
+      attackPower *= 1.4;
     } else if (attacker.unitTypeId === 'cavalry' && closestEnemy.unitTypeId === 'archer') {
-      attackPower *= 1.6; // Thiết kỵ càn quét xạ thủ
+      attackPower *= 1.6;
     } else if (attacker.unitTypeId === 'cavalry' && closestEnemy.unitTypeId === 'supply_cart') {
-      attackPower *= 2.0; // Tập kích cướp xe lương
+      attackPower *= 2.0;
     }
 
-    // 3. Vòng hào quang chỉ huy của tướng
+    // Vòng hào quang chỉ huy của tướng
     const nearGeneral = livingGenerals.find(g => g.faction === attacker.faction && getDistance(attacker, g) <= (g.commandAuraRadius || 4));
     if (nearGeneral) {
       attackPower *= 1.25;
     }
 
-    // 4. Địa hình phòng thủ của đối phương
+    // Địa hình phòng thủ của đối phương
     const defTile = grid.tiles[closestEnemy.row]?.[closestEnemy.col];
     let defenseRate = defTile ? defTile.defenseBonus : 0;
 
-    // Nếu đứng trong đầm lầy -> bị giảm khả năng phòng thủ (-15%)
     if (defTile?.terrain === 'swamp') {
-      attackPower *= 1.2;
+      attackPower *= 1.25;
     }
 
-    // Nếu phòng thủ trên cao (mỏm đá) -> giảm 25% sát thương nhận vào
     if ((defTile?.elevation || 0) > (grid.tiles[attacker.row]?.[attacker.col]?.elevation || 0)) {
       defenseRate += 0.25;
     }
 
-    // Giới hạn giảm tối đa 70% sát thương
     defenseRate = Math.min(0.7, Math.max(-0.3, defenseRate));
-    const damage = Math.max(1, Math.round(attackPower * (1 - defenseRate) * (0.8 + Math.random() * 0.4)));
+    const damage = Math.max(1, Math.round(attackPower * (1 - defenseRate) * (0.85 + Math.random() * 0.3)));
 
     // KHẤU TRỪ VÀO HP & QUÂN SỐ
     const oldSoldiers = closestEnemy.soldiersCount;
@@ -175,7 +221,7 @@ export function resolveBattlefieldTick(prevState: BattlefieldState): Battlefield
     }
 
     // TÍNH SĨ KHÍ & VỠ TRẬN
-    const moraleLoss = Math.round((damage / closestEnemy.maxHp) * 70);
+    const moraleLoss = Math.round((damage / closestEnemy.maxHp) * 50);
     closestEnemy.morale = Math.max(0, closestEnemy.morale - moraleLoss);
 
     if (lostSoldiers > 0) {
@@ -199,7 +245,7 @@ export function resolveBattlefieldTick(prevState: BattlefieldState): Battlefield
         message: `${attacker.faction === 'lam_son' ? 'Nghĩa quân' : 'Quân Minh'} đã tiêu diệt hoàn toàn toán ${closestEnemy.unitTypeId} của đối phương!`,
         actorFaction: attacker.faction,
       });
-    } else if (closestEnemy.morale < 25 && closestEnemy.status !== 'routing') {
+    } else if (closestEnemy.morale < 20 && closestEnemy.status !== 'routing') {
       closestEnemy.status = 'routing';
       newLogs.unshift({
         id: `log_rout_${nextTurn}_${closestEnemy.id}`,
@@ -219,14 +265,17 @@ export function resolveBattlefieldTick(prevState: BattlefieldState): Battlefield
   const totalLamSonSoldiersNow = currentLamSonLiving.reduce((acc, u) => acc + u.soldiersCount, 0);
   const totalMingSoldiersNow = currentMingLiving.reduce((acc, u) => acc + u.soldiersCount, 0);
 
-  const newLamSonMorale = Math.max(0, Math.round((totalLamSonSoldiersNow / prevState.initialLamSonSoldiers) * 100));
-  const newMingMorale = Math.max(0, Math.round((totalMingSoldiersNow / prevState.initialMingSoldiers) * 100));
+  const initLamSon = Math.max(1, prevState.initialLamSonSoldiers);
+  const initMing = Math.max(1, prevState.initialMingSoldiers);
+
+  const newLamSonMorale = Math.min(100, Math.max(0, Math.round((totalLamSonSoldiersNow / initLamSon) * 100)));
+  const newMingMorale = Math.min(100, Math.max(0, Math.round((totalMingSoldiersNow / initMing) * 100)));
 
   let nextPhase: BattlefieldState['phase'] = 'in_progress';
 
-  // Điều kiện Toàn Thắng của Lam Sơn: Quân Minh bị diệt hết hoặc toàn bộ vỡ trận tháo lui
+  // Điều kiện Toàn Thắng của Lam Sơn: Quân Minh bị diệt hết hoặc toàn bộ vỡ trận tháo lui sau khi đã giao chiến
   const mingNonRouting = currentMingLiving.filter(u => u.status !== 'routing');
-  if (currentMingLiving.length === 0 || mingNonRouting.length === 0 || newMingMorale < 15) {
+  if (currentMingLiving.length === 0 || (mingNonRouting.length === 0 && nextTurn >= 2) || newMingMorale < 15) {
     nextPhase = 'victory';
     newLogs.unshift({
       id: `log_vic_${nextTurn}`,
@@ -238,7 +287,7 @@ export function resolveBattlefieldTick(prevState: BattlefieldState): Battlefield
     });
   } 
   // Điều kiện Thất Bại của Lam Sơn: Quân ta bị diệt sạch hoặc vỡ trận
-  else if (currentLamSonLiving.length === 0 || currentLamSonLiving.filter(u => u.status !== 'routing').length === 0 || newLamSonMorale < 15) {
+  else if (currentLamSonLiving.length === 0 || (currentLamSonLiving.filter(u => u.status !== 'routing').length === 0 && nextTurn >= 2) || newLamSonMorale < 15) {
     nextPhase = 'defeat';
     newLogs.unshift({
       id: `log_def_${nextTurn}`,

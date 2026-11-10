@@ -19,9 +19,20 @@ export const BattlefieldModal: React.FC<BattlefieldModalProps> = ({
 }) => {
   const [isPlaying, setIsPlaying] = useState<boolean>(true);
   const [speed, setSpeed] = useState<number>(1); // 1x, 2x, 5x
+  const [isCharge, setIsCharge] = useState<boolean>(true);
   const [hoveredCoord, setHoveredCoord] = useState<{ col: number; row: number } | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const handleToggleStance = () => {
+    const nextStance = !isCharge;
+    setIsCharge(nextStance);
+    battleState.units.forEach(u => {
+      if (u.faction === 'lam_son' && u.status !== 'eliminated' && u.status !== 'routing') {
+        u.status = nextStance ? 'advancing' : 'holding';
+      }
+    });
+  };
 
   // Kích thước ô hiển thị phù hợp với màn hình ngang
   // 96 cột x 12.5px = 1200px
@@ -235,6 +246,19 @@ export const BattlefieldModal: React.FC<BattlefieldModalProps> = ({
                 </button>
               ))}
             </div>
+
+            {/* Nút chuyển đổi trận thế quân Lam Sơn */}
+            <button
+              onClick={handleToggleStance}
+              className={`px-3 py-1.5 rounded-lg font-bold border transition cursor-pointer flex items-center gap-1 ml-1 ${
+                isCharge 
+                  ? 'bg-[#8c2d19] text-amber-100 border-[#8c2d19]' 
+                  : 'bg-[#15803d]/20 text-[#15803d] border-[#15803d]/40'
+              }`}
+              title="Đổi mệnh lệnh xuất kích hoặc giữ trận địa"
+            >
+              <span>{isCharge ? 'Toàn Quân Xuất Kích' : 'Cố Thủ Trận Địa'}</span>
+            </button>
 
             {/* Nút khẩn cấp: Rút quân */}
             <button

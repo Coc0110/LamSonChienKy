@@ -52,12 +52,10 @@ export function generateBattlefieldTerrain(
   for (let r = 0; r < BATTLEFIELD_ROWS; r++) {
     const rowTiles: BattlefieldTile[] = [];
     const mapR = startRow + Math.min(cfg.sampleRows - 1, Math.floor(r / cfg.subRows));
-    const subR = r % cfg.subRows;
-
+    
     for (let c = 0; c < BATTLEFIELD_COLS; c++) {
       const mapC = startCol + Math.min(cfg.sampleCols - 1, Math.floor(c / cfg.subCols));
-      const subC = c % cfg.subCols;
-      
+            
       const rawTerrain: TerrainType = getGridTerrain(mapC, mapR);
 
       // Phân vùng chiến trường
@@ -78,12 +76,11 @@ export function generateBattlefieldTerrain(
           elevation = 1;
           defenseBonus = 0.35;
           speedCost = 1.8;
-          // Tạo hẻm núi tại vùng trung gian hoặc sườn:
-          // Nếu nằm ở các hàng biên (r <= 6 hoặc r >= 25) -> biến thành vách đá chặn đường
-          if (r <= 5 || r >= 26) {
+          // Chỉ chặn mép ngoài cùng trên/dưới để tạo lòng thung lũng, bên trong mở đường cho quân đi
+          if (r <= 2 || r >= 29) {
             isPassable = false;
-          } else if (subC === 0 && (subR === 0 || subR === cfg.subRows - 1)) {
-            // Rải các mỏm đá tảng cản đường
+          } else if (c >= 45 && c <= 55 && (r % 5 === 0)) {
+            // Vài tảng đá hiểm trở tạo khe hẹp thắt cổ chai
             isPassable = false;
           }
           break;
@@ -104,12 +101,13 @@ export function generateBattlefieldTerrain(
         }
 
         case 'water': {
-          // Nước cản đường trừ khi là chỗ nước nông ở giữa
-          if (r >= 13 && r <= 18) {
-            // Ghềnh nước nông / bến lội
+          // Nước: Tạo nhiều ghềnh nước nông, cầu cạn hoặc bến lội để hai bên qua lại giao chiến
+          // Các hàng chẵn hoặc vùng bến lội (r % 3 !== 0) cho phép lội nước với tốc độ chậm
+          if (r % 3 !== 0 || (c >= 40 && c <= 55)) {
             isPassable = true;
-            speedCost = 2.0;
+            speedCost = 2.2;
           } else {
+            // Vùng nước sâu chặn đường
             isPassable = false;
           }
           break;
@@ -123,10 +121,9 @@ export function generateBattlefieldTerrain(
         }
       }
 
-      // Đảm bảo các vùng xuất phát quân (khu vực Lam Sơn c < 30 và Minh c > 65) luôn có đường di chuyển thông thoáng
+      // Đảm bảo doanh trại 2 bên (c < 32 và c > 63) luôn thông thoáng tuyệt đối
       if ((c <= 31 || c >= 64) && !isPassable) {
-        // Chỉ để đá ở mép trên dưới, không chặn đường bên trong trại
-        if (r > 3 && r < 28) {
+        if (r > 2 && r < 29) {
           isPassable = true;
         }
       }

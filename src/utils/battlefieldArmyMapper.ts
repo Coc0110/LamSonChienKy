@@ -11,7 +11,11 @@ export function mapArmiesToBattlefield(
 ): BattlefieldUnit[] {
   const result: BattlefieldUnit[] = [];
 
-  // 1. Ánh xạ toàn bộ quân Lam Sơn từ Sa Bàn 32x32 vào Cột 0..31
+  // 1. ÁNH XẠ SA BÀN LAM SƠN 32x32 VÀO CÁNH TẢ (CỘT 0..31, HÀNG 0..31)
+  // Xoay 90 độ theo chiều kim đồng hồ để hướng Tiên phong (Hàng 0 trên Sa bàn) hướng sang phải (Cột 31 trên Chiến trường)
+  // - Sa bàn: Hàng 0 = Tiên phong (đối diện giặc), Hàng 31 = Hậu phương.
+  // - Bàn cờ ngang: Cột 31 = Tiên phong (áp sát trung lộ), Cột 0 = Hậu phương.
+  // - Sa bàn: Cột 0 = Cánh Tả, Cột 31 = Cánh Hữu -> Bàn cờ ngang: Hàng 0 = Cánh Tả (Bắc), Hàng 31 = Cánh Hữu (Nam).
   for (let r = 0; r < 32; r++) {
     for (let c = 0; c < 32; c++) {
       const cell = lamSonFormation.grid[r]?.[c];
@@ -20,8 +24,16 @@ export function mapArmiesToBattlefield(
         const general = genId ? generals.find(g => g.id === genId) : undefined;
         
         const unitCfg = TACTICAL_UNIT_CONFIGS[cell.type];
-        const spanCols = unitCfg?.spanCols || 1;
-        const spanRows = unitCfg?.spanRows || 1;
+        const origSpanCols = unitCfg?.spanCols || 1;
+        const origSpanRows = unitCfg?.spanRows || 1;
+        
+        // Khi xoay 90 độ: spanRows trở thành spanCols, spanCols trở thành spanRows
+        const spanCols = origSpanRows;
+        const spanRows = origSpanCols;
+        
+        // Tọa độ mới sau khi xoay 90 độ:
+        const mappedCol = 31 - (cell.row + origSpanRows - 1);
+        const mappedRow = cell.col;
         
         const troopsBase = unitCfg?.cost.combatTroops || 1;
         const multiplier = cell.multiplier || 1;
@@ -30,13 +42,16 @@ export function mapArmiesToBattlefield(
         const hp = cell.hp || count * 10;
         const maxHp = cell.maxHp || hp;
 
+        // Binh chủng cận chiến tiên phong sẽ chủ động xuất kích đón đánh địch; Cung thủ và Tướng giữ thế trận yểm trợ
+        const isMelee = cell.type === 'swordsman' || cell.type === 'spearman' || cell.type === 'cavalry' || cell.type === 'elephant';
+
         result.push({
           id: `ls_${cell.id}`,
           formationId: lamSonFormation.id,
           faction: 'lam_son',
           unitTypeId: cell.type,
-          col: cell.col,
-          row: cell.row,
+          col: Math.max(0, Math.min(31, mappedCol)),
+          row: Math.max(0, Math.min(31, mappedRow)),
           spanCols,
           spanRows,
           soldiersCount: count,
@@ -48,39 +63,43 @@ export function mapArmiesToBattlefield(
           generalName: general?.name,
           commandAuraRadius: general ? 4 + Math.floor(general.stats.command / 30) : 4,
           weaponsBreakdown: cell.weaponsBreakdown || { swords: Math.ceil(count / 2), bows: Math.floor(count / 2), spears: 0 },
-          status: 'holding',
+          status: isMelee ? 'advancing' : 'holding',
           hasActedThisTurn: false,
         });
       }
     }
   }
 
-  // 2. Sinh lực lượng quân Minh ở cánh phải (Cột 64..95) theo Trọng Lượng Quân Cờ
-  let targetUnitCount: number;
-  let unitSoldiersBase: number;
+  // 2. SINH LỰC LƯỢNG QUÂN MINH Ở CÁNH PHẢI (CỘT 64..95) THEO TRỌNG LƯỢNG QUÂN CỜ
+  // Đảm bảo mỗi quân cờ của giặc có đủ quân số thực tế (tối thiểu 15-25 lính ở 1x, không sinh ra quân cờ 1 lính)
+  let minSoldiersPerUnit = 20;
+  let maxUnits = 20;
 
   switch (scale) {
     case '100x':
-      targetUnitCount = Math.min(40, Math.max(20, Math.round(mingTroopsCount / 2000)));
-      unitSoldiersBase = Math.round(mingTroopsCount / targetUnitCount);
+      minSoldiersPerUnit = 500;
+      maxUnits = 36;
       break;
     case '10x':
-      targetUnitCount = Math.min(32, Math.max(16, Math.round(mingTroopsCount / 250)));
-      unitSoldiersBase = Math.round(mingTroopsCount / targetUnitCount);
+      minSoldiersPerUnit = 80;
+      maxUnits = 28;
       break;
     case '1x':
     default:
-      targetUnitCount = Math.min(24, Math.max(8, Math.round(mingTroopsCount / 35)));
-      unitSoldiersBase = Math.round(mingTroopsCount / targetUnitCount);
+      minSoldiersPerUnit = 20;
+      maxUnits = 18;
       break;
   }
 
+  const targetUnitCount = Math.min(maxUnits, Math.max(1, Math.round(mingTroopsCount / minSoldiersPerUnit)));
+  const baseCountPerUnit = Math.floor(mingTroopsCount / targetUnitCount);
   let remainingTroops = mingTroopsCount;
+
   const occupiedPositions = new Set<string>();
 
-  // Sinh vị trí ngẫu nhiên theo hàng lối quân đội
+  // Sinh vị trí theo hàng ngũ: Tiên phong (Cột 66..72), Trung quân (Cột 74..80), Hậu quân (Cột 82..90)
   for (let i = 0; i < targetUnitCount; i++) {
-    const isCommander = i === targetUnitCount - 1;
+    const isCommander = i === targetUnitCount - 1 && targetUnitCount >= 3;
     let unitType: BattlefieldUnit['unitTypeId'] = 'swordsman';
     let targetColMin = 66;
     let targetColMax = 72;
@@ -89,13 +108,13 @@ export function mapArmiesToBattlefield(
       unitType = 'general';
       targetColMin = 86;
       targetColMax = 92;
-    } else if (i < targetUnitCount * 0.4) {
+    } else if (i < targetUnitCount * 0.45) {
       unitType = i % 2 === 0 ? 'swordsman' : 'spearman';
       targetColMin = 66;
-      targetColMax = 72;
-    } else if (i < targetUnitCount * 0.75) {
+      targetColMax = 74;
+    } else if (i < targetUnitCount * 0.8) {
       unitType = 'archer';
-      targetColMin = 74;
+      targetColMin = 75;
       targetColMax = 82;
     } else {
       unitType = i % 2 === 0 ? 'cavalry' : 'supply_cart';
@@ -104,7 +123,7 @@ export function mapArmiesToBattlefield(
     }
 
     let placedCol = targetColMin;
-    let placedRow = 4 + (i % 24);
+    let placedRow = 6 + (i * 2) % 20;
     let attempts = 0;
 
     while (attempts < 50) {
@@ -121,9 +140,7 @@ export function mapArmiesToBattlefield(
     }
 
     const isLast = i === targetUnitCount - 1;
-    const count = isLast 
-      ? Math.max(1, remainingTroops) 
-      : Math.min(remainingTroops, Math.max(1, Math.round(unitSoldiersBase * (0.8 + Math.random() * 0.4))));
+    const count = isLast ? Math.max(1, remainingTroops) : Math.max(1, Math.min(remainingTroops, baseCountPerUnit));
     remainingTroops = Math.max(0, remainingTroops - count);
 
     const hp = count * 10;
