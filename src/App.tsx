@@ -13,6 +13,7 @@ import { FarmsOverviewModal } from './components/layout/panel/FarmsOverviewModal
 import { ForgesOverviewModal } from './components/layout/panel/ForgesOverviewModal';
 import { ScoutOverviewModal } from './components/layout/panel/ScoutOverviewModal';
 import { BattlefieldModal } from './components/battle/BattlefieldModal';
+import { BattleTesterModal } from './components/battle/BattleTesterModal';
 import { BattleResultModal } from './components/battle/BattleResultModal';
 import { useGameStore } from './store/gameStore';
 import { useUIStore } from './store/uiStore';
@@ -39,6 +40,7 @@ function App() {
   const battleResultToReport = useGameStore(state => state.battleResultToReport);
   const tickBattle = useGameStore(state => state.tickBattle);
   const retreatBattle = useGameStore(state => state.retreatBattle);
+  const restartBattle = useGameStore(state => state.restartBattle);
   const closeBattleModal = useGameStore(state => state.closeBattleModal);
   const closeBattleResultModal = useGameStore(state => state.closeBattleResultModal);
   const setBattleStance = useGameStore(state => state.setBattleStance);
@@ -150,6 +152,7 @@ function App() {
       <ParchmentConfirmModal />
       <RefugeeIntakeModal />
       <EndgameModal />
+      <BattleTesterModal />
       {isBattleModalOpen && currentBattle && (
         <BattlefieldModal
           battleState={currentBattle}
@@ -157,6 +160,7 @@ function App() {
           onRetreat={retreatBattle}
           onClose={closeBattleModal}
           onToggleStance={setBattleStance}
+          onRestart={restartBattle}
         />
       )}
       {battleResultToReport && (

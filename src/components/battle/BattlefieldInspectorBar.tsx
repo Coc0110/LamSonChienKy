@@ -66,6 +66,9 @@ export const BattlefieldInspectorBar: React.FC<BattlefieldInspectorBarProps> = (
             style={{ backgroundColor: hoveredUnit.faction === 'lam_son' ? '#15803d' : '#8c2d19' }}>
             {hoveredUnit.faction === 'lam_son' ? 'Nghĩa Quân' : 'Quân Minh'}: {hoveredUnit.unitTypeId}
           </span>
+          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold border border-[#8c6b44]/40 bg-[#f5ecda] text-[#704d2e]">
+            {hoveredUnit.soldiersCount >= 80 ? 'Bách Doanh (×100)' : hoveredUnit.soldiersCount >= 8 ? 'Thập Đội (×10)' : 'Đơn Binh (×1)'}
+          </span>
           <span className="text-xs">
             Binh lực: <strong className="text-[#8c2d19]">{hoveredUnit.soldiersCount}</strong>/{hoveredUnit.maxSoldiersCount} người
           </span>

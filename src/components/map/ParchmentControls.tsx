@@ -1,5 +1,5 @@
 import React from 'react';
-import { Edit3, Check, Clock } from 'lucide-react';
+import { Edit3, Check, Clock, Swords } from 'lucide-react';
 import type { ParchmentMode } from '../../types/map';
 import { useUIStore } from '../../store/uiStore';
 
@@ -24,6 +24,7 @@ export const ParchmentControls: React.FC<ParchmentControlsProps> = ({
   const toggleEditMode = useUIStore(state => state.toggleEditMode);
   const isTimelineWheelOpen = useUIStore(state => state.isTimelineWheelOpen);
   const toggleTimelineWheel = useUIStore(state => state.toggleTimelineWheel);
+  const toggleBattleTester = useUIStore(state => state.toggleBattleTester);
 
   return (
     <div className="absolute bottom-5 left-5 z-[900] flex flex-wrap items-center gap-1.5 bg-[#1e130a]/90 border border-[#a87c4f]/70 rounded-lg p-1.5 shadow-2xl backdrop-blur-sm text-sm font-sans">
@@ -140,6 +141,18 @@ export const ParchmentControls: React.FC<ParchmentControlsProps> = ({
       >
         <Clock size={14} />
         <span>Thước Thời Gian</span>
+      </button>
+
+      <div className="h-4 w-[1px] bg-[#a87c4f]/40 mx-1" />
+
+      {/* Nút Test Chiến Trận / Diễn Võ Trường của Dev */}
+      <button
+        onClick={toggleBattleTester}
+        className="px-2.5 py-1 rounded transition-colors cursor-pointer flex items-center gap-1.5 font-bold bg-[#8c2d19] hover:bg-[#a8361f] text-[#fff3db] border border-[#ef4444] shadow"
+        title="Mở Diễn Võ Trường: Tự do xây dựng & lưu đội hình, tùy chỉnh lực lượng quân Minh, vào test chiến trận ngay lập tức"
+      >
+        <Swords size={14} className="text-[#fef08a]" />
+        <span className="text-[#fef08a]">Test Chiến Trận</span>
       </button>
     </div>
   );

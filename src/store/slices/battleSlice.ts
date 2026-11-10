@@ -21,6 +21,17 @@ export interface BattleSlice {
     targetCityId?: string;
   }) => void;
 
+  startSandboxBattle: (params: {
+    formation: any;
+    mingTroops: number;
+    battleName: string;
+    locationName: string;
+    mapCol: number;
+    mapRow: number;
+    customTerrainPreset?: string;
+  }) => void;
+
+  restartBattle: () => void;
   tickBattle: () => void;
   setBattleStance: (stance: 'advancing' | 'holding') => void;
   retreatBattle: () => void;
@@ -32,6 +43,74 @@ export const createBattleSlice: StateCreator<GameStore, [], [], BattleSlice> = (
   currentBattle: null,
   isBattleModalOpen: false,
   battleResultToReport: null,
+
+  startSandboxBattle: (params) => {
+    const state = get();
+    const { formation, mingTroops, battleName, locationName, mapCol, mapRow } = params;
+
+    const lamSonTroops = formation.totalTroops || 10;
+    const scale = determineScaleFromTroops(lamSonTroops, mingTroops);
+    const grid = generateBattlefieldTerrain(mapCol, mapRow, scale);
+    const units = mapArmiesToBattlefield(formation, state.generals, mingTroops, scale);
+
+    const actualLamSonTroops = units
+      .filter(u => u.faction === 'lam_son')
+      .reduce((sum, u) => sum + u.soldiersCount, 0);
+
+    const actualMingTroops = units
+      .filter(u => u.faction === 'ming')
+      .reduce((sum, u) => sum + u.soldiersCount, 0);
+
+    const newBattle: BattlefieldState = {
+      id: `sandbox_battle_${Date.now()}`,
+      isSandbox: true,
+      sandboxParams: params,
+      battleName,
+      locationName,
+      scale,
+      grid,
+      units,
+      turn: 0,
+      maxTurns: 999,
+      phase: 'in_progress',
+      lamSonMorale: 100,
+      mingMorale: 100,
+      initialLamSonSoldiers: actualLamSonTroops,
+      initialMingSoldiers: actualMingTroops,
+      casualties: {
+        lamSonKilled: 0,
+        mingKilled: 0,
+        weaponsLost: 0,
+        weaponsCaptured: 0,
+        foodCaptured: 0,
+        goldCaptured: 0,
+      },
+      logs: [
+        {
+          id: `log_init_${Date.now()}`,
+          turn: 0,
+          canhHour: 'Canh 1',
+          type: 'system',
+          message: `⚔️ [Tester Sandbox] Bắt đầu thao diễn chiến trận tại ${locationName}! [${formation.name}] (${actualLamSonTroops} quân) đối đầu ${actualMingTroops} quân Minh!`,
+        },
+      ],
+    };
+
+    set({
+      isPaused: true,
+      currentBattle: newBattle,
+      isBattleModalOpen: true,
+      battleResultToReport: null,
+    });
+
+    notify.info(`Đã mở Diễn Võ Trường: [${formation.name}] nghênh chiến ${actualMingTroops} quân Minh!`);
+  },
+
+  restartBattle: () => {
+    const { currentBattle } = get();
+    if (!currentBattle || !currentBattle.isSandbox || !currentBattle.sandboxParams) return;
+    get().startSandboxBattle(currentBattle.sandboxParams);
+  },
 
   startBattle: ({
     formationId,
@@ -70,7 +149,7 @@ export const createBattleSlice: StateCreator<GameStore, [], [], BattleSlice> = (
       grid,
       units,
       turn: 0,
-      maxTurns: 30,
+      maxTurns: 999,
       phase: 'in_progress',
       lamSonMorale: 100,
       mingMorale: 100,
@@ -114,6 +193,19 @@ export const createBattleSlice: StateCreator<GameStore, [], [], BattleSlice> = (
 
     // Kiểm tra nếu trận đánh kết thúc (thắng hoặc bại)
     if (nextBattle.phase === 'victory' || nextBattle.phase === 'defeat') {
+      if (nextBattle.isSandbox) {
+        set({
+          currentBattle: nextBattle,
+          isBattleModalOpen: false,
+          battleResultToReport: nextBattle,
+        });
+        if (nextBattle.phase === 'victory') {
+          notify.success('🏆 [Tester Sandbox] Đại Thắng Chiến Trận Thao Diễn!');
+        } else {
+          notify.error('💀 [Tester Sandbox] Chiến Trận Thao Diễn Thất Bại!');
+        }
+        return;
+      }
       const state = get();
       const formation = state.formations.find(f => f.id === currentBattle.id.split('_')[2]);
 
@@ -144,15 +236,15 @@ export const createBattleSlice: StateCreator<GameStore, [], [], BattleSlice> = (
         return c;
       });
 
-      // Cộng tài nguyên chiến lợi phẩm nếu thắng
-      const nextResources = {
+      // Chỉ cộng tài nguyên chiến lợi phẩm nếu thắng trận
+      const nextResources = nextBattle.phase === 'victory' ? {
         ...state.resources,
         food: state.resources.food + casualties.foodCaptured,
         gold: state.resources.gold + casualties.goldCaptured,
         swords: state.resources.swords + Math.ceil(casualties.weaponsCaptured * 0.4),
         bows: state.resources.bows + Math.floor(casualties.weaponsCaptured * 0.3),
         spears: state.resources.spears + (casualties.weaponsCaptured - Math.ceil(casualties.weaponsCaptured * 0.4) - Math.floor(casualties.weaponsCaptured * 0.3)),
-      };
+      } : state.resources;
 
       set({
         currentBattle: nextBattle,
@@ -204,10 +296,18 @@ export const createBattleSlice: StateCreator<GameStore, [], [], BattleSlice> = (
     const retreatedBattle: BattlefieldState = {
       ...currentBattle,
       phase: 'retreated',
+      casualties: {
+        ...currentBattle.casualties,
+        weaponsCaptured: 0,
+        foodCaptured: 0,
+        goldCaptured: 0,
+      },
     };
 
     const formationId = currentBattle.id.split('_')[2];
-    const nextFormations = state.formations.map(f => {
+    const nextFormations = currentBattle.isSandbox
+      ? state.formations
+      : state.formations.map(f => {
       if (f.id === formationId) {
         return {
           ...f,

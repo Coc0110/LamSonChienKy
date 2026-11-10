@@ -63,6 +63,8 @@ export interface BattlefieldUnit {
   // Trạng thái chiến trường
   status: 'holding' | 'advancing' | 'fighting' | 'routing' | 'eliminated';
   hasActedThisTurn?: boolean;
+  eliminatedAtTurn?: number;
+  lastDamageTaken?: number;
 }
 
 export interface BattlefieldLogEntry {
@@ -76,6 +78,8 @@ export interface BattlefieldLogEntry {
 
 export interface BattlefieldState {
   id: string;
+  isSandbox?: boolean;
+  sandboxParams?: any;
   battleName: string;
   locationName: string;
   scale: BattlefieldScaleLevel;

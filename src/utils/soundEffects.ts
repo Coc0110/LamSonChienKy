@@ -121,6 +121,60 @@ class SoundManager {
     osc.start(ctx.currentTime);
     osc.stop(ctx.currentTime + 0.04);
   }
+
+  // Tiếng Binh Khí Giao Nhau (Sword/Weapon Clash)
+  playClash() {
+    if (!this.enabled) return;
+    const ctx = this.getContext();
+    if (!ctx) return;
+
+    const osc1 = ctx.createOscillator();
+    const osc2 = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc1.type = 'sawtooth';
+    osc1.frequency.setValueAtTime(1400, ctx.currentTime);
+    osc1.frequency.exponentialRampToValueAtTime(320, ctx.currentTime + 0.12);
+
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(2200, ctx.currentTime);
+    osc2.frequency.exponentialRampToValueAtTime(500, ctx.currentTime + 0.09);
+
+    gain.gain.setValueAtTime(0.12, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.14);
+
+    osc1.connect(gain);
+    osc2.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc1.start(ctx.currentTime);
+    osc2.start(ctx.currentTime);
+    osc1.stop(ctx.currentTime + 0.14);
+    osc2.stop(ctx.currentTime + 0.14);
+  }
+
+  // Tiếng Bắn Cung Tên (Bow Shot)
+  playBowShot() {
+    if (!this.enabled) return;
+    const ctx = this.getContext();
+    if (!ctx) return;
+
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(800, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(200, ctx.currentTime + 0.08);
+
+    gain.gain.setValueAtTime(0.09, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.08);
+  }
 }
 
 export const sounds = new SoundManager();

@@ -12,12 +12,13 @@ export const BattleResultModal: React.FC<BattleResultModalProps> = ({
 }) => {
   const isVictory = battleState.phase === 'victory';
   const isRetreat = battleState.phase === 'retreated';
+  const isDefeat = battleState.phase === 'defeat';
 
   const resultTitle = isVictory 
-    ? 'Đại Thắng Toàn Quân' 
+    ? '🚩 Đại Thắng Toàn Quân' 
     : isRetreat 
-    ? 'Thu Quân Rút Lui An Toàn' 
-    : 'Tổn Thất Rút Lui';
+    ? '🛡️ Thu Quân Rút Lui Chiến Thuật' 
+    : '⚠️ Toàn Quân Tận Diệt - Đại Bại';
 
   const survivorsLamSon = Math.max(0, battleState.initialLamSonSoldiers - battleState.casualties.lamSonKilled);
   const remainingMing = Math.max(0, battleState.initialMingSoldiers - battleState.casualties.mingKilled);
@@ -78,20 +79,36 @@ export const BattleResultModal: React.FC<BattleResultModalProps> = ({
               </ul>
             </div>
 
-            {/* Chiến lợi phẩm thu giữ (nếu có) */}
-            {(battleState.casualties.weaponsCaptured > 0 || battleState.casualties.foodCaptured > 0 || battleState.casualties.goldCaptured > 0) && (
+            {/* Tình hình Chiến Lợi Phẩm / Hậu Quả Chiến Trường */}
+            {isVictory ? (
               <div className="p-2.5 rounded border border-[#8c6b44]/25 bg-[#8c6b44]/5 space-y-1">
                 <span className="font-bold text-[#b45309]">III. Chiến Lợi Phẩm Tịch Thu:</span>
                 <ul className="space-y-0.5 pl-3 border-l-2 border-[#b45309]/40 text-[#261304]">
-                  {battleState.casualties.weaponsCaptured > 0 && (
-                    <li>Khí giới đoạt được: <strong className="font-bold text-[#15803d]">{battleState.casualties.weaponsCaptured} món</strong></li>
-                  )}
-                  {battleState.casualties.foodCaptured > 0 && (
-                    <li>Lương thảo thu gom: <strong className="font-bold text-[#15803d]">{battleState.casualties.foodCaptured} thạch</strong></li>
-                  )}
-                  {battleState.casualties.goldCaptured > 0 && (
-                    <li>Ngân lượng chiến phí: <strong className="font-bold text-[#15803d]">{battleState.casualties.goldCaptured} quan</strong></li>
-                  )}
+                  <li>Khí giới đoạt được: <strong className="font-bold text-[#15803d]">{battleState.casualties.weaponsCaptured} món</strong></li>
+                  <li>Lương thảo thu gom: <strong className="font-bold text-[#15803d]">{battleState.casualties.foodCaptured} thạch</strong></li>
+                  <li>Ngân lượng chiến phí: <strong className="font-bold text-[#15803d]">{battleState.casualties.goldCaptured} quan</strong></li>
+                </ul>
+              </div>
+            ) : isDefeat ? (
+              <div className="p-2.5 rounded border border-red-800/30 bg-red-900/10 space-y-1">
+                <span className="font-bold text-[#8c2d19]">III. Hậu Quả & Thiệt Hại Chiến Trường:</span>
+                <p className="text-[11px] text-stone-700 italic">
+                  Nghĩa quân đại bại, chiến trường hoàn toàn rơi vào tay giặc Minh. Binh khí và quân lương xuất trận đều bị tiêu hao tổn thất, không thu được chiến lợi phẩm!
+                </p>
+                <ul className="space-y-0.5 pl-3 border-l-2 border-[#8c2d19]/40 text-[#261304] pt-1">
+                  <li>Binh khí hư hao / rơi vào tay giặc: <strong className="font-bold text-[#8c2d19]">{battleState.casualties.weaponsLost} món</strong></li>
+                  <li>Chiến lợi phẩm đoạt được: <strong className="font-bold text-stone-500">0 (Chiến bại)</strong></li>
+                </ul>
+              </div>
+            ) : (
+              <div className="p-2.5 rounded border border-amber-800/30 bg-amber-900/10 space-y-1">
+                <span className="font-bold text-[#b45309]">III. Kết Quả Thu Quân:</span>
+                <p className="text-[11px] text-stone-700 italic">
+                  Nghĩa quân chủ động phá vây rút lui để bảo toàn sinh lực. Quân Minh giữ trận địa nên nghĩa quân không thể thu gom chiến lợi phẩm.
+                </p>
+                <ul className="space-y-0.5 pl-3 border-l-2 border-[#b45309]/40 text-[#261304] pt-1">
+                  <li>Binh sĩ bảo toàn: <strong className="font-bold text-[#15803d]">{survivorsLamSon} người</strong></li>
+                  <li>Chiến lợi phẩm: <strong className="font-bold text-stone-500">0 (Rút lui chiến thuật)</strong></li>
                 </ul>
               </div>
             )}

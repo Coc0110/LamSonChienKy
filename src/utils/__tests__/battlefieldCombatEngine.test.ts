@@ -247,4 +247,115 @@ assert.strictEqual(steppedRear.col, 14, 'Hậu quân phải tiến vào ô cột
 assert.strictEqual(steppedRear.row, 10, 'Hậu quân phải giữ nguyên hàng 10, không phải lách tránh xe lương');
 console.log('✓ Xe lương và quân đội hành quân tuần tự thẳng hàng, bảo toàn 100% cự ly đội hình');
 
+// 4. Kiểm tra Nghĩa quân Lam Sơn chiến đấu đến cùng, không bao giờ vỡ trận tháo lui hay tự nhận thua khi còn quân
+const lowMoraleLS: BattlefieldUnit = {
+  id: 'ls_last_stand',
+  formationId: 'f1',
+  faction: 'lam_son',
+  unitTypeId: 'swordsman',
+  col: 10,
+  row: 10,
+  spanCols: 1,
+  spanRows: 1,
+  soldiersCount: 1,
+  maxSoldiersCount: 100,
+  hp: 5,
+  maxHp: 1000,
+  morale: 5,
+  status: 'holding',
+};
+
+const farAwayMing: BattlefieldUnit = {
+  id: 'ming_distant_2',
+  formationId: 'f_ming',
+  faction: 'ming',
+  unitTypeId: 'swordsman',
+  col: 30,
+  row: 10,
+  spanCols: 1,
+  spanRows: 1,
+  soldiersCount: 1000,
+  maxSoldiersCount: 1000,
+  hp: 10000,
+  maxHp: 10000,
+  morale: 100,
+  status: 'advancing',
+};
+
+const desperateBattle: BattlefieldState = {
+  ...initialBattle,
+  id: 'battle_last_stand',
+  turn: 35,
+  maxTurns: 999,
+  initialLamSonSoldiers: 1000,
+  initialMingSoldiers: 1000,
+  lamSonMorale: 5,
+  units: [lowMoraleLS, farAwayMing],
+};
+
+const desperateStep = resolveBattlefieldTick(desperateBattle);
+const standingLS = desperateStep.units.find(u => u.id === 'ls_last_stand')!;
+assert.ok(standingLS.status !== 'routing', 'Nghĩa quân Lam Sơn không bao giờ bị trạng thái routing tháo chạy');
+assert.strictEqual(desperateStep.phase, 'in_progress', 'Khi chưa toàn quân tận diệt, trận chiến vẫn tiếp diễn');
+console.log('✓ Nghĩa quân Lam Sơn kiên cường chiến đấu, không routing và chỉ dừng khi toàn quân tận diệt');
+
+// 5. Kiểm tra Khi Nghĩa Quân Đại Bại: Chiến lợi phẩm tịch thu (vũ khí, lương thảo, ngân lượng) phải bằng 0 tuyệt đối!
+const dyingLS: BattlefieldUnit = {
+  id: 'ls_doomed',
+  formationId: 'f1',
+  faction: 'lam_son',
+  unitTypeId: 'swordsman',
+  col: 15,
+  row: 10,
+  spanCols: 1,
+  spanRows: 1,
+  soldiersCount: 1,
+  maxSoldiersCount: 10,
+  hp: 1,
+  maxHp: 100,
+  morale: 10,
+  status: 'fighting',
+};
+
+const lethalMing: BattlefieldUnit = {
+  id: 'ming_killer',
+  formationId: 'f_ming',
+  faction: 'ming',
+  unitTypeId: 'swordsman',
+  col: 16,
+  row: 10,
+  spanCols: 1,
+  spanRows: 1,
+  soldiersCount: 50,
+  maxSoldiersCount: 50,
+  hp: 500,
+  maxHp: 500,
+  morale: 100,
+  status: 'fighting',
+};
+
+const fatalBattle: BattlefieldState = {
+  ...initialBattle,
+  id: 'battle_fatal',
+  units: [dyingLS, lethalMing],
+  initialLamSonSoldiers: 1,
+  initialMingSoldiers: 50,
+  casualties: {
+    lamSonKilled: 0,
+    mingKilled: 20, // Trước đó đã giết 20 quân Minh
+    weaponsLost: 0,
+    weaponsCaptured: 50,
+    foodCaptured: 100,
+    goldCaptured: 50,
+  },
+};
+
+const fatalResult = resolveBattlefieldTick(fatalBattle);
+assert.strictEqual(fatalResult.phase, 'defeat', 'Toán quân Lam Sơn cuối cùng chết thì kết quả phải là thất bại (defeat)');
+assert.strictEqual(fatalResult.casualties.weaponsCaptured, 0, 'Khi đại bại, vũ khí tịch thu phải về 0');
+assert.strictEqual(fatalResult.casualties.foodCaptured, 0, 'Khi đại bại, lương thảo tịch thu phải về 0');
+assert.strictEqual(fatalResult.casualties.goldCaptured, 0, 'Khi đại bại, ngân lượng tịch thu phải về 0');
+assert.ok(fatalResult.casualties.weaponsLost > 0, 'Khi đại bại, nghĩa quân phải chịu tổn thất binh khí rơi vào tay giặc');
+console.log('✓ Khi đại bại, chiến trường rơi vào tay giặc Minh: chiến lợi phẩm = 0 và ghi nhận tổn thất khí giới');
+
 console.log('>>> Toàn bộ test battlefieldCombatEngine THÀNH CÔNG! <<<');

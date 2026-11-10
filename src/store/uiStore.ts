@@ -38,6 +38,7 @@ interface UIState {
   isMilitaryBookOpen: boolean;
   isBuildPaperOpen: boolean;
   isTimelineWheelOpen: boolean;
+  isBattleTesterOpen: boolean;
   activeDropdown: 'troops' | 'weapons' | null;
 
   // Trạng thái Tấm Lưới Địa Hình & Sơn Địa Hình
@@ -63,6 +64,8 @@ interface UIState {
   setSelectedStructureModal: (s: PlacedStructure | null) => void;
   toggleMilitaryBook: () => void;
   setMilitaryBookOpen: (open: boolean) => void;
+  setBattleTesterOpen: (open: boolean) => void;
+  toggleBattleTester: () => void;
   toggleTimelineWheel: () => void;
   setTimelineWheelOpen: (open: boolean) => void;
   toggleBuildPaper: () => void;
@@ -92,6 +95,7 @@ export const useUIStore = create<UIState>((set) => ({
   isMilitaryBookOpen: false,
   isBuildPaperOpen: false,
   isTimelineWheelOpen: false,
+  isBattleTesterOpen: false,
   activeDropdown: null,
 
   showGrid: false,            // Mặc định ẩn lưới, chỉ hiện khi xây dựng, sửa map hoặc hành quân
@@ -151,6 +155,8 @@ export const useUIStore = create<UIState>((set) => ({
     isMilitaryBookOpen: open,
     ...(open ? { activeModal: null, isBuildPaperOpen: false, placementMode: null, baseRelocateMode: null } : {}),
   })),
+  toggleBattleTester: () => set((state) => ({ isBattleTesterOpen: !state.isBattleTesterOpen })),
+  setBattleTesterOpen: (open) => set({ isBattleTesterOpen: open }),
   toggleTimelineWheel: () => set((state) => ({ isTimelineWheelOpen: !state.isTimelineWheelOpen })),
   setTimelineWheelOpen: (open) => set({ isTimelineWheelOpen: open }),
   toggleBuildPaper: () => set((state) => {

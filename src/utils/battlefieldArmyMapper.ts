@@ -106,7 +106,7 @@ export function mapArmiesToBattlefield(
     // Phân bổ binh chủng theo chiều sâu chiến tuyến:
     // - Hàng đầu (Tiền phong, ~45% cột): Đao binh & Giáo binh
     // - Hàng giữa (Trung quân, ~35% cột): Cung nỏ binh
-    // - Hàng cuối (Hậu quân): Kỵ binh & Xe vận lương
+    // - Hàng cuối (Hậu quân): Kỵ binh, Voi chiến & Xe vận lương
     // - Trung tâm hàng cuối: Soái tướng giặc Minh
     let unitType: BattlefieldUnit['unitTypeId'] = 'swordsman';
     const isCommander = (i === targetUnitCount - 1) || (colOffset === numCols - 1 && rowOffset === Math.floor(numRows / 2));
@@ -118,7 +118,23 @@ export function mapArmiesToBattlefield(
     } else if (colOffset < numCols * 0.80) {
       unitType = 'archer';
     } else {
-      unitType = (rowOffset % 3 === 0) ? 'supply_cart' : 'cavalry';
+      if (rowOffset % 6 === 0) {
+        unitType = 'elephant';
+      } else if (rowOffset % 3 === 0) {
+        unitType = 'supply_cart';
+      } else {
+        unitType = 'cavalry';
+      }
+    }
+
+    let spanCols = 1;
+    let spanRows = 1;
+    if (unitType === 'cavalry') {
+      spanCols = 2;
+      spanRows = 1;
+    } else if (unitType === 'elephant' || unitType === 'supply_cart') {
+      spanCols = 2;
+      spanRows = 2;
     }
 
     const isLast = i === targetUnitCount - 1;
@@ -137,8 +153,8 @@ export function mapArmiesToBattlefield(
       unitTypeId: unitType,
       col: placedCol,
       row: placedRow,
-      spanCols: 1,
-      spanRows: 1,
+      spanCols,
+      spanRows,
       soldiersCount: count,
       maxSoldiersCount: count,
       hp,
@@ -147,7 +163,7 @@ export function mapArmiesToBattlefield(
       generalName: isCommander ? 'Quan Đô Ty Nhà Minh' : undefined,
       commandAuraRadius: isCommander ? 5 : undefined,
       weaponsBreakdown: {
-        swords: unitType === 'swordsman' || unitType === 'cavalry' ? count : 0,
+        swords: unitType === 'swordsman' || unitType === 'cavalry' || unitType === 'elephant' ? count : 0,
         bows: unitType === 'archer' ? count : 0,
         spears: unitType === 'spearman' ? count : 0,
       },
