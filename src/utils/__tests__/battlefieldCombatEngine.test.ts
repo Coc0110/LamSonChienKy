@@ -156,4 +156,95 @@ assert.ok(steppedArcher.col > 10, `Cung thủ phải tiến về phía trước 
 assert.ok(steppedGeneral.col > 8, `Tướng chỉ huy phải tiến theo đạo quân (Cột hiện tại: ${steppedGeneral.col})`);
 console.log('✓ Cung thủ và Tướng tự động hành quân tiến về phía mặt trận');
 
+
+// 3. Kiểm tra Xe Lương hành quân thẳng hàng cùng đội hình, không làm rối hoặc lệch hàng ngũ
+const frontSword: BattlefieldUnit = {
+  id: 'ls_front_sword',
+  formationId: 'f1',
+  faction: 'lam_son',
+  unitTypeId: 'swordsman',
+  col: 15,
+  row: 10,
+  spanCols: 1,
+  spanRows: 1,
+  soldiersCount: 1,
+  maxSoldiersCount: 1,
+  hp: 10,
+  maxHp: 10,
+  morale: 100,
+  status: 'advancing',
+};
+
+const midCart: BattlefieldUnit = {
+  id: 'ls_mid_cart',
+  formationId: 'f1',
+  faction: 'lam_son',
+  unitTypeId: 'supply_cart',
+  col: 14,
+  row: 10,
+  spanCols: 1,
+  spanRows: 1,
+  soldiersCount: 1,
+  maxSoldiersCount: 1,
+  hp: 20,
+  maxHp: 20,
+  morale: 100,
+  status: 'advancing',
+};
+
+const rearSword: BattlefieldUnit = {
+  id: 'ls_rear_sword',
+  formationId: 'f1',
+  faction: 'lam_son',
+  unitTypeId: 'swordsman',
+  col: 13,
+  row: 10,
+  spanCols: 1,
+  spanRows: 1,
+  soldiersCount: 1,
+  maxSoldiersCount: 1,
+  hp: 10,
+  maxHp: 10,
+  morale: 100,
+  status: 'advancing',
+};
+
+const lineEnemy: BattlefieldUnit = {
+  id: 'ming_target',
+  formationId: 'f_ming',
+  faction: 'ming',
+  unitTypeId: 'swordsman',
+  col: 28,
+  row: 10,
+  spanCols: 1,
+  spanRows: 1,
+  soldiersCount: 1,
+  maxSoldiersCount: 1,
+  hp: 10,
+  maxHp: 10,
+  morale: 100,
+  status: 'advancing',
+};
+
+const columnBattle: BattlefieldState = {
+  ...initialBattle,
+  id: 'battle_column_march',
+  units: [frontSword, midCart, rearSword, lineEnemy],
+};
+
+const marchStep1 = resolveBattlefieldTick(columnBattle);
+const steppedFront = marchStep1.units.find(u => u.id === 'ls_front_sword')!;
+const steppedCart = marchStep1.units.find(u => u.id === 'ls_mid_cart')!;
+const steppedRear = marchStep1.units.find(u => u.id === 'ls_rear_sword')!;
+
+assert.strictEqual(steppedFront.col, 16, 'Tiền phong phải tiến lên cột 16');
+assert.strictEqual(steppedFront.row, 10, 'Tiền phong phải giữ nguyên hàng 10');
+
+assert.strictEqual(steppedCart.col, 15, 'Xe lương phải tiến vào ô cột 15 vừa nhường');
+assert.strictEqual(steppedCart.row, 10, 'Xe lương phải giữ nguyên hàng 10, không bị lệch');
+
+assert.strictEqual(steppedRear.col, 14, 'Hậu quân phải tiến vào ô cột 14 vừa nhường');
+assert.strictEqual(steppedRear.row, 10, 'Hậu quân phải giữ nguyên hàng 10, không phải lách tránh xe lương');
+console.log('✓ Xe lương và quân đội hành quân tuần tự thẳng hàng, bảo toàn 100% cự ly đội hình');
+
 console.log('>>> Toàn bộ test battlefieldCombatEngine THÀNH CÔNG! <<<');

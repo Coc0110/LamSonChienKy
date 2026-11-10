@@ -48,7 +48,20 @@ export function resolveBattlefieldTick(prevState: BattlefieldState): Battlefield
   };
 
   // 1. DI CHUYỂN ĐƠN VỊ 2D THEO AI HƯỚNG TỚI KẺ ĐỊCH GẦN NHẤT
-  for (const unit of units) {
+  // QUY TẮC ĐIỀU HÀNH HÀNG NGŨ CHIẾN THUẬT:
+  // - Quân Lam Sơn tiến sang Đông (+X): Đơn vị cột lớn hơn (tiền tuyến) đi trước để nhường ô cho hàng sau
+  // - Quân Minh tiến sang Tây (-X): Đơn vị cột nhỏ hơn (tiền tuyến) đi trước để nhường ô cho hàng sau
+  const movingLamSon = units
+    .filter(u => u.faction === 'lam_son' && u.status !== 'eliminated')
+    .sort((a, b) => b.col - a.col);
+
+  const movingMing = units
+    .filter(u => u.faction === 'ming' && u.status !== 'eliminated')
+    .sort((a, b) => a.col - b.col);
+
+  const orderedMovingUnits = [...movingLamSon, ...movingMing];
+
+  for (const unit of orderedMovingUnits) {
     if (unit.status === 'eliminated') continue;
 
     const enemies = units.filter(

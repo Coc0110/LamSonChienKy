@@ -141,11 +141,14 @@ for (const m of mingUnits) {
 }
 console.log('✓ Quân Minh được sinh chuẩn xác tại Cột 64–95');
 
-// 3. Kiểm tra cấp độ 10x (Trọng lượng quân cờ)
+// 3. Kiểm tra cấp độ 1x và 10x (Trọng lượng quân cờ chuẩn 1, 10, 100)
+const ming1xAvg = mingUnits.reduce((acc, u) => acc + u.soldiersCount, 0) / mingUnits.length;
+assert.strictEqual(ming1xAvg, 1, 'Cấp 1x mỗi quân cờ quân Minh phải đại diện đúng 1 người lính');
+
 const units10x = mapArmiesToBattlefield(mockFormation, mockGenerals, 8000, '10x');
 const ming10x = units10x.filter(u => u.faction === 'ming');
 const avgMingSoldiers = ming10x.reduce((acc, u) => acc + u.soldiersCount, 0) / ming10x.length;
-assert.ok(avgMingSoldiers >= 50, `Cấp 10x mỗi quân cờ phải có nhiều lính (TB: ${avgMingSoldiers})`);
-console.log('✓ Trọng lượng quân cờ cấp 10x phản ánh chuẩn xác quân số dày đặc');
+assert.strictEqual(avgMingSoldiers, 10, `Cấp 10x mỗi quân cờ quân Minh phải đại diện đúng 10 người lính (thực tế: ${avgMingSoldiers})`);
+console.log('✓ Trọng lượng quân cờ chuẩn xác tuyệt đối: 1x = 1 người/quân, 10x = 10 người/quân');
 
 console.log('>>> Toàn bộ test battlefieldArmyMapper THÀNH CÔNG! <<<');

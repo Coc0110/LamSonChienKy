@@ -43,8 +43,7 @@ export function mapArmiesToBattlefield(
         const maxHp = cell.maxHp || hp;
 
         // Binh chủng cận chiến tiên phong sẽ chủ động xuất kích đón đánh địch; Cung thủ và Tướng giữ thế trận yểm trợ
-        const isCombatUnit = cell.type !== 'supply_cart';
-
+        
         result.push({
           id: `ls_${cell.id}`,
           formationId: lamSonFormation.id,
@@ -63,7 +62,8 @@ export function mapArmiesToBattlefield(
           generalName: general?.name,
           commandAuraRadius: general ? 4 + Math.floor(general.stats.command / 30) : 4,
           weaponsBreakdown: cell.weaponsBreakdown || { swords: Math.ceil(count / 2), bows: Math.floor(count / 2), spears: 0 },
-          status: isCombatUnit ? 'advancing' : 'holding',
+          // Toàn bộ quân Lam Sơn (kể cả xe lương) đều sẵn sàng hành quân tiến bước theo đội hình
+          status: 'advancing',
           hasActedThisTurn: false,
         });
       }
@@ -71,76 +71,60 @@ export function mapArmiesToBattlefield(
   }
 
   // 2. SINH LỰC LƯỢNG QUÂN MINH Ở CÁNH PHẢI (CỘT 64..95) THEO TRỌNG LƯỢNG QUÂN CỜ
-  // Đảm bảo mỗi quân cờ của giặc có đủ quân số thực tế (tối thiểu 15-25 lính ở 1x, không sinh ra quân cờ 1 lính)
-  let minSoldiersPerUnit = 20;
-  let maxUnits = 20;
-
-  switch (scale) {
-    case '100x':
-      minSoldiersPerUnit = 500;
-      maxUnits = 36;
-      break;
-    case '10x':
-      minSoldiersPerUnit = 80;
-      maxUnits = 28;
-      break;
-    case '1x':
-    default:
-      minSoldiersPerUnit = 20;
-      maxUnits = 18;
-      break;
-  }
-
-  const targetUnitCount = Math.min(maxUnits, Math.max(1, Math.round(mingTroopsCount / minSoldiersPerUnit)));
-  const baseCountPerUnit = Math.floor(mingTroopsCount / targetUnitCount);
+  // QUY TẮC CHUẨN THEO YÊU CẦU:
+  // - 1x (Tiểu trận): Mỗi quân cờ = đúng 1 người lính (tỷ lệ 1:1)
+  // - 10x (Vạn quân): Mỗi quân cờ = đúng 10 người lính (tỷ lệ 1:10)
+  // - 100x (Đại chiến): Mỗi quân cờ = đúng 100 người lính (tỷ lệ 1:100)
+  const unitWeight = scale === '100x' ? 100 : scale === '10x' ? 10 : 1;
+  const targetUnitCount = Math.max(1, Math.ceil(mingTroopsCount / unitWeight));
   let remainingTroops = mingTroopsCount;
 
-  const occupiedPositions = new Set<string>();
+  // Tính số hàng phù hợp để khối quân Minh dàn trận vuông vắn, quy củ
+  let numRows = 24;
+  if (targetUnitCount <= 30) {
+    numRows = Math.min(targetUnitCount, 10);
+  } else if (targetUnitCount <= 80) {
+    numRows = 14;
+  } else if (targetUnitCount <= 200) {
+    numRows = 18;
+  } else if (targetUnitCount <= 500) {
+    numRows = 24;
+  } else {
+    numRows = 28;
+  }
 
-  // Sinh vị trí theo hàng ngũ: Tiên phong (Cột 66..72), Trung quân (Cột 74..80), Hậu quân (Cột 82..90)
+  const startRow = Math.floor((32 - numRows) / 2);
+  const numCols = Math.ceil(targetUnitCount / numRows);
+  const startCol = 66;
+
   for (let i = 0; i < targetUnitCount; i++) {
-    const isCommander = i === targetUnitCount - 1 && targetUnitCount >= 3;
+    const colOffset = Math.floor(i / numRows);
+    const rowOffset = i % numRows;
+    const placedCol = Math.min(94, startCol + colOffset);
+    const placedRow = Math.min(30, startRow + rowOffset);
+
+    // Phân bổ binh chủng theo chiều sâu chiến tuyến:
+    // - Hàng đầu (Tiền phong, ~45% cột): Đao binh & Giáo binh
+    // - Hàng giữa (Trung quân, ~35% cột): Cung nỏ binh
+    // - Hàng cuối (Hậu quân): Kỵ binh & Xe vận lương
+    // - Trung tâm hàng cuối: Soái tướng giặc Minh
     let unitType: BattlefieldUnit['unitTypeId'] = 'swordsman';
-    let targetColMin = 66;
-    let targetColMax = 72;
+    const isCommander = (i === targetUnitCount - 1) || (colOffset === numCols - 1 && rowOffset === Math.floor(numRows / 2));
 
     if (isCommander) {
       unitType = 'general';
-      targetColMin = 86;
-      targetColMax = 92;
-    } else if (i < targetUnitCount * 0.45) {
-      unitType = i % 2 === 0 ? 'swordsman' : 'spearman';
-      targetColMin = 66;
-      targetColMax = 74;
-    } else if (i < targetUnitCount * 0.8) {
+    } else if (colOffset < numCols * 0.45) {
+      unitType = (colOffset + rowOffset) % 2 === 0 ? 'swordsman' : 'spearman';
+    } else if (colOffset < numCols * 0.80) {
       unitType = 'archer';
-      targetColMin = 75;
-      targetColMax = 82;
     } else {
-      unitType = i % 2 === 0 ? 'cavalry' : 'supply_cart';
-      targetColMin = 83;
-      targetColMax = 90;
-    }
-
-    let placedCol = targetColMin;
-    let placedRow = 6 + (i * 2) % 20;
-    let attempts = 0;
-
-    while (attempts < 50) {
-      const col = targetColMin + Math.floor(Math.random() * (targetColMax - targetColMin + 1));
-      const row = 4 + Math.floor(Math.random() * 24);
-      const key = `${col},${row}`;
-      if (!occupiedPositions.has(key)) {
-        placedCol = col;
-        placedRow = row;
-        occupiedPositions.add(key);
-        break;
-      }
-      attempts++;
+      unitType = (rowOffset % 3 === 0) ? 'supply_cart' : 'cavalry';
     }
 
     const isLast = i === targetUnitCount - 1;
-    const count = isLast ? Math.max(1, remainingTroops) : Math.max(1, Math.min(remainingTroops, baseCountPerUnit));
+    const count = isLast 
+      ? Math.max(1, remainingTroops) 
+      : Math.min(remainingTroops, unitWeight);
     remainingTroops = Math.max(0, remainingTroops - count);
 
     const hp = count * 10;
@@ -153,14 +137,14 @@ export function mapArmiesToBattlefield(
       unitTypeId: unitType,
       col: placedCol,
       row: placedRow,
-      spanCols: unitType === 'cavalry' ? 2 : unitType === 'supply_cart' ? 2 : 1,
-      spanRows: unitType === 'cavalry' ? 2 : unitType === 'supply_cart' ? 2 : 1,
+      spanCols: 1,
+      spanRows: 1,
       soldiersCount: count,
       maxSoldiersCount: count,
       hp,
       maxHp,
       morale: 100,
-      generalName: isCommander ? 'Chủ Tướng Quân Minh' : undefined,
+      generalName: isCommander ? 'Quan Đô Ty Nhà Minh' : undefined,
       commandAuraRadius: isCommander ? 5 : undefined,
       weaponsBreakdown: {
         swords: unitType === 'swordsman' || unitType === 'cavalry' ? count : 0,
