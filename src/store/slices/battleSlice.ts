@@ -22,6 +22,7 @@ export interface BattleSlice {
   }) => void;
 
   tickBattle: () => void;
+  setBattleStance: (stance: 'advancing' | 'holding') => void;
   retreatBattle: () => void;
   closeBattleModal: () => void;
   closeBattleResultModal: () => void;
@@ -170,6 +171,29 @@ export const createBattleSlice: StateCreator<GameStore, [], [], BattleSlice> = (
     } else {
       set({ currentBattle: nextBattle });
     }
+  },
+
+  setBattleStance: (stance: 'advancing' | 'holding') => {
+    const { currentBattle } = get();
+    if (!currentBattle || currentBattle.phase !== 'in_progress') return;
+
+    const nextUnits = currentBattle.units.map(u => {
+      if (u.faction === 'lam_son' && u.status !== 'eliminated' && u.status !== 'routing') {
+        if (u.unitTypeId === 'supply_cart') return u;
+        return {
+          ...u,
+          status: stance,
+        };
+      }
+      return u;
+    });
+
+    set({
+      currentBattle: {
+        ...currentBattle,
+        units: nextUnits,
+      },
+    });
   },
 
   retreatBattle: () => {

@@ -9,6 +9,7 @@ interface BattlefieldModalProps {
   onTick: () => void;
   onRetreat: () => void;
   onClose: () => void;
+  onToggleStance?: (stance: 'advancing' | 'holding') => void;
 }
 
 export const BattlefieldModal: React.FC<BattlefieldModalProps> = ({
@@ -16,6 +17,7 @@ export const BattlefieldModal: React.FC<BattlefieldModalProps> = ({
   onTick,
   onRetreat,
   onClose,
+  onToggleStance,
 }) => {
   const [isPlaying, setIsPlaying] = useState<boolean>(true);
   const [speed, setSpeed] = useState<number>(1); // 1x, 2x, 5x
@@ -27,11 +29,18 @@ export const BattlefieldModal: React.FC<BattlefieldModalProps> = ({
   const handleToggleStance = () => {
     const nextStance = !isCharge;
     setIsCharge(nextStance);
-    battleState.units.forEach(u => {
-      if (u.faction === 'lam_son' && u.status !== 'eliminated' && u.status !== 'routing') {
-        u.status = nextStance ? 'advancing' : 'holding';
-      }
-    });
+    const targetStatus = nextStance ? 'advancing' : 'holding';
+    if (onToggleStance) {
+      onToggleStance(targetStatus);
+    } else {
+      battleState.units.forEach(u => {
+        if (u.faction === 'lam_son' && u.status !== 'eliminated' && u.status !== 'routing') {
+          if (u.unitTypeId !== 'supply_cart') {
+            u.status = targetStatus;
+          }
+        }
+      });
+    }
   };
 
   // Kích thước ô hiển thị phù hợp với màn hình ngang
@@ -250,14 +259,14 @@ export const BattlefieldModal: React.FC<BattlefieldModalProps> = ({
             {/* Nút chuyển đổi trận thế quân Lam Sơn */}
             <button
               onClick={handleToggleStance}
-              className={`px-3 py-1.5 rounded-lg font-bold border transition cursor-pointer flex items-center gap-1 ml-1 ${
+              className={`px-3 py-1.5 rounded-lg font-bold border transition cursor-pointer flex items-center gap-1.5 ml-1 ${
                 isCharge 
-                  ? 'bg-[#8c2d19] text-amber-100 border-[#8c2d19]' 
-                  : 'bg-[#15803d]/20 text-[#15803d] border-[#15803d]/40'
+                  ? 'bg-[#8c2d19] text-amber-100 border-[#8c2d19] shadow-sm hover:brightness-110' 
+                  : 'bg-[#15803d]/20 text-[#15803d] border-[#15803d]/50 hover:bg-[#15803d]/30'
               }`}
-              title="Đổi mệnh lệnh xuất kích hoặc giữ trận địa"
+              title={isCharge ? 'Đang toàn lực công kích. Nhấn để chuyển sang Cố Thủ Trận Địa' : 'Đang cố thủ mai phục. Nhấn để chuyển sang Toàn Lực Xuất Kích'}
             >
-              <span>{isCharge ? 'Toàn Quân Xuất Kích' : 'Cố Thủ Trận Địa'}</span>
+              <span>{isCharge ? '⚔️ Toàn Lực Xuất Kích' : '🛡️ Cố Thủ Trận Địa'}</span>
             </button>
 
             {/* Nút khẩn cấp: Rút quân */}

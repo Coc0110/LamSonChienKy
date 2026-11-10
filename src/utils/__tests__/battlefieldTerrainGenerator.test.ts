@@ -18,7 +18,7 @@ import {
 console.log('--- Đang kiểm thử battlefieldTerrainGenerator ---');
 
 // 1. Kiểm tra xác định scale theo quân số
-assert.strictEqual(determineScaleFromTroops(800, 1200), '1x', 'Quân số nhỏ phải là 1x');
+assert.strictEqual(determineScaleFromTroops(200, 500), '1x', 'Quân số nhỏ phải là 1x');
 assert.strictEqual(determineScaleFromTroops(1000, 8000), '10x', 'Quân số vạn quân phải là 10x');
 assert.strictEqual(determineScaleFromTroops(6000, 85000), '100x', 'Quân số đại chiến dịch phải là 100x');
 console.log('✓ Xác định cấp độ quy mô scale chính xác');

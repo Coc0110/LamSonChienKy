@@ -41,6 +41,7 @@ function App() {
   const retreatBattle = useGameStore(state => state.retreatBattle);
   const closeBattleModal = useGameStore(state => state.closeBattleModal);
   const closeBattleResultModal = useGameStore(state => state.closeBattleResultModal);
+  const setBattleStance = useGameStore(state => state.setBattleStance);
 
   // Trạng thái các giao diện "không trên dòng thời gian"
   const activeModal = useUIStore(state => state.activeModal);
@@ -155,6 +156,7 @@ function App() {
           onTick={tickBattle}
           onRetreat={retreatBattle}
           onClose={closeBattleModal}
+          onToggleStance={setBattleStance}
         />
       )}
       {battleResultToReport && (

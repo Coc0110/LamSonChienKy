@@ -83,22 +83,44 @@ export function resolveBattlefieldTick(prevState: BattlefieldState): Battlefield
 
     if (!closestEnemy) continue;
 
-    // Kiểm tra xem đã trong tầm đánh chưa
-    const effectiveRange = unit.unitTypeId === 'archer' && (grid.tiles[unit.row]?.[unit.col]?.elevation || 0) > 0 
+    // Cự ly giao tranh tối ưu theo từng loại binh chủng
+    const isGeneral = unit.unitTypeId === 'general';
+    const isArcher = unit.unitTypeId === 'archer';
+    const isSupply = unit.unitTypeId === 'supply_cart';
+    const isMelee = unit.unitTypeId === 'swordsman' || unit.unitTypeId === 'spearman' || unit.unitTypeId === 'cavalry' || unit.unitTypeId === 'elephant' || isGeneral;
+
+    const effectiveRange = isArcher && (grid.tiles[unit.row]?.[unit.col]?.elevation || 0) > 0 
       ? 5 
       : UNIT_ATTACK_RANGE[unit.unitTypeId];
 
-    const inRange = minDist <= effectiveRange;
+    // Cự ly lý tưởng: Cung thủ 4 (hoặc 5), Tướng 3 (ngay sau tiền tuyến buff hào quang), Xe lương 7, Giáo 2, Cận chiến 1
+    const desiredRange = isArcher ? effectiveRange : isGeneral ? 3 : isSupply ? 7 : (unit.unitTypeId === 'spearman' ? 2 : 1);
 
-    // Nếu đã trong tầm bắn/đánh -> Giữ vị trí tấn công, không cần di chuyển
-    if (inRange) {
+    // Nếu đã ở cự ly chiến đấu lý tưởng -> Giữ vị trí, không cần tiến thêm
+    if (minDist <= desiredRange) {
+      // Riêng cung thủ: Nếu địch cận chiến áp sát cự ly 1 ô -> Né lùi 1 bước nếu phía sau còn trống
+      if (isArcher && minDist === 1) {
+        const retreatCol = unit.col + (unit.faction === 'lam_son' ? -1 : 1);
+        if (canMoveTo(retreatCol, unit.row)) {
+          occupied.delete(`${unit.col},${unit.row}`);
+          unit.col = retreatCol;
+          occupied.add(`${unit.col},${unit.row}`);
+        }
+      }
       continue;
     }
 
-    // Đối với quân Lam Sơn đang giữ thế thủ ('holding'):
-    // Nếu là cận chiến và kẻ địch đã áp sát trong cự ly 8 ô -> Tự động nghênh chiến
-    const isMelee = unit.unitTypeId === 'swordsman' || unit.unitTypeId === 'spearman' || unit.unitTypeId === 'cavalry' || unit.unitTypeId === 'elephant';
-    const shouldEngage = unit.status === 'advancing' || (unit.status === 'holding' && isMelee && minDist <= 10);
+    // Kiểm tra mệnh lệnh tham chiến:
+    // - Khi 'advancing': Tất cả binh chủng chiến đấu (Cận chiến, Cung thủ, Tướng) đều tiến về cự ly lý tưởng
+    // - Khi 'holding': Chỉ chủ động phản kích khi kẻ địch áp sát trận địa
+    let shouldEngage = false;
+    if (unit.status === 'advancing') {
+      shouldEngage = true;
+    } else if (unit.status === 'holding') {
+      if (isMelee && minDist <= 8) shouldEngage = true;
+      if (isArcher && minDist <= effectiveRange + 2) shouldEngage = true;
+      if (isGeneral && minDist <= 3) shouldEngage = true;
+    }
 
     if (!shouldEngage) {
       continue;
@@ -174,6 +196,9 @@ export function resolveBattlefieldTick(prevState: BattlefieldState): Battlefield
 
     // TÍNH TOÁN SÁT THƯƠNG
     let attackPower = attacker.soldiersCount * 1.6;
+    if (attacker.unitTypeId === 'general') {
+      attackPower = attacker.soldiersCount * 3.5; // Tướng lĩnh dũng mãnh, sát thương võ công cao
+    }
 
     // Khắc chế binh chủng
     if (attacker.unitTypeId === 'spearman' && closestEnemy.unitTypeId === 'cavalry') {

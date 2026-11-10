@@ -14,8 +14,8 @@ export const ZONE_NEUTRAL_MAX_COL = 63;
 
 export function determineScaleFromTroops(lamSonTroops: number, mingTroops: number): BattlefieldScaleLevel {
   const maxTroops = Math.max(lamSonTroops, mingTroops);
-  if (maxTroops > 25000) return '100x';
-  if (maxTroops > 3000) return '10x';
+  if (maxTroops >= 15000) return '100x';
+  if (maxTroops >= 800) return '10x';
   return '1x';
 }
 

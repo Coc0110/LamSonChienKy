@@ -43,7 +43,7 @@ export function mapArmiesToBattlefield(
         const maxHp = cell.maxHp || hp;
 
         // Binh chủng cận chiến tiên phong sẽ chủ động xuất kích đón đánh địch; Cung thủ và Tướng giữ thế trận yểm trợ
-        const isMelee = cell.type === 'swordsman' || cell.type === 'spearman' || cell.type === 'cavalry' || cell.type === 'elephant';
+        const isCombatUnit = cell.type !== 'supply_cart';
 
         result.push({
           id: `ls_${cell.id}`,
@@ -63,7 +63,7 @@ export function mapArmiesToBattlefield(
           generalName: general?.name,
           commandAuraRadius: general ? 4 + Math.floor(general.stats.command / 30) : 4,
           weaponsBreakdown: cell.weaponsBreakdown || { swords: Math.ceil(count / 2), bows: Math.floor(count / 2), spears: 0 },
-          status: isMelee ? 'advancing' : 'holding',
+          status: isCombatUnit ? 'advancing' : 'holding',
           hasActedThisTurn: false,
         });
       }

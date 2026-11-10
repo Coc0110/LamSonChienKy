@@ -89,4 +89,71 @@ console.log('✓ Cung thủ bắn tỉa chính xác từ khoảng cách 3 ô');
 assert.ok(nextBattle.logs.length > 0, 'Phải có ghi nhận nhật ký giao tranh');
 console.log('✓ Nhật ký chiến trận ghi nhận đầy đủ sự kiện');
 
+
+// 2. Kiểm tra Cung thủ và Tướng tự động hành quân tiến về cự ly lý tưởng khi ở xa
+const farArcher: BattlefieldUnit = {
+  id: 'ls_far_archer',
+  formationId: 'f1',
+  faction: 'lam_son',
+  unitTypeId: 'archer',
+  col: 10,
+  row: 10,
+  spanCols: 1,
+  spanRows: 1,
+  soldiersCount: 20,
+  maxSoldiersCount: 20,
+  hp: 200,
+  maxHp: 200,
+  morale: 100,
+  status: 'advancing',
+};
+
+const farGeneral: BattlefieldUnit = {
+  id: 'ls_far_general',
+  formationId: 'f1',
+  faction: 'lam_son',
+  unitTypeId: 'general',
+  col: 8,
+  row: 10,
+  spanCols: 1,
+  spanRows: 1,
+  soldiersCount: 1,
+  maxSoldiersCount: 1,
+  hp: 100,
+  maxHp: 100,
+  morale: 100,
+  status: 'advancing',
+};
+
+const distantMing: BattlefieldUnit = {
+  id: 'ming_distant',
+  formationId: 'f_ming',
+  faction: 'ming',
+  unitTypeId: 'swordsman',
+  col: 30,
+  row: 10,
+  spanCols: 1,
+  spanRows: 1,
+  soldiersCount: 50,
+  maxSoldiersCount: 50,
+  hp: 500,
+  maxHp: 500,
+  morale: 100,
+  status: 'advancing',
+};
+
+const farBattle: BattlefieldState = {
+  ...initialBattle,
+  id: 'battle_far',
+  units: [farArcher, farGeneral, distantMing],
+};
+
+const farStep1 = resolveBattlefieldTick(farBattle);
+const steppedArcher = farStep1.units.find(u => u.id === 'ls_far_archer')!;
+const steppedGeneral = farStep1.units.find(u => u.id === 'ls_far_general')!;
+
+assert.ok(steppedArcher.col > 10, `Cung thủ phải tiến về phía trước (Cột hiện tại: ${steppedArcher.col})`);
+assert.ok(steppedGeneral.col > 8, `Tướng chỉ huy phải tiến theo đạo quân (Cột hiện tại: ${steppedGeneral.col})`);
+console.log('✓ Cung thủ và Tướng tự động hành quân tiến về phía mặt trận');
+
 console.log('>>> Toàn bộ test battlefieldCombatEngine THÀNH CÔNG! <<<');
