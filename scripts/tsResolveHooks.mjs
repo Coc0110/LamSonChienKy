@@ -12,3 +12,10 @@ export async function resolve(specifier, context, nextResolve) {
   }
   return nextResolve(specifier, context);
 }
+
+export async function load(url, context, nextLoad) {
+  if (url.endsWith('.json')) {
+    return nextLoad(url, { ...context, format: 'json', importAttributes: { type: 'json' } });
+  }
+  return nextLoad(url, context);
+}

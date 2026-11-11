@@ -368,6 +368,7 @@ export interface TacticalFormation {
   preparedTrap?: 'fire' | 'rockfall' | null;
   supplySourceCityId?: string | null;
   isSupplyCut?: boolean;
+  convoyLost?: boolean;         // Đoàn vận lương đi kèm đã bị tiêu diệt/thu giữ
   armyRole?: 'main' | 'detachment' | 'ming_expedition' | 'ming_convoy';
   combatState?: WorldCombatState | null;
 }
