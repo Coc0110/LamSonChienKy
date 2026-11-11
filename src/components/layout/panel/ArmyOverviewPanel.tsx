@@ -4,6 +4,7 @@ import { useGameStore } from '../../../store/gameStore';
 import { useUIStore } from '../../../store/uiStore';
 import { STATUS_LABELS, getFormationMapPos } from '../../../utils/marchPathUtils';
 import { UI_TEXT } from '../../../data/uiText';
+import { ensureFormationRosterAndLayers } from '../../../utils/armyCompositionUtils';
 
 export const ArmyOverviewPanel: React.FC = React.memo(() => {
   const activeModal = useUIStore(state => state.activeModal);
@@ -110,17 +111,9 @@ export const ArmyOverviewPanel: React.FC = React.memo(() => {
               const statusMeta = STATUS_LABELS[form.status] || STATUS_LABELS.stationed;
               const pos = getFormationMapPos(form, cities);
 
-              let unitCount = 0;
-              let totalMorale = 0;
-              for (const row of form.grid) {
-                for (const cell of row) {
-                  if (cell) {
-                    unitCount++;
-                    totalMorale += cell.morale || 100;
-                  }
-                }
-              }
-              const avgMorale = unitCount > 0 ? Math.round(totalMorale / unitCount) : 100;
+              const hydrated = ensureFormationRosterAndLayers(form);
+              const layers = hydrated.layers!;
+              const avgMorale = Math.round(hydrated.morale ?? 100);
 
               return (
                 <div
@@ -164,6 +157,12 @@ export const ArmyOverviewPanel: React.FC = React.memo(() => {
                       <span className="text-[#6b4423]">Sĩ khí: </span>
                       <strong className="text-[#8c2d19] font-bold">
                         {avgMorale}/100
+                      </strong>
+                    </li>
+                    <li>
+                      <span className="text-[#6b4423]">Tiền phong / Hậu phương / Cơ động: </span>
+                      <strong className="text-[#261304] font-bold">
+                        {Math.round(layers.frontlineHp).toLocaleString()} / {Math.round(layers.backlineHp).toLocaleString()} / {Math.round(layers.flankHp).toLocaleString()} HP
                       </strong>
                     </li>
                   </ul>

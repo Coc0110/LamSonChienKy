@@ -20,7 +20,7 @@ import { useUIStore } from './store/uiStore';
 
 // Code-splitting các modal chiến thuật & danh tướng có kích thước lớn để tăng tốc tải trang
 const GeneralsModal = lazy(() => import('./components/generals/GeneralsModal').then(m => ({ default: m.GeneralsModal })));
-const TacticalFormationModal = lazy(() => import('./components/army/TacticalFormationModal').then(m => ({ default: m.TacticalFormationModal })));
+const ArmyRosterModal = lazy(() => import('./components/army/ArmyRosterModal').then(m => ({ default: m.ArmyRosterModal })));
 
 function App() {
   const isPaused = useGameStore(state => state.isPaused);
@@ -143,7 +143,7 @@ function App() {
       <ArmyOverviewPanel />
       <Suspense fallback={null}>
         <GeneralsModal />
-        <TacticalFormationModal />
+        <ArmyRosterModal />
       </Suspense>
       <FarmsOverviewModal />
       <ForgesOverviewModal />
