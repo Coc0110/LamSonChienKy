@@ -18,7 +18,7 @@ import {
   ensureFormationRosterAndLayers,
   rosterTotal,
 } from '../../utils/armyCompositionUtils';
-import { applyWorldStratagem, resolveWorldMapCombatTick } from '../../utils/worldMapCombatEngine';
+import { applyWorldStratagem, ENGAGEMENT_RADIUS_PCT, resolveWorldMapCombatTick } from '../../utils/worldMapCombatEngine';
 import { spawnMingFieldFormation, updateMingFormationsAI } from '../../utils/mingMapAI';
 import { deductWeaponsFromPool } from './militarySlice';
 import { getFormationMapPos, MARCH_ENDPOINT_ACTIONS } from '../../utils/marchPathUtils';
@@ -163,7 +163,7 @@ const getMingSortieSize = (c: CityNode): number =>
 let combatCanhAccumulator = 0;
 
 // Điều quân Minh từ một thành ra bản đồ (trừ quân giữ thành, sinh thêm đoàn vận lương nếu đi xa)
-const deployMingForce = (
+export const deployMingForce = (
   cities: CityNode[],
   sourceCityId: string,
   targetPos: { x: number; y: number },
@@ -1443,6 +1443,7 @@ export const createArmySlice: StateCreator<GameStore, [], [], ArmySlice> = (set,
     set(prev => {
       let foodConsumedTotal = 0;
       const captured = { food: 0, gold: 0, swords: 0, bows: 0, spears: 0 };
+      const plundered = { food: 0, weapons: 0, morale: 0 };
       let cities = prev.cities;
       const spawned: TacticalFormation[] = [];
       const deploy = (cityId: string, targetPos: { x: number; y: number }, troops: number) => {
@@ -1730,6 +1731,18 @@ export const createArmySlice: StateCreator<GameStore, [], [], ArmySlice> = (set,
         if (spawned.length > 0) justSpawned.push(...spawned.splice(0));
 
         // 2d. Giao chiến liên tục (chỉ đánh với các đạo quân đã hiện diện trước nhịp xuất thành này)
+        const hadExplicitPos = new Set<string>();
+        formations = formations.map(f => {
+          if (f.mapPosition) {
+            hadExplicitPos.add(f.id);
+            return f;
+          }
+          if (f.totalTroops > 0 && (f.faction ?? 'lam_son') === 'lam_son') {
+            const pos = getFormationMapPos(f, cities);
+            return { ...f, mapPosition: { x: pos.x, y: pos.y, col: pos.col, row: pos.row } };
+          }
+          return f;
+        });
         const getTerrainAtPos = (x: number, y: number) => getGridTerrainAt(x, y);
         const combatLogs: string[] = [];
         for (let i = 0; i < combatTicks; i++) {
@@ -1798,6 +1811,75 @@ export const createArmySlice: StateCreator<GameStore, [], [], ArmySlice> = (set,
         });
         formations = formations.filter(f => !isGone(f));
 
+        // 2f-bis. Quân Minh viễn chinh tới sát căn cứ Lam Sơn nhưng không có đạo quân nào chốt giữ -> cướp phá rồi rút về thành
+        const unopposedMingIds = new Set<string>();
+        const lamSonBases = cities.filter(c => c.faction === 'lam_son' && (c.hasBase || c.type === 'camp'));
+        const activeLamSonPos = formations
+          .filter(f => (f.faction ?? 'lam_son') === 'lam_son' && f.totalTroops > 0 && !f.isRouting && f.mapPosition)
+          .map(f => f.mapPosition!);
+
+        for (const f of formations) {
+          if (
+            f.faction !== 'ming' ||
+            f.armyRole !== 'ming_expedition' ||
+            f.status !== 'stationed' ||
+            f.marchOrder ||
+            f.combatState ||
+            f.isRouting ||
+            f.totalTroops <= 0 ||
+            !f.mapPosition
+          ) {
+            continue;
+          }
+          const hitBase = lamSonBases.find(b => Math.hypot(b.x - f.mapPosition!.x, b.y - f.mapPosition!.y) <= 0.85);
+          if (!hitBase) continue;
+          const hasDefender = activeLamSonPos.some(
+            p => Math.hypot(p.x - f.mapPosition!.x, p.y - f.mapPosition!.y) <= ENGAGEMENT_RADIUS_PCT
+          );
+          if (hasDefender) continue;
+
+          const homeId = f.supplySourceCityId ?? f.cityId;
+          returnedTroops.set(homeId, (returnedTroops.get(homeId) ?? 0) + f.totalTroops);
+          unopposedMingIds.add(f.id);
+
+          const availFood = Math.max(0, prev.resources.food - plundered.food);
+          const availWeapons = Math.max(0, prev.resources.weapons - plundered.weapons);
+          const raidFood = Math.min(availFood, Math.floor(availFood * 0.2) + 150);
+          const raidWeapons = Math.min(availWeapons, 25);
+          plundered.food += raidFood;
+          plundered.weapons += raidWeapons;
+          plundered.morale += 12;
+
+          toastsToEmit.push({
+            type: 'warning',
+            text: `🔥 GIẶC MINH TẬP KÍCH [${hitBase.name}]! Không có đạo quân chốt giữ, bị cướp ${raidFood} lương & ${raidWeapons} binh khí trước khi địch rút lui!`,
+          });
+        }
+
+        // Thu hồi đoàn vận lương khi đạo quân viễn chinh mẹ đã rút hoặc bị tiêu diệt
+        for (const f of formations) {
+          if (f.armyRole !== 'ming_convoy' || f.totalTroops <= 0) continue;
+          const parentDeadOrRetreated =
+            !!f.parentFormationId &&
+            (unopposedMingIds.has(f.parentFormationId) ||
+              !formations.some(p => p.id === f.parentFormationId && p.totalTroops > 0));
+          if (parentDeadOrRetreated && f.status === 'stationed' && !f.marchOrder && !f.combatState) {
+            const homeId = f.supplySourceCityId ?? f.cityId;
+            returnedTroops.set(homeId, (returnedTroops.get(homeId) ?? 0) + f.totalTroops);
+            unopposedMingIds.add(f.id);
+          }
+        }
+
+        if (unopposedMingIds.size > 0) {
+          formations = formations.filter(f => !unopposedMingIds.has(f.id));
+        }
+
+        formations = formations.map(f =>
+          !hadExplicitPos.has(f.id) && f.status === 'idle' && !f.combatState && !f.isRouting && f.totalTroops > 0
+            ? { ...f, mapPosition: undefined }
+            : f
+        );
+
         // 2g. Giải phóng thành khi hết quân giữ thành và không còn đợt xuất kích nào
         liberatedCityIds = cities
           .filter(c => {
@@ -1847,9 +1929,19 @@ export const createArmySlice: StateCreator<GameStore, [], [], ArmySlice> = (set,
       const hasLiveCombat = formations.some(f => f.status === 'engaging' || !!f.combatState || f.faction === 'ming');
       const switchToWarMode = hasLiveCombat && prev.timeMode === 'day';
 
-      const nextSwords = prev.resources.swords + captured.swords;
-      const nextBows = prev.resources.bows + captured.bows;
-      const nextSpears = prev.resources.spears + captured.spears;
+      const weaponLoss = plundered.weapons > 0
+        ? deductWeaponsFromPool(
+            {
+              swords: prev.resources.swords + captured.swords,
+              bows: prev.resources.bows + captured.bows,
+              spears: prev.resources.spears + captured.spears,
+            },
+            plundered.weapons
+          )
+        : { swords: 0, bows: 0, spears: 0 };
+      const nextSwords = Math.max(0, prev.resources.swords + captured.swords - weaponLoss.swords);
+      const nextBows = Math.max(0, prev.resources.bows + captured.bows - weaponLoss.bows);
+      const nextSpears = Math.max(0, prev.resources.spears + captured.spears - weaponLoss.spears);
 
       return {
         formations,
@@ -1860,7 +1952,8 @@ export const createArmySlice: StateCreator<GameStore, [], [], ArmySlice> = (set,
           : {}),
         resources: {
           ...prev.resources,
-          food: Math.max(0, Math.round(prev.resources.food - foodConsumedTotal + captured.food)),
+          food: Math.max(0, Math.round(prev.resources.food - foodConsumedTotal + captured.food - plundered.food)),
+          morale: Math.max(0, prev.resources.morale - plundered.morale),
           gold: prev.resources.gold + captured.gold,
           swords: nextSwords,
           bows: nextBows,

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useGameStore } from '../../../store/gameStore';
 import { notify } from '../../../store/dialogStore';
 import type { PlacedStructure, WeaponCraftType } from '../../../types';
+import { formatRemainingDays } from '../../../utils/formatters';
 
 const WEAPONS_CATALOG: {
   type: WeaponCraftType;
@@ -124,7 +125,7 @@ export const ForgeDetailSection: React.FC<ForgeDetailSectionProps> = React.memo(
                 <div className="flex justify-between text-[11px] text-[#5c3e23]">
                   <span>Tiến độ đúc:</span>
                   <span className="font-mono font-bold">
-                    Còn {liveStructure.activeOrder.remainingDays}/{liveStructure.activeOrder.totalDays} ngày
+                    Còn {formatRemainingDays(liveStructure.activeOrder.remainingDays)}/{liveStructure.activeOrder.totalDays} ngày
                   </span>
                 </div>
                 <div className="w-full h-2 rounded-full bg-black/10 overflow-hidden">

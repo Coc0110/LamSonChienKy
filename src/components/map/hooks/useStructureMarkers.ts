@@ -3,7 +3,7 @@ import L from 'leaflet';
 import type { PlacedStructure, CityNode } from '../../../types';
 import { percentToLatLng } from '../../../utils/mapGeo';
 import { getStructureGridSize, getEntityCellBounds } from '../../../data/terrainGrid';
-import { cleanStructureName } from '../../../utils/formatters';
+import { cleanStructureName, formatRemainingDays } from '../../../utils/formatters';
 import { useUIStore } from '../../../store/uiStore';
 
 interface UseStructureMarkersProps {
@@ -73,12 +73,12 @@ export const useStructureMarkers = ({
           </div>
           <div class="text-[11px] text-[#5c3e23] pt-1 flex flex-col gap-0.5">
             ${isBuilding 
-              ? `<span>🚧 Đang thi công (còn ${structure.buildDaysRemaining} ngày)</span>`
+              ? `<span>🚧 Đang thi công (còn ${formatRemainingDays(structure.buildDaysRemaining)} ngày)</span>`
               : isFarm
               ? `<span>🌾 ${structure.assignedWorkers}/${structure.maxWorkers} nông đinh • Thuế: ${taxRate}%</span>
                  <span class="text-[#8c2d19] font-bold">Dự kiến thu: ~${expectedYield.toLocaleString()} thạch (${weatherText})</span>`
               : order
-              ? `<span>🔥 Đang rèn ${order.quantity} ${order.name} (còn ${order.remainingDays} ngày)</span>`
+              ? `<span>🔥 Đang rèn ${order.quantity} ${order.name} (còn ${formatRemainingDays(order.remainingDays)} ngày)</span>`
               : '<span>⚒️ Sẵn sàng nhận lệnh đúc</span>'
             }
           </div>

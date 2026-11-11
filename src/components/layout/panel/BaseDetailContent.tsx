@@ -5,6 +5,7 @@ import { useUIStore } from '../../../store/uiStore';
 import { notify } from '../../../store/dialogStore';
 import { MiniGeneralCard } from '../../generals/MiniGeneralCard';
 import { findShortestScoutPath } from '../../../utils/scoutPathfinding';
+import { formatRemainingDays } from '../../../utils/formatters';
 import type { CityNode, General } from '../../../types';
 import {
   CAMP_CAPACITY_BY_LEVEL,
@@ -249,7 +250,7 @@ export const BaseDetailContent: React.FC<BaseDetailContentProps> = React.memo(({
               {selectedCity.upgrading ? (
                 <div className="pt-1 text-xs font-serif text-[#8c2d19] flex items-center justify-between">
                   <span>🚧 Đang thi công mở rộng lên Cấp {selectedCity.upgrading.targetLevel}...</span>
-                  <span className="font-bold">Còn {selectedCity.upgrading.remainingDays} ngày</span>
+                  <span className="font-bold">Còn {formatRemainingDays(selectedCity.upgrading.remainingDays)} ngày</span>
                 </div>
               ) : campLevel < 4 && nextUpgradeCost ? (
                 <div className="pt-1 flex items-center justify-between gap-2 border-t border-[#8c6b44]/25">

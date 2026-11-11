@@ -3,6 +3,7 @@ import { X } from 'lucide-react';
 import { useGameStore } from '../../../store/gameStore';
 import { useUIStore } from '../../../store/uiStore';
 import { UI_TEXT } from '../../../data/uiText';
+import { formatRemainingDays } from '../../../utils/formatters';
 
 export const ForgesOverviewModal: React.FC = React.memo(() => {
   const activeModal = useUIStore(state => state.activeModal);
@@ -95,7 +96,7 @@ export const ForgesOverviewModal: React.FC = React.memo(() => {
                           </strong>
                         ) : order ? (
                           <strong className="text-[#8c2d19] font-bold">
-                            Đang đúc {order.name} ({order.quantity} chiếc, còn {order.remainingDays} ngày)
+                            Đang đúc {order.name} ({order.quantity} chiếc, còn {formatRemainingDays(order.remainingDays)} ngày)
                           </strong>
                         ) : (
                           <span className="text-[#704d2e] italic">

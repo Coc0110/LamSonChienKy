@@ -6,6 +6,8 @@ import type { MilitaryNotice, PendingRefugeeWave } from '../../types';
 import { notify } from '../dialogStore';
 import type { TimeSlice, GameStore } from './types';
 import { calculateTrainingWeaponReturn } from './militarySlice';
+import { deployMingForce } from './armySlice';
+import { roundRemainingDays } from '../../utils/formatters';
 
 export const getDaysInMonth = (month: number, year: number): number => {
   return new Date(year, month, 0).getDate();
@@ -136,13 +138,13 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
       let citiesChanged = false;
       let structuresChanged = false;
 
-      const updatedCities = state.cities.map(city => {
+      let updatedCities = state.cities.map(city => {
         if (!city.upgrading && !city.training) return city;
         citiesChanged = true;
         let c = { ...city };
 
         if (c.upgrading) {
-          const nextDays = Math.max(0, Number((c.upgrading.remainingDays - deltaDayFraction).toFixed(3)));
+          const nextDays = roundRemainingDays(c.upgrading.remainingDays - deltaDayFraction);
           if (nextDays <= 0) {
             const targetLevel = c.upgrading.targetLevel;
             const buildersReturned = c.upgrading.builders;
@@ -167,7 +169,7 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
         }
 
         if (c.training) {
-          const nextDays = Math.max(0, Number((c.training.remainingDays - deltaDayFraction).toFixed(3)));
+          const nextDays = roundRemainingDays(c.training.remainingDays - deltaDayFraction);
           if (nextDays <= 0) {
             const { traineesCount, swappedCount = 0 } = c.training;
             trainedTroopsAdded += traineesCount;
@@ -210,7 +212,7 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
       const updatedStructures = state.structures.map(s => {
         if (s.status !== 'building') return s;
         structuresChanged = true;
-        const nextDays = Math.max(0, Number((s.buildDaysRemaining - deltaDayFraction).toFixed(3)));
+        const nextDays = roundRemainingDays(s.buildDaysRemaining - deltaDayFraction);
         if (nextDays <= 0) {
           notify.success(`Công trình [${s.name}] đã hoàn tất thi công và đi vào hoạt động!`);
           return {
@@ -277,15 +279,6 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
   }),
 
   tick: () => {
-    let raidBattleToTrigger: {
-      formationId: string;
-      mingTroops: number;
-      battleName: string;
-      locationName: string;
-      mapCol: number;
-      mapRow: number;
-    } | null = null;
-
     set((state) => {
     if (state.isPaused) return state;
 
@@ -311,14 +304,14 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
     let returnedBows = 0;
     let returnedSpears = 0;
     
-    const updatedCities = state.cities.map(city => {
+    let updatedCities = state.cities.map(city => {
       if (!city.population) return city;
       let pop = { ...city.population };
       let currentCity: typeof city = { ...city };
 
       // Cập nhật tiến trình nâng cấp căn cứ doanh trại
       if (currentCity.upgrading) {
-        const nextDays = currentCity.upgrading.remainingDays - 1;
+        const nextDays = roundRemainingDays(currentCity.upgrading.remainingDays - 1);
         if (nextDays <= 0) {
           citiesChanged = true;
           const targetLevel = currentCity.upgrading.targetLevel;
@@ -356,7 +349,7 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
       if (currentCity.training) {
         citiesChanged = true;
         const training = currentCity.training;
-        const newRemaining = training.remainingDays - 1;
+        const newRemaining = roundRemainingDays(training.remainingDays - 1);
         if (newRemaining <= 0) {
           const { traineesCount, swappedCount = 0 } = training;
           const weaponReturn = calculateTrainingWeaponReturn(training.weaponsUsed);
@@ -426,7 +419,7 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
       // Thi công xây dựng công trình mới
       if (currentStruct.status === 'building') {
         structuresChanged = true;
-        const s = { ...currentStruct, buildDaysRemaining: currentStruct.buildDaysRemaining - 1 };
+        const s = { ...currentStruct, buildDaysRemaining: roundRemainingDays(currentStruct.buildDaysRemaining - 1) };
         if (s.buildDaysRemaining <= 0) {
           s.status = 'active';
           const workers = s.builderWorkers;
@@ -511,7 +504,7 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
         const noiseFactor = isQuietTerrain ? 0.6 : 1.5;
         suspicionGain += order.assignedSmiths * 0.05 * noiseFactor;
 
-        order.remainingDays -= 1;
+        order.remainingDays = roundRemainingDays(order.remainingDays - 1);
         if (order.remainingDays <= 0) {
           // Hoàn thành đợt rèn: Phân loại đúng từng nhóm khí giới / giáp trụ
           if (order.weaponType === 'sword') {
@@ -697,7 +690,8 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
     let raidFoodDaily = 0;
     let formationsChanged = false;
 
-    const updatedFormations = state.formations.map(f => {
+    let triggerWarModeOnSuspicion = false;
+    let updatedFormations = state.formations.map(f => {
       if (f.status === 'foraging' && f.totalTroops > 0) {
         const gain = Math.max(8, Math.round(f.totalTroops * 1.2));
         foragedFoodDaily += gain;
@@ -891,33 +885,49 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
     let nextSuspicion = Math.min(100, Math.max(0, state.suspicion + suspicionGain - 0.06));
 
     if (nextSuspicion >= 100) {
-      // Độ nghi ngờ đạt 100%: Quan quân giặc Minh tại thành Tây Đô mở cuộc càn quét bất ngờ vào Lam Sơn!
-      nextSuspicion = 35; // Sau trận càn quét, địch tạm lui binh, nghi ngờ hạ về 35%
+      // Độ nghi ngờ đạt 100%: Giặc Minh xuất thành tiến đánh căn cứ Lam Sơn trên bản đồ chiến dịch
+      nextSuspicion = 35; // Sau khi phát binh càn quét, mức nghi ngờ tạm hạ về 35%
 
-      const baseIdx = updatedCities.findIndex(c => c.id === 'lam_son' && c.faction === 'lam_son');
-      const baseCity = baseIdx !== -1 ? updatedCities[baseIdx] : null;
+      const baseCity =
+        updatedCities.find(c => c.id === 'lam_son' && c.faction === 'lam_son') ||
+        updatedCities.find(c => c.faction === 'lam_son' && (c.hasBase || c.type === 'camp'));
 
-      const baseFormation = state.formations.find(f => f.cityId === 'lam_son' && f.status === 'stationed') || state.formations[0];
-      const enemyRaiders = Math.floor(Math.random() * 36) + 60; // Toán quân càn quét 60 - 95 tên
+      const mingSources = updatedCities.filter(c => c.faction === 'ming' && c.troops >= 5);
+      const preferredTayDo = mingSources.find(c => c.id === 'tay_do');
+      const sourceCity =
+        preferredTayDo ||
+        (baseCity
+          ? [...mingSources].sort(
+              (a, b) => Math.hypot(a.x - baseCity.x, a.y - baseCity.y) - Math.hypot(b.x - baseCity.x, b.y - baseCity.y)
+            )[0]
+          : mingSources[0]);
 
-      if (baseFormation) {
-        const baseCol = baseCity ? Math.round((baseCity.x / 100) * 800) : 445;
-        const baseRow = baseCity ? Math.round((baseCity.y / 100) * 1052) : 506;
-        raidBattleToTrigger = {
-          formationId: baseFormation.id,
-          mingTroops: enemyRaiders,
-          battleName: 'Thủ Hộ Căn Cứ Lam Sơn',
-          locationName: 'Doanh Trại Lam Sơn',
-          mapCol: baseCol,
-          mapRow: baseRow,
-        };
-      } else {
-        const foodPlundered = Math.min(newFood, Math.floor(newFood * 0.2) + 150);
-        const weaponPlundered = Math.min(newWeapons, 25);
-        newFood = Math.max(0, newFood - foodPlundered);
-        newMorale = Math.max(0, newMorale - 12);
-        newWeapons = Math.max(0, newWeapons - weaponPlundered);
-        notify.error(`GIẶC MINH CÀN QUÉT! Căn cứ không có đạo quân chốt giữ, bị cướp ${foodPlundered} lương & ${weaponPlundered} vũ khí!`);
+      if (baseCity && sourceCity) {
+        const enemyRaiders = Math.min(
+          sourceCity.troops,
+          Math.max(80, Math.round(Math.max(70, totalCombatTroops) * 1.15))
+        );
+        const dep = deployMingForce(updatedCities, sourceCity.id, { x: baseCity.x, y: baseCity.y }, enemyRaiders);
+        if (dep.spawned.length > 0) {
+          updatedCities = dep.cities;
+          citiesChanged = true;
+          updatedFormations = [...updatedFormations, ...dep.spawned];
+          formationsChanged = true;
+          triggerWarModeOnSuspicion = true;
+
+          newNotices.push({
+            id: `ming_expedition_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+            type: 'combat',
+            title: 'Giặc Minh Xuất Binh Càn Quét!',
+            dateStr: `Ngày ${newDay}/${newMonth}/${newYear}`,
+            description: `Độ nghi ngờ đạt 100%! ${enemyRaiders.toLocaleString()} quân Minh từ [${sourceCity.name}] đang hành quân tiến đánh [${baseCity.name}]! Hãy điều quân đánh chặn, phục kích hoặc cắt đường lương của địch.`,
+            read: false,
+            timestamp: Date.now(),
+          });
+          notify.warning(
+            `⚔️ CẢNH BÁO QUÂN CƠ: Độ nghi ngờ 100%! ${enemyRaiders} quân Minh từ [${sourceCity.name}] đang tiến đánh [${baseCity.name}]!`
+          );
+        }
       }
     } else if (nextSuspicion >= 85 && Math.random() < 0.06) {
       notify.warning('CẢNH BÁO QUÂN CƠ: Mật thám Tây Đô phát giác khói lửa lò rèn Lam Sơn! Nghi ngờ dâng cao, mau lo vàng đút lót trước khi giặc kéo quân càn quét!');
@@ -1012,6 +1022,9 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
       month: newMonth,
       year: newYear,
       isPaused: shouldPause ? true : state.isPaused,
+      ...(triggerWarModeOnSuspicion && state.timeMode === 'day'
+        ? { timeMode: 'hour' as const, previousActiveTimeMode: 'hour' as const, isWarMode: true }
+        : {}),
       resources: {
         ...state.resources,
         food: newFood,
@@ -1039,8 +1052,6 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
     };
   });
 
-  if (raidBattleToTrigger) {
-    get().startBattle(raidBattleToTrigger);
-  }
+
   },
 });

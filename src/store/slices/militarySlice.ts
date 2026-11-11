@@ -4,6 +4,7 @@ import { notify } from '../dialogStore';
 import type { Resources, ScoutMission, PendingRefugeeWave } from '../../types';
 import { CAMP_CAPACITY_BY_LEVEL } from '../../types';
 import { findShortestScoutPath } from '../../utils/scoutPathfinding';
+import { formatRemainingDays } from '../../utils/formatters';
 import type { MilitarySlice, GameStore } from './types';
 
 // Công thức chuẩn tính số ngày thao luyện dựa trên chỉ số Thống Lĩnh và Võ Nghệ của tướng
@@ -578,7 +579,7 @@ export const createMilitarySlice: StateCreator<GameStore, [], [], MilitarySlice>
       }
 
       if (city.upgrading) {
-        notify.warning(`Doanh trại đang trong quá trình nâng cấp lên Cấp ${city.upgrading.targetLevel} (còn ${city.upgrading.remainingDays} ngày)!`);
+        notify.warning(`Doanh trại đang trong quá trình nâng cấp lên Cấp ${city.upgrading.targetLevel} (còn ${formatRemainingDays(city.upgrading.remainingDays)} ngày)!`);
         result = { success: false, message: 'Đang thi công' };
         return state;
       }

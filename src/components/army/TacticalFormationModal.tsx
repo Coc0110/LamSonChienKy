@@ -12,6 +12,7 @@ import { calculateTrainingDays } from '../../store/slices/militarySlice';
 import { notify } from '../../store/dialogStore';
 import { TacticalGeneralPlaque } from './TacticalGeneralPlaque';
 import type { Resources } from '../../types';
+import { formatRemainingDays } from '../../utils/formatters';
 
 export type TacticalZoomLevel = 100 | 256 | 1024 | '1024_x10';
 
@@ -1253,7 +1254,7 @@ export const TacticalFormationModal: React.FC = React.memo(() => {
                       <div className="flex items-center justify-between text-xs">
                         <span className="font-bold text-[#78350f]">Đang thao luyện:</span>
                         <span className="font-mono text-amber-900 font-bold">
-                          Còn {currentCity.training.remainingDays}/{currentCity.training.totalDays} ngày
+                          Còn {formatRemainingDays(currentCity.training.remainingDays)}/{currentCity.training.totalDays} ngày
                         </span>
                       </div>
                       <div className="w-full h-2 rounded-full bg-stone-300 overflow-hidden">

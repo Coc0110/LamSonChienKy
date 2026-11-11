@@ -4,6 +4,7 @@ import { useGameStore } from '../../../store/gameStore';
 import type { CityNode, General } from '../../../types';
 import { TrainingSlider } from './TrainingSlider';
 import { UI_TEXT } from '../../../data/uiText';
+import { formatRemainingDays } from '../../../utils/formatters';
 
 interface CityPopulationModalProps {
   city: CityNode;
@@ -182,7 +183,7 @@ export const CityPopulationModal: React.FC<CityPopulationModalProps> = ({
                 Tiến Trình Thao Luyện
               </h4>
               <span className="text-xs px-2 py-0.5 rounded bg-[#8c2d19]/15 text-[#8c2d19] font-bold">
-                Còn {training.remainingDays} / {training.totalDays} ngày
+                Còn {formatRemainingDays(training.remainingDays)} / {training.totalDays} ngày
               </span>
             </div>
 
