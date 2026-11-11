@@ -25,6 +25,7 @@ import { StructureDetailModal } from './StructureDetailModal';
 import { PlacementControlBar } from './overlay/PlacementControlBar';
 import { TerrainInspectHUD } from './overlay/TerrainInspectHUD';
 import { MarchRouteDrawerOverlay } from './overlay/MarchRouteDrawerOverlay';
+import { WorldCombatHUD } from './overlay/WorldCombatHUD';
 import { useDistrictPolygons, DISTRICT_STORAGE_KEY } from './hooks/useDistrictPolygons';
 import { useCityMarkers } from './hooks/useCityMarkers';
 import { useStructureMarkers } from './hooks/useStructureMarkers';
@@ -529,6 +530,8 @@ export const WorldMap: React.FC = React.memo(() => {
     <div className="absolute inset-0 z-0 bg-[#16171a] overflow-hidden">
       {/* Giao diện Vẽ Đường Hành Quân Tự Do Trên Lưới & Bảng Lệnh Đạo Quân */}
       <MarchRouteDrawerOverlay map={mapInstance} />
+      {/* Bảng Chỉ Huy Chiến Trường Thời Gian Thực */}
+      <WorldCombatHUD />
       {/* Banner thông báo chế độ Sửa Map & Bộ công cụ tinh chỉnh ranh giới */}
       {isEditMode && (
         <DistrictEditorBar

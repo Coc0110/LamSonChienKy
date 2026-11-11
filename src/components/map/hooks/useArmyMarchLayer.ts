@@ -9,6 +9,7 @@ import {
   MARCH_ENDPOINT_ACTIONS,
   STATUS_LABELS,
 } from '../../../utils/marchPathUtils';
+import { ensureFormationRosterAndLayers } from '../../../utils/armyCompositionUtils';
 import type { TerrainType } from '../../../types/terrain';
 
 interface UseArmyMarchLayerProps {
@@ -48,16 +49,62 @@ export function useArmyMarchLayer({ mapInstance, armyLayerRef }: UseArmyMarchLay
     // Đếm số đạo quân đứng trùng 1 ô để tách góc hiển thị không đè lên nhau
     const cellCountMap = new Map<string, number>();
     const cellIndexMap = new Map<string, number>();
+    const attackedByCount = new Map<string, number>();
+    const posById = new Map<string, { x: number; y: number; col: number; row: number }>();
 
     const validFormations = formations.filter(f => f.totalTroops > 0);
     validFormations.forEach(f => {
       const pos = getFormationMapPos(f, cities);
+      posById.set(f.id, pos);
       const key = `${pos.col}_${pos.row}`;
       cellCountMap.set(key, (cellCountMap.get(key) || 0) + 1);
+      if (f.combatState?.targetFormationId) {
+        const tid = f.combatState.targetFormationId;
+        attackedByCount.set(tid, (attackedByCount.get(tid) || 0) + 1);
+      }
     });
 
+    // Vẽ đường vector giao chiến trực tiếp giữa các đạo quân đang chạm trán
+    const drawnClashPairs = new Set<string>();
     validFormations.forEach(form => {
-      const pos = getFormationMapPos(form, cities);
+      const targetId = form.combatState?.targetFormationId;
+      if (!targetId) return;
+      const pairKey = form.id < targetId ? `${form.id}__${targetId}` : `${targetId}__${form.id}`;
+      if (drawnClashPairs.has(pairKey)) return;
+      const p1 = posById.get(form.id);
+      const p2 = posById.get(targetId);
+      if (!p1 || !p2) return;
+      drawnClashPairs.add(pairKey);
+
+      const lineColor = form.faction === 'ming' ? '#ef4444' : '#f59e0b';
+      L.polyline([percentToLatLng(p1.x, p1.y), percentToLatLng(p2.x, p2.y)], {
+        color: lineColor,
+        weight: 3,
+        dashArray: '5, 4',
+        opacity: 0.9,
+        interactive: false,
+      }).addTo(layer);
+
+      const midX = (p1.x + p2.x) / 2;
+      const midY = (p1.y + p2.y) / 2;
+      const clashIcon = L.divIcon({
+        className: 'world-combat-clash-badge',
+        html: `<div style="transform:translate(-50%,-50%);width:22px;height:22px;border-radius:999px;background:#7f1d1d;border:1.5px solid #fde047;display:flex;align-items:center;justify-content:center;font-size:12px;">⚔️</div>`,
+        iconSize: [0, 0],
+        iconAnchor: [0, 0],
+      });
+      L.marker(percentToLatLng(midX, midY), {
+        icon: clashIcon,
+        interactive: false,
+        zIndexOffset: 1120,
+      }).addTo(layer);
+    });
+
+    validFormations.forEach(rawForm => {
+      const form = ensureFormationRosterAndLayers(rawForm);
+      const isMing = form.faction === 'ming';
+      const isConvoy = form.armyRole === 'ming_convoy';
+      const pos = posById.get(form.id) || getFormationMapPos(form, cities);
       const key = `${pos.col}_${pos.row}`;
       const totalAtCell = cellCountMap.get(key) || 1;
       const idxAtCell = cellIndexMap.get(key) || 0;
@@ -82,7 +129,7 @@ export function useArmyMarchLayer({ mapInstance, armyLayerRef }: UseArmyMarchLay
       const commander = generals.find(g => g.id === form.commanderGeneralId);
 
       // 1. Vẽ Vòng Tròn Phạm Vi Chiến Thuật (Mai phục 7 ô, Thám thính 12 ô, Nghi binh 6 ô)
-      if (form.status === 'ambushing' || form.status === 'scouting' || form.status === 'decoying') {
+      if (!isMing && (form.status === 'ambushing' || form.status === 'scouting' || form.status === 'decoying')) {
         const radiusCells = form.status === 'scouting' ? 12 : form.status === 'ambushing' ? 7 : 6;
         const rx = radiusCells * GRID_CELL_W_PCT;
         const ry = radiusCells * GRID_CELL_H_PCT;
@@ -119,33 +166,34 @@ export function useArmyMarchLayer({ mapInstance, armyLayerRef }: UseArmyMarchLay
 
         const remainingCells = activeCells.slice(order.currentCellIndex);
 
-        // Tô các ô lưới trên lộ trình còn lại
-        remainingCells.forEach((c, idx) => {
-          const { minX, minY, maxX, maxY } = cellToCoord(c.col, c.row);
-          const bounds = L.latLngBounds(percentToLatLng(minX, maxY), percentToLatLng(maxX, minY));
-          const cellColor = order.isInRetreatPhase
-            ? '#c084fc'
-            : TERRAIN_PATH_COLORS[c.terrain] || '#facc15';
+        // Tô các ô lưới trên lộ trình còn lại (chỉ vẽ ô chi tiết cho quân Lam Sơn)
+        if (!isMing) {
+          remainingCells.forEach((c, idx) => {
+            const { minX, minY, maxX, maxY } = cellToCoord(c.col, c.row);
+            const bounds = L.latLngBounds(percentToLatLng(minX, maxY), percentToLatLng(maxX, minY));
+            const cellColor = order.isInRetreatPhase
+              ? '#c084fc'
+              : TERRAIN_PATH_COLORS[c.terrain] || '#facc15';
 
-          L.rectangle(bounds, {
-            color: cellColor,
-            weight: idx === remainingCells.length - 1 ? 2.5 : 1,
-            fillColor: cellColor,
-            fillOpacity: idx === remainingCells.length - 1 ? 0.45 : 0.25,
-            interactive: false,
-          }).addTo(layer);
+            L.rectangle(bounds, {
+              color: cellColor,
+              weight: idx === remainingCells.length - 1 ? 2.5 : 1,
+              fillColor: cellColor,
+              fillOpacity: idx === remainingCells.length - 1 ? 0.45 : 0.25,
+              interactive: false,
+            }).addTo(layer);
 
-          // Nếu đi qua ô Sông nước (water), hiện biểu tượng đóng bè vượt sông
-          if (c.terrain === 'water' && idx % 2 === 0) {
-            const raftIcon = L.divIcon({
-              className: 'army-water-raft-icon',
-              html: `<div style="font-size:11px;filter:drop-shadow(0 1px 2px #000);">🛶</div>`,
-              iconSize: [16, 16],
-              iconAnchor: [8, 8],
-            });
-            L.marker(percentToLatLng(c.x, c.y), { icon: raftIcon, interactive: false }).addTo(layer);
-          }
-        });
+            if (c.terrain === 'water' && idx % 2 === 0) {
+              const raftIcon = L.divIcon({
+                className: 'army-water-raft-icon',
+                html: `<div style="font-size:11px;">🛶</div>`,
+                iconSize: [16, 16],
+                iconAnchor: [8, 8],
+              });
+              L.marker(percentToLatLng(c.x, c.y), { icon: raftIcon, interactive: false }).addTo(layer);
+            }
+          });
+        }
 
         // Đường nối tâm các ô còn lại
         if (remainingCells.length >= 2) {
@@ -154,16 +202,16 @@ export function useArmyMarchLayer({ mapInstance, armyLayerRef }: UseArmyMarchLay
             ...remainingCells.slice(1).map(c => percentToLatLng(c.x, c.y)),
           ];
           L.polyline(latlngs, {
-            color: order.isInRetreatPhase ? '#c084fc' : '#f59e0b',
-            weight: 3.5,
+            color: isMing ? '#dc2626' : order.isInRetreatPhase ? '#c084fc' : '#f59e0b',
+            weight: isMing ? 2.5 : 3.5,
             dashArray: order.isInRetreatPhase ? '6, 6' : '8, 6',
-            opacity: 0.95,
+            opacity: isMing ? 0.8 : 0.95,
             interactive: false,
           }).addTo(layer);
         }
 
-        // Nếu đang ở Chặng 1 của Lộ Trình Kép (Trá Bại) và có nhánh rút lui Chặng 2 -> Vẽ luôn nhánh rút lui dự kiến
-        if (!order.isInRetreatPhase && order.retreatCells && order.retreatCells.length > 1) {
+        // Nhánh rút lui dự kiến của Lộ Trình Kép (Lam Sơn)
+        if (!isMing && !order.isInRetreatPhase && order.retreatCells && order.retreatCells.length > 1) {
           const retreatLatLngs = order.retreatCells.map(c => percentToLatLng(c.x, c.y));
           L.polyline(retreatLatLngs, {
             color: '#c084fc',
@@ -174,8 +222,8 @@ export function useArmyMarchLayer({ mapInstance, armyLayerRef }: UseArmyMarchLay
           }).addTo(layer);
         }
 
-        // Huy hiệu Lệnh Điểm Cuối ở ô cuối cùng
-        const finalCell = remainingCells[remainingCells.length - 1];
+        // Huy hiệu Lệnh Điểm Cuối ở ô cuối cùng (Lam Sơn)
+        const finalCell = !isMing ? remainingCells[remainingCells.length - 1] : null;
         if (finalCell) {
           const actMeta = MARCH_ENDPOINT_ACTIONS[order.endpointAction] || MARCH_ENDPOINT_ACTIONS.camp;
           const endIcon = L.divIcon({
@@ -192,12 +240,11 @@ export function useArmyMarchLayer({ mapInstance, armyLayerRef }: UseArmyMarchLay
                 font-family: serif;
                 font-size: 10.5px;
                 font-weight: 700;
-                box-shadow: 0 3px 10px rgba(0,0,0,0.65);
                 display: inline-flex;
                 align-items: center;
                 gap: 4px;
                 cursor: pointer;
-              " title="Nhấp để đổi lệnh tại điểm cuối">
+              ">
                 <span>${actMeta.icon}</span>
                 <span>Đích: ${actMeta.shortLabel}</span>
               </div>
@@ -216,67 +263,109 @@ export function useArmyMarchLayer({ mapInstance, armyLayerRef }: UseArmyMarchLay
           });
           endMarker.addTo(layer);
         }
-
-        // Nếu có toán quân Minh đang đuổi theo sau lưng (pursuingEnemy) -> Vẽ marker Quân Minh Truy Kích!
-        if (order.pursuingEnemy) {
-          const pe = order.pursuingEnemy;
-          const enemyIcon = L.divIcon({
-            className: 'pursuing-ming-marker',
-            html: `
-              <div style="
-                transform: translate(-50%, -50%);
-                padding: 3px 7px;
-                border-radius: 999px;
-                background: linear-gradient(135deg, #7f1d1d, #dc2626);
-                border: 2px solid #fca5a5;
-                color: #fff;
-                font-family: serif;
-                font-size: 10px;
-                font-weight: 800;
-                white-space: nowrap;
-                box-shadow: 0 0 12px rgba(239, 68, 68, 0.85);
-                display: inline-flex;
-                align-items: center;
-                gap: 4px;
-              ">
-                <span>⚔️</span>
-                <span>Giặc Truy Kích (${pe.troops})</span>
-              </div>
-            `,
-            iconSize: [0, 0],
-            iconAnchor: [0, 0],
-          });
-          L.marker(percentToLatLng(pe.x, pe.y), {
-            icon: enemyIcon,
-            interactive: false,
-            zIndexOffset: 950,
-          }).addTo(layer);
-        }
       }
 
-      // 3. Vẽ Quân Kỳ Đạo Quân (Army Banner Marker) tại vị trí hiện tại
-      const isNightResting = isNight && (form.status === 'marching' || form.status === 'retreating');
-      const displayStatusLabel = isNightResting ? 'Hạ trại nghỉ đêm' : statusMeta.label;
-      const displayStatusIcon = isNightResting ? '⛺' : statusMeta.icon;
-      const displayBorderColor = isNightResting ? '#60a5fa' : statusMeta.color;
-      const displayBg = isSelected
+      // 3. Tính toán Thanh Máu (HP / Quân số), Sĩ Khí (0..100) và Nhãn Trạng Thái Tác Chiến
+      const layers = form.layers!;
+      const totalHp = layers.frontlineHp + layers.backlineHp + layers.flankHp;
+      const totalMaxHp = layers.frontlineMaxHp + layers.backlineMaxHp + layers.flankMaxHp;
+      const hpPct = totalMaxHp > 0 ? Math.max(0, Math.min(100, Math.round((totalHp / totalMaxHp) * 100))) : 100;
+      const moraleVal = Math.max(0, Math.min(100, Math.round(form.morale ?? 100)));
+      const moraleColor = moraleVal < 20 ? '#ef4444' : moraleVal < 45 ? '#fb923c' : '#facc15';
+
+      const pills: { text: string; bg: string; border: string; color: string }[] = [];
+      if (form.isStealthed) {
+        pills.push({ text: '🌲 Đang Ẩn Thân', bg: '#064e3b', border: '#34d399', color: '#ecfdf5' });
+      }
+      if (form.preparedTrap === 'fire') {
+        pills.push({ text: '🔥 Bẫy Lửa Sẵn Sàng', bg: '#7c2d12', border: '#fb923c', color: '#ffedd5' });
+      } else if (form.preparedTrap === 'rockfall') {
+        pills.push({ text: '🪨 Bẫy Đá Sẵn Sàng', bg: '#44403c', border: '#a8a29e', color: '#f5f5f4' });
+      }
+      const isFlankedOrPincered =
+        (attackedByCount.get(form.id) || 0) >= 2 ||
+        form.combatState?.attackDirection === 'flank' ||
+        form.combatState?.attackDirection === 'rear';
+      if (isFlankedOrPincered) {
+        pills.push({ text: '⚠️ Lưỡng Đầu Thụ Địch', bg: '#713f12', border: '#facc15', color: '#fef9c3' });
+      }
+      if (form.isSupplyCut) {
+        pills.push({ text: '🌾 Tuyệt Lương', bg: '#7f1d1d', border: '#f87171', color: '#fee2e2' });
+      }
+      if (form.isRouting) {
+        pills.push({ text: '🏳️ Vỡ Trận', bg: '#3f3f46', border: '#e4e4e7', color: '#fafafa' });
+      }
+
+      const pillsHtml =
+        pills.length > 0
+          ? `<div style="display:flex;flex-wrap:wrap;justify-content:center;gap:2px;margin-bottom:2px;max-width:210px;">
+              ${pills
+                .map(
+                  p =>
+                    `<span style="padding:1px 4px;border-radius:4px;font-size:8.5px;font-weight:700;white-space:nowrap;background:${p.bg};border:1px solid ${p.border};color:${p.color};">${p.text}</span>`
+                )
+                .join('')}
+            </div>`
+          : '';
+
+      // 4. Vẽ Quân Kỳ Đạo Quân (Lam Sơn hoặc Quân Minh / Đoàn Vận Lương)
+      const isNightResting = !isMing && isNight && (form.status === 'marching' || form.status === 'retreating');
+      const displayStatusLabel = isConvoy
+        ? 'Đoàn Vận Lương'
+        : isNightResting
+        ? 'Hạ trại nghỉ đêm'
+        : statusMeta.label;
+      const displayStatusIcon = isConvoy ? '🌾' : isNightResting ? '⛺' : statusMeta.icon;
+      const displayBorderColor = isSelected
+        ? '#fde047'
+        : isMing
+        ? '#fca5a5'
+        : isNightResting
+        ? '#60a5fa'
+        : statusMeta.color;
+      const displayBg = isMing
+        ? isSelected
+          ? 'linear-gradient(135deg, #991b1b, #b91c1c)'
+          : 'linear-gradient(135deg, #7f1d1d, #991b1b)'
+        : isSelected
         ? 'linear-gradient(135deg, #7c2d12, #b45309)'
         : isNightResting
         ? 'linear-gradient(135deg, #091326, #162544)'
         : 'linear-gradient(135deg, #271509, #3f220f)';
 
+      const poleColor = isSelected ? '#fde047' : isMing ? '#991b1b' : statusMeta.color;
+      const hpBarColor = isMing ? '#ef4444' : '#22c55e';
+
       const bannerIcon = L.divIcon({
-        className: 'lam-son-army-banner',
+        className: isMing ? 'ming-army-banner' : 'lam-son-army-banner',
         html: `
           <div style="
-            transform: translate(-50%, -88%);
+            transform: translate(-50%, -92%);
             display: flex;
             flex-direction: column;
             align-items: center;
             cursor: pointer;
             user-select: none;
-            filter: drop-shadow(0 4px 8px rgba(0,0,0,0.75));
           ">
+            ${pillsHtml}
+            <div style="
+              width: 112px;
+              margin-bottom: 2px;
+              padding: 2px 3px;
+              border-radius: 4px;
+              background: rgba(15, 10, 6, 0.88);
+              border: 1px solid ${isMing ? '#dc2626' : '#8c6b44'};
+              display: flex;
+              flex-direction: column;
+              gap: 2px;
+            ">
+              <div style="height:3.5px;width:100%;background:rgba(255,255,255,0.14);border-radius:2px;overflow:hidden;">
+                <div style="height:100%;width:${hpPct}%;background:${hpBarColor};"></div>
+              </div>
+              <div style="height:3px;width:100%;background:rgba(255,255,255,0.14);border-radius:2px;overflow:hidden;">
+                <div style="height:100%;width:${moraleVal}%;background:${moraleColor};"></div>
+              </div>
+            </div>
             <div style="
               display: flex;
               align-items: center;
@@ -288,29 +377,27 @@ export function useArmyMarchLayer({ mapInstance, armyLayerRef }: UseArmyMarchLay
               color: #fef3c7;
               white-space: nowrap;
               font-family: serif;
-              box-shadow: ${isSelected ? '0 0 14px rgba(250, 204, 21, 0.7)' : isNightResting ? '0 0 10px rgba(96, 165, 250, 0.5)' : 'none'};
-              transition: all 0.15s ease;
             ">
               <span style="font-size: 13px;">${displayStatusIcon}</span>
               <div style="display: flex; flex-direction: column; line-height: 1.15;">
                 <span style="font-size: 11px; font-weight: 800; color: #fffbeb;">
-                  ${form.name}
+                  ${isConvoy ? `🌾 ${form.name}` : form.name}
                 </span>
-                <span style="font-size: 9.5px; color: ${isNightResting ? '#93c5fd' : '#fcd34d'}; font-family: monospace;">
-                  ${form.totalTroops} binh • ${displayStatusLabel}${commander ? ` • ${commander.name}` : ''}
+                <span style="font-size: 9.5px; color: ${isMing ? '#fecaca' : isNightResting ? '#93c5fd' : '#fcd34d'}; font-family: monospace;">
+                  ${form.totalTroops} binh • SK ${moraleVal}% • ${displayStatusLabel}${commander ? ` • ${commander.name}` : ''}
                 </span>
               </div>
             </div>
             <div style="
               width: 3px;
-              height: 10px;
-              background: ${isSelected ? '#fde047' : statusMeta.color};
+              height: 9px;
+              background: ${poleColor};
             "></div>
             <div style="
               width: 8px;
               height: 8px;
               border-radius: 999px;
-              background: ${isSelected ? '#fde047' : statusMeta.color};
+              background: ${poleColor};
               border: 1.5px solid #1c1917;
             "></div>
           </div>
@@ -321,23 +408,20 @@ export function useArmyMarchLayer({ mapInstance, armyLayerRef }: UseArmyMarchLay
 
       const bannerMarker = L.marker(percentToLatLng(displayX, displayY), {
         icon: bannerIcon,
-        zIndexOffset: isSelected ? 1200 : 1000,
+        zIndexOffset: isSelected ? 1200 : isMing ? 1050 : 1000,
       });
 
       bannerMarker.on('click', (e) => {
         L.DomEvent.stopPropagation(e);
-        const ui = useUIStore.getState();
-        // Nếu đang ở chế độ vẽ của đạo quân khác thì chuyển sang chọn đạo quân này
-        ui.setSelectedMapFormationId(form.id);
+        useUIStore.getState().setSelectedMapFormationId(form.id);
       });
 
       bannerMarker.addTo(layer);
     });
 
-    // 3. Hiển thị các toán thám mã đang di chuyển trên bản đồ (Scout Missions)
+    // 5. Hiển thị các toán thám mã đang di chuyển trên bản đồ (Scout Missions)
     const activeScoutMissions = (scoutMissions || []).filter(m => m.status === 'traveling');
     activeScoutMissions.forEach(mission => {
-      // Đường nét đứt thám thính
       const remainingCells = mission.path.slice(mission.currentCellIndex);
       if (remainingCells.length >= 2) {
         const linePoints = [
@@ -353,7 +437,6 @@ export function useArmyMarchLayer({ mapInstance, armyLayerRef }: UseArmyMarchLay
         }).addTo(layer);
       }
 
-      // Marker thám mã chuẩn nhận diện
       const scoutIconHtml = `
         <div style="
           transform: translate(-50%, -50%);
@@ -364,7 +447,6 @@ export function useArmyMarchLayer({ mapInstance, armyLayerRef }: UseArmyMarchLay
           border: 1.5px solid #8c6b44;
           border-radius: 9999px;
           padding: 2px 7px;
-          box-shadow: 0 2px 6px rgba(0,0,0,0.4);
           white-space: nowrap;
           cursor: pointer;
         ">
@@ -390,6 +472,5 @@ export function useArmyMarchLayer({ mapInstance, armyLayerRef }: UseArmyMarchLay
 
       scoutMarker.addTo(layer);
     });
-
   }, [mapInstance, armyLayerRef, formations, cities, generals, selectedMapFormationId, marchDrawMode, canhHour, isWarMode, timeMode, isNight, scoutMissions]);
 }

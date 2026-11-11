@@ -914,7 +914,7 @@ export const MarchRouteDrawerOverlay: React.FC<MarchRouteDrawerOverlayProps> = (
   // ============================================================================
   // GIAO DIỆN 2: BẢNG ĐIỀU KHIỂN NHANH ĐẠO QUÂN KHI CLICK VÀO QUÂN KỲ TRÊN MAP
   // ============================================================================
-  if (selectedMapFormationId && activeFormation) {
+  if (selectedMapFormationId && activeFormation && (activeFormation.faction ?? 'lam_son') === 'lam_son') {
     return (
       <div
         className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[1000] w-[95vw] max-w-2xl pointer-events-auto"
