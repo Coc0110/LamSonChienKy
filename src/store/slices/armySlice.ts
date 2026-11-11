@@ -8,9 +8,21 @@ import type {
   PursuingEnemyGroup,
 } from '../../types/armyFormation';
 import { TACTICAL_UNIT_CONFIGS } from '../../types/armyFormation';
+import type { ArmyRosterCounts, StratagemType } from '../../types/armyFormation';
+import type { CityNode } from '../../types';
+import {
+  EMPTY_ROSTER,
+  buildLayersFromRoster,
+  calculateCommandCapacity,
+  computeFormationSpeedAndVision,
+  ensureFormationRosterAndLayers,
+  rosterTotal,
+} from '../../utils/armyCompositionUtils';
+import { applyWorldStratagem, resolveWorldMapCombatTick } from '../../utils/worldMapCombatEngine';
+import { spawnMingFieldFormation, updateMingFormationsAI } from '../../utils/mingMapAI';
 import { deductWeaponsFromPool } from './militarySlice';
 import { getFormationMapPos, MARCH_ENDPOINT_ACTIONS } from '../../utils/marchPathUtils';
-import { getGridTerrain } from '../../data/terrainGrid';
+import { coordToCell, getGridTerrain, getGridTerrainAt } from '../../data/terrainGrid';
 import { TERRAIN_DEFINITIONS } from '../../data/terrainData';
 import type { GameStore } from './types';
 import { notify } from '../dialogStore';
@@ -22,6 +34,9 @@ export interface ArmySlice {
   createFormation: (cityId: string, name?: string) => string;
   deleteFormation: (formationId: string) => { success: boolean; message: string };
   updateFormationName: (formationId: string, name: string) => void;
+  updateFormationRoster: (formationId: string, targetRoster: ArmyRosterCounts) => { success: boolean; message: string };
+  prepareTerrainTrap: (formationId: string, trapType: 'fire' | 'rockfall') => { success: boolean; message: string };
+  triggerFormationStratagem: (formationId: string, targetFormationId: string, stratagem: StratagemType) => { success: boolean; message: string };
   setActiveFormationId: (id: string | null) => void;
 
   placeUnitOnGrid: (
@@ -125,6 +140,60 @@ const calculateFormationTotals = (grid: (TacticalPlacedUnit | null)[][]) => {
   return { totalT, totalW, totalH, totalE, totalF, totalSwords, totalBows, totalSpears };
 };
 
+// Quy đổi biên chế sang kho vũ khí: Đao/Kỵ = kiếm, Giáo/Tượng/Thám mã = giáo, Cung = cung nỏ
+const rosterWeaponNeeds = (r: ArmyRosterCounts) => ({
+  totalSwords: r.swordsman + r.cavalry,
+  totalSpears: r.spearman + r.elephant + r.scout,
+  totalBows: r.archer,
+});
+
+const FOOD_PER_SUPPLY_CART = 150;
+const MING_RESPONSE_CONVOY_DISTANCE_PCT = 3.5;
+const ROUT_FLEE_SPEED_PCT_PER_CANH = 0.35;
+const ROUT_ARRIVE_RADIUS_PCT = 0.6;
+const MAX_COMBAT_TICKS_PER_STEP = 12;
+
+// Số quân Minh xuất thành nghênh chiến mỗi đợt khi bị tập kích
+const getMingSortieSize = (c: CityNode): number =>
+  c.id === 'tay_do'
+    ? Math.min(c.troops, Math.max(1500, Math.round(c.troops * 0.25)))
+    : Math.min(c.troops, Math.max(120, Math.round(c.troops * 0.4)));
+
+// Bộ đếm Canh Giờ: stepArmies chạy mỗi 50ms nên cộng dồn tới khi đủ 1 canh mới giao chiến 1 nhịp
+let combatCanhAccumulator = 0;
+
+// Điều quân Minh từ một thành ra bản đồ (trừ quân giữ thành, sinh thêm đoàn vận lương nếu đi xa)
+const deployMingForce = (
+  cities: CityNode[],
+  sourceCityId: string,
+  targetPos: { x: number; y: number },
+  troops: number
+): { cities: CityNode[]; spawned: TacticalFormation[] } => {
+  const city = cities.find(c => c.id === sourceCityId && c.faction === 'ming');
+  if (!city) return { cities, spawned: [] };
+  const n = Math.min(city.troops, Math.max(0, Math.round(troops)));
+  if (n < 5) return { cities, spawned: [] };
+
+  const spawned: TacticalFormation[] = [];
+  const expedition = spawnMingFieldFormation(city, targetPos, n, 'ming_expedition');
+  spawned.push(expedition);
+  let used = n;
+
+  if (Math.hypot(city.x - targetPos.x, city.y - targetPos.y) > MING_RESPONSE_CONVOY_DISTANCE_PCT) {
+    const convoyTroops = Math.min(city.troops - n, Math.max(20, Math.round(n * 0.12)));
+    if (convoyTroops >= 5) {
+      const convoy = spawnMingFieldFormation(city, targetPos, convoyTroops, 'ming_convoy');
+      convoy.parentFormationId = expedition.id;
+      spawned.push(convoy);
+      used += convoyTroops;
+    }
+  }
+
+  return {
+    cities: cities.map(c => (c.id === city.id ? { ...c, troops: Math.max(0, c.troops - used) } : c)),
+    spawned,
+  };
+};
 export const createArmySlice: StateCreator<GameStore, [], [], ArmySlice> = (set, get) => ({
   formations: [
     // Đạo quân Tiên Phong mặc định trên sa bàn 32x32 (1024 ô)
@@ -288,6 +357,12 @@ export const createArmySlice: StateCreator<GameStore, [], [], ArmySlice> = (set,
       totalHorses: 0,
       totalElephants: 0,
       totalFoodCarried: 190,
+      faction: 'lam_son',
+      armyRole: 'main',
+      roster: { ...EMPTY_ROSTER, swordsman: 2, spearman: 2, archer: 1, supply_cart: 1 },
+      layers: buildLayersFromRoster({ ...EMPTY_ROSTER, swordsman: 2, spearman: 2, archer: 1, supply_cart: 1 }),
+      morale: 100,
+      facingAngleDeg: 0,
     }
   ],
 
@@ -317,6 +392,12 @@ export const createArmySlice: StateCreator<GameStore, [], [], ArmySlice> = (set,
       totalHorses: 0,
       totalElephants: 0,
       totalFoodCarried: 0,
+      faction: 'lam_son',
+      armyRole: 'main',
+      roster: { ...EMPTY_ROSTER },
+      layers: buildLayersFromRoster(EMPTY_ROSTER),
+      morale: 100,
+      facingAngleDeg: 0,
     };
 
     set(prev => ({
@@ -333,7 +414,9 @@ export const createArmySlice: StateCreator<GameStore, [], [], ArmySlice> = (set,
     const target = state.formations.find(f => f.id === formationId);
     if (!target) return { success: false, message: 'Không tìm thấy đạo quân!' };
 
-    const { totalSwords, totalBows, totalSpears } = calculateFormationTotals(target.grid);
+    const { totalSwords, totalBows, totalSpears } = target.roster
+      ? rosterWeaponNeeds(target.roster)
+      : calculateFormationTotals(target.grid);
 
     set(prev => {
       const updatedCities = prev.cities.map(c => {
@@ -380,6 +463,149 @@ export const createArmySlice: StateCreator<GameStore, [], [], ArmySlice> = (set,
     }));
   },
 
+  updateFormationRoster: (formationId, targetRoster) => {
+    const state = get();
+    const target = state.formations.find(f => f.id === formationId);
+    if (!target) return { success: false, message: 'Không tìm thấy đạo quân!' };
+    if (target.status !== 'idle' && target.status !== 'stationed') {
+      return { success: false, message: 'Chỉ có thể điều chỉnh biên chế khi đạo quân đang đóng tại căn cứ!' };
+    }
+
+    const keys = Object.keys(EMPTY_ROSTER) as (keyof ArmyRosterCounts)[];
+    const next = { ...EMPTY_ROSTER };
+    for (const k of keys) {
+      const v = Number(targetRoster[k]);
+      if (!Number.isFinite(v) || v < 0) return { success: false, message: 'Số lượng binh chủng không hợp lệ!' };
+      next[k] = Math.floor(v);
+    }
+
+    const current = ensureFormationRosterAndLayers(target).roster!;
+    const city = state.cities.find(c => c.id === target.cityId);
+    if (!city || !city.population) return { success: false, message: 'Không tìm thấy thông tin căn cứ!' };
+
+    const commander = state.generals.find(g => g.id === target.commanderGeneralId);
+    const deputies = target.assignedGeneralIds
+      .filter(id => id !== target.commanderGeneralId)
+      .slice(0, 2)
+      .map(id => state.generals.find(g => g.id === id))
+      .filter((g): g is NonNullable<typeof g> => !!g);
+    const capacity = calculateCommandCapacity(commander, deputies);
+    const nextTotal = rosterTotal(next);
+    if (nextTotal > capacity) {
+      return { success: false, message: `Vượt sức chứa chỉ huy! Ban chỉ huy chỉ thống lĩnh tối đa ${capacity} quân (yêu cầu ${nextTotal}).` };
+    }
+
+    const curNeeds = rosterWeaponNeeds(current);
+    const nextNeeds = rosterWeaponNeeds(next);
+    const dTroops = nextTotal - rosterTotal(current);
+    const dSwords = nextNeeds.totalSwords - curNeeds.totalSwords;
+    const dSpears = nextNeeds.totalSpears - curNeeds.totalSpears;
+    const dBows = nextNeeds.totalBows - curNeeds.totalBows;
+    const dHorses = next.cavalry + next.scout - (current.cavalry + current.scout);
+    const dElephants = next.elephant - current.elephant;
+    const dFood = (next.supply_cart - current.supply_cart) * FOOD_PER_SUPPLY_CART;
+    const res = state.resources;
+
+    if (dTroops > city.population.combatTroops) {
+      return { success: false, message: `Căn cứ ${city.name} chỉ còn ${city.population.combatTroops} nghĩa binh dự bị (cần thêm ${dTroops})!` };
+    }
+    if (dSwords > Math.floor(res.swords)) return { success: false, message: `Kho chỉ còn ${Math.floor(res.swords)} đao kiếm (cần thêm ${dSwords})!` };
+    if (dSpears > Math.floor(res.spears)) return { success: false, message: `Kho chỉ còn ${Math.floor(res.spears)} trường giáo (cần thêm ${dSpears})!` };
+    if (dBows > Math.floor(res.bows)) return { success: false, message: `Kho chỉ còn ${Math.floor(res.bows)} cung nỏ (cần thêm ${dBows})!` };
+    if (dHorses > Math.floor(res.horses)) return { success: false, message: `Chuồng chỉ còn ${Math.floor(res.horses)} chiến mã (cần thêm ${dHorses})!` };
+    if (dElephants > Math.floor(res.elephants)) return { success: false, message: `Chỉ còn ${Math.floor(res.elephants)} voi chiến (cần thêm ${dElephants})!` };
+    if (dFood > Math.floor(res.food)) return { success: false, message: `Kho chỉ còn ${Math.floor(res.food)} lương (cần thêm ${dFood})!` };
+
+    set(prev => {
+      const swords = Math.max(0, prev.resources.swords - dSwords);
+      const spears = Math.max(0, prev.resources.spears - dSpears);
+      const bows = Math.max(0, prev.resources.bows - dBows);
+      return {
+        cities: prev.cities.map(c =>
+          c.id === target.cityId && c.population
+            ? { ...c, population: { ...c.population, combatTroops: Math.max(0, c.population.combatTroops - dTroops) } }
+            : c
+        ),
+        resources: {
+          ...prev.resources,
+          swords,
+          spears,
+          bows,
+          weapons: swords + spears + bows,
+          horses: Math.max(0, prev.resources.horses - dHorses),
+          elephants: Math.max(0, prev.resources.elephants - dElephants),
+          food: Math.max(0, prev.resources.food - dFood),
+        },
+        formations: prev.formations.map(f =>
+          f.id === formationId
+            ? {
+                ...f,
+                roster: next,
+                layers: buildLayersFromRoster(next),
+                morale: f.morale ?? 100,
+                totalTroops: nextTotal,
+                totalWeapons: nextNeeds.totalSwords + nextNeeds.totalSpears + nextNeeds.totalBows,
+                totalHorses: next.cavalry + next.scout,
+                totalElephants: next.elephant,
+                totalFoodCarried: Math.max(0, f.totalFoodCarried + dFood),
+              }
+            : f
+        ),
+      };
+    });
+
+    return { success: true, message: `Đã lưu biên chế ${target.name}: ${nextTotal} quân (sức chứa ${capacity}).` };
+  },
+
+  prepareTerrainTrap: (formationId, trapType) => {
+    const state = get();
+    const target = state.formations.find(f => f.id === formationId);
+    if (!target) return { success: false, message: 'Không tìm thấy đạo quân!' };
+    if (target.status === 'marching' || target.status === 'engaging' || target.status === 'retreating') {
+      return { success: false, message: 'Đạo quân phải dừng chân mới dựng được bẫy!' };
+    }
+    const pos = getFormationMapPos(target, state.cities);
+    const terrain = getGridTerrainAt(pos.x, pos.y);
+    if (trapType === 'fire' && terrain !== 'forest') {
+      return { success: false, message: 'Bẫy hỏa công chỉ dựng được trong rừng già!' };
+    }
+    if (trapType === 'rockfall' && terrain !== 'cliff' && terrain !== 'mountain') {
+      return { success: false, message: 'Bẫy đá lăn chỉ dựng được ở vách núi hoặc hẻm núi!' };
+    }
+    set(prev => ({
+      formations: prev.formations.map(f => (f.id === formationId ? { ...f, preparedTrap: trapType } : f)),
+    }));
+    return {
+      success: true,
+      message: trapType === 'fire' ? '🔥 Đã dựng xong bẫy hỏa công trong rừng!' : '🪨 Đã chuẩn bị bẫy đá lăn trên vách núi!',
+    };
+  },
+
+  triggerFormationStratagem: (formationId, targetFormationId, stratagem) => {
+    const state = get();
+    const actor = state.formations.find(f => f.id === formationId);
+    const target = state.formations.find(f => f.id === targetFormationId);
+    if (!actor || !target) return { success: false, message: 'Không tìm thấy đạo quân!' };
+    if ((actor.faction ?? 'lam_son') === (target.faction ?? 'lam_son')) {
+      return { success: false, message: 'Mưu kế chỉ dùng được với quân địch!' };
+    }
+    if (!target.mapPosition) return { success: false, message: 'Mục tiêu chưa xuất hiện trên bản đồ!' };
+
+    const a = ensureFormationRosterAndLayers(actor);
+    const tPos = target.mapPosition;
+    const terrain = getGridTerrainAt(tPos.x, tPos.y);
+    const result = applyWorldStratagem(a, ensureFormationRosterAndLayers(target), stratagem, state.generals, terrain);
+    if (!result.success) return { success: false, message: result.message };
+
+    set(prev => ({
+      formations: prev.formations.map(f => {
+        if (f.id === formationId) return result.actor;
+        if (f.id === targetFormationId) return result.target;
+        return f;
+      }),
+    }));
+    return { success: true, message: result.message };
+  },
   setActiveFormationId: (id: string | null) => {
     set({ activeFormationId: id });
   },
@@ -848,15 +1074,24 @@ export const createArmySlice: StateCreator<GameStore, [], [], ArmySlice> = (set,
                 totalDays,
                 elapsedDays: 0,
                 totalFoodCost,
-                pursuingEnemy,
+                pursuingEnemy: null,
               },
             }
           : f
       ),
     }));
 
+    // Trá bại: quân Minh xuất thành thành đạo quân thật trên bản đồ (không mở màn hình giao chiến riêng)
     if (isEmergencyRetreat && pursuingEnemy) {
-      return {
+      const lured = pursuingEnemy;
+      const lastCell = (retreatCells && retreatCells.length > 1 ? retreatCells : cells)[(retreatCells && retreatCells.length > 1 ? retreatCells : cells).length - 1];
+      set(prev => {
+        const dep = deployMingForce(prev.cities, lured.sourceCityId, { x: lastCell.x, y: lastCell.y }, lured.troops);
+        return { cities: dep.cities, formations: [...prev.formations, ...dep.spawned] };
+      });
+    }
+
+    if (isEmergencyRetreat && pursuingEnemy) {      return {
         success: true,
         message: `🏳️ [${target.name}] vờ thua tháo chạy! Đã dụ được ${pursuingEnemy.troops} quân Minh từ ${pursuingEnemy.sourceCityName} đuổi theo!`,
       };
@@ -1188,37 +1423,47 @@ export const createArmySlice: StateCreator<GameStore, [], [], ArmySlice> = (set,
     const hasMovingArmy = state.formations.some(
       f => (f.status === 'marching' || f.status === 'retreating') && f.marchOrder
     );
-    if (!hasMovingArmy) return;
+    const hasCombatActors = state.formations.some(
+      f => f.faction === 'ming' || f.status === 'engaging' || f.status === 'ambushing' || f.isRouting
+    );
+    if (!hasMovingArmy && !hasCombatActors) {
+      combatCanhAccumulator = 0;
+      return;
+    }
+
+    // Giao chiến theo nhịp Canh Giờ (1 ngày = 12 canh), tách khỏi nhịp di chuyển 50ms
+    combatCanhAccumulator += deltaDays * 12;
+    const wholeCanh = Math.floor(combatCanhAccumulator);
+    combatCanhAccumulator -= wholeCanh;
+    const combatTicks = Math.min(MAX_COMBAT_TICKS_PER_STEP, wholeCanh);
+    if (!hasMovingArmy && combatTicks === 0) return;
 
     const toastsToEmit: { type: 'success' | 'warning' | 'info'; text: string }[] = [];
-    let battleToTrigger: {
-      formationId: string;
-      mingTroops: number;
-      battleName: string;
-      locationName: string;
-      mapCol: number;
-      mapRow: number;
-      targetCityId?: string;
-    } | null = null;
 
     set(prev => {
       let foodConsumedTotal = 0;
-      const enemyTroopLossesByCity = new Map<string, number>();
-      let capturedWeapons = 0;
-      let capturedFood = 0;
-      let capturedGold = 0;
-      const newNotices = [...prev.militaryNotices];
+      const captured = { food: 0, gold: 0, swords: 0, bows: 0, spears: 0 };
+      let cities = prev.cities;
+      const spawned: TacticalFormation[] = [];
+      const deploy = (cityId: string, targetPos: { x: number; y: number }, troops: number) => {
+        const dep = deployMingForce(cities, cityId, targetPos, troops);
+        cities = dep.cities;
+        spawned.push(...dep.spawned);
+        return dep.spawned.length > 0;
+      };
 
-      // Danh sách các đại quân đang Mai Phục (status === 'ambushing')
       const ambushingFormations = prev.formations.filter(
-        f => f.status === 'ambushing' && f.totalTroops > 0
+        f => f.status === 'ambushing' && f.totalTroops > 0 && (f.faction ?? 'lam_son') === 'lam_son'
       );
 
-      const updatedFormations = prev.formations.map(form => {
+      // ===== 1. Di chuyển mượt theo vector (x, y) =====
+      let formations = prev.formations.map(rawForm => {
+        const form = ensureFormationRosterAndLayers(rawForm);
         if ((form.status !== 'marching' && form.status !== 'retreating') || !form.marchOrder) {
           return form;
         }
 
+        const isMing = form.faction === 'ming';
         const order = form.marchOrder;
         const activeCells =
           order.isInRetreatPhase && order.retreatCells && order.retreatCells.length > 1
@@ -1232,14 +1477,13 @@ export const createArmySlice: StateCreator<GameStore, [], [], ArmySlice> = (set,
         let curIdx = order.currentCellIndex;
         let curProg = order.cellProgress;
         let remainingDelta = deltaDays;
-        let currentPos = form.mapPosition || {
+        const startPos = form.mapPosition || {
           x: activeCells[0].x,
           y: activeCells[0].y,
           col: activeCells[0].col,
           row: activeCells[0].row,
         };
-
-        let pursuingEnemy = order.pursuingEnemy ? { ...order.pursuingEnemy } : null;
+        let currentPos = startPos;
 
         while (remainingDelta > 0 && curIdx < activeCells.length - 1) {
           const nextCell = activeCells[curIdx + 1];
@@ -1248,19 +1492,14 @@ export const createArmySlice: StateCreator<GameStore, [], [], ArmySlice> = (set,
 
           if (remainingDelta >= daysNeededForCell) {
             remainingDelta -= daysNeededForCell;
-            foodConsumedTotal += nextCell.foodCost * (1 - curProg);
+            foodConsumedTotal += isMing ? 0 : nextCell.foodCost * (1 - curProg);
             curIdx += 1;
             curProg = 0;
-            currentPos = {
-              x: nextCell.x,
-              y: nextCell.y,
-              col: nextCell.col,
-              row: nextCell.row,
-            };
+            currentPos = { x: nextCell.x, y: nextCell.y, col: nextCell.col, row: nextCell.row };
           } else {
             const progDelta = remainingDelta / stepCost;
             curProg += progDelta;
-            foodConsumedTotal += nextCell.foodCost * progDelta;
+            foodConsumedTotal += isMing ? 0 : nextCell.foodCost * progDelta;
             remainingDelta = 0;
 
             const fromCell = activeCells[curIdx];
@@ -1273,51 +1512,14 @@ export const createArmySlice: StateCreator<GameStore, [], [], ArmySlice> = (set,
           }
         }
 
-        // Cập nhật vị trí toán quân Minh đang đuổi theo sau lưng (cách 1-2 ô phía sau)
-        if (pursuingEnemy) {
-          const enemyCellIdx = Math.max(0, curIdx - 1);
-          const enemyCell = activeCells[enemyCellIdx] || activeCells[0];
-          pursuingEnemy = {
-            ...pursuingEnemy,
-            x: enemyCell.x,
-            y: enemyCell.y,
-            col: enemyCell.col,
-            row: enemyCell.row,
-          };
+        // Hướng mặt theo vector di chuyển
+        const mdx = currentPos.x - startPos.x;
+        const mdy = currentPos.y - startPos.y;
+        const facingAngleDeg = Math.hypot(mdx, mdy) > 1e-6 ? (Math.atan2(mdy, mdx) * 180) / Math.PI : form.facingAngleDeg;
+        const moved = { ...form, facingAngleDeg, isStealthed: false };
 
-          // KIỂM TRA KÍCH HOẠT BẪY MAI PHỤC: Nếu toán quân Minh truy đuổi lọt vào bán kính 7 ô của đại quân Mai Phục!
-          const triggeredAmbush = ambushingFormations.find(amb => {
-            if (amb.id === form.id) return false;
-            const ambPos = getFormationMapPos(amb, prev.cities);
-            return Math.hypot(ambPos.col - pursuingEnemy!.col, ambPos.row - pursuingEnemy!.row) <= 7;
-          });
-
-          if (triggeredAmbush) {
-            const ambPos = getFormationMapPos(triggeredAmbush, prev.cities);
-            const ambTerrain = getGridTerrain(ambPos.col, ambPos.row);
-            const tDef = TERRAIN_DEFINITIONS[ambTerrain];
-
-            battleToTrigger = {
-              formationId: triggeredAmbush.id,
-              mingTroops: pursuingEnemy.troops,
-              battleName: 'Phục Kích Hiểm Địa',
-              locationName: tDef?.name || 'Trận Địa Mai Phục',
-              mapCol: ambPos.col,
-              mapRow: ambPos.row,
-            };
-
-            return {
-              ...form,
-              status: 'stationed' as const,
-              mapPosition: currentPos,
-              marchOrder: null,
-            };
-          }
-        }
-
-        // Kiểm tra nếu đã đi hết chặng hiện tại
         if (curIdx >= activeCells.length - 1) {
-          // Trường hợp Lộ Trình Kép (Trá Bại Dụ Địch): Vừa hoàn tất Chặng 1 (tiến đánh khiêu khích) -> Chuyển sang Chặng 2 (vờ thua rút lui)
+          // Trá bại: hết chặng 1 -> vờ thua rút lui, quân Minh xuất thành thành đạo quân thật trên bản đồ
           if (
             order.endpointAction === 'feigned_retreat' &&
             !order.isInRetreatPhase &&
@@ -1325,9 +1527,9 @@ export const createArmySlice: StateCreator<GameStore, [], [], ArmySlice> = (set,
             order.retreatCells.length > 1
           ) {
             const provokePoint = activeCells[activeCells.length - 1];
-            let targetMingCity = null;
+            let targetMingCity: CityNode | null = null;
             let minDist = Infinity;
-            for (const c of prev.cities) {
+            for (const c of cities) {
               if (c.faction === 'ming' && c.troops > 0) {
                 const d = Math.hypot(c.x - provokePoint.x, c.y - provokePoint.y);
                 if (d <= 6.0 && d < minDist) {
@@ -1337,27 +1539,22 @@ export const createArmySlice: StateCreator<GameStore, [], [], ArmySlice> = (set,
               }
             }
 
-            const luredCount = targetMingCity
-              ? Math.min(Math.max(12, Math.floor(targetMingCity.troops * 0.45)), Math.max(20, form.totalTroops * 3))
-              : Math.max(15, form.totalTroops * 2);
-
-            const luredEnemy: PursuingEnemyGroup = {
-              sourceCityId: targetMingCity ? targetMingCity.id : 'tay_do',
-              sourceCityName: targetMingCity ? targetMingCity.name : 'Đồn Tuần Tiễu Quân Minh',
-              troops: luredCount,
-              x: provokePoint.x,
-              y: provokePoint.y,
-              col: provokePoint.col,
-              row: provokePoint.row,
-            };
-
-            toastsToEmit.push({
-              type: 'warning',
-              text: `🏳️ [${form.name}] đã chạm trán khiêu khích và vờ thua rút chạy! ${luredCount} quân Minh từ ${luredEnemy.sourceCityName} đang hăng máu đuổi theo!`,
-            });
+            if (targetMingCity) {
+              const luredCount = Math.min(
+                Math.max(12, Math.floor(targetMingCity.troops * 0.45)),
+                Math.max(20, form.totalTroops * 3)
+              );
+              const trapPoint = order.retreatCells[order.retreatCells.length - 1];
+              if (deploy(targetMingCity.id, { x: trapPoint.x, y: trapPoint.y }, luredCount)) {
+                toastsToEmit.push({
+                  type: 'warning',
+                  text: `🏳️ [${form.name}] đã chạm trán khiêu khích và vờ thua rút chạy! ${luredCount} quân Minh từ ${targetMingCity.name} đang hăng máu đuổi theo!`,
+                });
+              }
+            }
 
             return {
-              ...form,
+              ...moved,
               status: 'retreating' as const,
               mapPosition: currentPos,
               marchOrder: {
@@ -1365,12 +1562,17 @@ export const createArmySlice: StateCreator<GameStore, [], [], ArmySlice> = (set,
                 isInRetreatPhase: true,
                 currentCellIndex: 0,
                 cellProgress: 0,
-                pursuingEnemy: luredEnemy,
+                pursuingEnemy: null,
               },
             };
           }
 
-          // Đã hoàn thành toàn bộ lộ trình hành quân -> Thực thi lệnh điểm cuối (Endpoint Action)
+          // Quân Minh tới đích thì dừng chân chờ giao chiến
+          if (isMing) {
+            return { ...moved, status: 'stationed' as const, mapPosition: currentPos, marchOrder: null };
+          }
+
+          // Hoàn thành lộ trình -> thực thi lệnh điểm cuối
           const act = order.endpointAction;
           let finalStatus: TacticalFormation['status'] = 'stationed';
           let engagedTargetCityId: string | null = null;
@@ -1396,10 +1598,9 @@ export const createArmySlice: StateCreator<GameStore, [], [], ArmySlice> = (set,
             });
           } else if (act === 'decoy') {
             finalStatus = 'decoying';
-            // Nếu có đồn Minh gần đó và có ổ Mai Phục của quân ta gần đó -> Kích hoạt dụ địch vào ổ phục kích
-            let nearMing = null;
+            let nearMing: CityNode | null = null;
             let minDist = Infinity;
-            for (const c of prev.cities) {
+            for (const c of cities) {
               if (c.faction === 'ming' && c.troops > 0) {
                 const d = Math.hypot(c.x - currentPos.x, c.y - currentPos.y);
                 if (d <= 5.5 && d < minDist) {
@@ -1410,20 +1611,19 @@ export const createArmySlice: StateCreator<GameStore, [], [], ArmySlice> = (set,
             }
             const nearAmbush = ambushingFormations.find(amb => {
               if (amb.id === form.id) return false;
-              const ambPos = getFormationMapPos(amb, prev.cities);
+              const ambPos = getFormationMapPos(amb, cities);
               return Math.hypot(ambPos.col - currentPos.col, ambPos.row - currentPos.row) <= 12;
             });
 
             if (nearMing && nearAmbush) {
-              const luredKill = Math.min(nearMing.troops, Math.max(12, Math.round(nearAmbush.totalTroops * 1.4)));
-              const prevLoss = enemyTroopLossesByCity.get(nearMing.id) || 0;
-              enemyTroopLossesByCity.set(nearMing.id, prevLoss + luredKill);
-              capturedFood += Math.round(luredKill * 2);
-              capturedWeapons += Math.round(luredKill * 0.5);
-              toastsToEmit.push({
-                type: 'success',
-                text: `🔥 NGHI BINH ĐẠI THẮNG! [${form.name}] đốt lửa hư trương thanh thế dụ quân Minh từ ${nearMing.name} lọt vào ổ phục kích của [${nearAmbush.name}], tiêu diệt ${luredKill} địch!`,
-              });
+              const ambPos = getFormationMapPos(nearAmbush, cities);
+              const lured = Math.max(12, Math.round(nearAmbush.totalTroops * 1.4));
+              if (deploy(nearMing.id, { x: ambPos.x, y: ambPos.y }, lured)) {
+                toastsToEmit.push({
+                  type: 'success',
+                  text: `🔥 NGHI BINH! [${form.name}] đốt lửa hư trương thanh thế, dụ quân Minh từ ${nearMing.name} tiến vào ổ phục kích của [${nearAmbush.name}]!`,
+                });
+              }
             } else {
               toastsToEmit.push({
                 type: 'info',
@@ -1431,9 +1631,9 @@ export const createArmySlice: StateCreator<GameStore, [], [], ArmySlice> = (set,
               });
             }
           } else if (act === 'raid') {
-            let nearMing = null;
+            let nearMing: CityNode | null = null;
             let minDist = Infinity;
-            for (const c of prev.cities) {
+            for (const c of cities) {
               if (c.faction === 'ming' && c.troops > 0) {
                 const d = Math.hypot(c.x - currentPos.x, c.y - currentPos.y);
                 if (d <= 1.2 && d < minDist) {
@@ -1445,28 +1645,19 @@ export const createArmySlice: StateCreator<GameStore, [], [], ArmySlice> = (set,
             if (nearMing) {
               finalStatus = 'engaging';
               engagedTargetCityId = nearMing.id;
-              const defendingMingTroops = nearMing.id === 'tay_do'
-                ? Math.min(nearMing.troops, Math.max(1500, Math.round(nearMing.troops * 0.25)))
-                : Math.min(nearMing.troops, Math.max(120, Math.round(nearMing.troops * 0.4)));
-
-              battleToTrigger = {
-                formationId: form.id,
-                mingTroops: defendingMingTroops,
-                battleName: 'Tập Kích Cứ Điểm',
-                locationName: nearMing.name,
-                mapCol: currentPos.col,
-                mapRow: currentPos.row,
-                targetCityId: nearMing.id,
-              };
+              // Quân Minh trong thành xuất kích nghênh chiến ngay trên bản đồ (không mở màn hình riêng)
+              deploy(nearMing.id, { x: currentPos.x, y: currentPos.y }, getMingSortieSize(nearMing));
+              toastsToEmit.push({
+                type: 'warning',
+                text: `⚔️ [${form.name}] tập kích ${nearMing.name}! Quân Minh xuất thành nghênh chiến.`,
+              });
             } else {
-              finalStatus = 'stationed';
               toastsToEmit.push({
                 type: 'info',
                 text: `⛺ [${form.name}] đã tới điểm đích tại ô (${currentPos.col}, ${currentPos.row}) và hạ trại (Vị trí không có thành trì giặc để tập kích).`,
               });
             }
           } else {
-            finalStatus = 'stationed';
             toastsToEmit.push({
               type: 'info',
               text: `⛺ [${form.name}] đã hành quân tới đích tại ô (${currentPos.col}, ${currentPos.row}) và hạ trại!`,
@@ -1474,7 +1665,7 @@ export const createArmySlice: StateCreator<GameStore, [], [], ArmySlice> = (set,
           }
 
           return {
-            ...form,
+            ...moved,
             status: finalStatus,
             mapPosition: currentPos,
             marchOrder: null,
@@ -1483,61 +1674,183 @@ export const createArmySlice: StateCreator<GameStore, [], [], ArmySlice> = (set,
         }
 
         return {
-          ...form,
+          ...moved,
           mapPosition: currentPos,
           marchOrder: {
             ...order,
             currentCellIndex: curIdx,
             cellProgress: curProg,
             elapsedDays: Number((order.elapsedDays + deltaDays).toFixed(2)),
-            pursuingEnemy,
+            pursuingEnemy: null,
           },
         };
       });
 
-      const nextSwords = prev.resources.swords + Math.ceil(capturedWeapons * 0.4);
-      const nextBows = prev.resources.bows + Math.floor(capturedWeapons * 0.3);
-      const nextSpears = prev.resources.spears + (capturedWeapons - Math.ceil(capturedWeapons * 0.4) - Math.floor(capturedWeapons * 0.3));
+      if (spawned.length > 0) formations = [...formations, ...spawned.splice(0)];
 
-      const updatedCities = prev.cities.map(c => {
-        const loss = enemyTroopLossesByCity.get(c.id) || 0;
-        if (loss > 0 && c.faction === 'ming') {
-          const remainingTroops = Math.max(0, c.troops - loss);
-          if (remainingTroops === 0) {
-            toastsToEmit.push({
-              type: 'success',
-              text: `🚩 GIẢI PHÓNG CỨ ĐIỂM: Quân Minh tại [${c.name}] đã bị tiêu diệt hoàn toàn! Nghĩa quân Lam Sơn tiếp quản ${c.name}!`,
-            });
+      let activeFormationIdReset = false;
+      const returnedTroops = new Map<string, number>();
+      let liberatedCityIds: string[] = [];
+
+      // ===== 2. Hệ thống tác chiến theo Canh Giờ =====
+      if (combatTicks > 0) {
+        // 2a. Ẩn thân tự động khi mai phục trong rừng / núi / hẻm vực
+        formations = formations.map(f => {
+          if (!f.mapPosition) return f;
+          if (f.status === 'ambushing' && f.roster) {
+            const terrain = getGridTerrainAt(f.mapPosition.x, f.mapPosition.y);
+            const stealth = computeFormationSpeedAndVision(f.roster, terrain).canStealthInCover;
+            return stealth === !!f.isStealthed ? f : { ...f, isStealthed: stealth };
+          }
+          if (f.isStealthed && f.status !== 'engaging') return { ...f, isStealthed: false };
+          return f;
+        });
+
+        // 2b. AI quân Minh: đứt đường lương, chặn đoàn vận lương
+        const ai = updateMingFormationsAI(formations, cities, combatTicks / 12);
+        formations = ai.formations;
+        captured.food += ai.interceptedFood;
+        captured.swords += Math.ceil(ai.interceptedWeapons * 0.4);
+        captured.bows += Math.floor(ai.interceptedWeapons * 0.3);
+        captured.spears += ai.interceptedWeapons - Math.ceil(ai.interceptedWeapons * 0.4) - Math.floor(ai.interceptedWeapons * 0.3);
+        ai.notices.slice(0, 2).forEach(text => toastsToEmit.push({ type: 'success', text }));
+
+        // 2c. Thành bị tập kích tiếp tục xuất các đợt quân khi đợt trước đã bị diệt
+        for (const f of formations) {
+          if (!f.engagedTargetCityId || !f.mapPosition || f.totalTroops <= 0 || (f.faction ?? 'lam_son') !== 'lam_son') continue;
+          const city = cities.find(c => c.id === f.engagedTargetCityId && c.faction === 'ming' && c.troops > 0);
+          if (!city) continue;
+          const hasLiveSortie =
+            formations.some(m => m.faction === 'ming' && m.armyRole === 'ming_expedition' && m.cityId === city.id && m.totalTroops > 0) ||
+            spawned.some(m => m.cityId === city.id);
+          if (!hasLiveSortie) deploy(city.id, { x: f.mapPosition.x, y: f.mapPosition.y }, getMingSortieSize(city));
+        }
+        if (spawned.length > 0) formations = [...formations, ...spawned.splice(0)];
+
+        // 2d. Giao chiến liên tục
+        const getTerrainAtPos = (x: number, y: number) => getGridTerrainAt(x, y);
+        const combatLogs: string[] = [];
+        for (let i = 0; i < combatTicks; i++) {
+          const res = resolveWorldMapCombatTick(formations, prev.generals, getTerrainAtPos);
+          formations = res.formations;
+          combatLogs.push(...res.logs);
+          captured.food += res.capturedResources.food;
+          captured.gold += res.capturedResources.gold;
+          captured.swords += res.capturedResources.swords;
+          captured.bows += res.capturedResources.bows;
+          captured.spears += res.capturedResources.spears;
+        }
+        Array.from(new Set(combatLogs))
+          .slice(0, 3)
+          .forEach(text => toastsToEmit.push({ type: 'warning', text }));
+
+        // 2e. Đạo quân vỡ trận tháo chạy về thành nhà
+        formations = formations.map(f => {
+          if (!f.isRouting || !f.mapPosition || f.totalTroops <= 0) return f;
+          const homeId = f.faction === 'ming' ? f.supplySourceCityId ?? f.cityId : f.cityId;
+          const home = cities.find(c => c.id === homeId);
+          if (!home) return f;
+          const dx = home.x - f.mapPosition.x;
+          const dy = home.y - f.mapPosition.y;
+          const dist = Math.hypot(dx, dy);
+          const step = combatTicks * ROUT_FLEE_SPEED_PCT_PER_CANH;
+
+          if (dist <= ROUT_ARRIVE_RADIUS_PCT + step) {
+            if (f.faction === 'ming') {
+              returnedTroops.set(home.id, (returnedTroops.get(home.id) ?? 0) + f.totalTroops);
+              return { ...f, totalTroops: 0, combatState: null };
+            }
+            const homePos = getFormationMapPos({ ...f, mapPosition: undefined }, cities);
             return {
-              ...c,
-              troops: 0,
-              faction: 'lam_son' as const,
-              population: c.population || {
-                idleLaborers: 60,
-                farmLaborers: 0,
-                forgeLaborers: 0,
-                combatTroops: 0,
-                swappedCombatants: 0,
-                unfitPopulation: 40,
-              },
+              ...f,
+              isRouting: false,
+              morale: 40,
+              status: 'stationed' as const,
+              mapPosition: homePos,
+              marchOrder: null,
+              combatState: null,
+              isStealthed: false,
+              engagedTargetCityId: null,
             };
           }
+
+          const nx = f.mapPosition.x + (dx / dist) * step;
+          const ny = f.mapPosition.y + (dy / dist) * step;
+          const cell = coordToCell(nx, ny);
+          return {
+            ...f,
+            marchOrder: null,
+            status: 'retreating' as const,
+            facingAngleDeg: (Math.atan2(dy, dx) * 180) / Math.PI,
+            mapPosition: { x: nx, y: ny, col: cell.col, row: cell.row },
+          };
+        });
+
+        // 2f. Dọn các đạo quân đã bị tiêu diệt / về tới thành (đoàn vận lương để AI thu giữ ở nhịp sau)
+        const isGone = (f: TacticalFormation) =>
+          f.totalTroops <= 0 && f.armyRole !== 'ming_convoy' && (f.faction === 'ming' || f.isRouting === true);
+        const wiped = formations.filter(f => isGone(f) && (f.faction ?? 'lam_son') === 'lam_son');
+        wiped.forEach(f => {
+          toastsToEmit.push({ type: 'warning', text: `💀 [${f.name}] đã bị tiêu diệt hoàn toàn!` });
+          if (prev.activeFormationId === f.id) activeFormationIdReset = true;
+        });
+        formations = formations.filter(f => !isGone(f));
+
+        // 2g. Giải phóng thành khi hết quân giữ thành và không còn đợt xuất kích nào
+        liberatedCityIds = cities
+          .filter(c => {
+            if (c.faction !== 'ming' || c.troops > 0 || (returnedTroops.get(c.id) ?? 0) > 0) return false;
+            const besieged = formations.some(f => f.engagedTargetCityId === c.id && f.totalTroops > 0);
+            const liveSortie = formations.some(m => m.faction === 'ming' && m.cityId === c.id && m.totalTroops > 0);
+            return besieged && !liveSortie;
+          })
+          .map(c => c.id);
+        if (liberatedCityIds.length > 0) {
+          formations = formations.map(f =>
+            f.engagedTargetCityId && liberatedCityIds.includes(f.engagedTargetCityId)
+              ? { ...f, engagedTargetCityId: null, status: 'stationed' as const }
+              : f
+          );
+        }
+      }
+
+      // ===== 3. Cập nhật thành trì & kho =====
+      const updatedCities = cities.map(c => {
+        const back = returnedTroops.get(c.id) ?? 0;
+        if (liberatedCityIds.includes(c.id)) {
+          toastsToEmit.push({
+            type: 'success',
+            text: `🚩 GIẢI PHÓNG CỨ ĐIỂM: Quân Minh tại [${c.name}] đã bị tiêu diệt hoàn toàn! Nghĩa quân Lam Sơn tiếp quản ${c.name}!`,
+          });
           return {
             ...c,
-            troops: remainingTroops,
+            troops: 0,
+            faction: 'lam_son' as const,
+            population: c.population || {
+              idleLaborers: 60,
+              farmLaborers: 0,
+              forgeLaborers: 0,
+              combatTroops: 0,
+              swappedCombatants: 0,
+              unfitPopulation: 40,
+            },
           };
         }
-        return c;
+        return back > 0 && c.faction === 'ming' ? { ...c, troops: c.troops + back } : c;
       });
 
+      const nextSwords = prev.resources.swords + captured.swords;
+      const nextBows = prev.resources.bows + captured.bows;
+      const nextSpears = prev.resources.spears + captured.spears;
+
       return {
-        formations: updatedFormations,
+        formations,
         cities: updatedCities,
-        militaryNotices: newNotices,
+        activeFormationId: activeFormationIdReset ? null : prev.activeFormationId,
         resources: {
           ...prev.resources,
-          food: Math.max(0, Math.round(prev.resources.food - foodConsumedTotal + capturedFood)),
-          gold: prev.resources.gold + capturedGold,
+          food: Math.max(0, Math.round(prev.resources.food - foodConsumedTotal + captured.food)),
+          gold: prev.resources.gold + captured.gold,
           swords: nextSwords,
           bows: nextBows,
           spears: nextSpears,
@@ -1551,9 +1864,5 @@ export const createArmySlice: StateCreator<GameStore, [], [], ArmySlice> = (set,
       else if (t.type === 'warning') notify.warning(t.text);
       else notify.info(t.text);
     });
-
-    if (battleToTrigger) {
-      get().startBattle(battleToTrigger);
-    }
   },
 });

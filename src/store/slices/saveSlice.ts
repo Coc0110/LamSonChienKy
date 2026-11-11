@@ -1,6 +1,7 @@
 import type { StateCreator } from 'zustand';
 import type { GameStore } from './types';
-import type { General } from '../../types';
+import type { General, TacticalFormation } from '../../types';
+import { ensureFormationRosterAndLayers } from '../../utils/armyCompositionUtils';
 import { notify } from '../dialogStore';
 import { START_DAY, START_MONTH, START_YEAR, INITIAL_CITIES, INITIAL_CONNECTIONS, INITIAL_STRUCTURES } from '../../data/mapData';
 import { INITIAL_GENERALS } from '../../data/generalsData';
@@ -85,7 +86,7 @@ export const createSaveSlice: StateCreator<GameStore, [], [], SaveSlice> = (set,
               return savedG ? { ...initG, ...savedG } : initG;
             })
           : INITIAL_GENERALS,
-        formations: saveData.formations || [],
+        formations: ((saveData.formations || []) as TacticalFormation[]).map(ensureFormationRosterAndLayers),
         suspicion: saveData.suspicion ?? 15,
         bribeCount: saveData.bribeCount ?? 0,
         scoutMissions: saveData.scoutMissions || [],
