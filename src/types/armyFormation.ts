@@ -276,6 +276,49 @@ export interface TacticalPlacedUnit {
   morale: number;
 }
 
+export interface ArmyRosterCounts {
+  swordsman: number;
+  spearman: number;
+  archer: number;
+  cavalry: number;
+  elephant: number;
+  scout: number;
+  supply_cart: number;
+}
+
+export interface ArmyThreeLayersState {
+  frontlineHp: number;
+  frontlineMaxHp: number;
+  backlineHp: number;
+  backlineMaxHp: number;
+  flankHp: number;
+  flankMaxHp: number;
+}
+
+export type StratagemType =
+  | 'ambush_strike'
+  | 'fire_attack'
+  | 'rockfall_trap'
+  | 'taunt_lure'
+  | 'decoy_illusion'
+  | 'duel_snipe';
+
+export interface WorldCombatLog {
+  canh: number;
+  message: string;
+}
+
+export interface WorldCombatState {
+  targetFormationId: string;
+  attackDirection: 'front' | 'flank' | 'rear';
+  terrain: TerrainType;
+  combatWidth: number;
+  canhElapsed: number;
+  panickedCanhRemaining: number;
+  lastDamageDealt: number;
+  lastDamageTaken: number;
+  lastLogMessage: string;
+}
 export interface TacticalFormation {
   id: string;
   name: string;
@@ -313,4 +356,18 @@ export interface TacticalFormation {
   totalHorses: number;
   totalElephants: number;
   totalFoodCarried: number;
+  // --- Hệ thống chiến đấu liên tục trên bản đồ thế giới (3 tuyến) ---
+  faction?: 'lam_son' | 'ming';
+  roster?: ArmyRosterCounts;
+  layers?: ArmyThreeLayersState;
+  morale?: number;              // 0..100, mặc định 100
+  facingAngleDeg?: number;      // mặc định 0
+  isStealthed?: boolean;
+  isRouting?: boolean;
+  ambushShockApplied?: boolean;
+  preparedTrap?: 'fire' | 'rockfall' | null;
+  supplySourceCityId?: string | null;
+  isSupplyCut?: boolean;
+  armyRole?: 'main' | 'detachment' | 'ming_expedition' | 'ming_convoy';
+  combatState?: WorldCombatState | null;
 }
