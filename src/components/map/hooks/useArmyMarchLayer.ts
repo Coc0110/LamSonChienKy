@@ -110,16 +110,13 @@ export function useArmyMarchLayer({ mapInstance, armyLayerRef }: UseArmyMarchLay
       const idxAtCell = cellIndexMap.get(key) || 0;
       cellIndexMap.set(key, idxAtCell + 1);
 
-      // Nếu đạo quân đang ở trùng vị trí căn cứ hoặc có nhiều đạo quân cùng 1 ô, dịch nhẹ tọa độ hiển thị cờ
-      const isAtCity = cities.some(
-        c => Math.abs(c.x - pos.x) < 0.35 && Math.abs(c.y - pos.y) < 0.35
-      );
+      // Giữ tâm quân kỳ tại đúng ô/tọa độ thực; chỉ tách nhẹ khi có từ 2 đạo quân trở lên đứng trùng 1 ô
       let displayX = pos.x;
       let displayY = pos.y;
 
-      if (isAtCity || totalAtCell > 1) {
-        const angle = (-Math.PI / 4) + (idxAtCell * (Math.PI / 2.5));
-        const radius = isAtCity ? 0.65 : 0.35;
+      if (totalAtCell > 1) {
+        const angle = (idxAtCell / totalAtCell) * Math.PI * 2;
+        const radius = 0.16;
         displayX = pos.x + Math.cos(angle) * radius;
         displayY = pos.y + Math.sin(angle) * radius;
       }
@@ -340,7 +337,7 @@ export function useArmyMarchLayer({ mapInstance, armyLayerRef }: UseArmyMarchLay
         className: isMing ? 'ming-army-banner' : 'lam-son-army-banner',
         html: `
           <div style="
-            transform: translate(-50%, -92%);
+            transform: translate(-50%, -100%);
             display: flex;
             flex-direction: column;
             align-items: center;

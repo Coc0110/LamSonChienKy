@@ -21,7 +21,8 @@ export const TERRAIN_COMBAT_WIDTH: Record<TerrainType, number> = {
 };
 
 export const ENGAGEMENT_RADIUS_PCT = 1.25;
-const DAMAGE_SCALE = 0.4;
+const DAMAGE_SCALE = 0.12;
+const MAX_CANH_DAMAGE_RATIO = 0.45;
 const AMBUSH_DAMAGE_MULT = 2.2;
 const ROUT_PURSUIT_MULT = 1.4;
 const PURSUIT_CAPTURE_FRACTION = 0.15;
@@ -235,6 +236,7 @@ export function resolveWorldMapCombatTick(
     if (attacker.isStealthed) attacker.isStealthed = false;
 
     if (defenderWasRouting) damage *= ROUT_PURSUIT_MULT;
+    damage = Math.min(damage, Math.max(1, totalLayerMax(defender.layers)) * MAX_CANH_DAMAGE_RATIO);
 
     const before = totalLayerHp(defender.layers);
     applyDirectionalDamage(defender.layers, damage, direction);

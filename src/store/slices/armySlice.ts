@@ -1686,7 +1686,8 @@ export const createArmySlice: StateCreator<GameStore, [], [], ArmySlice> = (set,
         };
       });
 
-      if (spawned.length > 0) formations = [...formations, ...spawned.splice(0)];
+      const justSpawned: TacticalFormation[] = [];
+      if (spawned.length > 0) justSpawned.push(...spawned.splice(0));
 
       let activeFormationIdReset = false;
       const returnedTroops = new Map<string, number>();
@@ -1722,12 +1723,13 @@ export const createArmySlice: StateCreator<GameStore, [], [], ArmySlice> = (set,
           if (!city) continue;
           const hasLiveSortie =
             formations.some(m => m.faction === 'ming' && m.armyRole === 'ming_expedition' && m.cityId === city.id && m.totalTroops > 0) ||
-            spawned.some(m => m.cityId === city.id);
+            spawned.some(m => m.cityId === city.id) ||
+            justSpawned.some(m => m.cityId === city.id);
           if (!hasLiveSortie) deploy(city.id, { x: f.mapPosition.x, y: f.mapPosition.y }, getMingSortieSize(city));
         }
-        if (spawned.length > 0) formations = [...formations, ...spawned.splice(0)];
+        if (spawned.length > 0) justSpawned.push(...spawned.splice(0));
 
-        // 2d. Giao chiến liên tục
+        // 2d. Giao chiến liên tục (chỉ đánh với các đạo quân đã hiện diện trước nhịp xuất thành này)
         const getTerrainAtPos = (x: number, y: number) => getGridTerrainAt(x, y);
         const combatLogs: string[] = [];
         for (let i = 0; i < combatTicks; i++) {
@@ -1839,6 +1841,12 @@ export const createArmySlice: StateCreator<GameStore, [], [], ArmySlice> = (set,
         return back > 0 && c.faction === 'ming' ? { ...c, troops: c.troops + back } : c;
       });
 
+      if (justSpawned.length > 0) formations = [...formations, ...justSpawned];
+
+      // Khi có chiến sự ngoài đồng (xuất quân Minh hoặc giao chiến), tự động chuyển sang nhịp Canh Giờ (1 canh/giây)
+      const hasLiveCombat = formations.some(f => f.status === 'engaging' || !!f.combatState || f.faction === 'ming');
+      const switchToWarMode = hasLiveCombat && prev.timeMode === 'day';
+
       const nextSwords = prev.resources.swords + captured.swords;
       const nextBows = prev.resources.bows + captured.bows;
       const nextSpears = prev.resources.spears + captured.spears;
@@ -1847,6 +1855,9 @@ export const createArmySlice: StateCreator<GameStore, [], [], ArmySlice> = (set,
         formations,
         cities: updatedCities,
         activeFormationId: activeFormationIdReset ? null : prev.activeFormationId,
+        ...(switchToWarMode
+          ? { timeMode: 'hour' as const, previousActiveTimeMode: 'hour' as const, isWarMode: true }
+          : {}),
         resources: {
           ...prev.resources,
           food: Math.max(0, Math.round(prev.resources.food - foodConsumedTotal + captured.food)),
