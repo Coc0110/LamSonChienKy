@@ -53,6 +53,51 @@ export const deductWeaponsFromPool = (
   return { swords: takeSwords, bows: takeBows, spears: takeSpears };
 };
 
+export const TRAINING_WEAPON_WEAR_RATE = 0.1;
+
+export interface WeaponPoolCount {
+  swords: number;
+  bows: number;
+  spears: number;
+}
+
+export interface TrainingWeaponReturnResult extends WeaponPoolCount {
+  totalCheckedOut: number;
+  totalReturned: number;
+  totalWear: number;
+}
+
+/** Tính số binh khí hao mòn tối đa (~10%) khi hoàn tất thao luyện. */
+export const calculateTrainingWearCount = (checkedOut: number): number => {
+  const safeCount = Math.max(0, Math.floor(checkedOut));
+  return Math.floor(safeCount * TRAINING_WEAPON_WEAR_RATE);
+};
+
+/** Hoàn trả ~90% số binh khí tạm cấp cho đợt thao luyện, chỉ giữ lại phần hao mòn nhỏ (~10%). */
+export const calculateTrainingWeaponReturn = (
+  weaponsUsed?: Partial<WeaponPoolCount> | null
+): TrainingWeaponReturnResult => {
+  const usedSwords = Math.max(0, Math.floor(weaponsUsed?.swords ?? 0));
+  const usedBows = Math.max(0, Math.floor(weaponsUsed?.bows ?? 0));
+  const usedSpears = Math.max(0, Math.floor(weaponsUsed?.spears ?? 0));
+
+  const swords = usedSwords - calculateTrainingWearCount(usedSwords);
+  const bows = usedBows - calculateTrainingWearCount(usedBows);
+  const spears = usedSpears - calculateTrainingWearCount(usedSpears);
+
+  const totalCheckedOut = usedSwords + usedBows + usedSpears;
+  const totalReturned = swords + bows + spears;
+
+  return {
+    swords,
+    bows,
+    spears,
+    totalCheckedOut,
+    totalReturned,
+    totalWear: totalCheckedOut - totalReturned,
+  };
+};
+
 export const createMilitarySlice: StateCreator<GameStore, [], [], MilitarySlice> = (set, get) => ({
   resources: {
     troops: 70,           // 50 quân ở Lam Sơn (44 dự bị + 6 trong Tiên Phong Doanh) + 20 võ đinh ở Chí Linh

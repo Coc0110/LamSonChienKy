@@ -1331,7 +1331,7 @@ export const TacticalFormationModal: React.FC = React.memo(() => {
                   <div className="font-bold flex items-center gap-1 text-[#3a2010]">
                     <ChevronRight size={13} /> Quy tắc quân bị Lam Sơn:
                   </div>
-                  <p>&bull; Mỗi tráng phu thao luyện cần 1 vũ khí từ lò rèn đúc.</p>
+                  <p>&bull; Mỗi tráng phu thao luyện cần tạm cấp 1 binh khí từ kho; luyện xong hoàn trả phần lớn (~90%, chỉ hao mòn nhỏ).</p>
                   <p>&bull; Tướng có chỉ số Thống Lĩnh và Võ Nghệ càng cao thì thời gian thao luyện càng rút ngắn.</p>
                   <p>&bull; Sau khi luyện xong, nghĩa binh sẽ lập tức có mặt ở kho để nhặt-đặt vào sa bàn đại quân!</p>
                 </div>

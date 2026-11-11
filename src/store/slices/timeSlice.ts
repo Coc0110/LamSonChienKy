@@ -5,6 +5,7 @@ import { START_DAY, START_MONTH, START_YEAR } from '../../data/mapData';
 import type { MilitaryNotice, PendingRefugeeWave } from '../../types';
 import { notify } from '../dialogStore';
 import type { TimeSlice, GameStore } from './types';
+import { calculateTrainingWeaponReturn } from './militarySlice';
 
 export const getDaysInMonth = (month: number, year: number): number => {
   return new Date(year, month, 0).getDate();
@@ -128,6 +129,10 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
       // Trong Chế độ Chiến Sự: Mỗi canh giờ (1/12 ngày) trôi qua
       // Tiến bước đồng bộ cho nâng cấp doanh trại, thi công và thao luyện
       const deltaDayFraction = 1 / 12;
+      let trainedTroopsAdded = 0;
+      let returnedSwords = 0;
+      let returnedBows = 0;
+      let returnedSpears = 0;
       let citiesChanged = false;
       let structuresChanged = false;
 
@@ -164,14 +169,30 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
         if (c.training) {
           const nextDays = Math.max(0, Number((c.training.remainingDays - deltaDayFraction).toFixed(3)));
           if (nextDays <= 0) {
-            const { traineesCount } = c.training;
-            const pop = c.population ? { ...c.population, combatTroops: c.population.combatTroops + traineesCount } : c.population;
+            const { traineesCount, swappedCount = 0 } = c.training;
+            trainedTroopsAdded += traineesCount;
+            const weaponReturn = calculateTrainingWeaponReturn(c.training.weaponsUsed);
+            returnedSwords += weaponReturn.swords;
+            returnedBows += weaponReturn.bows;
+            returnedSpears += weaponReturn.spears;
+            const pop = c.population
+              ? {
+                  ...c.population,
+                  combatTroops: c.population.combatTroops + traineesCount,
+                  swappedCombatants: Math.max(0, (c.population.swappedCombatants || 0) - swappedCount),
+                }
+              : c.population;
+            c = { ...c, troops: c.troops + traineesCount };
             c = {
               ...c,
               population: pop,
               training: null,
             };
-            notify.success(`Đợt thao luyện ${traineesCount} nghĩa binh tại [${c.name}] đã hoàn tất!`);
+            const weaponSuffix =
+              weaponReturn.totalReturned > 0
+                ? ` (hoàn trả ${weaponReturn.totalReturned} binh khí${weaponReturn.totalWear > 0 ? `, hao mòn ${weaponReturn.totalWear}` : ''})`
+                : '';
+            notify.success(`Đợt thao luyện ${traineesCount} nghĩa binh tại [${c.name}] đã hoàn tất${weaponSuffix}!`);
           } else {
             c = {
               ...c,
@@ -207,6 +228,24 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
 
       set({
         canhHour: nextCanh,
+        ...((trainedTroopsAdded > 0 || returnedSwords > 0 || returnedBows > 0 || returnedSpears > 0)
+          ? {
+              resources: {
+                ...state.resources,
+                troops: state.resources.troops + trainedTroopsAdded,
+                swords: state.resources.swords + returnedSwords,
+                bows: state.resources.bows + returnedBows,
+                spears: state.resources.spears + returnedSpears,
+                weapons:
+                  state.resources.swords +
+                  returnedSwords +
+                  state.resources.bows +
+                  returnedBows +
+                  state.resources.spears +
+                  returnedSpears,
+              },
+            }
+          : {}),
         cities: citiesChanged ? updatedCities : state.cities,
         structures: structuresChanged ? updatedStructures : state.structures,
       });
@@ -268,6 +307,9 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
     // 1. Cập nhật tiến độ thao luyện võ nghệ
     let citiesChanged = false;
     let trainedTroopsAdded = 0;
+    let returnedSwords = 0;
+    let returnedBows = 0;
+    let returnedSpears = 0;
     
     const updatedCities = state.cities.map(city => {
       if (!city.population) return city;
@@ -317,6 +359,10 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
         const newRemaining = training.remainingDays - 1;
         if (newRemaining <= 0) {
           const { traineesCount, swappedCount = 0 } = training;
+          const weaponReturn = calculateTrainingWeaponReturn(training.weaponsUsed);
+          returnedSwords += weaponReturn.swords;
+          returnedBows += weaponReturn.bows;
+          returnedSpears += weaponReturn.spears;
           trainedTroopsAdded += traineesCount;
 
           // Thao luyện hoàn tất: Tráng phu tốt nghiệp thành nghĩa binh mới
@@ -770,12 +816,13 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
 
     const foodConsumption = Math.max(5, totalPopulation * 0.035);
     let newFood = Math.max(0, Math.round(state.resources.food + seasonalFoodHarvested + foragedFoodDaily + raidFoodDaily - foodConsumption));
-    const newSwords = state.resources.swords + swordsProduced + Math.ceil(raidWeaponsDaily * 0.4);
-    const newBows = state.resources.bows + bowsProduced + Math.floor(raidWeaponsDaily * 0.3);
+    const newSwords = state.resources.swords + swordsProduced + Math.ceil(raidWeaponsDaily * 0.4) + returnedSwords;
+    const newBows = state.resources.bows + bowsProduced + Math.floor(raidWeaponsDaily * 0.3) + returnedBows;
     const newSpears =
       state.resources.spears +
       spearsProduced +
-      (raidWeaponsDaily - Math.ceil(raidWeaponsDaily * 0.4) - Math.floor(raidWeaponsDaily * 0.3));
+      (raidWeaponsDaily - Math.ceil(raidWeaponsDaily * 0.4) - Math.floor(raidWeaponsDaily * 0.3)) +
+      returnedSpears;
     let newWeapons = newSwords + newBows + newSpears;
     const newClothes = state.resources.clothes + armorProduced;
     let newGold = state.resources.gold + refundedQueueGold;

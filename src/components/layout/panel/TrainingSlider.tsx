@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import { notify } from '../../../store/dialogStore';
-import { calculateTrainingDays } from '../../../store/slices/militarySlice';
+import { calculateTrainingDays, calculateTrainingWearCount } from '../../../store/slices/militarySlice';
 import type { CityPopulation, General } from '../../../types';
 
 interface TrainingSliderProps {
@@ -181,7 +181,7 @@ export const TrainingSlider: React.FC<TrainingSliderProps> = ({
         )}
 
         <div className="text-xs text-[#6b4423] pt-1 border-t border-[#8c6b44]/20 flex justify-between">
-          <span>Khí giới tiêu hao: <strong className={isWeaponShortage ? 'text-[#8c2d19]' : 'text-[#261304]'}>{trainCount} món</strong> (Kho hiện có: {weaponsAvailable})</span>
+          <span>Binh khí cần cấp (tạm xuất): <strong className={isWeaponShortage ? 'text-[#8c2d19]' : 'text-[#261304]'}>{trainCount} món</strong> (Kho hiện có: {weaponsAvailable}) — Hoàn trả khi luyện xong (chỉ hao mòn tối đa ~{calculateTrainingWearCount(trainCount)} món)</span>
         </div>
       </div>
 
