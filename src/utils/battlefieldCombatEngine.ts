@@ -3,6 +3,18 @@ import type {
   BattlefieldUnit, 
   BattlefieldLogEntry 
 } from '../types/battlefield';
+import {
+  getUnitDistance,
+  computeFlowField,
+  computeFactionAnchor,
+  initializeFormationOffsets,
+  getRoleTacticalGoal,
+  findLocalAStarStep,
+  selectBestAttackTarget,
+} from './battlefieldAI';
+
+export { getUnitDistance };
+export const getDistance = getUnitDistance;
 
 // Bảng phạm vi tấn công theo binh chủng
 export const UNIT_ATTACK_RANGE: Record<BattlefieldUnit['unitTypeId'], number> = {
@@ -15,27 +27,6 @@ export const UNIT_ATTACK_RANGE: Record<BattlefieldUnit['unitTypeId'], number> = 
   scout: 1,
   supply_cart: 0,
 };
-
-export function getUnitDistance(
-  u1: { col: number; row: number; spanCols?: number; spanRows?: number },
-  u2: { col: number; row: number; spanCols?: number; spanRows?: number }
-): number {
-  const u1MinC = u1.col;
-  const u1MaxC = u1.col + (u1.spanCols || 1) - 1;
-  const u1MinR = u1.row;
-  const u1MaxR = u1.row + (u1.spanRows || 1) - 1;
-
-  const u2MinC = u2.col;
-  const u2MaxC = u2.col + (u2.spanCols || 1) - 1;
-  const u2MinR = u2.row;
-  const u2MaxR = u2.row + (u2.spanRows || 1) - 1;
-
-  const dx = Math.max(0, Math.max(u1MinC - u2MaxC, u2MinC - u1MaxC));
-  const dy = Math.max(0, Math.max(u1MinR - u2MaxR, u2MinR - u1MaxR));
-  return Math.max(dx, dy);
-}
-
-export const getDistance = getUnitDistance;
 
 export function resolveBattlefieldTick(prevState: BattlefieldState): BattlefieldState {
   if (prevState.phase !== 'in_progress') {
@@ -102,26 +93,47 @@ export function resolveBattlefieldTick(prevState: BattlefieldState): Battlefield
     }
   };
 
-  // 1. DI CHUYỂN ĐƠN VỊ 2D THEO AI HƯỚNG TỚI KẺ ĐỊCH GẦN NHẤT
+  // 1. TÍNH TRƯỜNG DÒNG CHẢY (FLOW FIELD), NEO ĐỘI HÌNH & DI CHUYỂN AI ĐA TẦNG
   // QUY TẮC ĐIỀU HÀNH HÀNG NGŨ CHIẾN THUẬT:
   // - Quân Lam Sơn tiến sang Đông (+X): Đơn vị cột lớn hơn (tiền tuyến) đi trước để nhường ô cho hàng sau
   // - Quân Minh tiến sang Tây (-X): Đơn vị cột nhỏ hơn (tiền tuyến) đi trước để nhường ô cho hàng sau
-  const movingLamSon = units
-    .filter(u => u.faction === 'lam_son' && u.status !== 'eliminated')
-    .sort((a, b) => b.col - a.col);
+  const lamSonLivingInit = units.filter(u => u.faction === 'lam_son' && u.status !== 'eliminated');
+  const mingLivingInit = units.filter(u => u.faction === 'ming' && u.status !== 'eliminated');
 
-  const movingMing = units
-    .filter(u => u.faction === 'ming' && u.status !== 'eliminated')
-    .sort((a, b) => a.col - b.col);
+  const lamSonAnchor = prevState.lamSonAnchor ?? computeFactionAnchor(units, 'lam_son');
+  const mingAnchor = prevState.mingAnchor ?? computeFactionAnchor(units, 'ming');
+  initializeFormationOffsets(units, lamSonAnchor, mingAnchor);
 
+  const lamSonFlow = computeFlowField(grid, mingLivingInit, lamSonLivingInit);
+  const mingFlow = computeFlowField(grid, lamSonLivingInit, mingLivingInit);
+
+  let globalMinFactionDist = Infinity;
+  for (const ls of lamSonLivingInit) {
+    for (const mg of mingLivingInit) {
+      const d = getUnitDistance(ls, mg);
+      if (d < globalMinFactionDist) globalMinFactionDist = d;
+      if (globalMinFactionDist <= 10) break;
+    }
+    if (globalMinFactionDist <= 10) break;
+  }
+  const inMarchingPhase = globalMinFactionDist > 10;
+
+  const movingLamSon = [...lamSonLivingInit].sort((a, b) => b.col - a.col);
+  const movingMing = [...mingLivingInit].sort((a, b) => a.col - b.col);
   const orderedMovingUnits = [...movingLamSon, ...movingMing];
+
+  const moveUnitTo = (u: BattlefieldUnit, nextC: number, nextR: number) => {
+    removeUnitOccupied(u);
+    u.col = nextC;
+    u.row = nextR;
+    addUnitOccupied(u);
+  };
 
   for (const unit of orderedMovingUnits) {
     if (unit.status === 'eliminated') continue;
 
-    const enemies = units.filter(
-      e => e.faction !== unit.faction && e.status !== 'eliminated' && e.soldiersCount > 0
-    );
+    const enemies = unit.faction === 'lam_son' ? mingLivingInit : lamSonLivingInit;
+    const friendlies = unit.faction === 'lam_son' ? lamSonLivingInit : mingLivingInit;
 
     // Nếu không còn kẻ địch sống, không cần di chuyển
     if (enemies.length === 0) continue;
@@ -131,9 +143,7 @@ export function resolveBattlefieldTick(prevState: BattlefieldState): Battlefield
       const escapeDir = unit.faction === 'lam_son' ? -1 : 1;
       const stepC = unit.col + escapeDir;
       if (canUnitMoveTo(unit, stepC, unit.row)) {
-        removeUnitOccupied(unit);
-        unit.col = stepC;
-        addUnitOccupied(unit);
+        moveUnitTo(unit, stepC, unit.row);
       }
       continue;
     }
@@ -155,119 +165,243 @@ export function resolveBattlefieldTick(prevState: BattlefieldState): Battlefield
     const isGeneral = unit.unitTypeId === 'general';
     const isArcher = unit.unitTypeId === 'archer';
     const isSupply = unit.unitTypeId === 'supply_cart';
-    const isMelee = unit.unitTypeId === 'swordsman' || unit.unitTypeId === 'spearman' || unit.unitTypeId === 'cavalry' || unit.unitTypeId === 'elephant' || isGeneral;
+    const isMelee =
+      unit.unitTypeId === 'swordsman' ||
+      unit.unitTypeId === 'spearman' ||
+      unit.unitTypeId === 'cavalry' ||
+      unit.unitTypeId === 'elephant' ||
+      isGeneral;
 
-    const effectiveRange = isArcher && (grid.tiles[unit.row]?.[unit.col]?.elevation || 0) > 0 
-      ? 9 
+    const effectiveRange = isArcher && (grid.tiles[unit.row]?.[unit.col]?.elevation || 0) > 0
+      ? 9
       : UNIT_ATTACK_RANGE[unit.unitTypeId];
 
-    // Cự ly lý tưởng: Cung thủ giữ khoảng cách 7-8 ô để xả tên ngoài tầm cận chiến; Tướng 3, Xe lương 9, Giáo 2, Đao/Kỵ/Tượng 1
+    // Cự ly lý tưởng: Cung thủ giữ 7-8 ô; Tướng 3, Xe lương 9, Giáo 2, Đao/Kỵ/Tượng 1
     const desiredRange = isArcher ? 7 : isGeneral ? 3 : isSupply ? 9 : (unit.unitTypeId === 'spearman' ? 2 : 1);
 
-    // Nếu đã ở cự ly chiến đấu lý tưởng -> Giữ vị trí bắn tên / chỉ huy, không lao vào cận chiến
+    // Nếu đã ở cự ly chiến đấu lý tưởng -> Giữ vị trí bắn tên / chỉ huy
     if (minDist <= desiredRange) {
-      // Riêng cung thủ: Nếu địch cận chiến áp sát trong cự ly <= 2 ô -> Chủ động lùi 1 bước nếu có ô trống phía sau
+      unit.stuckTurns = 0;
+      // Riêng cung thủ: Nếu địch áp sát <= 2 ô -> Chủ động lùi 1 bước (thẳng hoặc chéo)
       if (isArcher && minDist <= 2) {
         const retreatCol = unit.col + (unit.faction === 'lam_son' ? -1 : 1);
-        if (canUnitMoveTo(unit, retreatCol, unit.row)) {
-          removeUnitOccupied(unit);
-          unit.col = retreatCol;
-          addUnitOccupied(unit);
+        const retreatMoves = [
+          { c: retreatCol, r: unit.row },
+          { c: retreatCol, r: unit.row - 1 },
+          { c: retreatCol, r: unit.row + 1 },
+        ];
+        for (const rm of retreatMoves) {
+          if (canUnitMoveTo(unit, rm.c, rm.r)) {
+            moveUnitTo(unit, rm.c, rm.r);
+            break;
+          }
         }
       }
       continue;
     }
 
+    // Nếu từng giao chiến ('fighting') nhưng mục tiêu trong tầm đánh không còn (đã tiêu diệt xong hoặc bị bắn tỉa từ xa) -> tiếp tục hành quân
+    if (unit.status === 'fighting' && minDist > Math.max(desiredRange, effectiveRange)) {
+      unit.status = 'advancing';
+    }
+
     // Kiểm tra mệnh lệnh tham chiến:
-    // - Khi 'advancing': Tất cả binh chủng chiến đấu (Cận chiến, Cung thủ, Tướng) đều tiến về cự ly lý tưởng
-    // - Khi 'holding': Chỉ chủ động phản kích khi kẻ địch áp sát trận địa
     let shouldEngage = false;
-    if (unit.status === 'advancing') {
+    if (unit.status === 'advancing' || unit.status === 'fighting') {
       shouldEngage = true;
     } else if (unit.status === 'holding') {
-      if (isMelee && minDist <= 8) shouldEngage = true;
+      if (isMelee && (minDist <= 9 || (unit.lastDamageTaken ?? 0) > 0)) shouldEngage = true;
       if (isArcher && minDist <= effectiveRange + 2) shouldEngage = true;
       if (isGeneral && minDist <= 3) shouldEngage = true;
     }
 
     if (!shouldEngage) {
+      unit.stuckTurns = 0;
       continue;
     }
 
-    // THUẬT TOÁN ĐIỀU HƯỚNG CHIẾN THUẬT (Tiến công & Bọc sườn bao vây - Flanking & Fanning out)
-    const dx = closestEnemy.col - unit.col;
-    const dy = closestEnemy.row - unit.row;
+    const activeFlow = unit.faction === 'lam_son' ? lamSonFlow : mingFlow;
+    const activeAnchor = unit.faction === 'lam_son' ? lamSonAnchor : mingAnchor;
 
-    const stepCol = unit.col + (dx !== 0 ? Math.sign(dx) : (unit.faction === 'lam_son' ? 1 : -1));
-    const stepRow = unit.row + (dy !== 0 ? Math.sign(dy) : 0);
+    // PHƯƠNG ÁN 1 + 3: Mục tiêu chiến thuật theo binh chủng & giữ slot đội hình
+    let { targetCol, targetRow } = getRoleTacticalGoal(
+      unit,
+      closestEnemy,
+      minDist,
+      enemies,
+      friendlies,
+      activeAnchor,
+      inMarchingPhase
+    );
 
-    const candidateMoves: { c: number; r: number }[] = [];
-
-    // Nếu khoảng cách dọc lớn hơn, ưu tiên căn chỉnh hàng Y trước
-    if (Math.abs(dy) > Math.abs(dx)) {
-      candidateMoves.push({ c: unit.col, r: stepRow });
-      candidateMoves.push({ c: stepCol, r: stepRow });
-      candidateMoves.push({ c: stepCol, r: unit.row });
-    } else {
-      // Ưu tiên tiến trực diện
-      candidateMoves.push({ c: stepCol, r: unit.row });
-      if (dy !== 0) {
-        candidateMoves.push({ c: stepCol, r: stepRow });
-        candidateMoves.push({ c: unit.col, r: stepRow });
+    // Chống kẹt hoặc tụt hậu do neo đội hình bị đồng đội đứng yên kéo lại
+    if (unit.unitTypeId !== 'general') {
+      const wrongWay =
+        (unit.faction === 'lam_son' && targetCol < unit.col && closestEnemy.col > unit.col) ||
+        (unit.faction === 'ming' && targetCol > unit.col && closestEnemy.col < unit.col);
+      if (wrongWay || (unit.stuckTurns || 0) >= 2) {
+        targetCol = closestEnemy.col;
+        targetRow = closestEnemy.row;
       }
     }
 
-    // Cơ chế Bọc Sườn Chiến Thuật (Flanking & Fanning out):
-    // Khi đường tiến trực diện bị tắc bởi hàng ngũ đồng đội, quân lính chủ động lách sườn sang hàng trên/dưới (row ± 1)
-    // để mở rộng mặt trận hình cánh cung bao vây đối phương, loại bỏ hoàn toàn cảm giác ùn ứ một hàng "cứng nhắc"
-    const flankRows = (unit.row % 2 === 0) 
-      ? [unit.row + 1, unit.row - 1] 
-      : [unit.row - 1, unit.row + 1];
+    const dx = targetCol - unit.col;
+    const dy = targetRow - unit.row;
+    const preferCol = unit.col + (dx !== 0 ? Math.sign(dx) : (dy === 0 ? (unit.faction === 'lam_son' ? 1 : -1) : 0));
+    const preferRow = unit.row + (dy !== 0 ? Math.sign(dy) : 0);
 
-    for (const fRow of flankRows) {
-      if (fRow >= 0 && fRow < grid.rows) {
-        candidateMoves.push({ c: stepCol, r: fRow });
-        candidateMoves.push({ c: unit.col, r: fRow });
+    const currFlow = activeFlow[unit.row * grid.cols + unit.col] ?? 1e9;
+
+    // Xây dựng danh sách 8 bước láng giềng sắp xếp theo Flow Field + Hướng Mục Tiêu
+    const scoredNeighbors: { c: number; r: number; score: number }[] = [];
+    for (let dc = -1; dc <= 1; dc++) {
+      for (let dr = -1; dr <= 1; dr++) {
+        if (dc === 0 && dr === 0) continue;
+        const nc = unit.col + dc;
+        const nr = unit.row + dr;
+        if (nc < 0 || nc >= grid.cols || nr < 0 || nr >= grid.rows) continue;
+
+        const nFlow = activeFlow[nr * grid.cols + nc];
+        if (nFlow >= 1e8) continue;
+
+        const distGoal = Math.hypot(targetCol - nc, targetRow - nr);
+        const stepBias = dc !== 0 && dr !== 0 ? 0.08 : 0;
+        scoredNeighbors.push({
+          c: nc,
+          r: nr,
+          score: nFlow + distGoal * 0.35 + stepBias,
+        });
+      }
+    }
+    scoredNeighbors.sort((a, b) => a.score - b.score);
+
+    const candidateMoves: { c: number; r: number }[] = [];
+    // Ưu tiên bước đi trực diện nếu nó thuận chiều Flow Field (tránh lao vào hẻm núi cụt)
+    const preferFlow =
+      preferRow >= 0 && preferRow < grid.rows && preferCol >= 0 && preferCol < grid.cols
+        ? activeFlow[preferRow * grid.cols + preferCol]
+        : 1e9;
+    if (preferFlow < 1e8 && preferFlow <= currFlow + 0.35) {
+      candidateMoves.push({ c: preferCol, r: preferRow });
+    }
+    for (const sn of scoredNeighbors) {
+      if (sn.c !== preferCol || sn.r !== preferRow) {
+        candidateMoves.push({ c: sn.c, r: sn.r });
       }
     }
 
     let moved = false;
     for (const move of candidateMoves) {
       if (canUnitMoveTo(unit, move.c, move.r)) {
-        removeUnitOccupied(unit);
-        unit.col = move.c;
-        unit.row = move.r;
-        addUnitOccupied(unit);
+        moveUnitTo(unit, move.c, move.r);
         moved = true;
         break;
       }
     }
 
-    // Cơ chế Đột Phá Hàng Ngũ (Rank Passing / Swapping):
-    // Nếu quân cận chiến (1x1) muốn tiến lên giáp lá cà nhưng bị cản bởi
-    // đồng đội Cung thủ (1x1) ở ô phía trước -> Cho phép hoán vị tiến lên trước
-    if (!moved && isMelee && (unit.spanCols || 1) === 1 && (unit.spanRows || 1) === 1) {
-      const stepForwardCol = unit.col + (unit.faction === 'lam_son' ? 1 : -1);
-      const friendlyAhead = units.find(
-        f => f.col === stepForwardCol && f.row === unit.row && f.status !== 'eliminated' && f.faction === unit.faction &&
-             (f.spanCols || 1) === 1 && (f.spanRows || 1) === 1
+    // PHƯƠNG ÁN 4A: NHƯỜNG ĐƯỜNG HỢP TÁC (COOPERATIVE STEP-ASIDE & RANK PASSING)
+    if (!moved) {
+      const sCols = unit.spanCols || 1;
+      const sRows = unit.spanRows || 1;
+      const blocker = friendlies.find(f => {
+        if (f.id === unit.id || f.status === 'eliminated') return false;
+        const fCols = f.spanCols || 1;
+        const fRows = f.spanRows || 1;
+        return !(
+          f.col + fCols <= preferCol ||
+          preferCol + sCols <= f.col ||
+          f.row + fRows <= preferRow ||
+          preferRow + sRows <= f.row
+        );
+      });
+
+      if (blocker) {
+        const canYield =
+          blocker.status === 'holding' ||
+          blocker.unitTypeId === 'archer' ||
+          blocker.unitTypeId === 'supply_cart' ||
+          blocker.unitTypeId === 'general';
+
+        if (canYield) {
+          const origBC = blocker.col;
+          const origBR = blocker.row;
+          const sideDirs = blocker.row % 2 === 0
+            ? [
+                { c: origBC, r: origBR - 1 },
+                { c: origBC, r: origBR + 1 },
+                { c: origBC + (blocker.faction === 'lam_son' ? -1 : 1), r: origBR - 1 },
+                { c: origBC + (blocker.faction === 'lam_son' ? -1 : 1), r: origBR + 1 },
+              ]
+            : [
+                { c: origBC, r: origBR + 1 },
+                { c: origBC, r: origBR - 1 },
+                { c: origBC + (blocker.faction === 'lam_son' ? -1 : 1), r: origBR + 1 },
+                { c: origBC + (blocker.faction === 'lam_son' ? -1 : 1), r: origBR - 1 },
+              ];
+          for (const sd of sideDirs) {
+            if (canUnitMoveTo(blocker, sd.c, sd.r)) {
+              moveUnitTo(blocker, sd.c, sd.r);
+              if (canUnitMoveTo(unit, preferCol, preferRow)) {
+                moveUnitTo(unit, preferCol, preferRow);
+                moved = true;
+                break;
+              } else {
+                moveUnitTo(blocker, origBC, origBR);
+              }
+            }
+          }
+        }
+
+        // Hoán vị 1x1 (Rank Passing) nếu đồng đội 1x1 là cung thủ / xe lương ở trước mặt
+        if (
+          !moved &&
+          isMelee &&
+          sCols === 1 &&
+          sRows === 1 &&
+          (blocker.spanCols || 1) === 1 &&
+          (blocker.spanRows || 1) === 1 &&
+          (blocker.unitTypeId === 'archer' || blocker.unitTypeId === 'supply_cart')
+        ) {
+          removeUnitOccupied(unit);
+          removeUnitOccupied(blocker);
+
+          const tempCol = unit.col;
+          const tempRow = unit.row;
+          unit.col = blocker.col;
+          unit.row = blocker.row;
+          blocker.col = tempCol;
+          blocker.row = tempRow;
+
+          addUnitOccupied(unit);
+          addUnitOccupied(blocker);
+          moved = true;
+        }
+      }
+    }
+
+    // PHƯƠNG ÁN 4B: TÌM ĐƯỜNG CỤC BỘ (BOUNDED LOCAL A*) KHI ĐƯỜNG BỊ CHẶN CỨNG
+    if (!moved) {
+      const aStarStep = findLocalAStarStep(
+        unit,
+        targetCol,
+        targetRow,
+        activeFlow,
+        grid,
+        canUnitMoveTo
       );
-      if (friendlyAhead && (friendlyAhead.unitTypeId === 'archer' || friendlyAhead.unitTypeId === 'supply_cart')) {
-        removeUnitOccupied(unit);
-        removeUnitOccupied(friendlyAhead);
-
-        const tempCol = unit.col;
-        unit.col = friendlyAhead.col;
-        friendlyAhead.col = tempCol;
-
-        addUnitOccupied(unit);
-        addUnitOccupied(friendlyAhead);
+      if (aStarStep) {
+        moveUnitTo(unit, aStarStep.c, aStarStep.r);
         moved = true;
       }
     }
+
+    unit.stuckTurns = moved ? 0 : (unit.stuckTurns || 0) + 1;
   }
 
   // 2. TÍNH TOÁN TẤN CÔNG & GIAO TRANH
+  for (const u of units) {
+    u.lastDamageTaken = 0;
+  }
   let roundLamSonCasualties = 0;
   let roundMingCasualties = 0;
 
@@ -288,16 +422,8 @@ export function resolveBattlefieldTick(prevState: BattlefieldState): Battlefield
       e => e.faction !== attacker.faction && e.status !== 'eliminated' && e.soldiersCount > 0
     );
 
-    let closestEnemy: BattlefieldUnit | null = null;
-    let minDist = Infinity;
-
-    for (const enemy of enemies) {
-      const dist = getDistance(attacker, enemy);
-      if (dist <= effectiveRange && dist < minDist) {
-        minDist = dist;
-        closestEnemy = enemy;
-      }
-    }
+    const enemiesInRange = enemies.filter(e => getUnitDistance(attacker, e) <= effectiveRange);
+    const closestEnemy = selectBestAttackTarget(attacker, enemiesInRange);
 
     if (!closestEnemy) continue;
 
@@ -391,7 +517,10 @@ export function resolveBattlefieldTick(prevState: BattlefieldState): Battlefield
         message: `Toán ${closestEnemy.unitTypeId} (Quân Minh) sĩ khí suy sụp, đã bắt đầu vỡ trận tháo lui!`,
         actorFaction: 'ming',
       });
-    } else if (closestEnemy.status !== 'routing') {
+    } else if (
+      closestEnemy.status !== 'routing' &&
+      getUnitDistance(attacker, closestEnemy) <= Math.max(2, UNIT_ATTACK_RANGE[closestEnemy.unitTypeId])
+    ) {
       closestEnemy.status = 'fighting';
     }
   }
@@ -437,11 +566,16 @@ export function resolveBattlefieldTick(prevState: BattlefieldState): Battlefield
     });
   }
 
+  const nextLamSonAnchor = computeFactionAnchor(units, 'lam_son');
+  const nextMingAnchor = computeFactionAnchor(units, 'ming');
+
   return {
     ...prevState,
     turn: nextTurn,
     phase: nextPhase,
     units,
+    lamSonAnchor: nextLamSonAnchor,
+    mingAnchor: nextMingAnchor,
     lamSonMorale: newLamSonMorale,
     mingMorale: newMingMorale,
     casualties: {

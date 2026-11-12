@@ -97,11 +97,11 @@ useGameStore.setState(s => ({
       roster: { swordsman: 2, spearman: 2, archer: 1, cavalry: 0, elephant: 0, scout: 0, supply_cart: 1 },
       layers: { frontlineHp: 270, frontlineMaxHp: 270, backlineHp: 90, backlineMaxHp: 90, flankHp: 0, flankMaxHp: 0 },
       totalTroops: 6,
-      mapPosition: { x: 60.2, y: 48.7, col: 481, row: 512 },
+      mapPosition: { x: 60.2, y: 49.4, col: 481, row: 519 },
       marchOrder: {
         cells: [
-          { col: 480, row: 512, x: 60.06, y: 48.7, terrain: 'plains' as const, moveCostDays: 0, cumulativeDays: 0, foodCost: 0 },
-          { col: 481, row: 512, x: 60.2, y: 48.7, terrain: 'plains' as const, moveCostDays: 0.05, cumulativeDays: 0.05, foodCost: 1 },
+          { col: 480, row: 519, x: 60.06, y: 49.4, terrain: 'plains' as const, moveCostDays: 0, cumulativeDays: 0, foodCost: 0 },
+          { col: 481, row: 519, x: 60.2, y: 49.4, terrain: 'plains' as const, moveCostDays: 0.05, cumulativeDays: 0.05, foodCost: 1 },
         ],
         currentCellIndex: 0,
         cellProgress: 0,
@@ -116,7 +116,7 @@ useGameStore.setState(s => ({
 useGameStore.getState().stepArmies(0.1);
 const afterRaidArrive = useGameStore.getState();
 const lsAtRaid = afterRaidArrive.formations.find(f => f.id === raidFormId);
-const mingSortie = afterRaidArrive.formations.find(f => f.faction === 'ming' && f.cityId === 'yen_dinh');
+const mingSortie = afterRaidArrive.formations.find(f => f.faction === 'ming' && f.cityId === 'da_cang');
 assert(Boolean(lsAtRaid) && lsAtRaid!.totalTroops > 0 && lsAtRaid!.status === 'engaging', 'Lam Son formation must stay alive and engaging on Ming sortie spawn tick');
 assert(Boolean(mingSortie) && mingSortie!.totalTroops > 0, 'Ming sortie must spawn on the map');
 assert(afterRaidArrive.isWarMode === true && afterRaidArrive.timeMode === 'hour', 'Raid clash must auto-switch to War Mode (Canh giờ)');

@@ -56,25 +56,34 @@ function createArcherGeometry(): THREE.BufferGeometry {
 }
 
 function createCavalryGeometry(): THREE.BufferGeometry {
-  const base = new THREE.CylinderGeometry(0.42, 0.46, 0.12, 14); base.scale(0.9, 1, 1.8);
-  const horseBody = new THREE.CylinderGeometry(0.18, 0.22, 0.72, 8); horseBody.rotateX(Math.PI / 2); horseBody.translate(0, 0.45, 0);
-  const neck = new THREE.CylinderGeometry(0.1, 0.14, 0.42, 6); neck.rotateX(-Math.PI / 4); neck.translate(0, 0.65, 0.3);
-  const head = new THREE.BoxGeometry(0.12, 0.16, 0.25); head.translate(0, 0.8, 0.45);
-  const rider = new THREE.CylinderGeometry(0.12, 0.14, 0.4, 8); rider.translate(0, 0.72, -0.05);
-  const helm = new THREE.SphereGeometry(0.1, 8, 8); helm.translate(0, 0.98, -0.05);
-  const lance = new THREE.CylinderGeometry(0.02, 0.02, 1.2, 6); lance.rotateX(Math.PI / 2.8); lance.translate(0.22, 0.85, 0.35);
-  return BufferGeometryUtils.mergeGeometries([base, horseBody, neck, head, rider, helm, lance], true) || base;
+  const base = new THREE.CylinderGeometry(0.42, 0.46, 0.12, 14); base.scale(0.95, 1, 2.05);
+  const horseBody = new THREE.CylinderGeometry(0.2, 0.24, 1.15, 8); horseBody.rotateX(Math.PI / 2); horseBody.translate(0, 0.5, 0);
+  const legFL = new THREE.CylinderGeometry(0.045, 0.055, 0.45, 6); legFL.translate(-0.12, 0.22, 0.42);
+  const legFR = new THREE.CylinderGeometry(0.045, 0.055, 0.45, 6); legFR.translate(0.12, 0.22, 0.42);
+  const legBL = new THREE.CylinderGeometry(0.045, 0.055, 0.45, 6); legBL.translate(-0.12, 0.22, -0.42);
+  const legBR = new THREE.CylinderGeometry(0.045, 0.055, 0.45, 6); legBR.translate(0.12, 0.22, -0.42);
+  const neck = new THREE.CylinderGeometry(0.11, 0.16, 0.48, 6); neck.rotateX(-Math.PI / 4); neck.translate(0, 0.72, 0.52);
+  const head = new THREE.BoxGeometry(0.14, 0.18, 0.32); head.translate(0, 0.9, 0.72);
+  const rider = new THREE.CylinderGeometry(0.13, 0.15, 0.45, 8); rider.translate(0, 0.82, -0.05);
+  const helm = new THREE.SphereGeometry(0.11, 8, 8); helm.translate(0, 1.1, -0.05);
+  const lance = new THREE.CylinderGeometry(0.025, 0.025, 1.5, 6); lance.rotateX(Math.PI / 2.6); lance.translate(0.24, 0.92, 0.55);
+  return BufferGeometryUtils.mergeGeometries([base, horseBody, legFL, legFR, legBL, legBR, neck, head, rider, helm, lance], true) || base;
 }
 
 function createElephantGeometry(): THREE.BufferGeometry {
-  const base = new THREE.CylinderGeometry(0.88, 0.95, 0.14, 16);
-  const body = new THREE.SphereGeometry(0.55, 10, 8); body.scale(1.1, 0.9, 1.4); body.translate(0, 0.7, 0);
-  const head = new THREE.SphereGeometry(0.32, 8, 6); head.translate(0, 0.9, 0.65);
-  const trunk = new THREE.CylinderGeometry(0.08, 0.05, 0.5, 6); trunk.rotateX(-Math.PI / 3); trunk.translate(0, 0.65, 0.92);
-  const leftTusk = new THREE.ConeGeometry(0.045, 0.45, 6); leftTusk.rotateX(Math.PI / 3); leftTusk.translate(-0.16, 0.72, 0.92);
-  const rightTusk = new THREE.ConeGeometry(0.045, 0.45, 6); rightTusk.rotateX(Math.PI / 3); rightTusk.translate(0.16, 0.72, 0.92);
-  const howdah = new THREE.BoxGeometry(0.68, 0.42, 0.82); howdah.translate(0, 1.35, -0.05);
-  return BufferGeometryUtils.mergeGeometries([base, body, head, trunk, leftTusk, rightTusk, howdah], true) || base;
+  const base = new THREE.CylinderGeometry(0.95, 1.02, 0.16, 18); base.scale(0.95, 1, 1.3);
+  const body = new THREE.SphereGeometry(0.68, 12, 10); body.scale(1.1, 0.95, 1.55); body.translate(0, 0.82, 0);
+  const legFL = new THREE.CylinderGeometry(0.14, 0.16, 0.62, 8); legFL.translate(-0.36, 0.31, 0.52);
+  const legFR = new THREE.CylinderGeometry(0.14, 0.16, 0.62, 8); legFR.translate(0.36, 0.31, 0.52);
+  const legBL = new THREE.CylinderGeometry(0.14, 0.16, 0.62, 8); legBL.translate(-0.36, 0.31, -0.52);
+  const legBR = new THREE.CylinderGeometry(0.14, 0.16, 0.62, 8); legBR.translate(0.36, 0.31, -0.52);
+  const head = new THREE.SphereGeometry(0.38, 10, 8); head.translate(0, 1.05, 0.85);
+  const trunk = new THREE.CylinderGeometry(0.09, 0.055, 0.65, 6); trunk.rotateX(-Math.PI / 3); trunk.translate(0, 0.72, 1.18);
+  const leftTusk = new THREE.ConeGeometry(0.055, 0.6, 6); leftTusk.rotateX(Math.PI / 3); leftTusk.translate(-0.2, 0.82, 1.2);
+  const rightTusk = new THREE.ConeGeometry(0.055, 0.6, 6); rightTusk.rotateX(Math.PI / 3); rightTusk.translate(0.2, 0.82, 1.2);
+  const howdah = new THREE.BoxGeometry(0.82, 0.5, 0.98); howdah.translate(0, 1.58, -0.05);
+  const canopy = new THREE.ConeGeometry(0.58, 0.35, 4); canopy.rotateY(Math.PI / 4); canopy.translate(0, 2.0, -0.05);
+  return BufferGeometryUtils.mergeGeometries([base, body, legFL, legFR, legBL, legBR, head, trunk, leftTusk, rightTusk, howdah, canopy], true) || base;
 }
 
 function createSupplyCartGeometry(): THREE.BufferGeometry {
@@ -525,16 +534,24 @@ export const Battlefield3DCanvas: React.FC<Battlefield3DCanvasProps> = ({
       const row = Math.floor(hit.point.z);
 
       if (col >= 0 && col < 96 && row >= 0 && row < 32) {
-        if (highlightMeshRef.current) {
-          highlightMeshRef.current.position.set(col + 0.5, 0.16, row + 0.5);
-        }
-
         const hitUnit = units.find(u => {
           if (u.status === 'eliminated') return false;
           const sC = u.spanCols || 1;
           const sR = u.spanRows || 1;
           return col >= u.col && col < u.col + sC && row >= u.row && row < u.row + sR;
         }) || null;
+
+        if (highlightMeshRef.current) {
+          if (hitUnit) {
+            const sC = hitUnit.spanCols || 1;
+            const sR = hitUnit.spanRows || 1;
+            highlightMeshRef.current.position.set(hitUnit.col + sC / 2, 0.16, hitUnit.row + sR / 2);
+            highlightMeshRef.current.scale.set(sC, sR, 1);
+          } else {
+            highlightMeshRef.current.position.set(col + 0.5, 0.16, row + 0.5);
+            highlightMeshRef.current.scale.set(1, 1, 1);
+          }
+        }
 
         const hitTile = grid.tiles[row]?.[col] || null;
         onHover({ col, row, unit: hitUnit, tile: hitTile });

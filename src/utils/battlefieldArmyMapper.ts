@@ -97,11 +97,45 @@ export function mapArmiesToBattlefield(
   const numCols = Math.ceil(targetUnitCount / numRows);
   const startCol = 66;
 
+  const occupiedMing = new Set<string>();
+  const canPlaceMing = (c: number, r: number, sc: number, sr: number) => {
+    if (c < 64 || c + sc > 96 || r < 0 || r + sr > 32) return false;
+    for (let dc = 0; dc < sc; dc++) {
+      for (let dr = 0; dr < sr; dr++) {
+        if (occupiedMing.has(`${c + dc},${r + dr}`)) return false;
+      }
+    }
+    return true;
+  };
+  const markOccupiedMing = (c: number, r: number, sc: number, sr: number) => {
+    for (let dc = 0; dc < sc; dc++) {
+      for (let dr = 0; dr < sr; dr++) {
+        occupiedMing.add(`${c + dc},${r + dr}`);
+      }
+    }
+  };
+  const findFreeMingSpot = (prefC: number, prefR: number, sc: number, sr: number) => {
+    if (canPlaceMing(prefC, prefR, sc, sr)) return { c: prefC, r: prefR };
+    for (let col = prefC; col <= 96 - sc; col++) {
+      for (let row = 0; row <= 32 - sr; row++) {
+        const testR = (prefR + row) % (33 - sr);
+        if (canPlaceMing(col, testR, sc, sr)) return { c: col, r: testR };
+      }
+    }
+    // Fallback sang cột lân cận nếu đầy cánh phải
+    for (let col = 64; col <= 96 - sc; col++) {
+      for (let row = 0; row <= 32 - sr; row++) {
+        if (canPlaceMing(col, row, sc, sr)) return { c: col, r: row };
+      }
+    }
+    return { c: Math.min(96 - sc, prefC), r: Math.min(32 - sr, prefR) };
+  };
+
   for (let i = 0; i < targetUnitCount; i++) {
     const colOffset = Math.floor(i / numRows);
     const rowOffset = i % numRows;
-    const placedCol = Math.min(94, startCol + colOffset);
-    const placedRow = Math.min(30, startRow + rowOffset);
+    const prefCol = Math.min(94, startCol + colOffset);
+    const prefRow = Math.min(30, startRow + rowOffset);
 
     // Phân bổ binh chủng theo chiều sâu chiến tuyến:
     // - Hàng đầu (Tiền phong, ~45% cột): Đao binh & Giáo binh
@@ -132,10 +166,16 @@ export function mapArmiesToBattlefield(
     if (unitType === 'cavalry') {
       spanCols = 2;
       spanRows = 1;
-    } else if (unitType === 'elephant' || unitType === 'supply_cart') {
+    } else if (unitType === 'elephant') {
+      spanCols = 3;
+      spanRows = 2;
+    } else if (unitType === 'supply_cart') {
       spanCols = 2;
       spanRows = 2;
     }
+
+    const spot = findFreeMingSpot(prefCol, prefRow, spanCols, spanRows);
+    markOccupiedMing(spot.c, spot.r, spanCols, spanRows);
 
     const isLast = i === targetUnitCount - 1;
     const count = isLast 
@@ -151,8 +191,8 @@ export function mapArmiesToBattlefield(
       formationId: 'ming_army',
       faction: 'ming',
       unitTypeId: unitType,
-      col: placedCol,
-      row: placedRow,
+      col: spot.c,
+      row: spot.r,
       spanCols,
       spanRows,
       soldiersCount: count,

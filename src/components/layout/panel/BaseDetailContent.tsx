@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { X, Flag, ArrowUpCircle, Coins, AlertTriangle } from 'lucide-react';
+import { X, Flag, ArrowUpCircle, Coins } from 'lucide-react';
 import { useGameStore } from '../../../store/gameStore';
 import { useUIStore } from '../../../store/uiStore';
 import { notify } from '../../../store/dialogStore';
@@ -39,8 +39,6 @@ export const BaseDetailContent: React.FC<BaseDetailContentProps> = React.memo(({
   const triggerUprising = useGameStore(state => state.triggerUprising);
   const hasUprising = useGameStore(state => state.hasUprising);
   const tradeFoodForGold = useGameStore(state => state.tradeFoodForGold);
-  const bribeMingOfficials = useGameStore(state => state.bribeMingOfficials);
-  const bribeCount = useGameStore(state => state.bribeCount || 0);
 
   const selectCity = useUIStore(state => state.selectCity);
   const setBaseRelocateMode = useUIStore(state => state.setBaseRelocateMode);
@@ -327,42 +325,6 @@ export const BaseDetailContent: React.FC<BaseDetailContentProps> = React.memo(({
                   title="Xuất bán 500 lương thu về 75 vàng"
                 >
                   -500 🌾 (+75 🪙)
-                </button>
-              </div>
-            </div>
-
-            {/* 1.1c. ĐỘ NGHI NGỜ CỦA QUÂN MINH & ĐÚT LÓT */}
-            <div className="p-2.5 rounded-lg border border-[#8c6b44]/40 bg-[#f7eed8]/70 space-y-1.5 text-xs font-serif">
-              <div className="flex items-center justify-between">
-                <span className="text-[#5c3e23] font-bold flex items-center gap-1.5">
-                  <AlertTriangle size={14} className={suspicion >= 70 ? 'text-[#b91c1c]' : suspicion >= 35 ? 'text-[#d97706]' : 'text-[#15803d]'} />
-                  Độ Nghi Ngờ Của Quân Minh:
-                </span>
-                <span className={`font-serif font-black text-sm ${suspicion >= 70 ? 'text-[#b91c1c]' : suspicion >= 35 ? 'text-[#d97706]' : 'text-[#15803d]'}`}>
-                  {Math.round(suspicion)}%
-                </span>
-              </div>
-
-              <div className="w-full h-1.5 rounded-full bg-[#3d240f]/20 overflow-hidden">
-                <div 
-                  className={`h-full transition-all duration-500 ${
-                    suspicion >= 70 ? 'bg-[#b91c1c]' : suspicion >= 35 ? 'bg-[#d97706]' : 'bg-[#15803d]'
-                  }`}
-                  style={{ width: `${Math.min(100, Math.max(3, suspicion))}%` }}
-                />
-              </div>
-
-              <div className="flex items-center justify-between pt-0.5 text-[11px] text-[#704d2e]">
-                <span className="italic">
-                  {suspicion >= 70 ? '⚠️ Nguy cấp: Giặc sắp kéo quân càn quét!' : suspicion >= 35 ? 'Lò rèn & thao luyện đang khiến địch chú ý' : 'Căn cứ bí mật, giặc chưa cảnh giác'}
-                </span>
-
-                <button
-                  onClick={() => bribeMingOfficials()}
-                  className="px-2 py-0.5 rounded border border-[#8c6b44]/50 bg-[#8c6b44]/20 hover:bg-[#8c6b44]/35 text-[#42250d] font-bold cursor-pointer transition shrink-0 ml-2"
-                  title="Cử người đem vàng đút lót quan tướng giặc hạ độ nghi ngờ"
-                >
-                  Đút lót (-{100 + bribeCount * 60}🪙)
                 </button>
               </div>
             </div>

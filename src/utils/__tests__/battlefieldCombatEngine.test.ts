@@ -358,4 +358,208 @@ assert.strictEqual(fatalResult.casualties.goldCaptured, 0, 'Khi đại bại, ng
 assert.ok(fatalResult.casualties.weaponsLost > 0, 'Khi đại bại, nghĩa quân phải chịu tổn thất binh khí rơi vào tay giặc');
 console.log('✓ Khi đại bại, chiến trường rơi vào tay giặc Minh: chiến lợi phẩm = 0 và ghi nhận tổn thất khí giới');
 
+// Test 6: Điều hướng Flow Field & Local A* vòng qua vách núi rộng không bị kẹt cứng
+const walledTiles = Array.from({ length: 32 }, (_, r) =>
+  Array.from({ length: 96 }, (_, c) => {
+    const isWall = c === 20 && r >= 6 && r <= 14;
+    return {
+      col: c,
+      row: r,
+      terrain: isWall ? ('mountain' as const) : ('plains' as const),
+      elevation: isWall ? 2 : 0,
+      isPassable: !isWall,
+      speedCost: isWall ? 99 : 1,
+      defenseBonus: 0,
+      coverType: 'none' as const,
+      zone: c < 32 ? ('lam_son' as const) : c < 64 ? ('neutral' as const) : ('ming' as const),
+    };
+  })
+);
+
+const blockedSwordsman: BattlefieldUnit = {
+  id: 'ls_wall_walker',
+  formationId: 'f_ls',
+  faction: 'lam_son',
+  unitTypeId: 'swordsman',
+  col: 18,
+  row: 10,
+  spanCols: 1,
+  spanRows: 1,
+  soldiersCount: 10,
+  maxSoldiersCount: 10,
+  hp: 100,
+  maxHp: 100,
+  morale: 100,
+  status: 'advancing',
+};
+
+const wallEnemy: BattlefieldUnit = {
+  id: 'ming_behind_wall',
+  formationId: 'f_ming',
+  faction: 'ming',
+  unitTypeId: 'swordsman',
+  col: 28,
+  row: 10,
+  spanCols: 1,
+  spanRows: 1,
+  soldiersCount: 10,
+  maxSoldiersCount: 10,
+  hp: 100,
+  maxHp: 100,
+  morale: 100,
+  status: 'holding',
+};
+
+let wallBattle: BattlefieldState = {
+  ...initialBattle,
+  id: 'battle_wall',
+  grid: { ...initialBattle.grid, tiles: walledTiles },
+  units: [blockedSwordsman, wallEnemy],
+  initialLamSonSoldiers: 10,
+  initialMingSoldiers: 10,
+};
+
+for (let i = 0; i < 14; i++) {
+  wallBattle = resolveBattlefieldTick(wallBattle);
+}
+const walkerAfter = wallBattle.units.find(u => u.id === 'ls_wall_walker')!;
+assert.ok(walkerAfter.col > 20, `Quân lính phải tự uốn lượn vòng qua vách núi (col hiện tại=${walkerAfter.col}, row=${walkerAfter.row})`);
+console.log('✓ Flow Field & Local A* giúp quân lính tự vòng qua vách núi rộng thay vì đứng kẹt');
+
+// Test 7: Kỵ binh (2x1) đứng sau đồng đội cầm cự (holding) -> Nhường đường hợp tác hoặc tạt cánh vượt lên
+const frontHolder: BattlefieldUnit = {
+  id: 'ls_holder',
+  formationId: 'f_ls',
+  faction: 'lam_son',
+  unitTypeId: 'archer',
+  col: 16,
+  row: 10,
+  spanCols: 1,
+  spanRows: 1,
+  soldiersCount: 10,
+  maxSoldiersCount: 10,
+  hp: 100,
+  maxHp: 100,
+  morale: 100,
+  status: 'holding',
+};
+
+const rearCav: BattlefieldUnit = {
+  id: 'ls_cav_2x1',
+  formationId: 'f_ls',
+  faction: 'lam_son',
+  unitTypeId: 'cavalry',
+  col: 14,
+  row: 10,
+  spanCols: 2,
+  spanRows: 1,
+  soldiersCount: 10,
+  maxSoldiersCount: 10,
+  hp: 150,
+  maxHp: 150,
+  morale: 100,
+  status: 'advancing',
+};
+
+const farMingArcher: BattlefieldUnit = {
+  id: 'ming_rear_archer',
+  formationId: 'f_ming',
+  faction: 'ming',
+  unitTypeId: 'archer',
+  col: 35,
+  row: 10,
+  spanCols: 1,
+  spanRows: 1,
+  soldiersCount: 10,
+  maxSoldiersCount: 10,
+  hp: 100,
+  maxHp: 100,
+  morale: 100,
+  status: 'holding',
+};
+
+let cavBattle: BattlefieldState = {
+  ...initialBattle,
+  id: 'battle_cav_yield',
+  units: [frontHolder, rearCav, farMingArcher],
+  initialLamSonSoldiers: 20,
+  initialMingSoldiers: 10,
+};
+
+for (let i = 0; i < 4; i++) {
+  cavBattle = resolveBattlefieldTick(cavBattle);
+}
+const cavAfter = cavBattle.units.find(u => u.id === 'ls_cav_2x1')!;
+assert.ok(cavAfter.col > 16 || Math.abs(cavAfter.row - 10) > 0, `Kỵ binh 2x1 phải vượt lên hoặc tạt sườn qua đồng đội holding (pos=${cavAfter.col},${cavAfter.row})`);
+console.log('✓ Kỵ binh 2x1 xử lý nhường đường hợp tác và tạt cánh mượt mà khi bị đồng đội chắn trước');
+
+// Test 8: Giáo binh bị cung thủ bắn tỉa từ cự ly 8 ô hoặc vừa đánh xong (status='fighting') KHÔNG bị đứng im bất động
+const harassedSpearman: BattlefieldUnit = {
+  id: 'ls_spear_harassed',
+  formationId: 'f_ls',
+  faction: 'lam_son',
+  unitTypeId: 'spearman',
+  col: 15,
+  row: 12,
+  spanCols: 1,
+  spanRows: 1,
+  soldiersCount: 30,
+  maxSoldiersCount: 30,
+  hp: 300,
+  maxHp: 300,
+  morale: 100,
+  status: 'advancing',
+};
+
+const postMeleeSpearman: BattlefieldUnit = {
+  id: 'ls_spear_post_fight',
+  formationId: 'f_ls',
+  faction: 'lam_son',
+  unitTypeId: 'spearman',
+  col: 15,
+  row: 14,
+  spanCols: 1,
+  spanRows: 1,
+  soldiersCount: 30,
+  maxSoldiersCount: 30,
+  hp: 300,
+  maxHp: 300,
+  morale: 100,
+  status: 'fighting',
+};
+
+const sniperArcher: BattlefieldUnit = {
+  id: 'ming_sniper_archer',
+  formationId: 'f_ming',
+  faction: 'ming',
+  unitTypeId: 'archer',
+  col: 23,
+  row: 12,
+  spanCols: 1,
+  spanRows: 1,
+  soldiersCount: 10,
+  maxSoldiersCount: 10,
+  hp: 100,
+  maxHp: 100,
+  morale: 100,
+  status: 'holding',
+};
+
+let spearBattle: BattlefieldState = {
+  ...initialBattle,
+  id: 'battle_spear_advance',
+  units: [harassedSpearman, postMeleeSpearman, sniperArcher],
+  initialLamSonSoldiers: 60,
+  initialMingSoldiers: 10,
+};
+
+for (let i = 0; i < 6; i++) {
+  spearBattle = resolveBattlefieldTick(spearBattle);
+}
+const s1After = spearBattle.units.find(u => u.id === 'ls_spear_harassed')!;
+const s2After = spearBattle.units.find(u => u.id === 'ls_spear_post_fight')!;
+assert.ok(s1After.col >= 21, `Giáo binh bị cung thủ bắn tỉa từ xa phải tiếp tục xông lên áp sát (col=${s1After.col})`);
+assert.ok(s2After.col >= 20, `Giáo binh đang ở trạng thái fighting khi mục tiêu trước mặt biến mất phải tiến lên tiếp (col=${s2After.col})`);
+console.log('✓ Giáo binh không bị đóng băng trạng thái fighting khi bị cung thủ bắn tỉa từ xa');
+
 console.log('>>> Toàn bộ test battlefieldCombatEngine THÀNH CÔNG! <<<');

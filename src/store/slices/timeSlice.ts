@@ -795,16 +795,6 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
         };
 
         nextPendingRefugees = [newWave, ...nextPendingRefugees];
-
-        newNotices.push({
-          id: `refugee_arrive_${Date.now()}`,
-          type: 'general' as const,
-          title: 'Đoàn Lưu Dân Xin Quy Phụ',
-          dateStr: `Ngày ${newDay}/${newMonth}/${newYear}`,
-          description: `Đoàn ${totalCount} người từ ${picked.name} (${idleCount} tráng phu, ${unfitCount} già yếu) đã tới trước cổng trại Lam Sơn xin được che chở.`,
-          read: false,
-          timestamp: Date.now(),
-        });
       }
     }
 

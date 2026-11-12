@@ -65,6 +65,11 @@ export interface BattlefieldUnit {
   hasActedThisTurn?: boolean;
   eliminatedAtTurn?: number;
   lastDamageTaken?: number;
+
+  // Dữ liệu Neo Đội Hình & Chống Kẹt AI
+  formationOffsetCol?: number;
+  formationOffsetRow?: number;
+  stuckTurns?: number;
 }
 
 export interface BattlefieldLogEntry {
@@ -92,6 +97,9 @@ export interface BattlefieldState {
   
   lamSonMorale: number; // 0..100
   mingMorale: number;   // 0..100
+
+  lamSonAnchor?: { col: number; row: number };
+  mingAnchor?: { col: number; row: number };
   
   initialLamSonSoldiers: number;
   initialMingSoldiers: number;

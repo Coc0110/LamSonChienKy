@@ -4,8 +4,59 @@ import { useGameStore } from '../../store/gameStore';
 import { useUIStore } from '../../store/uiStore';
 import { notify } from '../../store/dialogStore';
 import type { TacticalPlacedUnit, TacticalFormation, TacticalUnitType } from '../../types/armyFormation';
+import { TACTICAL_UNIT_CONFIGS } from '../../types/armyFormation';
 
 const STORAGE_KEY = 'lamson_tester_saved_formations_v1';
+
+// Helper đặt đơn vị đa ô (hỗ trợ Kỵ 2x1, Xe Lương 2x2, Tượng 3x2, Bộ binh 1x1)
+function placeUnitOnTesterGrid(
+  grid: (TacticalPlacedUnit | null)[][],
+  r: number,
+  c: number,
+  type: TacticalUnitType,
+  mult: 1 | 10,
+  idPrefix = 'test_u'
+): boolean {
+  const cfg = TACTICAL_UNIT_CONFIGS[type];
+  const spanRows = cfg?.spanRows || 1;
+  const spanCols = cfg?.spanCols || 1;
+
+  if (r < 0 || r + spanRows > 32 || c < 0 || c + spanCols > 32) return false;
+
+  // Kiểm tra các ô trong vùng chiếm đóng phải đều trống
+  for (let dr = 0; dr < spanRows; dr++) {
+    for (let dc = 0; dc < spanCols; dc++) {
+      if (grid[r + dr][c + dc] !== null) return false;
+    }
+  }
+
+  const uid = `${idPrefix}_${r}_${c}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+  const hp = mult * (type === 'general' ? 100 : 10);
+
+  for (let dr = 0; dr < spanRows; dr++) {
+    for (let dc = 0; dc < spanCols; dc++) {
+      grid[r + dr][c + dc] = {
+        id: `${uid}_${dr}_${dc}`,
+        parentUnitId: uid,
+        type,
+        name: type === 'general' ? 'Lê Lợi' : (cfg?.name || type),
+        rootRow: r,
+        rootCol: c,
+        row: r + dr,
+        col: c + dc,
+        isRoot: dr === 0 && dc === 0,
+        offsetRow: dr,
+        offsetCol: dc,
+        multiplier: mult,
+        hp,
+        maxHp: hp,
+        morale: 100,
+        generalId: type === 'general' ? 'le_loi' : undefined,
+      };
+    }
+  }
+  return true;
+}
 
 interface SavedFormationItem {
   id: string;
@@ -53,7 +104,7 @@ export const BattleTesterModal: React.FC = () => {
   const isRightClickRef = useRef<boolean>(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Tính thống kê quân số tức thời
+  // Tính thống kê quân số tức thời (chỉ đếm các ô isRoot để không tính trùng đơn vị đa ô)
   const stats = useMemo(() => {
     let total = 0;
     const counts: Record<string, number> = {
@@ -69,7 +120,7 @@ export const BattleTesterModal: React.FC = () => {
     for (let r = 0; r < 32; r++) {
       for (let c = 0; c < 32; c++) {
         const u = grid[r][c];
-        if (u) {
+        if (u && u.isRoot) {
           const mult = u.multiplier || 1;
           counts[u.type] = (counts[u.type] || 0) + mult;
           total += mult;
@@ -79,33 +130,26 @@ export const BattleTesterModal: React.FC = () => {
     return { total, counts };
   }, [grid]);
 
-  // Đặt/xóa ô đơn lẻ
+  // Đặt/xóa đơn vị hỗ trợ đa ô (1x1, Kỵ 2x1, Xe Lương 2x2, Tượng 3x2)
   const applyToolAt = useCallback((r: number, c: number, tool: TacticalUnitType | 'eraser', mult: 1 | 10) => {
     if (r < 0 || r >= 32 || c < 0 || c >= 32) return;
 
     setGrid(prev => {
       const next = prev.map(row => [...row]);
       if (tool === 'eraser') {
-        next[r][c] = null;
+        const target = next[r][c];
+        if (!target) return prev;
+        const pid = target.parentUnitId;
+        for (let rr = 0; rr < 32; rr++) {
+          for (let cc = 0; cc < 32; cc++) {
+            if (next[rr][cc]?.parentUnitId === pid) {
+              next[rr][cc] = null;
+            }
+          }
+        }
       } else {
-        next[r][c] = {
-          id: `test_u_${r}_${c}_${Date.now()}`,
-          parentUnitId: `test_u_${r}_${c}`,
-          type: tool,
-          name: tool === 'general' ? 'Lê Lợi' : tool,
-          rootRow: r,
-          rootCol: c,
-          col: c,
-          row: r,
-          isRoot: true,
-          offsetCol: 0,
-          offsetRow: 0,
-          multiplier: mult,
-          hp: mult * 10,
-          maxHp: mult * 10,
-          morale: 100,
-          generalId: tool === 'general' ? 'le_loi' : undefined,
-        };
+        const ok = placeUnitOnTesterGrid(next, r, c, tool, mult);
+        if (!ok) return prev;
       }
       return next;
     });
@@ -144,131 +188,83 @@ export const BattleTesterModal: React.FC = () => {
     isRightClickRef.current = false;
   };
 
-  // Nạp Đội Hình Mẫu Dựng Sẵn
+  // Nạp Đội Hình Mẫu Dựng Sẵn (Hỗ trợ đầy đủ đơn vị đa ô: Kỵ 2x1, Lương 2x2, Tượng 3x2)
   const loadPresetFormation = (type: '70_scout' | '500_infantry' | '1500_x10' | 'cavalry_rush') => {
     const nextGrid: (TacticalPlacedUnit | null)[][] = Array.from({ length: 32 }, () => Array(32).fill(null));
 
     if (type === '70_scout') {
-      // 70 quân: 20 Tiên phong Đao (Hàng 5-6), 20 Giáo (Hàng 7-8), 20 Cung (Hàng 9-10), 1 Tướng (Hàng 11, Col 16), 2 Xe Lương, 7 Kỵ guard
+      // 70 quân: 20 Đao, 20 Giáo, 20 Cung, 1 Tướng, 2 Xe Lương (2x2), 7 Kỵ guard (2x1)
       let count = 0;
-      // Front swordsmen
-      for (let c = 8; c <= 23 && count < 20; c++) {
-        nextGrid[5][c] = { id: `p_${5}_${c}`, parentUnitId: `p_${5}_${c}`, type: 'swordsman', name: 'Đao', rootRow: 5, rootCol: c, col: c, row: 5, isRoot: true, offsetCol: 0, offsetRow: 0, multiplier: 1, hp: 10, maxHp: 10, morale: 100 };
-        count++;
+      for (let c = 8; c <= 27 && count < 20; c++) {
+        if (placeUnitOnTesterGrid(nextGrid, 5, c, 'swordsman', 1, 'p')) count++;
       }
-      // Spearmen
       count = 0;
-      for (let c = 8; c <= 23 && count < 20; c++) {
-        nextGrid[7][c] = { id: `p_${7}_${c}`, parentUnitId: `p_${7}_${c}`, type: 'spearman', name: 'Giáo', rootRow: 7, rootCol: c, col: c, row: 7, isRoot: true, offsetCol: 0, offsetRow: 0, multiplier: 1, hp: 10, maxHp: 10, morale: 100 };
-        count++;
+      for (let c = 8; c <= 27 && count < 20; c++) {
+        if (placeUnitOnTesterGrid(nextGrid, 7, c, 'spearman', 1, 'p')) count++;
       }
-      // Archers
       count = 0;
-      for (let c = 8; c <= 23 && count < 20; c++) {
-        nextGrid[9][c] = { id: `p_${9}_${c}`, parentUnitId: `p_${9}_${c}`, type: 'archer', name: 'Cung', rootRow: 9, rootCol: c, col: c, row: 9, isRoot: true, offsetCol: 0, offsetRow: 0, multiplier: 1, hp: 10, maxHp: 10, morale: 100 };
-        count++;
+      for (let c = 8; c <= 27 && count < 20; c++) {
+        if (placeUnitOnTesterGrid(nextGrid, 9, c, 'archer', 1, 'p')) count++;
       }
-      // General & Guards & Carts
-      nextGrid[11][16] = { id: 'p_gen', parentUnitId: 'p_gen', type: 'general', name: 'Lê Lợi', rootRow: 11, rootCol: 16, col: 16, row: 11, isRoot: true, offsetCol: 0, offsetRow: 0, multiplier: 1, hp: 100, maxHp: 100, morale: 100, generalId: 'le_loi' };
-      nextGrid[12][13] = { id: 'p_c1', parentUnitId: 'p_c1', type: 'supply_cart', name: 'Xe Lương', rootRow: 12, rootCol: 13, col: 13, row: 12, isRoot: true, offsetCol: 0, offsetRow: 0, multiplier: 1, hp: 20, maxHp: 20, morale: 100 };
-      nextGrid[12][19] = { id: 'p_c2', parentUnitId: 'p_c2', type: 'supply_cart', name: 'Xe Lương', rootRow: 12, rootCol: 19, col: 19, row: 12, isRoot: true, offsetCol: 0, offsetRow: 0, multiplier: 1, hp: 20, maxHp: 20, morale: 100 };
-      for (let c = 12; c <= 18; c++) {
+      placeUnitOnTesterGrid(nextGrid, 11, 16, 'general', 1, 'p');
+      placeUnitOnTesterGrid(nextGrid, 12, 12, 'supply_cart', 1, 'p');
+      placeUnitOnTesterGrid(nextGrid, 12, 19, 'supply_cart', 1, 'p');
+      for (let c = 12; c <= 20; c++) {
         if (c !== 16) {
-          nextGrid[13][c] = { id: `p_cav_${c}`, parentUnitId: `p_cav_${c}`, type: 'cavalry', name: 'Kỵ', rootRow: 13, rootCol: c, col: c, row: 13, isRoot: true, offsetCol: 0, offsetRow: 0, multiplier: 1, hp: 10, maxHp: 10, morale: 100 };
+          placeUnitOnTesterGrid(nextGrid, 14, c, 'cavalry', 1, 'p');
         }
       }
       setMultiplier(1);
     } else if (type === '500_infantry') {
-      // 500 quân cấp 1x: trải đều 20 hàng x 25 cột
+      // 500 quân cấp 1x
       let placed = 0;
-      for (let r = 4; r < 24 && placed < 500; r++) {
+      for (let r = 4; r < 26 && placed < 500; r++) {
         for (let c = 4; c < 29 && placed < 500; c++) {
           const uType: TacticalUnitType = (r === 14 && c === 16) ? 'general' :
-            (r < 10) ? ((r + c) % 2 === 0 ? 'swordsman' : 'spearman') :
+            (r < 11) ? ((r + c) % 2 === 0 ? 'swordsman' : 'spearman') :
             (r < 18) ? 'archer' : ((c % 4 === 0) ? 'supply_cart' : 'cavalry');
-          nextGrid[r][c] = {
-            id: `p500_${r}_${c}`,
-            parentUnitId: `p500_${r}_${c}`,
-            type: uType,
-            name: uType,
-            rootRow: r,
-            rootCol: c,
-            col: c,
-            row: r,
-            isRoot: true,
-            offsetCol: 0,
-            offsetRow: 0,
-            multiplier: 1,
-            hp: 10,
-            maxHp: 10,
-            morale: 100,
-            generalId: uType === 'general' ? 'le_loi' : undefined,
-          };
-          placed++;
+          if (placeUnitOnTesterGrid(nextGrid, r, c, uType, 1, 'p500')) {
+            placed++;
+          }
         }
       }
       setMultiplier(1);
     } else if (type === '1500_x10') {
       // 150 quân cờ x10 = 1500 lính
       let placed = 0;
-      for (let r = 6; r < 21 && placed < 150; r++) {
-        for (let c = 11; c < 21 && placed < 150; c++) {
-          const uType: TacticalUnitType = (r === 13 && c === 16) ? 'general' :
+      for (let r = 5; r < 24 && placed < 150; r++) {
+        for (let c = 9; c < 23 && placed < 150; c++) {
+          const uType: TacticalUnitType = (r === 14 && c === 16) ? 'general' :
             (r < 11) ? ((r + c) % 2 === 0 ? 'swordsman' : 'spearman') :
             (r < 17) ? 'archer' : 'cavalry';
-          nextGrid[r][c] = {
-            id: `p1500_${r}_${c}`,
-            parentUnitId: `p1500_${r}_${c}`,
-            type: uType,
-            name: uType,
-            rootRow: r,
-            rootCol: c,
-            col: c,
-            row: r,
-            isRoot: true,
-            offsetCol: 0,
-            offsetRow: 0,
-            multiplier: 10,
-            hp: 100,
-            maxHp: 100,
-            morale: 100,
-            generalId: uType === 'general' ? 'le_loi' : undefined,
-          };
-          placed++;
+          if (placeUnitOnTesterGrid(nextGrid, r, c, uType, 10, 'p1500')) {
+            placed++;
+          }
         }
       }
       setMultiplier(10);
     } else if (type === 'cavalry_rush') {
-      // Đội hình Kỵ Binh & Tượng Binh
-      for (let r = 8; r <= 16; r += 2) {
-        for (let c = 10; c <= 22; c += 2) {
-          const uType: TacticalUnitType = (r === 12 && c === 16) ? 'general' :
-            (c === 10 || c === 22) ? 'elephant' : 'cavalry';
-          nextGrid[r][c] = {
-            id: `pcav_${r}_${c}`,
-            parentUnitId: `pcav_${r}_${c}`,
-            type: uType,
-            name: uType,
-            rootRow: r,
-            rootCol: c,
-            col: c,
-            row: r,
-            isRoot: true,
-            offsetCol: 0,
-            offsetRow: 0,
-            multiplier: 1,
-            hp: 20,
-            maxHp: 20,
-            morale: 100,
-            generalId: uType === 'general' ? 'le_loi' : undefined,
-          };
+      // Đội hình Kỵ Binh (2x1) & Tượng Binh (3x2) chuẩn kích thước đa ô
+      // Hai cánh Voi chiến (3 hàng x 2 cột)
+      for (let r = 6; r <= 14; r += 4) {
+        placeUnitOnTesterGrid(nextGrid, r, 7, 'elephant', 1, 'pelep');
+        placeUnitOnTesterGrid(nextGrid, r, 23, 'elephant', 1, 'pelep');
+      }
+      // Trung tâm Kỵ binh xung kích (2 hàng x 1 cột)
+      for (let r = 6; r <= 14; r += 3) {
+        for (let c = 11; c <= 21; c += 2) {
+          if (r === 9 && c === 15) {
+            placeUnitOnTesterGrid(nextGrid, r, c, 'general', 1, 'pgen');
+          } else {
+            placeUnitOnTesterGrid(nextGrid, r, c, 'cavalry', 1, 'pcav');
+          }
         }
       }
       setMultiplier(1);
     }
 
     setGrid(nextGrid);
-    notify.success('Đã nạp đội hình mẫu!');
+    notify.success('Đã nạp đội hình mẫu (đa ô chuẩn kích thước)!');
   };
 
   // Lưu đội hình hiện tại
@@ -451,14 +447,14 @@ export const BattleTesterModal: React.FC = () => {
 
             {/* KHAY CHỌN BINH CHỦNG & MULTIPLIER */}
             <div className="flex flex-wrap items-center justify-between gap-1 bg-[#ede0c4] p-1.5 rounded border border-[#8c6b44]/25 text-xs">
-              <div className="flex items-center gap-1">
+              <div className="flex flex-wrap items-center gap-1">
                 {(['swordsman', 'spearman', 'archer', 'cavalry', 'elephant', 'supply_cart', 'general', 'eraser'] as const).map(tool => {
                   const label = tool === 'swordsman' ? 'Đao' :
                                 tool === 'spearman' ? 'Giáo' :
                                 tool === 'archer' ? 'Cung' :
-                                tool === 'cavalry' ? 'Kỵ' :
-                                tool === 'elephant' ? 'Tượng' :
-                                tool === 'supply_cart' ? 'Lương' :
+                                tool === 'cavalry' ? 'Kỵ (2×1)' :
+                                tool === 'elephant' ? 'Tượng (3×2)' :
+                                tool === 'supply_cart' ? 'Lương (2×2)' :
                                 tool === 'general' ? '★ Tướng' : '🧹 Tẩy';
                   const active = selectedTool === tool;
                   return (
@@ -484,7 +480,7 @@ export const BattleTesterModal: React.FC = () => {
                   className={`px-1.5 py-0.5 rounded text-[11px] font-bold cursor-pointer ${
                     multiplier === 1 ? 'bg-[#15803d] text-amber-100' : 'text-stone-600'
                   }`}
-                  title="Mỗi ô đại diện cho 1 người lính"
+                  title="Mỗi quân cờ đại diện cho 1 đơn vị lính"
                 >
                   ×1
                 </button>
@@ -493,7 +489,7 @@ export const BattleTesterModal: React.FC = () => {
                   className={`px-1.5 py-0.5 rounded text-[11px] font-bold cursor-pointer ${
                     multiplier === 10 ? 'bg-amber-600 text-stone-950 font-black' : 'text-stone-600'
                   }`}
-                  title="Mỗi ô đại diện cho 10 người lính (Cấp Thập Đội)"
+                  title="Mỗi quân cờ đại diện cho 10 đơn vị lính (Cấp Thập Đội)"
                 >
                   ×10
                 </button>
@@ -521,31 +517,64 @@ export const BattleTesterModal: React.FC = () => {
                     const isGen = cell?.type === 'general';
                     const isCart = cell?.type === 'supply_cart';
                     const is10x = cell?.multiplier && cell.multiplier > 1;
+                    const cfg = cell ? TACTICAL_UNIT_CONFIGS[cell.type] : null;
+                    const isMulti = (cfg?.spanRows || 1) > 1 || (cfg?.spanCols || 1) > 1;
 
                     return (
                       <div
                         key={`${rIdx}_${cIdx}`}
                         className={`relative border-[0.5px] border-[#8c6b44]/20 flex items-center justify-center pointer-events-none ${
-                          cell ? (cell.type === 'swordsman' ? 'bg-red-600/30' :
-                                  cell.type === 'spearman' ? 'bg-amber-600/30' :
-                                  cell.type === 'archer' ? 'bg-blue-600/30' :
-                                  cell.type === 'cavalry' ? 'bg-purple-600/30' :
-                                  cell.type === 'elephant' ? 'bg-emerald-700/40' :
-                                  isCart ? 'bg-amber-400/40' : 'bg-yellow-400/50') : ''
+                          cell && !isMulti ? (cell.type === 'swordsman' ? 'bg-red-600/30' :
+                                              cell.type === 'spearman' ? 'bg-amber-600/30' :
+                                              cell.type === 'archer' ? 'bg-blue-600/30' : 'bg-yellow-400/50') : ''
                         }`}
                       >
-                        {cell && (
+                        {cell && !isMulti && (
                           <span className={`text-[7px] font-black leading-none ${
                             isGen ? 'text-amber-800' : is10x ? 'text-amber-900 font-bold' : 'text-stone-800'
                           }`}>
                             {isGen ? '★' :
                              cell.type === 'archer' ? 'C' :
                              cell.type === 'spearman' ? 'G' :
-                             cell.type === 'cavalry' ? 'K' :
-                             cell.type === 'elephant' ? 'T' :
                              isCart ? 'L' : 'Đ'}
                           </span>
                         )}
+                      </div>
+                    );
+                  })
+                )}
+
+                {/* LỚP HIỂN THỊ CÁC ĐƠN VỊ ĐA Ô (Kỵ 2x1, Lương 2x2, Tượng 3x2) LIỀN KHỐI */}
+                {grid.flatMap((rowArr, rIdx) =>
+                  rowArr.map((cell, cIdx) => {
+                    if (!cell || !cell.isRoot) return null;
+                    const cfg = TACTICAL_UNIT_CONFIGS[cell.type];
+                    const spanR = cfg?.spanRows || 1;
+                    const spanC = cfg?.spanCols || 1;
+                    if (spanR <= 1 && spanC <= 1) return null;
+
+                    const bgClass =
+                      cell.type === 'cavalry' ? 'bg-purple-700/80 border-purple-300 text-purple-100' :
+                      cell.type === 'elephant' ? 'bg-emerald-800/85 border-amber-400 text-amber-100' :
+                      'bg-amber-600/80 border-yellow-200 text-amber-50';
+
+                    const icon =
+                      cell.type === 'cavalry' ? '🐎' :
+                      cell.type === 'elephant' ? '🐘' : '🛒';
+
+                    return (
+                      <div
+                        key={`multi_${rIdx}_${cIdx}`}
+                        className={`absolute pointer-events-none flex items-center justify-center rounded-[2px] border font-bold text-[9px] shadow-xs ${bgClass}`}
+                        style={{
+                          top: `${rIdx * 10}px`,
+                          left: `${cIdx * 10}px`,
+                          width: `${spanC * 10}px`,
+                          height: `${spanR * 10}px`,
+                          zIndex: 10,
+                        }}
+                      >
+                        <span>{icon}</span>
                       </div>
                     );
                   })
