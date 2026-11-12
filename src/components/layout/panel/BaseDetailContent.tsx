@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { X, Flag, ArrowUpCircle, Coins } from 'lucide-react';
+import { X, Flag, ArrowUpCircle } from 'lucide-react';
 import { useGameStore } from '../../../store/gameStore';
 import { useUIStore } from '../../../store/uiStore';
 import { notify } from '../../../store/dialogStore';
@@ -38,7 +38,7 @@ export const BaseDetailContent: React.FC<BaseDetailContentProps> = React.memo(({
   const upgradeCamp = useGameStore(state => state.upgradeCamp);
   const triggerUprising = useGameStore(state => state.triggerUprising);
   const hasUprising = useGameStore(state => state.hasUprising);
-  const tradeFoodForGold = useGameStore(state => state.tradeFoodForGold);
+
 
   const selectCity = useUIStore(state => state.selectCity);
   const setBaseRelocateMode = useUIStore(state => state.setBaseRelocateMode);
@@ -271,62 +271,6 @@ export const BaseDetailContent: React.FC<BaseDetailContentProps> = React.memo(({
                   Doanh trại đã đạt cấp độ tối đa (Cấp 4 - 5.000 người).
                 </div>
               )}
-            </div>
-
-            {/* 1.1b. BÍ MẬT GIAO THƯƠNG (XUẤT BÁN LƯƠNG ĐỔI VÀNG) */}
-            <div className="p-2.5 rounded-lg border border-[#8c6b44]/40 bg-[#f7eed8]/70 space-y-1.5 text-xs font-serif">
-              <div className="flex items-center justify-between">
-                <span className="text-[#5c3e23] font-bold flex items-center gap-1.5">
-                  <Coins size={14} className="text-[#b45309]" />
-                  Bí Mật Giao Thương:
-                </span>
-                <span className="text-[11px] text-[#704d2e]">
-                  Kho: <strong className="text-[#8c2d19]">{Math.floor(resources.food).toLocaleString()}</strong> lương
-                </span>
-              </div>
-
-              <div className="text-[11px] text-[#704d2e] italic">
-                Bí mật xuất bán thóc lúa thặng dư cho thương lái ven sông Chu gây quỹ ngân khố:
-              </div>
-
-              <div className="grid grid-cols-3 gap-1.5 pt-0.5">
-                <button
-                  disabled={resources.food < 100}
-                  onClick={() => {
-                    const res = tradeFoodForGold(100);
-                    if (res.success) notify.success(res.message);
-                    else notify.warning(res.message);
-                  }}
-                  className="py-1 px-1 rounded border border-[#8c6b44]/40 bg-black/5 hover:bg-black/10 disabled:opacity-40 disabled:cursor-not-allowed text-[#261304] text-[11px] font-serif font-bold text-center transition cursor-pointer"
-                  title="Xuất bán 100 lương thu về 15 vàng"
-                >
-                  -100 🌾 (+15 🪙)
-                </button>
-                <button
-                  disabled={resources.food < 300}
-                  onClick={() => {
-                    const res = tradeFoodForGold(300);
-                    if (res.success) notify.success(res.message);
-                    else notify.warning(res.message);
-                  }}
-                  className="py-1 px-1 rounded border border-[#8c6b44]/40 bg-black/5 hover:bg-black/10 disabled:opacity-40 disabled:cursor-not-allowed text-[#261304] text-[11px] font-serif font-bold text-center transition cursor-pointer"
-                  title="Xuất bán 300 lương thu về 45 vàng"
-                >
-                  -300 🌾 (+45 🪙)
-                </button>
-                <button
-                  disabled={resources.food < 500}
-                  onClick={() => {
-                    const res = tradeFoodForGold(500);
-                    if (res.success) notify.success(res.message);
-                    else notify.warning(res.message);
-                  }}
-                  className="py-1 px-1 rounded border border-[#8c6b44]/40 bg-black/5 hover:bg-black/10 disabled:opacity-40 disabled:cursor-not-allowed text-[#261304] text-[11px] font-serif font-bold text-center transition cursor-pointer"
-                  title="Xuất bán 500 lương thu về 75 vàng"
-                >
-                  -500 🌾 (+75 🪙)
-                </button>
-              </div>
             </div>
 
             {/* 1.2. THÔNG TIN QUÂN LỰC & PHÒNG THỦ */}

@@ -1039,6 +1039,7 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
         ? [...newNotices, ...state.militaryNotices].slice(0, 100)
         : state.militaryNotices,
       suspicion: nextSuspicion,
+      marketUsedToday: {},
       gameStatus: nextGameStatus,
     };
   });

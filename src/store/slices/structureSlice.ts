@@ -5,10 +5,17 @@ import { TERRAIN_DEFINITIONS } from '../../data/terrainData';
 import { validateCellPlacement, FARM_BASE_RADIUS_PCT, checkFarmUpgradeValid } from '../../data/terrainGrid';
 import { notify } from '../dialogStore';
 import { MAP_COORD_W, MAP_COORD_H } from '../../utils/mapGeo';
+import {
+  calculateMarketTradeSuspicion,
+  getDistrictMarketListings,
+  getDistrictMarketMeta,
+  getResourceAmountForGood,
+} from '../../utils/marketUtils';
 import type { StructureSlice, GameStore } from './types';
 
 export const createStructureSlice: StateCreator<GameStore, [], [], StructureSlice> = (set, get) => ({
   structures: INITIAL_STRUCTURES,
+  marketUsedToday: {},
 
   // Kéo thả / đặt công trình lên bản đồ
   placeStructure: (cityId, type, x, y, customGridSize, customMaxWorkers) => {
@@ -588,28 +595,107 @@ export const createStructureSlice: StateCreator<GameStore, [], [], StructureSlic
   },
 
   // Giao thương đổi lương lấy ngân khố (vàng)
-  tradeFoodForGold: (foodAmount) => {
-    if (foodAmount <= 0) return { success: false, message: 'Số lượng lương không hợp lệ.' };
-    if (get().resources.food < foodAmount) {
-      return { success: false, message: 'Kho lương không đủ để xuất bán!' };
+  executeMarketTrade: (districtId, goodKey, action, lots) => {
+    const cleanLots = Math.floor(lots);
+    if (!Number.isFinite(cleanLots) || cleanLots <= 0) {
+      return { success: false, message: 'S? l??ng giao d?ch kh?ng h?p l?.', suspicionGain: 0 };
     }
 
-    const goldEarned = Math.floor(foodAmount * 0.15);
-    if (goldEarned <= 0) {
-      return { success: false, message: 'Số lượng lương quá nhỏ để quy đổi nén vàng.' };
+    const state = get();
+    const date = { day: state.day, month: state.month, year: state.year };
+    const listings = getDistrictMarketListings(districtId, state.cities, date, state.marketUsedToday);
+    const listing = listings.find(l => l.config.key === goodKey);
+    if (!listing) {
+      return { success: false, message: 'Kh?ng t?m th?y m?t h?ng t?i ch? n?y.', suspicionGain: 0 };
     }
 
-    set(state => ({
-      resources: {
-        ...state.resources,
-        food: state.resources.food - foodAmount,
-        gold: state.resources.gold + goldEarned,
+    const meta = getDistrictMarketMeta(districtId, state.cities);
+    const qty = cleanLots * listing.config.lotSize;
+    const suspicionGain = calculateMarketTradeSuspicion(districtId, goodKey, cleanLots, state.cities);
+
+    if (action === 'buy') {
+      if (cleanLots > listing.remainingStock) {
+        return {
+          success: false,
+          message: `${meta.marketName} h?m nay ch? c?n ${listing.remainingStock} l? ${listing.config.label}.`,
+          suspicionGain: 0,
+        };
       }
-    }));
+      const totalCost = cleanLots * listing.buyPrice;
+      if (state.resources.gold < totalCost) {
+        return {
+          success: false,
+          message: `Ng?n kh? ch? c?n ${Math.floor(state.resources.gold).toLocaleString()} v?ng (c?n ${totalCost.toLocaleString()}).`,
+          suspicionGain: 0,
+        };
+      }
+
+      set(prev => {
+        const nextGoodVal = (prev.resources[goodKey] ?? 0) + qty;
+        const nextSwords = goodKey === 'swords' ? nextGoodVal : prev.resources.swords;
+        const nextBows = goodKey === 'bows' ? nextGoodVal : prev.resources.bows;
+        const nextSpears = goodKey === 'spears' ? nextGoodVal : prev.resources.spears;
+        const nextSuspicion = Math.min(100, prev.suspicion + suspicionGain);
+        const key = `${districtId}:${goodKey}`;
+        return {
+          resources: {
+            ...prev.resources,
+            [goodKey]: nextGoodVal,
+            weapons: nextSwords + nextBows + nextSpears,
+            gold: prev.resources.gold - totalCost,
+          },
+          marketUsedToday: {
+            ...prev.marketUsedToday,
+            [key]: (prev.marketUsedToday[key] ?? 0) + cleanLots,
+          },
+          suspicion: nextSuspicion,
+        };
+      });
+
+      return {
+        success: true,
+        suspicionGain,
+        message:
+          suspicionGain > 0
+            ? `?? mua ${qty.toLocaleString()} ${listing.config.label} t?i ${meta.marketName} (-${totalCost} v?ng). Giao d?ch l?n khi?n ?? nghi ng? t?ng +${suspicionGain}%!`
+            : `?? mua ${qty.toLocaleString()} ${listing.config.label} t?i ${meta.marketName} (-${totalCost} v?ng).`,
+      };
+    }
+
+    const owned = getResourceAmountForGood(state.resources, goodKey);
+    if (owned < qty) {
+      return {
+        success: false,
+        message: `Kho ch? c?n ${owned.toLocaleString()} ${listing.config.label} (c?n ${qty.toLocaleString()} ?? b?n).`,
+        suspicionGain: 0,
+      };
+    }
+    const totalEarned = cleanLots * listing.sellPrice;
+
+    set(prev => {
+      const nextGoodVal = Math.max(0, (prev.resources[goodKey] ?? 0) - qty);
+      const nextSwords = goodKey === 'swords' ? nextGoodVal : prev.resources.swords;
+      const nextBows = goodKey === 'bows' ? nextGoodVal : prev.resources.bows;
+      const nextSpears = goodKey === 'spears' ? nextGoodVal : prev.resources.spears;
+      const nextSuspicion = Math.min(100, prev.suspicion + suspicionGain);
+      return {
+        resources: {
+          ...prev.resources,
+          [goodKey]: nextGoodVal,
+          weapons: nextSwords + nextBows + nextSpears,
+          gold: prev.resources.gold + totalEarned,
+        },
+        suspicion: nextSuspicion,
+      };
+    });
 
     return {
       success: true,
-      message: `Đã bí mật giao thương xuất bán ${foodAmount.toLocaleString()} thạch thóc lúa, thu về ${goldEarned.toLocaleString()} Vàng nạp vào ngân khố nghĩa quân!`,
+      suspicionGain,
+      message:
+        suspicionGain > 0
+          ? `?? b?n ${qty.toLocaleString()} ${listing.config.label} t?i ${meta.marketName} (+${totalEarned} v?ng). Giao d?ch l?n khi?n ?? nghi ng? t?ng +${suspicionGain}%!`
+          : `?? b?n ${qty.toLocaleString()} ${listing.config.label} t?i ${meta.marketName} (+${totalEarned} v?ng).`,
     };
   },
 

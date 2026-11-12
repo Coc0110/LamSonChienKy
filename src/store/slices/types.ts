@@ -12,6 +12,7 @@ import type {
   PendingRefugeeWave,
   TimeMode,
 } from '../../types';
+import type { MarketGoodKey } from '../../utils/marketUtils';
 import type { ArmySlice } from './armySlice';
 import type { SaveSlice, GameStatus } from './saveSlice';
 
@@ -57,7 +58,13 @@ export interface StructureSlice {
   upgradeFarm: (structureId: string) => { success: boolean; message: string };
   startForgeOrder: (structureId: string, order: { weaponType: WeaponCraftType; quantity: number; smiths: number }) => { success: boolean; message: string };
   cancelForgeOrder: (structureId: string) => void;
-  tradeFoodForGold: (foodAmount: number) => { success: boolean; message: string };
+  marketUsedToday: Record<string, number>;
+  executeMarketTrade: (
+    districtId: string,
+    goodKey: MarketGoodKey,
+    action: 'buy' | 'sell',
+    lots: number
+  ) => { success: boolean; message: string; suspicionGain: number };
   buildStructure: (cityId: string, type: 'farms' | 'forges') => void;
 }
 

@@ -35,6 +35,7 @@ interface UIState {
   selectedMapFormationId: string | null;
   activeForgeModalStructureId: string | null;
   selectedStructureModal: PlacedStructure | null;
+  marketDistrictId: string | null;
   isMilitaryBookOpen: boolean;
   isBuildPaperOpen: boolean;
   isTimelineWheelOpen: boolean;
@@ -93,6 +94,7 @@ export const useUIStore = create<UIState>((set) => ({
   selectedMapFormationId: null,
   activeForgeModalStructureId: null,
   selectedStructureModal: null,
+  marketDistrictId: null,
   isMilitaryBookOpen: false,
   isBuildPaperOpen: false,
   isTimelineWheelOpen: false,
@@ -107,6 +109,14 @@ export const useUIStore = create<UIState>((set) => ({
   hoveredCell: null,
   flyToTarget: null,
 
+  openDistrictMarket: (districtId) => set({
+    activeModal: 'market',
+    marketDistrictId: districtId,
+    isBuildPaperOpen: false,
+    isMilitaryBookOpen: false,
+    placementMode: null,
+    baseRelocateMode: null,
+  }),
   setActiveModal: (modal) => set({ 
     activeModal: modal,
     ...(modal ? { 
