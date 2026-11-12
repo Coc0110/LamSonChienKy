@@ -1,4 +1,5 @@
 import districtData from '../data/districtPolygons.json';
+import { coordToCell } from '../data/terrainGrid';
 import type { CityNode, Resources } from '../types';
 import type { DistrictInfo } from '../types/map';
 
@@ -8,8 +9,7 @@ export type MarketGoodKey =
   | 'spears'
   | 'bows'
   | 'clothes'
-  | 'horses'
-  | 'elephants';
+  | 'horses';
 
 export interface MarketGoodConfig {
   key: MarketGoodKey;
@@ -27,13 +27,13 @@ export const MARKET_GOODS: MarketGoodConfig[] = [
   {
     key: 'food',
     label: 'Lương Thảo',
-    unitLabel: '100 thạch',
-    lotSize: 100,
+    unitLabel: '500 thạch',
+    lotSize: 500,
     icon: '/icons/food.png',
-    baseBuyPrice: 22,
+    baseBuyPrice: 95,
     sellRatio: 0.72,
     safeLots: 2,
-    suspicionWeight: 1.5,
+    suspicionWeight: 2.0,
   },
   {
     key: 'swords',
@@ -87,19 +87,8 @@ export const MARKET_GOODS: MarketGoodConfig[] = [
     icon: '/troops/cavalry.png',
     baseBuyPrice: 48,
     sellRatio: 0.68,
-    safeLots: 1,
-    suspicionWeight: 3.5,
-  },
-  {
-    key: 'elephants',
-    label: 'Voi Chiến',
-    unitLabel: 'thớt',
-    lotSize: 1,
-    icon: '/troops/elephant.png',
-    baseBuyPrice: 180,
-    sellRatio: 0.65,
     safeLots: 0,
-    suspicionWeight: 8,
+    suspicionWeight: 6.5,
   },
 ];
 
@@ -108,11 +97,11 @@ export type DistrictEconomyTag = 'granary' | 'highland' | 'urban_ming' | 'coasta
 const DISTRICT_ECONOMY: Record<string, { tag: DistrictEconomyTag; tagLabel: string; marketName: string }> = {
   lam_son: { tag: 'highland', tagLabel: 'Miền Núi • Căn Cứ', marketName: 'Chợ Phố Đầm (Lam Sơn)' },
   chi_linh: { tag: 'highland', tagLabel: 'Rừng Núi Hiểm Trở', marketName: 'Chợ Mường Chí Linh' },
-  muong_thoi: { tag: 'highland', tagLabel: 'Biên Thùy • Tượng Mã', marketName: 'Chợ Mường Thôi' },
-  muong_kiet: { tag: 'highland', tagLabel: 'Biên Thùy • Tượng Mã', marketName: 'Chợ Mường Kiệt' },
+  muong_thoi: { tag: 'highland', tagLabel: 'Biên Thùy • Chiến Mã', marketName: 'Chợ Mường Thôi' },
+  muong_kiet: { tag: 'highland', tagLabel: 'Biên Thùy • Chiến Mã', marketName: 'Chợ Mường Kiệt' },
   quan_du: { tag: 'highland', tagLabel: 'Cửa Ải • Ngựa Chiến', marketName: 'Chợ Cửa Ải Quan Du' },
   loi_giang: { tag: 'highland', tagLabel: 'Thượng Nguồn Sông Mã', marketName: 'Chợ Lỗi Giang' },
-  co_loi: { tag: 'highland', tagLabel: 'Đồi Núi • Gỗ Quý', marketName: 'Chợ Cổ Lôi' },
+  co_loi: { tag: 'highland', tagLabel: 'Đồi Núi • Lò Rèn', marketName: 'Chợ Cổ Lôi' },
   tay_do: { tag: 'urban_ming', tagLabel: 'Đô Thị • Đồn Minh', marketName: 'Chợ Thành Tây Đô' },
   dong_son: { tag: 'urban_ming', tagLabel: 'Phủ Thành • Làng Rèn', marketName: 'Chợ Phủ Đông Sơn' },
   an_lac: { tag: 'urban_ming', tagLabel: 'Trấn Thị • Binh Khí', marketName: 'Chợ An Lạc' },
@@ -129,19 +118,27 @@ const DISTRICT_ECONOMY: Record<string, { tag: DistrictEconomyTag; tagLabel: stri
 };
 
 const TAG_MULTIPLIERS: Record<DistrictEconomyTag, Partial<Record<MarketGoodKey, number>>> = {
-  granary: { food: 0.78, clothes: 0.95, swords: 1.12, spears: 1.12, bows: 1.1, horses: 1.2, elephants: 1.25 },
-  highland: { food: 1.18, swords: 1.05, spears: 0.96, bows: 0.9, clothes: 1.12, horses: 0.82, elephants: 0.78 },
-  urban_ming: { food: 1.05, swords: 0.85, spears: 0.85, bows: 0.88, clothes: 0.84, horses: 1.05, elephants: 1.15 },
-  coastal: { food: 0.95, swords: 1.02, spears: 1.0, bows: 1.0, clothes: 0.9, horses: 1.15, elephants: 1.2 },
-  balanced: { food: 1.0, swords: 1.0, spears: 1.0, bows: 1.0, clothes: 1.0, horses: 1.0, elephants: 1.0 },
+  granary: { food: 0.78, clothes: 0.95, swords: 1.12, spears: 1.12, bows: 1.1, horses: 1.2 },
+  highland: { food: 1.18, swords: 1.05, spears: 0.96, bows: 0.88, clothes: 1.12, horses: 0.82 },
+  urban_ming: { food: 1.05, swords: 0.85, spears: 0.85, bows: 0.88, clothes: 0.84, horses: 1.05 },
+  coastal: { food: 0.95, swords: 1.02, spears: 1.0, bows: 1.0, clothes: 0.9, horses: 1.15 },
+  balanced: { food: 1.0, swords: 1.0, spears: 1.0, bows: 1.0, clothes: 1.0, horses: 1.0 },
 };
 
-const BASE_DAILY_STOCK: Record<DistrictEconomyTag, Record<MarketGoodKey, number>> = {
-  granary: { food: 25, swords: 12, spears: 14, bows: 10, clothes: 18, horses: 3, elephants: 0 },
-  highland: { food: 10, swords: 10, spears: 14, bows: 16, clothes: 10, horses: 8, elephants: 3 },
-  urban_ming: { food: 16, swords: 24, spears: 24, bows: 20, clothes: 28, horses: 6, elephants: 1 },
-  coastal: { food: 15, swords: 14, spears: 14, bows: 12, clothes: 20, horses: 4, elephants: 0 },
-  balanced: { food: 15, swords: 15, spears: 15, bows: 15, clothes: 15, horses: 4, elephants: 1 },
+// Không phải chợ nào cũng bán đủ Kiếm, Giáo, Cung; mặt hàng = 0 sẽ không hiển thị khi mua
+const BASE_MONTHLY_STOCK: Record<DistrictEconomyTag, Record<MarketGoodKey, number>> = {
+  granary: { food: 45, swords: 0, spears: 0, bows: 0, clothes: 28, horses: 2 },
+  highland: { food: 18, swords: 0, spears: 18, bows: 26, clothes: 14, horses: 10 },
+  urban_ming: { food: 28, swords: 36, spears: 34, bows: 24, clothes: 40, horses: 8 },
+  coastal: { food: 30, swords: 0, spears: 16, bows: 0, clothes: 32, horses: 3 },
+  balanced: { food: 26, swords: 18, spears: 0, bows: 14, clothes: 22, horses: 4 },
+};
+
+const DISTRICT_STOCK_OVERRIDES: Record<string, Partial<Record<MarketGoodKey, number>>> = {
+  nong_cong: { spears: 14 },
+  co_loi: { swords: 16, bows: 0 },
+  chi_nga: { swords: 18, spears: 0 },
+  co_dang: { spears: 0 },
 };
 
 export interface DistrictMarketMeta {
@@ -160,7 +157,7 @@ export interface MarketListing {
   config: MarketGoodConfig;
   buyPrice: number;
   sellPrice: number;
-  dailyStock: number;
+  monthlyStock: number;
   remainingStock: number;
 }
 
@@ -175,6 +172,24 @@ function hashString(input: string): number {
 
 export function getAllDistrictsList(): DistrictInfo[] {
   return ((districtData as { districts?: DistrictInfo[] }).districts ?? []);
+}
+
+export function getDistrictMarketPosition(districtId: string): { x: number; y: number; col: number; row: number } {
+  const district = getAllDistrictsList().find(d => d.id === districtId);
+  if (!district || !district.polygon || district.polygon.length === 0) {
+    const fallback = coordToCell(35, 50);
+    return { x: 35, y: 50, col: fallback.col, row: fallback.row };
+  }
+  let sx = 0;
+  let sy = 0;
+  for (const pt of district.polygon) {
+    sx += pt[0];
+    sy += pt[1];
+  }
+  const x = Number((sx / district.polygon.length).toFixed(2));
+  const y = Number((sy / district.polygon.length).toFixed(2));
+  const cell = coordToCell(x, y);
+  return { x, y, col: cell.col, row: cell.row };
 }
 
 export function getDistrictMarketMeta(districtId: string, cities: CityNode[]): DistrictMarketMeta {
@@ -212,30 +227,31 @@ export function getDistrictMarketMeta(districtId: string, cities: CityNode[]): D
 export function getDistrictMarketListings(
   districtId: string,
   cities: CityNode[],
-  date: { day: number; month: number; year: number },
-  marketUsedToday: Record<string, number> = {}
+  date: { month: number; year: number },
+  marketUsedThisMonth: Record<string, number> = {}
 ): MarketListing[] {
   const meta = getDistrictMarketMeta(districtId, cities);
   const tagMult = TAG_MULTIPLIERS[meta.tag];
-  const baseStock = BASE_DAILY_STOCK[meta.tag];
-  const dayIndex = date.year * 365 + date.month * 30 + date.day;
+  const baseStock = BASE_MONTHLY_STOCK[meta.tag];
+  const overrides = DISTRICT_STOCK_OVERRIDES[districtId] ?? {};
+  const monthIndex = date.year * 12 + date.month;
 
   return MARKET_GOODS.map(cfg => {
     const seed = hashString(`${districtId}:${cfg.key}`);
-    const staticSpread = 0.92 + ((seed % 17) / 100); // 0.92 .. 1.08
-    const timeWave = 1 + Math.sin(dayIndex * 0.25 + (seed % 31)) * 0.1; // 0.90 .. 1.10
+    const staticSpread = 0.92 + ((seed % 17) / 100);
+    const timeWave = 1 + Math.sin(monthIndex * 0.65 + (seed % 31)) * 0.1;
     const mult = (tagMult[cfg.key] ?? 1.0) * staticSpread * timeWave;
     const buyPrice = Math.max(2, Math.round(cfg.baseBuyPrice * mult));
     const sellPrice = Math.max(1, Math.round(buyPrice * cfg.sellRatio));
-    const dailyStock = baseStock[cfg.key];
-    const used = Math.max(0, Math.floor(marketUsedToday[`${districtId}:${cfg.key}`] ?? 0));
-    const remainingStock = Math.max(0, dailyStock - used);
+    const monthlyStock = overrides[cfg.key] ?? baseStock[cfg.key];
+    const used = Math.max(0, Math.floor(marketUsedThisMonth[`${districtId}:${cfg.key}`] ?? 0));
+    const remainingStock = Math.max(0, monthlyStock - used);
 
     return {
       config: cfg,
       buyPrice,
       sellPrice,
-      dailyStock,
+      monthlyStock,
       remainingStock,
     };
   });
@@ -244,6 +260,7 @@ export function getDistrictMarketListings(
 export function calculateMarketTradeSuspicion(
   districtId: string,
   goodKey: MarketGoodKey,
+  action: 'buy' | 'sell',
   lots: number,
   cities: CityNode[]
 ): number {
@@ -251,12 +268,21 @@ export function calculateMarketTradeSuspicion(
   if (cleanLots <= 0) return 0;
   const cfg = MARKET_GOODS.find(g => g.key === goodKey);
   if (!cfg) return 0;
-  if (cleanLots <= cfg.safeLots) return 0;
 
   const meta = getDistrictMarketMeta(districtId, cities);
-  const excess = cleanLots - cfg.safeLots;
-  const raw = excess * cfg.suspicionWeight * meta.mingRiskMultiplier;
-  return Math.min(35, Math.max(1, Math.round(raw)));
+  // Mua ngựa gây chú ý cao hơn nhiều so với bán hoặc mua vật tư thông thường
+  const safeLots = goodKey === 'horses' && action === 'sell' ? 1 : cfg.safeLots;
+  if (cleanLots <= safeLots) return 0;
+
+  const weight =
+    goodKey === 'horses'
+      ? action === 'buy'
+        ? cfg.suspicionWeight
+        : 3.0
+      : cfg.suspicionWeight;
+  const excess = cleanLots - safeLots;
+  const raw = excess * weight * meta.mingRiskMultiplier;
+  return Math.min(40, Math.max(1, Math.round(raw)));
 }
 
 export function getResourceAmountForGood(resources: Resources, key: MarketGoodKey): number {

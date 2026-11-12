@@ -90,6 +90,26 @@ export const MARCH_ENDPOINT_ACTIONS: Record<MarchEndpointAction, EndpointActionM
     badgeClass: 'bg-purple-950/90 text-purple-200 border-purple-400',
     description: 'Lộ trình kép: Tiến lên khiêu khích đồn địch rồi vờ thua tháo chạy theo đường rút lui để dẫn xác quân Minh vào ổ Mai Phục!',
   },
+  market_pickup: {
+    id: 'market_pickup',
+    name: 'Nhận Hàng Chợ Huyện',
+    nameHanzi: '採買',
+    shortLabel: 'Lấy Hàng',
+    icon: '📦',
+    color: '#b45309',
+    badgeClass: 'bg-amber-900/90 text-amber-100 border-amber-400',
+    description: 'Hành quân tới chợ huyện nhận hàng đã mua rồi áp tải về bản doanh.',
+  },
+  market_return: {
+    id: 'market_return',
+    name: 'Áp Tải Hàng Về Doanh',
+    nameHanzi: '運糧',
+    shortLabel: 'Chở Về',
+    icon: '🛒',
+    color: '#15803d',
+    badgeClass: 'bg-emerald-900/90 text-emerald-100 border-emerald-400',
+    description: 'Đang áp tải hàng hóa đã mua từ chợ huyện trở về bản doanh.',
+  },
 };
 
 export const STATUS_LABELS: Record<TacticalFormation['status'], { label: string; icon: string; color: string }> = {

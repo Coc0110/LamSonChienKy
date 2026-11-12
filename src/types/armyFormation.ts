@@ -17,7 +17,9 @@ export type MarchEndpointAction =
   | 'scout'            // Thám thính / Do thám mở tầm nhìn
   | 'forage'           // Thu thập / Tích lương tại chỗ
   | 'decoy'            // Nghi binh / Đốt lửa dựng cờ dụ địch
-  | 'feigned_retreat'; // Trá bại dụ địch (Tiến đánh khiêu khích rồi vờ thua rút lui về ổ phục kích)
+  | 'feigned_retreat'  // Trá bại dụ địch (Tiến đánh khiêu khích rồi vờ thua rút lui về ổ phục kích)
+  | 'market_pickup'    // Đến chợ huyện nhận hàng đã mua
+  | 'market_return';   // Áp tải hàng từ chợ về bản doanh
 
 export type FormationStatus =
   | 'idle'
