@@ -8,7 +8,6 @@ import {
   getStatNumberStyle,
 } from './plaqueConstants';
 import { calculateGeneralRating } from '../../../utils/generalRating';
-import { useGameStore } from '../../../store/gameStore';
 
 interface BronzePlaqueBackProps {
   general: General;
@@ -24,18 +23,10 @@ export const BronzePlaqueBack: React.FC<BronzePlaqueBackProps> = ({
   bodyHeight,
 }) => {
   const rating = useMemo(() => calculateGeneralRating(general.stats), [general.stats]);
-  const horses = useGameStore(state => state.resources.horses);
-  const elephants = useGameStore(state => state.resources.elephants);
 
-  // Chỉ hiển thị binh chủng khi đã mở khóa trong game (chưa có ngựa/voi thì tạm ẩn trên thẻ)
   const availableTroops = useMemo(() => {
-    return TROOP_SPECS.filter(troop => {
-      if (!general.troops?.includes(troop.id)) return false;
-      if (troop.id === 'cavalry' && horses <= 0) return false;
-      if (troop.id === 'elephant' && elephants <= 0) return false;
-      return true;
-    });
-  }, [general.troops, horses, elephants]);
+    return TROOP_SPECS.filter(troop => general.troops?.includes(troop.id));
+  }, [general.troops]);
 
   return (
     <div
