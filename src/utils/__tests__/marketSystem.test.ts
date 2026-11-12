@@ -4,6 +4,7 @@ import {
   MARKET_GOODS,
   calculateMarketTradeSuspicion,
   getDistrictMarketListings,
+  getMarketDistrictsList,
 } from '../marketUtils';
 
 function assert(condition: unknown, message: string): void {
@@ -13,13 +14,17 @@ function assert(condition: unknown, message: string): void {
 const state0 = useGameStore.getState();
 const date = { month: state0.month, year: state0.year };
 
+// 0. Simplified to 6 markets
+const marketDistricts = getMarketDistrictsList();
+assert(marketDistricts.length === 6, `Expected 6 markets, got ${marketDistricts.length}`);
+
 // 1. No elephants in Thanh Hoa markets & food lotSize is 500
 assert(!MARKET_GOODS.some(g => (g.key as string) === 'elephants'), 'Thanh Hoa markets must not sell elephants');
-const luongGiang = getDistrictMarketListings('luong_giang', state0.cities, date);
+const nongCong = getDistrictMarketListings('nong_cong', state0.cities, date);
 const tayDo = getDistrictMarketListings('tay_do', state0.cities, date);
-const quanDu = getDistrictMarketListings('quan_du', state0.cities, date);
-const foodGranary = luongGiang.find(l => l.config.key === 'food')!;
-const foodHighland = quanDu.find(l => l.config.key === 'food')!;
+const muongKiet = getDistrictMarketListings('muong_kiet', state0.cities, date);
+const foodGranary = nongCong.find(l => l.config.key === 'food')!;
+const foodHighland = muongKiet.find(l => l.config.key === 'food')!;
 assert(foodGranary.config.lotSize === 500, `Expected food lotSize 500, got ${foodGranary.config.lotSize}`);
 assert(
   foodGranary.buyPrice < foodHighland.buyPrice,
@@ -28,8 +33,8 @@ assert(
 
 // 2. Selective weapon availability
 assert(
-  luongGiang.find(l => l.config.key === 'swords')!.monthlyStock === 0 &&
-    luongGiang.find(l => l.config.key === 'bows')!.monthlyStock === 0,
+  nongCong.find(l => l.config.key === 'swords')!.monthlyStock === 0 &&
+    nongCong.find(l => l.config.key === 'bows')!.monthlyStock === 0,
   'Granary market should not sell swords or bows'
 );
 assert(

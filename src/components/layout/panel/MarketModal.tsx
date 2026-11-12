@@ -5,7 +5,7 @@ import { useUIStore } from '../../../store/uiStore';
 import { notify } from '../../../store/dialogStore';
 import {
   calculateMarketTradeSuspicion,
-  getAllDistrictsList,
+  getMarketDistrictsList,
   getDistrictMarketListings,
   getDistrictMarketMeta,
   getResourceAmountForGood,
@@ -33,7 +33,7 @@ export const MarketModal: React.FC = React.memo(() => {
   const [tradeMode, setTradeMode] = useState<'buy' | 'sell'>('buy');
   const [selectedFormationId, setSelectedFormationId] = useState<string>('');
 
-  const districts = useMemo(() => getAllDistrictsList(), []);
+  const districts = useMemo(() => getMarketDistrictsList(), []);
   const defaultDistrictId = useMemo(() => {
     if (marketDistrictId && districts.some(d => d.id === marketDistrictId)) return marketDistrictId;
     if (selectedCityId) {
@@ -41,7 +41,7 @@ export const MarketModal: React.FC = React.memo(() => {
       const dId = city?.districtId ?? city?.id;
       if (dId && districts.some(d => d.id === dId)) return dId;
     }
-    return districts[0]?.id ?? 'lam_son';
+    return districts.find(d => d.id === 'lam_son')?.id ?? districts[0]?.id ?? 'lam_son';
   }, [marketDistrictId, districts, selectedCityId, cities]);
 
   const [quantities, setQuantities] = useState<Record<MarketGoodKey, number>>({

@@ -4,6 +4,7 @@ import { useGameStore } from '../../../store/gameStore';
 import { useUIStore } from '../../../store/uiStore';
 import districtData from '../../../data/districtPolygons.json';
 import { pointInPolygon } from '../../../utils/mapGeo';
+import { hasDistrictMarket } from '../../../utils/marketUtils';
 import type { DistrictInfo } from '../../../types/map';
 
 interface DistrictDetailPanelProps {
@@ -176,6 +177,7 @@ export const DistrictDetailPanel: React.FC<DistrictDetailPanelProps> = ({ distri
             <span className="font-serif text-[#3d2714]">{lore.terrain}</span>
           </div>
 
+          {hasDistrictMarket(district.id) && (
           <div className="pt-1.5">
             <button
               type="button"
@@ -186,6 +188,7 @@ export const DistrictDetailPanel: React.FC<DistrictDetailPanelProps> = ({ distri
               <span>Mở Chợ {district.name}</span>
             </button>
           </div>
+          )}
         </div>
 
         {/* 3. CĂN CỨ & ĐỒN TRẠI QUÂN SỰ TRÊN ĐỊA BÀN */}

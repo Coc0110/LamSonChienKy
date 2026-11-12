@@ -94,27 +94,24 @@ export const MARKET_GOODS: MarketGoodConfig[] = [
 
 export type DistrictEconomyTag = 'granary' | 'highland' | 'urban_ming' | 'coastal' | 'balanced';
 
+export const MARKET_DISTRICT_IDS = [
+  'muong_kiet',
+  'lam_son',
+  'huyen_khoi',
+  'tay_do',
+  'dong_son',
+  'nong_cong',
+] as const;
+
+const MARKET_DISTRICT_SET = new Set<string>(MARKET_DISTRICT_IDS);
+
 const DISTRICT_ECONOMY: Record<string, { tag: DistrictEconomyTag; tagLabel: string; marketName: string }> = {
-  lam_son: { tag: 'highland', tagLabel: 'Miền Núi • Căn Cứ', marketName: 'Chợ Phố Đầm (Lam Sơn)' },
-  chi_linh: { tag: 'highland', tagLabel: 'Rừng Núi Hiểm Trở', marketName: 'Chợ Mường Chí Linh' },
-  muong_thoi: { tag: 'highland', tagLabel: 'Biên Thùy • Chiến Mã', marketName: 'Chợ Mường Thôi' },
-  muong_kiet: { tag: 'highland', tagLabel: 'Biên Thùy • Chiến Mã', marketName: 'Chợ Mường Kiệt' },
-  quan_du: { tag: 'highland', tagLabel: 'Cửa Ải • Ngựa Chiến', marketName: 'Chợ Cửa Ải Quan Du' },
-  loi_giang: { tag: 'highland', tagLabel: 'Thượng Nguồn Sông Mã', marketName: 'Chợ Lỗi Giang' },
-  co_loi: { tag: 'highland', tagLabel: 'Đồi Núi • Lò Rèn', marketName: 'Chợ Cổ Lôi' },
-  tay_do: { tag: 'urban_ming', tagLabel: 'Đô Thị • Đồn Minh', marketName: 'Chợ Thành Tây Đô' },
+  muong_kiet: { tag: 'highland', tagLabel: 'Biên Thùy • Chiến Mã & Cung', marketName: 'Chợ Mường Kiệt' },
+  lam_son: { tag: 'highland', tagLabel: 'Căn Cứ • Giáo & Cung', marketName: 'Chợ Phố Đầm (Lam Sơn)' },
+  huyen_khoi: { tag: 'balanced', tagLabel: 'Châu Ninh Hóa • Đao Kiếm', marketName: 'Chợ Huyện Khôi' },
+  tay_do: { tag: 'urban_ming', tagLabel: 'Đô Thị • Đủ Binh Khí', marketName: 'Chợ Thành Tây Đô' },
   dong_son: { tag: 'urban_ming', tagLabel: 'Phủ Thành • Làng Rèn', marketName: 'Chợ Phủ Đông Sơn' },
-  an_lac: { tag: 'urban_ming', tagLabel: 'Trấn Thị • Binh Khí', marketName: 'Chợ An Lạc' },
-  thong_ninh: { tag: 'urban_ming', tagLabel: 'Đồn Trú • Thương Khẩu', marketName: 'Chợ Thống Ninh' },
-  luong_giang: { tag: 'granary', tagLabel: 'Vựa Lúa Sông Chu', marketName: 'Chợ Lương Giang' },
-  vinh_ninh: { tag: 'granary', tagLabel: 'Đồng Bằng Trù Phú', marketName: 'Chợ Vĩnh Ninh' },
-  yen_dinh: { tag: 'granary', tagLabel: 'Vựa Thóc • Đồn Minh', marketName: 'Chợ Yên Định' },
-  nong_cong: { tag: 'granary', tagLabel: 'Đồng Chiêm • Cửa Ngõ', marketName: 'Chợ Nông Cống' },
-  co_hoang: { tag: 'granary', tagLabel: 'Vựa Lúa Ven Sông', marketName: 'Chợ Cổ Hoằng' },
-  ha_trung: { tag: 'coastal', tagLabel: 'Cửa Biển • Muối Cá', marketName: 'Chợ Bến Hà Trung' },
-  tong_giang: { tag: 'coastal', tagLabel: 'Thủy Đạo • Giao Thương', marketName: 'Chợ Tống Giang' },
-  chi_nga: { tag: 'coastal', tagLabel: 'Ven Sông • Đóng Thuyền', marketName: 'Chợ Chi Nga' },
-  co_dang: { tag: 'coastal', tagLabel: 'Đồng Trũng • Vải Vóc', marketName: 'Chợ Cổ Đằng' },
+  nong_cong: { tag: 'granary', tagLabel: 'Vựa Lúa Phương Nam', marketName: 'Chợ Nông Cống' },
 };
 
 const TAG_MULTIPLIERS: Record<DistrictEconomyTag, Partial<Record<MarketGoodKey, number>>> = {
@@ -136,9 +133,7 @@ const BASE_MONTHLY_STOCK: Record<DistrictEconomyTag, Record<MarketGoodKey, numbe
 
 const DISTRICT_STOCK_OVERRIDES: Record<string, Partial<Record<MarketGoodKey, number>>> = {
   nong_cong: { spears: 14 },
-  co_loi: { swords: 16, bows: 0 },
-  chi_nga: { swords: 18, spears: 0 },
-  co_dang: { spears: 0 },
+  dong_son: { bows: 0 },
 };
 
 export interface DistrictMarketMeta {
@@ -172,6 +167,17 @@ function hashString(input: string): number {
 
 export function getAllDistrictsList(): DistrictInfo[] {
   return ((districtData as { districts?: DistrictInfo[] }).districts ?? []);
+}
+
+export function hasDistrictMarket(districtId: string): boolean {
+  return MARKET_DISTRICT_SET.has(districtId);
+}
+
+export function getMarketDistrictsList(): DistrictInfo[] {
+  const all = getAllDistrictsList();
+  return MARKET_DISTRICT_IDS
+    .map(id => all.find(d => d.id === id))
+    .filter((d): d is DistrictInfo => !!d);
 }
 
 export function getDistrictMarketPosition(districtId: string): { x: number; y: number; col: number; row: number } {
