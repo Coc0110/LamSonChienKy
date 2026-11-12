@@ -75,7 +75,14 @@ export interface MilitarySlice {
   addMilitaryNotice: (notice: Omit<MilitaryNotice, 'id' | 'read' | 'timestamp'>) => void;
   markNoticesAsRead: () => void;
   clearMilitaryNotices: () => void;
-  startTraining: (cityId: string, generalId: string, traineesCount: number, swappedCount: number, totalDays: number) => void;
+  startTraining: (
+    cityId: string,
+    generalId: string,
+    traineesCount: number,
+    swappedCount: number,
+    totalDays: number,
+    targetRoster?: Partial<import('../../types/armyFormation').ArmyRosterCounts>
+  ) => void;
   cancelTraining: (cityId: string) => void;
   bribeMingOfficials: (cityId?: string) => { success: boolean; message: string; cost: number; reducedSuspicion: number };
   dispatchScout: (cityId: string) => { success: boolean; message: string };

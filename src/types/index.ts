@@ -1,3 +1,5 @@
+import type { ArmyRosterCounts } from './armyFormation';
+
 export interface Resources {
   troops: number;
   horses: number;

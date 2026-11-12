@@ -18,6 +18,52 @@ export const EMPTY_ROSTER: ArmyRosterCounts = {
   supply_cart: 0,
 };
 
+/**
+ * Lấy quân số dự bị theo từng binh chủng của căn cứ.
+ * Nếu bản lưu cũ chưa có trainedRoster thì tự chia đều theo combatTroops.
+ */
+export function getCityTrainedRoster(pop: { combatTroops: number; trainedRoster?: Partial<ArmyRosterCounts> }): ArmyRosterCounts {
+  if (pop.trainedRoster) {
+    const out: ArmyRosterCounts = { ...EMPTY_ROSTER };
+    (Object.keys(EMPTY_ROSTER) as (keyof ArmyRosterCounts)[]).forEach(k => {
+      out[k] = Math.max(0, Math.floor(pop.trainedRoster![k] ?? 0));
+    });
+    return out;
+  }
+  const total = Math.max(0, Math.floor(pop.combatTroops));
+  const swordsman = Math.round(total * 0.4);
+  const spearman = Math.round(total * 0.35);
+  const archer = Math.max(0, total - swordsman - spearman);
+  return { ...EMPTY_ROSTER, swordsman, spearman, archer };
+}
+
+/** Cộng hoặc trừ số lượng binh chủng dự bị của căn cứ (đảm bảo >= 0). */
+export function mergeTrainedRoster(
+  base: ArmyRosterCounts,
+  delta: Partial<ArmyRosterCounts>,
+  sign: 1 | -1
+): ArmyRosterCounts {
+  const out: ArmyRosterCounts = { ...base };
+  (Object.keys(EMPTY_ROSTER) as (keyof ArmyRosterCounts)[]).forEach(k => {
+    out[k] = Math.max(0, Math.floor(out[k] + sign * Math.floor(delta[k] ?? 0)));
+  });
+  return out;
+}
+
+/** Rút ngẫu nhiên/lần lượt N binh sĩ khỏi trainedRoster khi phải cắt cử đi làm việc thế chỗ. */
+export function deductFromTrainedRoster(base: ArmyRosterCounts, count: number): ArmyRosterCounts {
+  let rem = Math.max(0, Math.floor(count));
+  const out: ArmyRosterCounts = { ...base };
+  const order: (keyof ArmyRosterCounts)[] = ['swordsman', 'spearman', 'archer', 'cavalry', 'scout', 'elephant', 'supply_cart'];
+  for (const k of order) {
+    if (rem <= 0) break;
+    const take = Math.min(out[k], rem);
+    out[k] -= take;
+    rem -= take;
+  }
+  return out;
+}
+
 const hp = (type: keyof ArmyRosterCounts): number => TACTICAL_UNIT_CONFIGS[type].baseStats.hp;
 
 /** Sức chứa quân tối đa của đạo quân theo Chủ tướng + Phó tướng (tối thiểu 300). */
