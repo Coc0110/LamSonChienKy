@@ -1,5 +1,5 @@
 import React from 'react';
-import { X } from 'lucide-react';
+import { Store, X } from 'lucide-react';
 import { useGameStore } from '../../../store/gameStore';
 import { useUIStore } from '../../../store/uiStore';
 import districtData from '../../../data/districtPolygons.json';
@@ -75,6 +75,7 @@ export const DistrictDetailPanel: React.FC<DistrictDetailPanelProps> = ({ distri
   const cities = useGameStore(state => state.cities);
   const selectBase = useUIStore(state => state.selectBase);
   const setBaseRelocateMode = useUIStore(state => state.setBaseRelocateMode);
+  const openDistrictMarket = useUIStore(state => state.openDistrictMarket);
 
   // Lấy dữ liệu huyện từ districtPolygons
   const defaultDistricts: DistrictInfo[] = (districtData as any).districts || [];
@@ -173,6 +174,17 @@ export const DistrictDetailPanel: React.FC<DistrictDetailPanelProps> = ({ distri
           <div>
             <span className="font-serif font-bold text-[#452b14]">Địa thế: </span>
             <span className="font-serif text-[#3d2714]">{lore.terrain}</span>
+          </div>
+
+          <div className="pt-1.5">
+            <button
+              type="button"
+              onClick={() => openDistrictMarket(district.id)}
+              className="px-3 py-1.5 rounded bg-[#8c2d19] hover:bg-[#6e1e0d] text-[#fff3db] font-serif font-bold text-xs inline-flex items-center gap-1.5 shadow transition cursor-pointer active:scale-95"
+            >
+              <Store size={14} />
+              <span>Mở Chợ {district.name}</span>
+            </button>
           </div>
         </div>
 

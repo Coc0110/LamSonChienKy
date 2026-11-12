@@ -43,6 +43,10 @@ export const UI_TEXT = {
         label: 'Xây Dựng',
         tooltip: 'Quy hoạch công trình',
       },
+      market: {
+        label: 'Chợ Huyện',
+        tooltip: 'Giao thương mua bán tại chợ các huyện',
+      },
       refugees: {
         label: 'Lưu Dân',
         tooltip: 'Đón tiếp dân tị nạn',

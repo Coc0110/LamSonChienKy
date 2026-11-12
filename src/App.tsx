@@ -12,6 +12,7 @@ import { ArmyOverviewPanel } from './components/layout/panel/ArmyOverviewPanel';
 import { FarmsOverviewModal } from './components/layout/panel/FarmsOverviewModal';
 import { ForgesOverviewModal } from './components/layout/panel/ForgesOverviewModal';
 import { ScoutOverviewModal } from './components/layout/panel/ScoutOverviewModal';
+import { MarketModal } from './components/layout/panel/MarketModal';
 import { BattlefieldModal } from './components/battle/BattlefieldModal';
 import { BattleTesterModal } from './components/battle/BattleTesterModal';
 import { BattleResultModal } from './components/battle/BattleResultModal';
@@ -148,6 +149,7 @@ function App() {
       <FarmsOverviewModal />
       <ForgesOverviewModal />
       <ScoutOverviewModal />
+      <MarketModal />
       <ParchmentToastContainer />
       <ParchmentConfirmModal />
       <RefugeeIntakeModal />
