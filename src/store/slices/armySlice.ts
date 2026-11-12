@@ -24,6 +24,8 @@ import { applyWorldStratagem, ENGAGEMENT_RADIUS_PCT, resolveWorldMapCombatTick }
 import { spawnMingFieldFormation, updateMingFormationsAI } from '../../utils/mingMapAI';
 import { deductWeaponsFromPool } from './militarySlice';
 import { getFormationMapPos, MARCH_ENDPOINT_ACTIONS } from '../../utils/marchPathUtils';
+import { findShortestScoutPath } from '../../utils/scoutPathfinding';
+import { getDistrictMarketMeta, getDistrictMarketPosition } from '../../utils/marketUtils';
 import { coordToCell, getGridTerrain, getGridTerrainAt } from '../../data/terrainGrid';
 import { TERRAIN_DEFINITIONS } from '../../data/terrainData';
 import type { GameStore } from './types';
@@ -90,6 +92,8 @@ export interface ArmySlice {
   ) => { success: boolean; message: string; newFormationId?: string };
 
   mergeFormationIntoParent: (formationId: string) => { success: boolean; message: string };
+
+  dispatchArmyForMarketPickup: (formationId: string, districtId: string) => { success: boolean; message: string };
 
   stepArmies: (deltaDays: number) => void;
 }
@@ -1449,6 +1453,73 @@ export const createArmySlice: StateCreator<GameStore, [], [], ArmySlice> = (set,
     };
   },
 
+  dispatchArmyForMarketPickup: (formationId, districtId) => {
+    const state = get();
+    const form = state.formations.find(f => f.id === formationId && (f.faction ?? 'lam_son') === 'lam_son');
+    if (!form) return { success: false, message: 'Không tìm thấy đạo quân nghĩa quân!' };
+    if (form.status !== 'idle' && form.status !== 'stationed') {
+      return { success: false, message: 'Đạo quân đang bận hành quân hoặc giao chiến!' };
+    }
+    if (form.totalTroops <= 0) {
+      return { success: false, message: 'Đạo quân chưa có binh sĩ!' };
+    }
+    const awaiting = state.pendingMarketOrders.filter(
+      o => o.districtId === districtId && o.status === 'awaiting_pickup'
+    );
+    if (awaiting.length === 0) {
+      return { success: false, message: 'Chợ này không có đơn hàng nào đang chờ lấy!' };
+    }
+    const homeCity = state.cities.find(c => c.id === form.cityId) ?? state.cities.find(c => c.faction === 'lam_son');
+    if (!homeCity) return { success: false, message: 'Không tìm thấy bản doanh xuất phát!' };
+
+    const startPos = getFormationMapPos(form, state.cities);
+    const marketPos = getDistrictMarketPosition(districtId);
+    const meta = getDistrictMarketMeta(districtId, state.cities);
+    const { path } = findShortestScoutPath(
+      { ...homeCity, x: startPos.x, y: startPos.y },
+      { ...homeCity, x: marketPos.x, y: marketPos.y },
+      1
+    );
+    const cells = path.length > 0 ? path : [{
+      col: marketPos.col,
+      row: marketPos.row,
+      x: marketPos.x,
+      y: marketPos.y,
+      terrain: getGridTerrain(marketPos.col, marketPos.row),
+      moveCostDays: 0.1,
+      cumulativeDays: 0.1,
+      foodCost: 1,
+    }];
+    const totalDays = cells[cells.length - 1]?.cumulativeDays ?? 0.5;
+    const totalFoodCost = Number(cells.reduce((s, c) => s + (c.foodCost || 0), 0).toFixed(2));
+
+    set(prev => ({
+      formations: prev.formations.map(f =>
+        f.id === formationId
+          ? {
+              ...f,
+              status: 'marching' as const,
+              mapPosition: startPos,
+              marchOrder: {
+                cells,
+                currentCellIndex: 0,
+                cellProgress: 0,
+                endpointAction: 'market_pickup' as const,
+                totalDays,
+                elapsedDays: 0,
+                totalFoodCost,
+              },
+            }
+          : f
+      ),
+    }));
+
+    return {
+      success: true,
+      message: `Đã cử [${form.name}] hành quân tới ${meta.marketName} lấy hàng về bản doanh!`,
+    };
+  },
+
   stepArmies: (deltaDays) => {
     if (deltaDays <= 0) return;
     const state = get();
@@ -1474,7 +1545,8 @@ export const createArmySlice: StateCreator<GameStore, [], [], ArmySlice> = (set,
 
     set(prev => {
       let foodConsumedTotal = 0;
-      const captured = { food: 0, gold: 0, swords: 0, bows: 0, spears: 0 };
+      const captured = { food: 0, gold: 0, swords: 0, bows: 0, spears: 0, clothes: 0, horses: 0 };
+      let nextPendingOrders = prev.pendingMarketOrders;
       const plundered = { food: 0, weapons: 0, morale: 0 };
       let cities = prev.cities;
       const spawned: TacticalFormation[] = [];
@@ -1610,7 +1682,73 @@ export const createArmySlice: StateCreator<GameStore, [], [], ArmySlice> = (set,
           let finalStatus: TacticalFormation['status'] = 'stationed';
           let engagedTargetCityId: string | null = null;
 
-          if (act === 'ambush') {
+          if (act === 'market_pickup') {
+            const matchedOrders = nextPendingOrders.filter(
+              o => o.status === 'awaiting_pickup' && Math.hypot(o.x - currentPos.x, o.y - currentPos.y) <= 4.0
+            );
+            const homeCity = cities.find(c => c.id === form.cityId) ?? cities.find(c => c.faction === 'lam_son');
+            if (matchedOrders.length > 0 && homeCity) {
+              const matchedIds = new Set(matchedOrders.map(o => o.id));
+              nextPendingOrders = nextPendingOrders.map(o =>
+                matchedIds.has(o.id)
+                  ? { ...o, status: 'in_transit' as const, carryingFormationId: form.id }
+                  : o
+              );
+              const { path } = findShortestScoutPath(
+                { ...homeCity, x: currentPos.x, y: currentPos.y },
+                homeCity,
+                1
+              );
+              const retCells = path.length > 0 ? path : [{
+                col: coordToCell(homeCity.x, homeCity.y).col,
+                row: coordToCell(homeCity.x, homeCity.y).row,
+                x: homeCity.x,
+                y: homeCity.y,
+                terrain: getGridTerrain(coordToCell(homeCity.x, homeCity.y).col, coordToCell(homeCity.x, homeCity.y).row),
+                moveCostDays: 0.1,
+                cumulativeDays: 0.1,
+                foodCost: 1,
+              }];
+              toastsToEmit.push({
+                type: 'info',
+                text: `📦 [${form.name}] đã nhận ${matchedOrders.length} kiện hàng tại chợ và đang áp tải về bản doanh!`,
+              });
+              return {
+                ...moved,
+                status: 'marching' as const,
+                mapPosition: currentPos,
+                marchOrder: {
+                  cells: retCells,
+                  currentCellIndex: 0,
+                  cellProgress: 0,
+                  endpointAction: 'market_return' as const,
+                  totalDays: retCells[retCells.length - 1]?.cumulativeDays ?? 0.5,
+                  elapsedDays: 0,
+                  totalFoodCost: Number(retCells.reduce((s, c) => s + (c.foodCost || 0), 0).toFixed(2)),
+                },
+              };
+            }
+          } else if (act === 'market_return') {
+            const carried = nextPendingOrders.filter(
+              o => o.status === 'in_transit' && o.carryingFormationId === form.id
+            );
+            if (carried.length > 0) {
+              const summaryParts: string[] = [];
+              for (const o of carried) {
+                captured[o.goodKey] += o.quantity;
+                summaryParts.push(`${o.quantity.toLocaleString()} ${o.goodLabel}`);
+              }
+              const carriedIds = new Set(carried.map(o => o.id));
+              nextPendingOrders = nextPendingOrders.filter(o => !carriedIds.has(o.id));
+              finalStatus = 'idle';
+              toastsToEmit.push({
+                type: 'success',
+                text: `✅ [${form.name}] đã chở hàng về bản doanh an toàn: ${summaryParts.join(', ')}!`,
+              });
+            } else {
+              finalStatus = 'idle';
+            }
+          } else if (act === 'ambush') {
             finalStatus = 'ambushing';
             const tDef = TERRAIN_DEFINITIONS[currentPos ? getGridTerrain(currentPos.col, currentPos.row) : 'forest'];
             toastsToEmit.push({
@@ -1979,6 +2117,7 @@ export const createArmySlice: StateCreator<GameStore, [], [], ArmySlice> = (set,
         formations,
         cities: updatedCities,
         activeFormationId: activeFormationIdReset ? null : prev.activeFormationId,
+        pendingMarketOrders: nextPendingOrders,
         ...(switchToWarMode
           ? { timeMode: 'hour' as const, previousActiveTimeMode: 'hour' as const, isWarMode: true }
           : {}),
@@ -1986,6 +2125,8 @@ export const createArmySlice: StateCreator<GameStore, [], [], ArmySlice> = (set,
           ...prev.resources,
           food: Math.max(0, Math.round(prev.resources.food - foodConsumedTotal + captured.food - plundered.food)),
           morale: Math.max(0, prev.resources.morale - plundered.morale),
+          clothes: prev.resources.clothes + captured.clothes,
+          horses: prev.resources.horses + captured.horses,
           gold: prev.resources.gold + captured.gold,
           swords: nextSwords,
           bows: nextBows,

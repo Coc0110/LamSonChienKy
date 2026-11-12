@@ -14,6 +14,22 @@ import type {
 } from '../../types';
 import type { MarketGoodKey } from '../../utils/marketUtils';
 import type { ArmySlice } from './armySlice';
+
+export interface MarketPickupOrder {
+  id: string;
+  districtId: string;
+  districtName: string;
+  marketName: string;
+  goodKey: MarketGoodKey;
+  goodLabel: string;
+  quantity: number;
+  x: number;
+  y: number;
+  col: number;
+  row: number;
+  status: 'awaiting_pickup' | 'in_transit';
+  carryingFormationId?: string;
+}
 import type { SaveSlice, GameStatus } from './saveSlice';
 
 export interface TimeSlice {
@@ -58,7 +74,8 @@ export interface StructureSlice {
   upgradeFarm: (structureId: string) => { success: boolean; message: string };
   startForgeOrder: (structureId: string, order: { weaponType: WeaponCraftType; quantity: number; smiths: number }) => { success: boolean; message: string };
   cancelForgeOrder: (structureId: string) => void;
-  marketUsedToday: Record<string, number>;
+  marketUsedThisMonth: Record<string, number>;
+  pendingMarketOrders: MarketPickupOrder[];
   executeMarketTrade: (
     districtId: string,
     goodKey: MarketGoodKey,

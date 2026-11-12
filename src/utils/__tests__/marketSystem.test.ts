@@ -1,6 +1,7 @@
 import './setupTest.cjs';
 import { useGameStore } from '../../store/gameStore';
 import {
+  MARKET_GOODS,
   calculateMarketTradeSuspicion,
   getDistrictMarketListings,
 } from '../marketUtils';
@@ -10,52 +11,88 @@ function assert(condition: unknown, message: string): void {
 }
 
 const state0 = useGameStore.getState();
-const date = { day: state0.day, month: state0.month, year: state0.year };
+const date = { month: state0.month, year: state0.year };
 
-// 1. Different districts have different prices
+// 1. No elephants in Thanh Hoa markets & food lotSize is 500
+assert(!MARKET_GOODS.some(g => (g.key as string) === 'elephants'), 'Thanh Hoa markets must not sell elephants');
 const luongGiang = getDistrictMarketListings('luong_giang', state0.cities, date);
+const tayDo = getDistrictMarketListings('tay_do', state0.cities, date);
 const quanDu = getDistrictMarketListings('quan_du', state0.cities, date);
 const foodGranary = luongGiang.find(l => l.config.key === 'food')!;
 const foodHighland = quanDu.find(l => l.config.key === 'food')!;
+assert(foodGranary.config.lotSize === 500, `Expected food lotSize 500, got ${foodGranary.config.lotSize}`);
 assert(
   foodGranary.buyPrice < foodHighland.buyPrice,
-  `Expected granary food (${foodGranary.buyPrice}) to be cheaper than highland (${foodHighland.buyPrice})`
+  `Expected granary food (${foodGranary.buyPrice}) < highland (${foodHighland.buyPrice})`
 );
 
-// 2. Small trades incur 0 suspicion; large trades increase suspicion (more in Ming districts)
-assert(calculateMarketTradeSuspicion('lam_son', 'food', 2, state0.cities) === 0, 'Small food trade should have 0 suspicion');
-const bulkLamSon = calculateMarketTradeSuspicion('lam_son', 'food', 8, state0.cities);
-const bulkTayDo = calculateMarketTradeSuspicion('tay_do', 'food', 8, state0.cities);
-assert(bulkLamSon > 0, `Expected bulk trade in lam_son to add suspicion, got ${bulkLamSon}`);
-assert(bulkTayDo > bulkLamSon, `Expected Ming-held tay_do (${bulkTayDo}) > lam_son (${bulkLamSon})`);
+// 2. Selective weapon availability
+assert(
+  luongGiang.find(l => l.config.key === 'swords')!.monthlyStock === 0 &&
+    luongGiang.find(l => l.config.key === 'bows')!.monthlyStock === 0,
+  'Granary market should not sell swords or bows'
+);
+assert(
+  tayDo.find(l => l.config.key === 'swords')!.monthlyStock > 0 &&
+    tayDo.find(l => l.config.key === 'spears')!.monthlyStock > 0 &&
+    tayDo.find(l => l.config.key === 'bows')!.monthlyStock > 0,
+  'Urban Ming market should sell swords, spears, and bows'
+);
 
-// 3. Execute buy & sell through store and verify resources, stock, suspicion, and daily reset
+// 3. Buying horses raises suspicion more than selling or small food trades
+assert(calculateMarketTradeSuspicion('lam_son', 'food', 'buy', 2, state0.cities) === 0, 'Small food buy = 0 suspicion');
+const buyHorseSusp = calculateMarketTradeSuspicion('lam_son', 'horses', 'buy', 1, state0.cities);
+const sellHorseSusp = calculateMarketTradeSuspicion('lam_son', 'horses', 'sell', 1, state0.cities);
+assert(buyHorseSusp > 0 && buyHorseSusp > sellHorseSusp, `Expected buying horse (${buyHorseSusp}) > selling (${sellHorseSusp})`);
+
+// 4. Buy creates awaiting_pickup order (not instant resources); army pickup & return delivers it
 useGameStore.setState(s => ({
+  day: 28,
+  month: 2,
+  year: 1418,
   suspicion: 15,
-  marketUsedToday: {},
-  resources: { ...s.resources, gold: 5000, food: 2000, swords: 20, weapons: 50 },
+  marketUsedThisMonth: {},
+  pendingMarketOrders: [],
+  resources: { ...s.resources, gold: 5000, food: 2000, swords: 20, weapons: 50, horses: 0 },
 }));
 
+const febGranaryPrice = getDistrictMarketListings('luong_giang', useGameStore.getState().cities, { month: 2, year: 1418 })
+  .find(l => l.config.key === 'food')!.buyPrice;
 const beforeGold = useGameStore.getState().resources.gold;
-const buySmall = useGameStore.getState().executeMarketTrade('luong_giang', 'food', 'buy', 1);
-assert(buySmall.success && buySmall.suspicionGain === 0, 'Expected small buy to succeed with 0 suspicion');
-assert(useGameStore.getState().resources.food === 2100, 'Expected +100 food from 1 lot');
-assert(useGameStore.getState().resources.gold === beforeGold - foodGranary.buyPrice, 'Expected gold deducted');
+const buyRes = useGameStore.getState().executeMarketTrade('luong_giang', 'food', 'buy', 1);
+assert(buyRes.success, `Expected buy to succeed: ${buyRes.message}`);
+assert(useGameStore.getState().resources.gold === beforeGold - febGranaryPrice, 'Gold deducted immediately');
+assert(useGameStore.getState().resources.food === 2000, 'Food must NOT teleport before army pickup');
+assert(useGameStore.getState().pendingMarketOrders.length === 1, 'Expected 1 pendingMarketOrder awaiting pickup');
 
-const sellBulk = useGameStore.getState().executeMarketTrade('tay_do', 'food', 'sell', 8);
-assert(sellBulk.success && sellBulk.suspicionGain > 0, 'Expected bulk sell to succeed and raise suspicion');
-assert(useGameStore.getState().suspicion === 15 + sellBulk.suspicionGain, 'Expected store suspicion to increase');
-assert(useGameStore.getState().resources.food === 1300, 'Expected 800 food deducted on 8-lot sell');
+const formId = useGameStore.getState().formations[0].id;
+const dispatchRes = useGameStore.getState().dispatchArmyForMarketPickup(formId, 'luong_giang');
+assert(dispatchRes.success, `Expected dispatchArmyForMarketPickup to succeed: ${dispatchRes.message}`);
+assert(useGameStore.getState().formations[0].marchOrder?.endpointAction === 'market_pickup', 'Expected market_pickup march');
 
-// 4. Daily tick resets marketUsedToday
-assert(
-  Object.keys(useGameStore.getState().marketUsedToday).length > 0,
-  'Expected marketUsedToday to record purchase'
-);
+// Step enough days for round-trip pickup & return
+for (let i = 0; i < 60; i++) {
+  useGameStore.getState().stepArmies(0.5);
+  if (useGameStore.getState().pendingMarketOrders.length === 0) break;
+}
+assert(useGameStore.getState().pendingMarketOrders.length === 0, 'Expected army to pick up and deliver order');
+assert(useGameStore.getState().resources.food >= 2450, `Expected +500 food delivered (minus march food), got ${useGameStore.getState().resources.food}`);
+
+// 5. Market refreshes monthly, NOT daily
+assert(Object.keys(useGameStore.getState().marketUsedThisMonth).length > 0, 'Expected monthly usage recorded');
+useGameStore.getState().tick(); // Day 29 -> 1/3 (same month 2 -> 3? Wait: Feb 1418 has 28 days, so 28 -> 1/3!)
+// First test same-month day tick: set day 10 -> 11
+useGameStore.setState({ day: 10, month: 3, marketUsedThisMonth: { 'luong_giang:food': 2 } });
 useGameStore.getState().tick();
 assert(
-  Object.keys(useGameStore.getState().marketUsedToday).length === 0,
-  'Expected tick() to replenish marketUsedToday'
+  useGameStore.getState().marketUsedThisMonth['luong_giang:food'] === 2,
+  'Same-month day tick must NOT reset marketUsedThisMonth'
+);
+useGameStore.setState({ day: 31, month: 3 });
+useGameStore.getState().tick(); // rolls over to month 4
+assert(
+  Object.keys(useGameStore.getState().marketUsedThisMonth).length === 0,
+  'Month rollover tick MUST reset marketUsedThisMonth'
 );
 
 console.log('PASS: marketSystem tests');

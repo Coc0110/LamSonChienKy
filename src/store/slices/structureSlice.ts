@@ -9,13 +9,15 @@ import {
   calculateMarketTradeSuspicion,
   getDistrictMarketListings,
   getDistrictMarketMeta,
+  getDistrictMarketPosition,
   getResourceAmountForGood,
 } from '../../utils/marketUtils';
 import type { StructureSlice, GameStore } from './types';
 
 export const createStructureSlice: StateCreator<GameStore, [], [], StructureSlice> = (set, get) => ({
   structures: INITIAL_STRUCTURES,
-  marketUsedToday: {},
+  marketUsedThisMonth: {},
+  pendingMarketOrders: [],
 
   // Kéo thả / đặt công trình lên bản đồ
   placeStructure: (cityId, type, x, y, customGridSize, customMaxWorkers) => {
@@ -602,8 +604,8 @@ export const createStructureSlice: StateCreator<GameStore, [], [], StructureSlic
     }
 
     const state = get();
-    const date = { day: state.day, month: state.month, year: state.year };
-    const listings = getDistrictMarketListings(districtId, state.cities, date, state.marketUsedToday);
+    const date = { month: state.month, year: state.year };
+    const listings = getDistrictMarketListings(districtId, state.cities, date, state.marketUsedThisMonth);
     const listing = listings.find(l => l.config.key === goodKey);
     if (!listing) {
       return { success: false, message: 'Kh?ng t?m th?y m?t h?ng t?i ch? n?y.', suspicionGain: 0 };
@@ -611,13 +613,20 @@ export const createStructureSlice: StateCreator<GameStore, [], [], StructureSlic
 
     const meta = getDistrictMarketMeta(districtId, state.cities);
     const qty = cleanLots * listing.config.lotSize;
-    const suspicionGain = calculateMarketTradeSuspicion(districtId, goodKey, cleanLots, state.cities);
+    const suspicionGain = calculateMarketTradeSuspicion(districtId, goodKey, action, cleanLots, state.cities);
 
     if (action === 'buy') {
+      if (listing.monthlyStock <= 0) {
+        return {
+          success: false,
+          message: `${meta.marketName} kh?ng kinh doanh m?t h?ng ${listing.config.label}.`,
+          suspicionGain: 0,
+        };
+      }
       if (cleanLots > listing.remainingStock) {
         return {
           success: false,
-          message: `${meta.marketName} h?m nay ch? c?n ${listing.remainingStock} l? ${listing.config.label}.`,
+          message: `${meta.marketName} th?ng n?y ch? c?n ${listing.remainingStock} l? ${listing.config.label}.`,
           suspicionGain: 0,
         };
       }
@@ -630,24 +639,45 @@ export const createStructureSlice: StateCreator<GameStore, [], [], StructureSlic
         };
       }
 
+      const pos = getDistrictMarketPosition(districtId);
       set(prev => {
-        const nextGoodVal = (prev.resources[goodKey] ?? 0) + qty;
-        const nextSwords = goodKey === 'swords' ? nextGoodVal : prev.resources.swords;
-        const nextBows = goodKey === 'bows' ? nextGoodVal : prev.resources.bows;
-        const nextSpears = goodKey === 'spears' ? nextGoodVal : prev.resources.spears;
         const nextSuspicion = Math.min(100, prev.suspicion + suspicionGain);
         const key = `${districtId}:${goodKey}`;
+        const existingIdx = prev.pendingMarketOrders.findIndex(
+          o => o.districtId === districtId && o.goodKey === goodKey && o.status === 'awaiting_pickup'
+        );
+        const nextOrders = [...prev.pendingMarketOrders];
+        if (existingIdx >= 0) {
+          nextOrders[existingIdx] = {
+            ...nextOrders[existingIdx],
+            quantity: nextOrders[existingIdx].quantity + qty,
+          };
+        } else {
+          nextOrders.push({
+            id: `mkt_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+            districtId,
+            districtName: meta.districtName,
+            marketName: meta.marketName,
+            goodKey,
+            goodLabel: listing.config.label,
+            quantity: qty,
+            x: pos.x,
+            y: pos.y,
+            col: pos.col,
+            row: pos.row,
+            status: 'awaiting_pickup',
+          });
+        }
         return {
           resources: {
             ...prev.resources,
-            [goodKey]: nextGoodVal,
-            weapons: nextSwords + nextBows + nextSpears,
             gold: prev.resources.gold - totalCost,
           },
-          marketUsedToday: {
-            ...prev.marketUsedToday,
-            [key]: (prev.marketUsedToday[key] ?? 0) + cleanLots,
+          marketUsedThisMonth: {
+            ...prev.marketUsedThisMonth,
+            [key]: (prev.marketUsedThisMonth[key] ?? 0) + cleanLots,
           },
+          pendingMarketOrders: nextOrders,
           suspicion: nextSuspicion,
         };
       });
@@ -657,8 +687,8 @@ export const createStructureSlice: StateCreator<GameStore, [], [], StructureSlic
         suspicionGain,
         message:
           suspicionGain > 0
-            ? `?? mua ${qty.toLocaleString()} ${listing.config.label} t?i ${meta.marketName} (-${totalCost} v?ng). Giao d?ch l?n khi?n ?? nghi ng? t?ng +${suspicionGain}%!`
-            : `?? mua ${qty.toLocaleString()} ${listing.config.label} t?i ${meta.marketName} (-${totalCost} v?ng).`,
+            ? `?? ??t mua ${qty.toLocaleString()} ${listing.config.label} t?i ${meta.marketName} (-${totalCost} v?ng, nghi ng? +${suspicionGain}%). H?y c? qu?n ??n ch? ch? h?ng v?!`
+            : `?? ??t mua ${qty.toLocaleString()} ${listing.config.label} t?i ${meta.marketName} (-${totalCost} v?ng). H?y c? qu?n ??n ch? ch? h?ng v?!`,
       };
     }
 
