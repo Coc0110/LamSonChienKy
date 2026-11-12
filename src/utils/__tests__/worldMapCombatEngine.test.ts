@@ -1,4 +1,4 @@
-﻿import './setupTest.cjs';
+import './setupTest.cjs';
 import {
   TERRAIN_COMBAT_WIDTH,
   classifyAttackDirection,
@@ -73,7 +73,7 @@ assert(classifyAttackDirection({ x: 50, y: 49 }, { x: 50, y: 50 }, 0) === 'flank
 const lsFront = makeFormation('ls_front', 'lam_son', 50.0, 50, {
   swordsman: 150, spearman: 150, archer: 50, cavalry: 0, elephant: 0, scout: 0, supply_cart: 0,
 });
-const lsRearCavalry = makeFormation('ls_rear', 'lam_son', 50.9, 50, {
+const lsRearCavalry = makeFormation('ls_rear', 'lam_son', 50.8, 50, {
   swordsman: 0, spearman: 0, archer: 0, cavalry: 120, elephant: 0, scout: 0, supply_cart: 0,
 }, { isStealthed: true });
 const mingTarget = makeFormation('ming_mid', 'ming', 50.4, 50, {

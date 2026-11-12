@@ -20,7 +20,8 @@ export const TERRAIN_COMBAT_WIDTH: Record<TerrainType, number> = {
   cliff: 300,
 };
 
-export const ENGAGEMENT_RADIUS_PCT = 1.25;
+// 1 ô lưới = 0.125% (800×1052), ~3.3 ô lưới là tầm giao chiến cận chiến hợp lý
+export const ENGAGEMENT_RADIUS_PCT = 0.42;
 const DAMAGE_SCALE = 0.12;
 const MAX_CANH_DAMAGE_RATIO = 0.45;
 const AMBUSH_DAMAGE_MULT = 2.2;
