@@ -430,7 +430,7 @@ export const createArmySlice: StateCreator<GameStore, [], [], ArmySlice> = (set,
               combatTroops: c.population.combatTroops + target.totalTroops,
               trainedRoster: mergeTrainedRoster(
                 getCityTrainedRoster(c.population),
-                ensureFormationRosterAndLayers(target).roster!,
+                { ...ensureFormationRosterAndLayers(target).roster!, supply_cart: 0 },
                 1
               ),
             }
@@ -515,6 +515,7 @@ export const createArmySlice: StateCreator<GameStore, [], [], ArmySlice> = (set,
 
     const trainedRoster = getCityTrainedRoster(city.population);
     for (const k of keys) {
+      if (k === 'supply_cart') continue; // Xe lương không cần huấn luyện
       const need = next[k] - current[k];
       if (need > trainedRoster[k]) {
         return {
@@ -547,7 +548,10 @@ export const createArmySlice: StateCreator<GameStore, [], [], ArmySlice> = (set,
                   combatTroops: Math.max(0, c.population.combatTroops - dTroops),
                   trainedRoster: (() => {
                     const out = { ...getCityTrainedRoster(c.population) };
-                    for (const k of keys) out[k] = Math.max(0, out[k] - (next[k] - current[k]));
+                    for (const k of keys) {
+                      if (k === 'supply_cart') continue;
+                      out[k] = Math.max(0, out[k] - (next[k] - current[k]));
+                    }
                     return out;
                   })(),
                 },

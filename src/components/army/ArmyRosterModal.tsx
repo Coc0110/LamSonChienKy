@@ -130,8 +130,11 @@ export const ArmyRosterModal: React.FC = React.memo(() => {
   };
 
   const maxAddFor = (key: UnitKey): number => {
-    const branchTrainedLeft = trainedRoster[key] - (draft[key] - saved[key]);
-    const limits = [free.troops, branchTrainedLeft];
+    const limits = [free.troops];
+    if (key !== 'supply_cart') {
+      const branchTrainedLeft = trainedRoster[key] - (draft[key] - saved[key]);
+      limits.push(branchTrainedLeft);
+    }
     if (key === 'swordsman') limits.push(free.swords);
     if (key === 'cavalry') limits.push(free.swords, free.horses);
     if (key === 'spearman') limits.push(free.spears);
@@ -266,7 +269,10 @@ export const ArmyRosterModal: React.FC = React.memo(() => {
               )}
               {UNIT_CARDS.map(card => {
                 const cfg = TACTICAL_UNIT_CONFIGS[card.key];
-                const branchMaxSoldiers = saved[card.key] + trainedRoster[card.key];
+                const isSupplyCart = card.key === 'supply_cart';
+                const branchMaxSoldiers = isSupplyCart
+                  ? saved.supply_cart + Math.max(0, Math.min(cityTroops, Math.floor(resources.food / FOOD_PER_CART)))
+                  : saved[card.key] + trainedRoster[card.key];
                 const branchReserveLeft = Math.max(0, branchMaxSoldiers - draft[card.key]);
                 return (
                   <div key={card.key} className="p-2 rounded border border-[#8c6b44]/30 bg-black/[0.04] flex items-center gap-3">
@@ -274,7 +280,9 @@ export const ArmyRosterModal: React.FC = React.memo(() => {
                     <div className="w-32 shrink-0 text-xs">
                       <div className="font-black flex items-center justify-between gap-1">
                         <span>{card.label}</span>
-                        <span className="text-[10px] font-normal text-[#704d2e]">Dự bị: {branchReserveLeft}</span>
+                        <span className="text-[10px] font-normal text-[#704d2e]">
+                          {isSupplyCart ? 'Không cần luyện' : `Dự bị: ${branchReserveLeft}`}
+                        </span>
                       </div>
                       <div className="text-[10px] text-[#6b4423] leading-tight">{card.note}</div>
                     </div>

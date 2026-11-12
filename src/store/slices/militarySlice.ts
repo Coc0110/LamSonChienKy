@@ -5,7 +5,13 @@ import type { Resources, ScoutMission, PendingRefugeeWave } from '../../types';
 import { CAMP_CAPACITY_BY_LEVEL } from '../../types';
 import { findShortestScoutPath } from '../../utils/scoutPathfinding';
 import { formatRemainingDays } from '../../utils/formatters';
-import { deductFromTrainedRoster, getCityTrainedRoster } from '../../utils/armyCompositionUtils';
+import {
+  TRAINABLE_BRANCH_KEYS,
+  canGeneralTrainBranch,
+  deductFromTrainedRoster,
+  getCityTrainedRoster,
+} from '../../utils/armyCompositionUtils';
+import { TACTICAL_UNIT_CONFIGS } from '../../types/armyFormation';
 import type { MilitarySlice, GameStore } from './types';
 
 // Công thức chuẩn tính số ngày thao luyện dựa trên chỉ số Thống Lĩnh và Võ Nghệ của tướng
@@ -161,6 +167,20 @@ export const createMilitarySlice: StateCreator<GameStore, [], [], MilitarySlice>
     if (targetCity.training) {
       notify.warning(`Căn cứ ${targetCity.name} đang có đợt thao luyện diễn ra!`);
       return state;
+    }
+
+    if (targetRoster) {
+      if (Math.floor(targetRoster.supply_cart ?? 0) > 0) {
+        notify.error('Xe lương không cần huấn luyện!');
+        return state;
+      }
+      const coach = state.generals.find(g => g.id === generalId);
+      for (const branch of TRAINABLE_BRANCH_KEYS) {
+        if (Math.floor(targetRoster[branch] ?? 0) > 0 && !canGeneralTrainBranch(coach, branch)) {
+          notify.error(`${coach?.name ?? 'Vị tướng này'} chưa thông thạo binh chủng ${TACTICAL_UNIT_CONFIGS[branch].name}!`);
+          return state;
+        }
+      }
     }
 
     const weaponsNeeded = targetRoster

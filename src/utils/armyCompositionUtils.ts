@@ -4,7 +4,7 @@ import type {
   TacticalFormation,
 } from '../types/armyFormation';
 import { TACTICAL_UNIT_CONFIGS } from '../types/armyFormation';
-import type { General } from '../types';
+import type { General, TroopType } from '../types';
 import type { TerrainType } from '../types/terrain';
 import { TERRAIN_DEFINITIONS } from '../data/terrainData';
 
@@ -17,6 +17,46 @@ export const EMPTY_ROSTER: ArmyRosterCounts = {
   scout: 0,
   supply_cart: 0,
 };
+
+export const TRAINABLE_BRANCH_KEYS: (keyof ArmyRosterCounts)[] = [
+  'swordsman',
+  'spearman',
+  'archer',
+  'cavalry',
+  'elephant',
+  'scout',
+];
+
+const TROOP_TYPE_TO_BRANCHES: Record<TroopType, (keyof ArmyRosterCounts)[]> = {
+  infantry: ['swordsman', 'spearman'],
+  archer: ['archer'],
+  cavalry: ['cavalry', 'scout'],
+  elephant: ['elephant'],
+  navy: [],
+};
+
+/** Trả về danh sách binh chủng mà vị tướng thông thạo để huấn luyện (không bao gồm xe lương). */
+export function getTrainableBranchesForGeneral(
+  general: Pick<General, 'troops'> | undefined
+): (keyof ArmyRosterCounts)[] {
+  if (!general?.troops || general.troops.length === 0) return [];
+  const allowed = new Set<keyof ArmyRosterCounts>();
+  for (const t of general.troops) {
+    for (const branch of TROOP_TYPE_TO_BRANCHES[t] ?? []) {
+      allowed.add(branch);
+    }
+  }
+  return TRAINABLE_BRANCH_KEYS.filter(k => allowed.has(k));
+}
+
+/** Kiểm tra vị tướng có thông thạo và huấn luyện được binh chủng này không (xe lương không cần luyện). */
+export function canGeneralTrainBranch(
+  general: Pick<General, 'troops'> | undefined,
+  branch: keyof ArmyRosterCounts
+): boolean {
+  if (branch === 'supply_cart') return false;
+  return getTrainableBranchesForGeneral(general).includes(branch);
+}
 
 /**
  * Lấy quân số dự bị theo từng binh chủng của căn cứ.
@@ -54,7 +94,7 @@ export function mergeTrainedRoster(
 export function deductFromTrainedRoster(base: ArmyRosterCounts, count: number): ArmyRosterCounts {
   let rem = Math.max(0, Math.floor(count));
   const out: ArmyRosterCounts = { ...base };
-  const order: (keyof ArmyRosterCounts)[] = ['swordsman', 'spearman', 'archer', 'cavalry', 'scout', 'elephant', 'supply_cart'];
+  const order: (keyof ArmyRosterCounts)[] = ['swordsman', 'spearman', 'archer', 'cavalry', 'scout', 'elephant'];
   for (const k of order) {
     if (rem <= 0) break;
     const take = Math.min(out[k], rem);
