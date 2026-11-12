@@ -34,7 +34,7 @@ export const dinh_le: General = {
   },
 
   // --- 3. BINH CHỦNG & ĐẶC KỸ CHIẾN TRẬN ---
-  troops: ["infantry"],
+  troops: ["infantry","cavalry"],
   buffName: 'SÁT THẦN',
   buffDescription: '+40% Sức chiến đấu ở địa hình Đầm lầy & Truy kích (Trận Tốt Động)',
   specialty: '+40% Sức chiến đấu ở địa hình Đầm lầy & Truy kích (Trận Tốt Động)',

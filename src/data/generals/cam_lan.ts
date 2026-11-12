@@ -34,7 +34,7 @@ export const cam_lan: General = {
   },
 
   // --- 3. BINH CHỦNG & ĐẶC KỸ CHIẾN TRẬN ---
-  troops: ["infantry"],
+  troops: ["infantry","elephant"],
   buffName: 'DẪN LỘ ĐẠO',
   buffDescription: 'Mở thông mọi tuyến đường rừng hiểm trở vùng Tây Nam mà không giảm tốc độ',
   specialty: 'Mở thông mọi tuyến đường rừng hiểm trở vùng Tây Nam mà không giảm tốc độ',

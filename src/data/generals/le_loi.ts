@@ -34,7 +34,7 @@ export const le_loi: General = {
   },
 
   // --- 3. BINH CHỦNG & ĐẶC KỸ CHIẾN TRẬN ---
-  troops: ["infantry","cavalry"],
+  troops: ["infantry","spearman","cavalry"],
   buffName: 'BÌNH ĐỊNH CHÍ',
   buffDescription: '+30% Sĩ khí toàn quân, +25% Sức mạnh khi đích thân cầm quân',
   specialty: '+30% Sĩ khí toàn quân, +25% Sức mạnh khi đích thân cầm quân',

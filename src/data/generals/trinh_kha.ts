@@ -34,7 +34,7 @@ export const trinh_kha: General = {
   },
 
   // --- 3. BINH CHỦNG & ĐẶC KỸ CHIẾN TRẬN ---
-  troops: ["elephant"],
+  troops: ["elephant","infantry"],
   buffName: 'TƯỢNG BINH PHÁ',
   buffDescription: '+45% Sức càn quét của Voi chiến (Tượng binh), giỏi tiếng Ai Lao',
   specialty: '+45% Sức càn quét của Voi chiến (Tượng binh), giỏi tiếng Ai Lao',

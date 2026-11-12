@@ -34,7 +34,7 @@ export const nguyen_xi: General = {
   },
 
   // --- 3. BINH CHỦNG & ĐẶC KỸ CHIẾN TRẬN ---
-  troops: ["infantry"],
+  troops: ["infantry","cavalry"],
   buffName: 'DẠ KHUYỂN',
   buffDescription: 'Tuyệt kỹ "Khuyển Dạ Tập": Buộc nhạc vào cổ chó săn gây rối loạn trại địch ban đêm',
   specialty: 'Tuyệt kỹ "Khuyển Dạ Tập": Buộc nhạc vào cổ chó săn gây rối loạn trại địch ban đêm',

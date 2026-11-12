@@ -34,7 +34,7 @@ export const le_boi: General = {
   },
 
   // --- 3. BINH CHỦNG & ĐẶC KỸ CHIẾN TRẬN ---
-  troops: ["infantry"],
+  troops: ["spearman","infantry"],
   buffName: 'TRẤN HIỂM QUAN',
   buffDescription: '+30% Phòng thủ tại các điểm Quan ải (Chokepoint)',
   specialty: '+30% Phòng thủ tại các điểm Quan ải (Chokepoint)',

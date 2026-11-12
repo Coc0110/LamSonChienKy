@@ -133,7 +133,7 @@ export interface Connection {
 
 export type GeneralGroup = 'lung_nhai_1416' | 'khoi_nghia_1418' | 'quy_tu_1420_1426';
 export type StarTier = 'silver' | 'gold' | 'red';
-export type TroopType = 'infantry' | 'cavalry' | 'archer' | 'elephant' | 'navy';
+export type TroopType = 'infantry' | 'spearman' | 'cavalry' | 'archer' | 'elephant' | 'navy';
 
 export interface General {
   id: string;

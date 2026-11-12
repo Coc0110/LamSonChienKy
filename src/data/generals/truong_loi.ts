@@ -34,7 +34,7 @@ export const truong_loi: General = {
   },
 
   // --- 3. BINH CHỦNG & ĐẶC KỸ CHIẾN TRẬN ---
-  troops: ["infantry"],
+  troops: ["spearman","infantry"],
   buffName: 'THIẾT TIÊN PHÁ',
   buffDescription: '+25% Sát thương phá giáp trước bộ binh nặng của quân Minh',
   specialty: '+25% Sát thương phá giáp trước bộ binh nặng của quân Minh',

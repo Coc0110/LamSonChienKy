@@ -34,7 +34,7 @@ export const le_van_an: General = {
   },
 
   // --- 3. BINH CHỦNG & ĐẶC KỸ CHIẾN TRẬN ---
-  troops: ["infantry"],
+  troops: ["infantry","spearman"],
   buffName: 'VẬN LƯƠNG TRỤ',
   buffDescription: '-20% Tiêu hao lương thảo của đạo quân đi cùng, giỏi công thành',
   specialty: '-20% Tiêu hao lương thảo của đạo quân đi cùng, giỏi công thành',

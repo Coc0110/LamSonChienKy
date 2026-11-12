@@ -34,7 +34,7 @@ export const cam_quy: General = {
   },
 
   // --- 3. BINH CHỦNG & ĐẶC KỸ CHIẾN TRẬN ---
-  troops: ["elephant"],
+  troops: ["elephant","infantry"],
   buffName: 'SƠN TƯỢNG ĐỘI',
   buffDescription: 'Đem 8.000 quân địa phương và 10 Voi chiến gia nhập nghĩa quân Lam Sơn',
   specialty: 'Đem 8.000 quân địa phương và 10 Voi chiến gia nhập nghĩa quân Lam Sơn',

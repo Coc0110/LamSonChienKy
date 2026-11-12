@@ -34,7 +34,7 @@ export const le_hoi: General = {
   },
 
   // --- 3. BINH CHỦNG & ĐẶC KỸ CHIẾN TRẬN ---
-  troops: ["infantry"],
+  troops: ["infantry","spearman"],
   buffName: 'THIẾT GIÁP TRẬN',
   buffDescription: '-15% Thương vong cho nghĩa quân khi giao chiến cận chiến',
   specialty: '-15% Thương vong cho nghĩa quân khi giao chiến cận chiến',

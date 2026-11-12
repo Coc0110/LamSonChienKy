@@ -28,7 +28,8 @@ export const TRAINABLE_BRANCH_KEYS: (keyof ArmyRosterCounts)[] = [
 ];
 
 const TROOP_TYPE_TO_BRANCHES: Record<TroopType, (keyof ArmyRosterCounts)[]> = {
-  infantry: ['swordsman', 'spearman'],
+  infantry: ['swordsman'],
+  spearman: ['spearman'],
   archer: ['archer'],
   cavalry: ['cavalry', 'scout'],
   elephant: ['elephant'],

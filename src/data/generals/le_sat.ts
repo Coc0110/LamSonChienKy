@@ -34,7 +34,7 @@ export const le_sat: General = {
   },
 
   // --- 3. BINH CHỦNG & ĐẶC KỸ CHIẾN TRẬN ---
-  troops: ["infantry","cavalry"],
+  troops: ["infantry","cavalry","elephant"],
   buffName: 'TRẢM SOÁI',
   buffDescription: '+35% Sát thương xung kích, tăng tỷ lệ trảm tướng địch trong phục kích',
   specialty: '+35% Sát thương xung kích, tăng tỷ lệ trảm tướng địch trong phục kích',

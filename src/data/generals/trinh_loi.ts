@@ -34,7 +34,7 @@ export const trinh_loi: General = {
   },
 
   // --- 3. BINH CHỦNG & ĐẶC KỸ CHIẾN TRẬN ---
-  troops: ["infantry"],
+  troops: ["infantry","cavalry"],
   buffName: 'CÔNG ĐỒN NGOẠI',
   buffDescription: '+20% Sức công phá đồn trại ngoại vi của quân Minh',
   specialty: '+20% Sức công phá đồn trại ngoại vi của quân Minh',

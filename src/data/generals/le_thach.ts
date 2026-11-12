@@ -34,7 +34,7 @@ export const le_thach: General = {
   },
 
   // --- 3. BINH CHỦNG & ĐẶC KỸ CHIẾN TRẬN ---
-  troops: ["cavalry","infantry"],
+  troops: ["cavalry","elephant","infantry"],
   buffName: 'CHIẾN THẦN TIÊN',
   buffDescription: '+45% Sức tấn công tiên phong, đánh bại Mã Kỳ ở Lạc Thủy',
   specialty: '+45% Sức tấn công tiên phong, đánh bại Mã Kỳ ở Lạc Thủy',

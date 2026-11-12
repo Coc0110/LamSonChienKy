@@ -34,7 +34,7 @@ export const le_hiem: General = {
   },
 
   // --- 3. BINH CHỦNG & ĐẶC KỸ CHIẾN TRẬN ---
-  troops: ["infantry"],
+  troops: ["spearman","infantry"],
   buffName: 'CỐ THỦ HIỂM',
   buffDescription: '+30% Phòng ngự khi trấn giữ căn cứ trên núi cao',
   specialty: '+30% Phòng ngự khi trấn giữ căn cứ trên núi cao',

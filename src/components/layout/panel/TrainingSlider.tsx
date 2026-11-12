@@ -273,73 +273,78 @@ export const TrainingSlider: React.FC<TrainingSliderProps> = ({
         </div>
       </div>
 
-      {/* 3. Chọn số lượng huấn luyện từng binh chủng + kho vũ khí tồn */}
+      {/* 3. Chọn số lượng huấn luyện từng binh chủng + kho vũ khí tồn (chỉ hiển thị binh chủng tướng thông thạo) */}
       <div className="space-y-1.5">
-        {TRAINING_BRANCHES.map(branch => {
-          const cfg = TACTICAL_UNIT_CONFIGS[branch.key];
-          const isProficient = canGeneralTrainBranch(selectedCoach, branch.key);
-          const ceiling = independentCeiling(branch.key);
-          const current = isProficient ? roster[branch.key] : 0;
-          return (
-            <div
-              key={branch.key}
-              className={`p-2 rounded border flex items-center gap-2 ${
-                isProficient
-                  ? 'border-[#8c6b44]/30 bg-[#fdf8f0]/65'
-                  : 'border-[#8c6b44]/20 bg-[#8c6b44]/5 opacity-55'
-              }`}
-            >
-              <img
-                src={cfg.icon}
-                alt={branch.label}
-                className="w-7 h-7 object-contain shrink-0 pointer-events-none"
-                draggable={false}
-              />
-              <div className="w-28 shrink-0">
-                <div className="text-[11px] font-black leading-tight">{branch.label}</div>
-                <div className={`text-[10px] leading-tight ${isProficient ? 'text-[#6b4423]' : 'text-[#8c2d19]'}`}>
-                  {isProficient ? stockDisplayFor(branch.key) : 'Tướng không thông thạo'}
+        {(() => {
+          const visibleBranches = TRAINING_BRANCHES.filter(b => canGeneralTrainBranch(selectedCoach, b.key));
+          if (visibleBranches.length === 0) {
+            return (
+              <div className="p-2.5 rounded border border-[#8c6b44]/30 bg-[#fdf8f0]/65 text-xs text-[#8c2d19]">
+                Vị tướng này chưa thông thạo binh chủng bộ chiến nào để thao luyện. Hãy chọn vị tướng khác.
+              </div>
+            );
+          }
+          return visibleBranches.map(branch => {
+            const cfg = TACTICAL_UNIT_CONFIGS[branch.key];
+            const ceiling = independentCeiling(branch.key);
+            const current = roster[branch.key];
+            return (
+              <div
+                key={branch.key}
+                className="p-2 rounded border border-[#8c6b44]/30 bg-[#fdf8f0]/65 flex items-center gap-2"
+              >
+                <img
+                  src={cfg.icon}
+                  alt={branch.label}
+                  className="w-7 h-7 object-contain shrink-0 pointer-events-none"
+                  draggable={false}
+                />
+                <div className="w-28 shrink-0">
+                  <div className="text-[11px] font-black leading-tight">{branch.label}</div>
+                  <div className="text-[10px] text-[#6b4423] leading-tight">
+                    {stockDisplayFor(branch.key)}
+                  </div>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={Math.max(1, ceiling)}
+                  value={current}
+                  disabled={ceiling === 0}
+                  onChange={e => setBranchCount(branch.key, Number(e.target.value))}
+                  className="flex-1 accent-[#8c2d19] cursor-pointer disabled:opacity-40"
+                />
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setBranchCount(branch.key, current - 1)}
+                    disabled={current <= 0}
+                    className="p-0.5 rounded border border-[#8c6b44]/40 bg-[#8c6b44]/15 cursor-pointer disabled:opacity-40"
+                  >
+                    <Minus size={11} />
+                  </button>
+                  <input
+                    type="number"
+                    min={0}
+                    max={ceiling}
+                    value={current}
+                    disabled={ceiling === 0}
+                    onChange={e => setBranchCount(branch.key, Number(e.target.value))}
+                    className="w-11 text-center text-[11px] p-0.5 rounded border border-[#8c6b44]/40 bg-[#f4e4bc] disabled:opacity-50"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setBranchCount(branch.key, current + 1)}
+                    disabled={current >= maxAllowedForBranchNow(branch.key)}
+                    className="p-0.5 rounded border border-[#8c6b44]/40 bg-[#8c6b44]/15 cursor-pointer disabled:opacity-40"
+                  >
+                    <Plus size={11} />
+                  </button>
                 </div>
               </div>
-              <input
-                type="range"
-                min={0}
-                max={Math.max(1, ceiling)}
-                value={current}
-                disabled={!isProficient || ceiling === 0}
-                onChange={e => setBranchCount(branch.key, Number(e.target.value))}
-                className="flex-1 accent-[#8c2d19] cursor-pointer disabled:opacity-40"
-              />
-              <div className="flex items-center gap-1 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setBranchCount(branch.key, current - 1)}
-                  disabled={!isProficient || current <= 0}
-                  className="p-0.5 rounded border border-[#8c6b44]/40 bg-[#8c6b44]/15 cursor-pointer disabled:opacity-40"
-                >
-                  <Minus size={11} />
-                </button>
-                <input
-                  type="number"
-                  min={0}
-                  max={ceiling}
-                  value={current}
-                  disabled={!isProficient || ceiling === 0}
-                  onChange={e => setBranchCount(branch.key, Number(e.target.value))}
-                  className="w-11 text-center text-[11px] p-0.5 rounded border border-[#8c6b44]/40 bg-[#f4e4bc] disabled:opacity-50"
-                />
-                <button
-                  type="button"
-                  onClick={() => setBranchCount(branch.key, current + 1)}
-                  disabled={!isProficient || current >= maxAllowedForBranchNow(branch.key)}
-                  className="p-0.5 rounded border border-[#8c6b44]/40 bg-[#8c6b44]/15 cursor-pointer disabled:opacity-40"
-                >
-                  <Plus size={11} />
-                </button>
-              </div>
-            </div>
-          );
-        })}
+            );
+          });
+        })()}
       </div>
 
       {/* 4. Diễn giải tác động chiến lược */}

@@ -34,7 +34,7 @@ export const dinh_liet: General = {
   },
 
   // --- 3. BINH CHỦNG & ĐẶC KỸ CHIẾN TRẬN ---
-  troops: ["infantry"],
+  troops: ["spearman","infantry"],
   buffName: 'TRƯỜNG THƯƠNG KHÓA',
   buffDescription: '+30% Sức mạnh thương binh & khả năng khóa chặt đường rút của địch',
   specialty: '+30% Sức mạnh thương binh & khả năng khóa chặt đường rút của địch',

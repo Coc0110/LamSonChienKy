@@ -34,7 +34,7 @@ export const le_lai: General = {
   },
 
   // --- 3. BINH CHỦNG & ĐẶC KỸ CHIẾN TRẬN ---
-  troops: ["infantry"],
+  troops: ["infantry","cavalry"],
   buffName: 'PHÁ TRÙNG VÂY',
   buffDescription: '+40% Phòng thủ khi đoạn hậu, có thể thế thân giải vây cho chủ tướng',
   specialty: '+40% Phòng thủ khi đoạn hậu, có thể thế thân giải vây cho chủ tướng',

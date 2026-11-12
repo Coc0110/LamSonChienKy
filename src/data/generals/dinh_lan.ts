@@ -34,7 +34,7 @@ export const dinh_lan: General = {
   },
 
   // --- 3. BINH CHỦNG & ĐẶC KỸ CHIẾN TRẬN ---
-  troops: ["infantry"],
+  troops: ["spearman","infantry"],
   buffName: 'HỘ TRUNG QUÂN',
   buffDescription: '+25% Phòng vệ cho đại bản doanh và kho lương',
   specialty: '+25% Phòng vệ cho đại bản doanh và kho lương',

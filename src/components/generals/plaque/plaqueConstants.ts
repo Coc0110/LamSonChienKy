@@ -41,6 +41,11 @@ export const TROOP_SPECS: {
     iconUrl: '/troops/infantry.png?v=3',
   },
   {
+    id: 'spearman',
+    label: 'Giáo Binh',
+    iconUrl: '/icons/weapon_spear.png',
+  },
+  {
     id: 'cavalry',
     label: 'Thiết Đột (Kỵ)',
     iconUrl: '/troops/cavalry.png',
