@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import type { StructureType, PlacedStructure } from '../types';
 import type { TerrainType } from '../types/terrain';
 
-export type ModalType = 'army' | 'tactical_grid' | 'supplies' | 'generals' | 'training' | 'scout' | 'farms' | 'forges' | null;
+export type ModalType = 'army' | 'tactical_grid' | 'supplies' | 'generals' | 'training' | 'scout' | 'farms' | 'forges' | 'market' | null;
 
 export type SelectionType = 'base' | 'district';
 
@@ -51,6 +51,7 @@ interface UIState {
   flyToTarget: { x: number; y: number } | null;
 
   setActiveModal: (modal: ModalType) => void;
+  openDistrictMarket: (districtId: string) => void;
   setFlyToTarget: (target: { x: number; y: number } | null) => void;
   toggleEditMode: () => void;
   selectCity: (id: string | null) => void;
