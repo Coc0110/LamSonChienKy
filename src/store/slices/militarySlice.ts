@@ -5,6 +5,7 @@ import type { Resources, ScoutMission, PendingRefugeeWave } from '../../types';
 import { CAMP_CAPACITY_BY_LEVEL } from '../../types';
 import { findShortestScoutPath } from '../../utils/scoutPathfinding';
 import { formatRemainingDays } from '../../utils/formatters';
+import { deductFromTrainedRoster, getCityTrainedRoster } from '../../utils/armyCompositionUtils';
 import type { MilitarySlice, GameStore } from './types';
 
 // Công thức chuẩn tính số ngày thao luyện dựa trên chỉ số Thống Lĩnh và Võ Nghệ của tướng
@@ -154,7 +155,7 @@ export const createMilitarySlice: StateCreator<GameStore, [], [], MilitarySlice>
   clearMilitaryNotices: () => set({ militaryNotices: [] }),
 
   // Bắt đầu đợt thao luyện
-  startTraining: (cityId, generalId, traineesCount, _swappedCount, totalDays) => set((state) => {
+  startTraining: (cityId, generalId, traineesCount, _swappedCount, totalDays, targetRoster) => set((state) => {
     const targetCity = state.cities.find(c => c.id === cityId);
     if (!targetCity || !targetCity.population) return state;
     if (targetCity.training) {
@@ -162,7 +163,37 @@ export const createMilitarySlice: StateCreator<GameStore, [], [], MilitarySlice>
       return state;
     }
 
-    if (state.resources.weapons < traineesCount) {
+    const weaponsNeeded = targetRoster
+      ? {
+          swords: Math.max(0, Math.floor((targetRoster.swordsman ?? 0) + (targetRoster.cavalry ?? 0))),
+          bows: Math.max(0, Math.floor(targetRoster.archer ?? 0)),
+          spears: Math.max(0, Math.floor((targetRoster.spearman ?? 0) + (targetRoster.elephant ?? 0) + (targetRoster.scout ?? 0))),
+        }
+      : null;
+    if (weaponsNeeded) {
+      const horsesNeeded = Math.max(0, Math.floor((targetRoster?.cavalry ?? 0) + (targetRoster?.scout ?? 0)));
+      const elephantsNeeded = Math.max(0, Math.floor(targetRoster?.elephant ?? 0));
+      if (Math.floor(state.resources.swords) < weaponsNeeded.swords) {
+        notify.error(`Kho chỉ còn ${Math.floor(state.resources.swords)} kiếm (cần ${weaponsNeeded.swords})!`);
+        return state;
+      }
+      if (Math.floor(state.resources.bows) < weaponsNeeded.bows) {
+        notify.error(`Kho chỉ còn ${Math.floor(state.resources.bows)} cung (cần ${weaponsNeeded.bows})!`);
+        return state;
+      }
+      if (Math.floor(state.resources.spears) < weaponsNeeded.spears) {
+        notify.error(`Kho chỉ còn ${Math.floor(state.resources.spears)} giáo (cần ${weaponsNeeded.spears})!`);
+        return state;
+      }
+      if (Math.floor(state.resources.horses) < horsesNeeded) {
+        notify.error(`Chuồng chỉ còn ${Math.floor(state.resources.horses)} chiến mã (cần ${horsesNeeded})!`);
+        return state;
+      }
+      if (Math.floor(state.resources.elephants) < elephantsNeeded) {
+        notify.error(`Chỉ còn ${Math.floor(state.resources.elephants)} voi chiến (cần ${elephantsNeeded})!`);
+        return state;
+      }
+    } else if (state.resources.weapons < traineesCount) {
       notify.error(`Quân khí không đủ! Cần ${traineesCount} vũ khí để trang bị thao luyện.`);
       return state;
     }
@@ -184,7 +215,7 @@ export const createMilitarySlice: StateCreator<GameStore, [], [], MilitarySlice>
       return state;
     }
 
-    const weaponsUsed = deductWeaponsFromPool(state.resources, traineesCount);
+    const weaponsUsed = weaponsNeeded ?? deductWeaponsFromPool(state.resources, traineesCount);
     const nextSwords = Math.max(0, state.resources.swords - weaponsUsed.swords);
     const nextBows = Math.max(0, state.resources.bows - weaponsUsed.bows);
     const nextSpears = Math.max(0, state.resources.spears - weaponsUsed.spears);
@@ -197,6 +228,7 @@ export const createMilitarySlice: StateCreator<GameStore, [], [], MilitarySlice>
         population: {
           ...c.population,
           combatTroops: c.population.combatTroops - actualSwapped,
+          trainedRoster: actualSwapped > 0 ? deductFromTrainedRoster(getCityTrainedRoster(c.population), actualSwapped) : c.population.trainedRoster,
           idleLaborers: c.population.idleLaborers - takenFromIdle,
           // Binh sĩ rảnh rỗi tự động thế chỗ vào đồn điền và lò rèn ngay lập tức
           // Giữ nguyên 100% nhân lực làm việc để công việc không bị đình trệ
@@ -207,6 +239,7 @@ export const createMilitarySlice: StateCreator<GameStore, [], [], MilitarySlice>
         training: {
           generalId,
           traineesCount,
+          targetRoster,
           swappedCount: actualSwapped,
           takenFromFarm,
           takenFromForge,

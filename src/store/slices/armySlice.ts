@@ -15,6 +15,8 @@ import {
   buildLayersFromRoster,
   calculateCommandCapacity,
   computeFormationSpeedAndVision,
+  getCityTrainedRoster,
+  mergeTrainedRoster,
   ensureFormationRosterAndLayers,
   rosterTotal,
 } from '../../utils/armyCompositionUtils';
@@ -426,6 +428,11 @@ export const createArmySlice: StateCreator<GameStore, [], [], ArmySlice> = (set,
             population: {
               ...c.population,
               combatTroops: c.population.combatTroops + target.totalTroops,
+              trainedRoster: mergeTrainedRoster(
+                getCityTrainedRoster(c.population),
+                ensureFormationRosterAndLayers(target).roster!,
+                1
+              ),
             }
           };
         }
@@ -506,6 +513,16 @@ export const createArmySlice: StateCreator<GameStore, [], [], ArmySlice> = (set,
     const dFood = (next.supply_cart - current.supply_cart) * FOOD_PER_SUPPLY_CART;
     const res = state.resources;
 
+    const trainedRoster = getCityTrainedRoster(city.population);
+    for (const k of keys) {
+      const need = next[k] - current[k];
+      if (need > trainedRoster[k]) {
+        return {
+          success: false,
+          message: `Căn cứ ${city.name} chỉ còn ${trainedRoster[k]} ${TACTICAL_UNIT_CONFIGS[k].name} đã thao luyện (cần thêm ${need})!`,
+        };
+      }
+    }
     if (dTroops > city.population.combatTroops) {
       return { success: false, message: `Căn cứ ${city.name} chỉ còn ${city.population.combatTroops} nghĩa binh dự bị (cần thêm ${dTroops})!` };
     }
@@ -523,7 +540,18 @@ export const createArmySlice: StateCreator<GameStore, [], [], ArmySlice> = (set,
       return {
         cities: prev.cities.map(c =>
           c.id === target.cityId && c.population
-            ? { ...c, population: { ...c.population, combatTroops: Math.max(0, c.population.combatTroops - dTroops) } }
+            ? {
+                ...c,
+                population: {
+                  ...c.population,
+                  combatTroops: Math.max(0, c.population.combatTroops - dTroops),
+                  trainedRoster: (() => {
+                    const out = { ...getCityTrainedRoster(c.population) };
+                    for (const k of keys) out[k] = Math.max(0, out[k] - (next[k] - current[k]));
+                    return out;
+                  })(),
+                },
+              }
             : c
         ),
         resources: {

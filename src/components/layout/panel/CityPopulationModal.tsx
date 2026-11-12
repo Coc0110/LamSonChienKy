@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { X } from 'lucide-react';
 import { useGameStore } from '../../../store/gameStore';
 import type { CityNode, General } from '../../../types';
+import type { ArmyRosterCounts } from '../../../types/armyFormation';
 import { TrainingSlider } from './TrainingSlider';
 import { UI_TEXT } from '../../../data/uiText';
 import { formatRemainingDays } from '../../../utils/formatters';
@@ -10,7 +11,14 @@ interface CityPopulationModalProps {
   city: CityNode;
   generals: General[];
   weaponsAvailable: number;
-  onStartTraining: (cityId: string, generalId: string, count: number, swappedCount: number, days: number) => void;
+  onStartTraining: (
+    cityId: string,
+    generalId: string,
+    count: number,
+    swappedCount: number,
+    days: number,
+    targetRoster?: Partial<ArmyRosterCounts>
+  ) => void;
   onCancelTraining: (cityId: string) => void;
   onClose: () => void;
 }
@@ -26,6 +34,7 @@ export const CityPopulationModal: React.FC<CityPopulationModalProps> = ({
   const [isSliderOpen, setIsSliderOpen] = useState(false);
   const structures = useGameStore(state => state.structures);
   const formations = useGameStore(state => state.formations);
+  const resources = useGameStore(state => state.resources);
 
   const pop = city.population || {
     combatTroops: city.troops,
@@ -223,9 +232,10 @@ export const CityPopulationModal: React.FC<CityPopulationModalProps> = ({
             population={pop}
             generals={availableGenerals}
             weaponsAvailable={weaponsAvailable}
+            resources={resources}
             onCancel={() => setIsSliderOpen(false)}
-            onConfirm={(genId, count, swapped, days) => {
-              onStartTraining(city.id, genId, count, swapped, days);
+            onConfirm={(genId, count, swapped, days, targetRoster) => {
+              onStartTraining(city.id, genId, count, swapped, days, targetRoster);
               setIsSliderOpen(false);
             }}
           />

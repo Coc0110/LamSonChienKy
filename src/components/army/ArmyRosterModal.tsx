@@ -11,6 +11,7 @@ import {
   calculateCommandCapacity,
   computeFormationSpeedAndVision,
   ensureFormationRosterAndLayers,
+  getCityTrainedRoster,
   rosterTotal,
 } from '../../utils/armyCompositionUtils';
 
@@ -97,6 +98,7 @@ export const ArmyRosterModal: React.FC = React.memo(() => {
 
   const city = cities.find(c => c.id === formation.cityId);
   const cityTroops = city?.population?.combatTroops ?? 0;
+  const trainedRoster = city?.population ? getCityTrainedRoster(city.population) : EMPTY_ROSTER;
   const commander = generals.find(g => g.id === formation.commanderGeneralId);
   const staff = formation.assignedGeneralIds
     .map(id => generals.find(g => g.id === id))
@@ -128,7 +130,8 @@ export const ArmyRosterModal: React.FC = React.memo(() => {
   };
 
   const maxAddFor = (key: UnitKey): number => {
-    const limits = [free.troops];
+    const branchTrainedLeft = trainedRoster[key] - (draft[key] - saved[key]);
+    const limits = [free.troops, branchTrainedLeft];
     if (key === 'swordsman') limits.push(free.swords);
     if (key === 'cavalry') limits.push(free.swords, free.horses);
     if (key === 'spearman') limits.push(free.spears);
@@ -170,7 +173,7 @@ export const ArmyRosterModal: React.FC = React.memo(() => {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-6 pt-20 bg-black/60 select-none">
       <div className="relative w-full max-w-6xl max-h-full flex flex-col">
         <img
-          src="/parchment_torn_panel.png"
+          src="/parchment_torn_horizontal.png"
           alt="Biên chế đạo quân"
           className="absolute inset-0 w-full h-full object-fill pointer-events-none z-0"
           draggable={false}
@@ -263,20 +266,24 @@ export const ArmyRosterModal: React.FC = React.memo(() => {
               )}
               {UNIT_CARDS.map(card => {
                 const cfg = TACTICAL_UNIT_CONFIGS[card.key];
-                const max = draft[card.key] + maxAddFor(card.key);
+                const branchMaxSoldiers = saved[card.key] + trainedRoster[card.key];
+                const branchReserveLeft = Math.max(0, branchMaxSoldiers - draft[card.key]);
                 return (
                   <div key={card.key} className="p-2 rounded border border-[#8c6b44]/30 bg-black/[0.04] flex items-center gap-3">
                     <img src={cfg.icon} alt={card.label} className="w-9 h-9 object-contain shrink-0 pointer-events-none" draggable={false} />
-                    <div className="w-28 shrink-0 text-xs">
-                      <div className="font-black">{card.label}</div>
+                    <div className="w-32 shrink-0 text-xs">
+                      <div className="font-black flex items-center justify-between gap-1">
+                        <span>{card.label}</span>
+                        <span className="text-[10px] font-normal text-[#704d2e]">Dự bị: {branchReserveLeft}</span>
+                      </div>
                       <div className="text-[10px] text-[#6b4423] leading-tight">{card.note}</div>
                     </div>
                     <input
                       type="range"
                       min={0}
-                      max={Math.max(1, max)}
+                      max={Math.max(1, branchMaxSoldiers)}
                       value={draft[card.key]}
-                      disabled={!editable}
+                      disabled={!editable || branchMaxSoldiers === 0}
                       onChange={e => setCount(card.key, Number(e.target.value))}
                       className="flex-1 accent-[#8c2d19] cursor-pointer"
                     />

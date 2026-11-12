@@ -64,6 +64,26 @@ export function deductFromTrainedRoster(base: ArmyRosterCounts, count: number): 
   return out;
 }
 
+/** Cộng quân số vừa thao luyện/chi viện vào trainedRoster và đồng bộ combatTroops. */
+export function addTrainedTroopsToRoster(
+  pop: { combatTroops: number; trainedRoster?: Partial<ArmyRosterCounts> },
+  count: number,
+  targetRoster?: Partial<ArmyRosterCounts>
+): { combatTroops: number; trainedRoster: ArmyRosterCounts } {
+  const base = getCityTrainedRoster(pop);
+  const delta: Partial<ArmyRosterCounts> =
+    targetRoster ?? {
+      swordsman: Math.round(count * 0.4),
+      spearman: Math.round(count * 0.35),
+      archer: Math.max(0, count - Math.round(count * 0.4) - Math.round(count * 0.35)),
+    };
+  const trainedRoster = mergeTrainedRoster(base, delta, 1);
+  return {
+    combatTroops: pop.combatTroops + count,
+    trainedRoster,
+  };
+}
+
 const hp = (type: keyof ArmyRosterCounts): number => TACTICAL_UNIT_CONFIGS[type].baseStats.hp;
 
 /** Sức chứa quân tối đa của đạo quân theo Chủ tướng + Phó tướng (tối thiểu 300). */

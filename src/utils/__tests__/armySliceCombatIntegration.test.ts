@@ -10,7 +10,28 @@ const formId = store.formations[0].id;
 const startTroopsPool = store.cities.find(c => c.id === store.formations[0].cityId)!.population!.combatTroops;
 
 // Kho ban đầu chưa có chiến mã; cấp thêm để kiểm thử biên chế có Kỵ binh / Thám mã
-useGameStore.setState(s => ({ resources: { ...s.resources, horses: 10 } }));
+useGameStore.setState(s => ({
+  resources: { ...s.resources, horses: 10 },
+  cities: s.cities.map(c =>
+    c.id === 'lam_son' && c.population
+      ? {
+          ...c,
+          population: {
+            ...c.population,
+            combatTroops: 64,
+            trainedRoster: {
+              swordsman: 19,
+              spearman: 15,
+              archer: 15,
+              supply_cart: 5,
+              cavalry: 5,
+              scout: 5,
+            },
+          },
+        }
+      : c
+  ),
+}));
 
 // 1. Updating roster within available city troops & weapons succeeds and updates 3 layers
 const resOk = store.updateFormationRoster(formId, {

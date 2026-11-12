@@ -8,6 +8,7 @@ import type { TimeSlice, GameStore } from './types';
 import { calculateTrainingWeaponReturn } from './militarySlice';
 import { deployMingForce } from './armySlice';
 import { roundRemainingDays } from '../../utils/formatters';
+import { addTrainedTroopsToRoster } from '../../utils/armyCompositionUtils';
 
 export const getDaysInMonth = (month: number, year: number): number => {
   return new Date(year, month, 0).getDate();
@@ -180,7 +181,7 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
             const pop = c.population
               ? {
                   ...c.population,
-                  combatTroops: c.population.combatTroops + traineesCount,
+                  ...addTrainedTroopsToRoster(c.population, traineesCount, c.training.targetRoster),
                   swappedCombatants: Math.max(0, (c.population.swappedCombatants || 0) - swappedCount),
                 }
               : c.population;
@@ -364,7 +365,7 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
             ...currentCity,
             population: {
               ...pop,
-              combatTroops: pop.combatTroops + traineesCount,
+              ...addTrainedTroopsToRoster(pop, traineesCount, training.targetRoster),
               swappedCombatants: Math.max(0, (pop.swappedCombatants || 0) - swappedCount),
             },
             troops: currentCity.troops + traineesCount,
@@ -964,7 +965,7 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
             troops: baseCity.troops + bonusTroops,
             population: {
               ...baseCity.population!,
-              combatTroops: baseCity.population!.combatTroops + bonusTroops,
+              ...addTrainedTroopsToRoster(baseCity.population!, bonusTroops),
             },
           };
         }

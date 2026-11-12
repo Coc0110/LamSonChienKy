@@ -20,6 +20,7 @@ export type NodeType = 'city' | 'camp' | 'chokepoint';
 
 export interface CityPopulation {
   combatTroops: number;       // Nghĩa Binh (người có khả năng tác chiến)
+  trainedRoster?: Partial<ArmyRosterCounts>; // Phân bổ nghĩa binh dự bị theo từng binh chủng
   idleLaborers: number;       // Tráng Phu rảnh rỗi (thanh kéo: Vùng Xanh Lá)
   farmLaborers: number;       // Tráng Phu đang cày cấy tích lương (thanh kéo: Vùng Cam)
   forgeLaborers: number;      // Tráng Phu đang rèn đúc vũ khí (thanh kéo: Vùng Cam)
@@ -83,6 +84,7 @@ export interface PlacedStructure {
 export interface TrainingSession {
   generalId: string;          // Vị tướng phụ trách thao luyện
   traineesCount: number;      // Tổng số tráng phu được đưa vào thao luyện
+  targetRoster?: Partial<ArmyRosterCounts>; // Phân bổ binh chủng dự kiến hoàn tất sau thao luyện
   swappedCount: number;       // Số nghĩa binh phải điều động thế chỗ làm việc
   takenFromFarm?: number;     // Số nông đinh rút từ ruộng đi thao luyện
   takenFromForge?: number;    // Số thợ rèn rút từ lò đi thao luyện
