@@ -5,7 +5,13 @@ import { calculateTrainingDays, calculateTrainingWearCount } from '../../../stor
 import type { CityPopulation, General, Resources } from '../../../types';
 import type { ArmyRosterCounts } from '../../../types/armyFormation';
 import { TACTICAL_UNIT_CONFIGS } from '../../../types/armyFormation';
-import { EMPTY_ROSTER, rosterTotal } from '../../../utils/armyCompositionUtils';
+import {
+  EMPTY_ROSTER,
+  canGeneralTrainBranch,
+  getTrainableBranchesForGeneral,
+  rosterTotal,
+} from '../../../utils/armyCompositionUtils';
+import { TROOP_SPECS } from '../../generals/plaque/plaqueConstants';
 
 type UnitKey = keyof ArmyRosterCounts;
 
@@ -16,8 +22,15 @@ const TRAINING_BRANCHES: { key: UnitKey; label: string; weaponNote: string }[] =
   { key: 'cavalry', label: 'Kỵ Binh', weaponNote: '1 Kiếm + 1 Ngựa' },
   { key: 'elephant', label: 'Tượng Binh', weaponNote: '1 Giáo + 1 Voi' },
   { key: 'scout', label: 'Thám Mã', weaponNote: '1 Giáo + 1 Ngựa' },
-  { key: 'supply_cart', label: 'Xe Lương', weaponNote: '0 vũ khí' },
 ];
+
+const formatGeneralTroopLabels = (general: General | undefined): string => {
+  const troops = general?.troops ?? [];
+  if (troops.length === 0) return 'Chưa rõ';
+  return troops
+    .map(t => TROOP_SPECS.find(s => s.id === t)?.label ?? t)
+    .join(', ');
+};
 
 interface TrainingSliderProps {
   population: CityPopulation;
@@ -55,16 +68,28 @@ export const TrainingSlider: React.FC<TrainingSliderProps> = ({
   const availHorses = Math.max(0, Math.floor(resources.horses));
   const availElephants = Math.max(0, Math.floor(resources.elephants));
 
-  const [roster, setRoster] = useState<ArmyRosterCounts>(() => ({
-    ...EMPTY_ROSTER,
-    swordsman: Math.min(10, maxAllowed, availSwords),
-  }));
-
   const [selectedGeneralId, setSelectedGeneralId] = useState<string>(generals[0]?.id || '');
   const effectiveGeneralId = generals.some(g => g.id === selectedGeneralId)
     ? selectedGeneralId
     : (generals[0]?.id || '');
   const selectedCoach = generals.find(g => g.id === effectiveGeneralId) || generals[0];
+
+  const [roster, setRoster] = useState<ArmyRosterCounts>(() => ({
+    ...EMPTY_ROSTER,
+    swordsman: canGeneralTrainBranch(generals[0], 'swordsman') ? Math.min(10, maxAllowed, availSwords) : 0,
+  }));
+
+  const handleSelectGeneral = (nextGeneralId: string) => {
+    setSelectedGeneralId(nextGeneralId);
+    const nextCoach = generals.find(g => g.id === nextGeneralId);
+    setRoster(prev => {
+      const next = { ...prev };
+      for (const b of TRAINING_BRANCHES) {
+        if (!canGeneralTrainBranch(nextCoach, b.key)) next[b.key] = 0;
+      }
+      return next;
+    });
+  };
 
   const trainCount = rosterTotal(roster);
   const idleUsed = Math.min(trainCount, idleLaborers);
@@ -85,6 +110,7 @@ export const TrainingSlider: React.FC<TrainingSliderProps> = ({
 
   // Trần độc lập cho từng thanh kéo để kéo 1 binh chủng không làm trượt các thanh khác
   const independentCeiling = (key: UnitKey): number => {
+    if (!canGeneralTrainBranch(selectedCoach, key)) return 0;
     switch (key) {
       case 'swordsman':
         return Math.min(maxAllowed, availSwords);
@@ -99,11 +125,12 @@ export const TrainingSlider: React.FC<TrainingSliderProps> = ({
       case 'scout':
         return Math.min(maxAllowed, availSpears, availHorses);
       case 'supply_cart':
-        return maxAllowed;
+        return 0;
     }
   };
 
   const maxAllowedForBranchNow = (key: UnitKey): number => {
+    if (!canGeneralTrainBranch(selectedCoach, key)) return 0;
     const othersTotal = trainCount - roster[key];
     const remTroops = Math.max(0, maxAllowed - othersTotal);
     const remSwords = Math.max(0, availSwords - (swordsUsed - (key === 'swordsman' || key === 'cavalry' ? roster[key] : 0)));
@@ -191,17 +218,25 @@ export const TrainingSlider: React.FC<TrainingSliderProps> = ({
             Không có tướng lĩnh rảnh rỗi tại căn cứ (toàn bộ tướng đều đang chỉ huy đạo quân).
           </div>
         ) : (
-          <select
-            value={effectiveGeneralId}
-            onChange={(e) => setSelectedGeneralId(e.target.value)}
-            className="w-full bg-[#fdf8f0] border border-[#8c6b44]/40 text-[#261304] rounded px-2.5 py-1.5 text-xs font-serif font-bold focus:outline-none focus:ring-1 focus:ring-[#8c2d19]"
-          >
-            {generals.map(g => (
-              <option key={g.id} value={g.id}>
-                {g.name} ({g.title}) — Thống {g.stats.command} / Võ {g.stats.martial}
-              </option>
-            ))}
-          </select>
+          <>
+            <select
+              value={effectiveGeneralId}
+              onChange={(e) => handleSelectGeneral(e.target.value)}
+              className="w-full bg-[#fdf8f0] border border-[#8c6b44]/40 text-[#261304] rounded px-2.5 py-1.5 text-xs font-serif font-bold focus:outline-none focus:ring-1 focus:ring-[#8c2d19]"
+            >
+              {generals.map(g => (
+                <option key={g.id} value={g.id}>
+                  {g.name} ({g.title}) — {formatGeneralTroopLabels(g)} • Thống {g.stats.command} / Võ {g.stats.martial}
+                </option>
+              ))}
+            </select>
+            <div className="text-[10px] text-[#6b4423]">
+              Thông thạo: <strong>{formatGeneralTroopLabels(selectedCoach)}</strong>
+              {getTrainableBranchesForGeneral(selectedCoach).length === 0 && (
+                <span className="text-[#8c2d19]"> (Tướng này không thông thạo binh chủng bộ chiến nào)</span>
+              )}
+            </div>
+          </>
         )}
       </div>
 
@@ -242,12 +277,17 @@ export const TrainingSlider: React.FC<TrainingSliderProps> = ({
       <div className="space-y-1.5">
         {TRAINING_BRANCHES.map(branch => {
           const cfg = TACTICAL_UNIT_CONFIGS[branch.key];
+          const isProficient = canGeneralTrainBranch(selectedCoach, branch.key);
           const ceiling = independentCeiling(branch.key);
-          const current = roster[branch.key];
+          const current = isProficient ? roster[branch.key] : 0;
           return (
             <div
               key={branch.key}
-              className="p-2 rounded border border-[#8c6b44]/30 bg-[#fdf8f0]/65 flex items-center gap-2"
+              className={`p-2 rounded border flex items-center gap-2 ${
+                isProficient
+                  ? 'border-[#8c6b44]/30 bg-[#fdf8f0]/65'
+                  : 'border-[#8c6b44]/20 bg-[#8c6b44]/5 opacity-55'
+              }`}
             >
               <img
                 src={cfg.icon}
@@ -257,8 +297,8 @@ export const TrainingSlider: React.FC<TrainingSliderProps> = ({
               />
               <div className="w-28 shrink-0">
                 <div className="text-[11px] font-black leading-tight">{branch.label}</div>
-                <div className="text-[10px] text-[#6b4423] leading-tight">
-                  {stockDisplayFor(branch.key)}
+                <div className={`text-[10px] leading-tight ${isProficient ? 'text-[#6b4423]' : 'text-[#8c2d19]'}`}>
+                  {isProficient ? stockDisplayFor(branch.key) : 'Tướng không thông thạo'}
                 </div>
               </div>
               <input
@@ -266,7 +306,7 @@ export const TrainingSlider: React.FC<TrainingSliderProps> = ({
                 min={0}
                 max={Math.max(1, ceiling)}
                 value={current}
-                disabled={ceiling === 0}
+                disabled={!isProficient || ceiling === 0}
                 onChange={e => setBranchCount(branch.key, Number(e.target.value))}
                 className="flex-1 accent-[#8c2d19] cursor-pointer disabled:opacity-40"
               />
@@ -274,7 +314,7 @@ export const TrainingSlider: React.FC<TrainingSliderProps> = ({
                 <button
                   type="button"
                   onClick={() => setBranchCount(branch.key, current - 1)}
-                  disabled={current <= 0}
+                  disabled={!isProficient || current <= 0}
                   className="p-0.5 rounded border border-[#8c6b44]/40 bg-[#8c6b44]/15 cursor-pointer disabled:opacity-40"
                 >
                   <Minus size={11} />
@@ -284,13 +324,14 @@ export const TrainingSlider: React.FC<TrainingSliderProps> = ({
                   min={0}
                   max={ceiling}
                   value={current}
+                  disabled={!isProficient || ceiling === 0}
                   onChange={e => setBranchCount(branch.key, Number(e.target.value))}
-                  className="w-11 text-center text-[11px] p-0.5 rounded border border-[#8c6b44]/40 bg-[#f4e4bc]"
+                  className="w-11 text-center text-[11px] p-0.5 rounded border border-[#8c6b44]/40 bg-[#f4e4bc] disabled:opacity-50"
                 />
                 <button
                   type="button"
                   onClick={() => setBranchCount(branch.key, current + 1)}
-                  disabled={current >= maxAllowedForBranchNow(branch.key)}
+                  disabled={!isProficient || current >= maxAllowedForBranchNow(branch.key)}
                   className="p-0.5 rounded border border-[#8c6b44]/40 bg-[#8c6b44]/15 cursor-pointer disabled:opacity-40"
                 >
                   <Plus size={11} />

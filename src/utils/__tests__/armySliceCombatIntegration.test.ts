@@ -21,9 +21,9 @@ useGameStore.setState(s => ({
             combatTroops: 64,
             trainedRoster: {
               swordsman: 19,
-              spearman: 15,
+              spearman: 20,
               archer: 15,
-              supply_cart: 5,
+              supply_cart: 0,
               cavalry: 5,
               scout: 5,
             },

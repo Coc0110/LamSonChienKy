@@ -95,28 +95,42 @@ assert(
   `Expected weapons ${stockBeforeCanh - 40 + expectedCanhReturn.totalReturned} after tickCanh completion, got ${state.resources.weapons}`
 );
 
-// 5. Integration: per-branch startTraining updates trainedRoster per branch on completion
+// 5. Integration: per-branch startTraining enforces general proficiency & excludes supply_cart
+const leLoi = state.generals.find(g => g.id === 'le_loi')!;
+assert(leLoi, 'Expected le_loi general');
+
 useGameStore.setState(s => ({
-  resources: { ...s.resources, swords: 40, bows: 20, spears: 30, horses: 10, weapons: 90 },
+  resources: { ...s.resources, swords: 40, bows: 20, spears: 30, horses: 10, elephants: 5, weapons: 90 },
 }));
-useGameStore.getState().startTraining('lam_son', idleGen.id, 15, 0, 1, {
+
+// Reject supply_cart training
+useGameStore.getState().startTraining('lam_son', leLoi.id, 1, 0, 1, { supply_cart: 1 });
+assert(
+  useGameStore.getState().cities.find(c => c.id === 'lam_son')!.training === null,
+  'Expected startTraining to reject supply_cart training'
+);
+
+// Reject branch general is not proficient in (le_loi has infantry + cavalry, not elephant)
+useGameStore.getState().startTraining('lam_son', leLoi.id, 2, 0, 1, { elephant: 2 });
+assert(
+  useGameStore.getState().cities.find(c => c.id === 'lam_son')!.training === null,
+  'Expected startTraining to reject branch not in general proficiency'
+);
+
+// Accept branches general IS proficient in (infantry -> swordsman/spearman, cavalry -> cavalry/scout)
+useGameStore.getState().startTraining('lam_son', leLoi.id, 11, 0, 1, {
   swordsman: 5,
   spearman: 4,
-  archer: 3,
   cavalry: 2,
-  supply_cart: 1,
 });
 const afterBranchStart = useGameStore.getState();
-// Swords used: 5 + 2 = 7, Spears used: 4, Bows used: 3 (supply_cart = 0)
+// Swords used: 5 + 2 = 7, Spears used: 4
 assert(afterBranchStart.resources.swords === 33, `Expected 33 swords left, got ${afterBranchStart.resources.swords}`);
 assert(afterBranchStart.resources.spears === 26, `Expected 26 spears left, got ${afterBranchStart.resources.spears}`);
-assert(afterBranchStart.resources.bows === 17, `Expected 17 bows left, got ${afterBranchStart.resources.bows}`);
 
 const beforeCav = afterBranchStart.cities.find(c => c.id === 'lam_son')!.population!.trainedRoster?.cavalry ?? 0;
-const beforeCart = afterBranchStart.cities.find(c => c.id === 'lam_son')!.population!.trainedRoster?.supply_cart ?? 0;
 useGameStore.getState().tick();
 const afterBranchDone = useGameStore.getState().cities.find(c => c.id === 'lam_son')!.population!.trainedRoster!;
 assert(afterBranchDone.cavalry === beforeCav + 2, `Expected +2 cavalry in trainedRoster, got ${afterBranchDone.cavalry}`);
-assert(afterBranchDone.supply_cart === beforeCart + 1, `Expected +1 supply_cart in trainedRoster, got ${afterBranchDone.supply_cart}`);
 
 console.log('trainingWeapons tests passed!');
