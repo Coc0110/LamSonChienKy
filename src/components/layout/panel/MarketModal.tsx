@@ -175,9 +175,10 @@ export const MarketModal: React.FC = React.memo(() => {
               >
                 {districts.map(d => {
                   const dMeta = getDistrictMarketMeta(d.id, cities);
+                  const cleanName = (dMeta.marketName || d.name).replace(/\s*\(.*?\)/g, '').trim();
                   return (
                     <option key={d.id} value={d.id}>
-                      {d.name} ({dMeta.tagLabel}){dMeta.hasMingGarrison ? ' [⚠ Đồn Minh]' : ''}
+                      {cleanName}
                     </option>
                   );
                 })}
@@ -210,14 +211,35 @@ export const MarketModal: React.FC = React.memo(() => {
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs bg-black/[0.04] px-3 py-1.5 rounded border border-[#8c6b44]/30">
-              <span>Vàng: <strong className="text-[#b45309] font-mono">{Math.floor(resources.gold).toLocaleString()}</strong></span>
-              <span>Lương: <strong className="font-mono">{Math.floor(resources.food).toLocaleString()}</strong></span>
-              <span>Kiếm: <strong className="font-mono">{Math.floor(resources.swords)}</strong></span>
-              <span>Giáo: <strong className="font-mono">{Math.floor(resources.spears)}</strong></span>
-              <span>Cung: <strong className="font-mono">{Math.floor(resources.bows)}</strong></span>
-              <span>Quân trang: <strong className="font-mono">{Math.floor(resources.clothes)}</strong></span>
-              <span>Ngựa: <strong className="font-mono">{Math.floor(resources.horses)}</strong></span>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs bg-black/[0.04] px-3 py-1.5 rounded border border-[#8c6b44]/30">
+              <span className="inline-flex items-center gap-1" title="Vàng (Ngân khố)">
+                <img src="/icons/gold.png" alt="Vàng" className="w-4 h-4 object-contain" />
+                <strong className="text-[#b45309] font-mono">{Math.floor(resources.gold).toLocaleString()}</strong>
+              </span>
+              <span className="inline-flex items-center gap-1" title="Lương thảo">
+                <img src="/icons/food.png" alt="Lương" className="w-4 h-4 object-contain" />
+                <strong className="font-mono">{Math.floor(resources.food).toLocaleString()}</strong>
+              </span>
+              <span className="inline-flex items-center gap-1" title="Kiếm">
+                <img src="/icons/weapon_sword.png" alt="Kiếm" className="w-4 h-4 object-contain" />
+                <strong className="font-mono">{Math.floor(resources.swords)}</strong>
+              </span>
+              <span className="inline-flex items-center gap-1" title="Giáo">
+                <img src="/icons/weapon_spear.png" alt="Giáo" className="w-4 h-4 object-contain" />
+                <strong className="font-mono">{Math.floor(resources.spears)}</strong>
+              </span>
+              <span className="inline-flex items-center gap-1" title="Cung">
+                <img src="/icons/weapon_bow.png" alt="Cung" className="w-4 h-4 object-contain" />
+                <strong className="font-mono">{Math.floor(resources.bows)}</strong>
+              </span>
+              <span className="inline-flex items-center gap-1" title="Quân trang">
+                <img src="/icons/fabric.png" alt="Quân trang" className="w-4 h-4 object-contain" />
+                <strong className="font-mono">{Math.floor(resources.clothes)}</strong>
+              </span>
+              <span className="inline-flex items-center gap-1" title="Chiến mã">
+                <img src="/icons/horse.png" alt="Ngựa" className="w-4 h-4 object-contain" />
+                <strong className="font-mono">{Math.floor(resources.horses)}</strong>
+              </span>
             </div>
           </div>
 
@@ -429,10 +451,7 @@ export const MarketModal: React.FC = React.memo(() => {
             )}
           </div>
 
-          <div className="mt-3 pt-2 border-t border-[#8c6b44]/30 text-[11px] text-[#6b4423] flex flex-wrap justify-between gap-2 shrink-0">
-            <span>• Hàng chợ làm mới vào đầu mỗi tháng; chợ vùng Thanh Hóa không bán voi chiến.</span>
-            <span>• Sau khi đặt mua, cần cử đạo quân tới chợ huyện để áp tải hàng về bản doanh; mua ngựa hoặc giao dịch lớn sẽ làm tăng độ nghi ngờ.</span>
-          </div>
+
         </div>
       </div>
     </div>

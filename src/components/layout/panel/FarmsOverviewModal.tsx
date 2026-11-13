@@ -21,6 +21,15 @@ export const FarmsOverviewModal: React.FC = React.memo(() => {
   const farmStructures = structures.filter(s => s.type === 'farm');
   const nextHarvest = getNextHarvestSeason(day, month, year);
 
+  const activeFarm = farmStructures.find(s => s.status === 'active');
+  const currentCondition = activeFarm?.seasonCondition || 'normal';
+  const weatherLabel =
+    currentCondition === 'bountiful'
+      ? 'Thuận lợi (Tiết trời ấm áp, khả năng được mùa cao)'
+      : currentCondition === 'poor'
+      ? 'Bất lợi (Mưa bão thất thường, rủi ro ngập úng)'
+      : 'Bình hòa (Mưa thuận gió hòa, đúng tiết khí)';
+
   // Tính tổng sản lượng ước tính của toàn bộ đồn điền
   const totalExpectedHarvest = farmStructures.reduce((acc, s) => {
     if (s.status !== 'active' || !s.assignedWorkers) return acc;
@@ -49,14 +58,9 @@ export const FarmsOverviewModal: React.FC = React.memo(() => {
       <div className="relative z-10 p-5 md:p-6 flex flex-col h-full font-serif text-[#261304] overflow-hidden">
           {/* Header */}
           <div className="flex items-center justify-between border-b border-[#8c6b44]/35 pb-2.5 mb-3 shrink-0">
-            <div>
-              <h3 className="font-serif font-black text-lg text-[#261304] leading-tight tracking-wide">
-                {UI_TEXT.farmsPanel.title}
-              </h3>
-              <p className="text-[11px] text-[#704d2e] font-sans">
-                {UI_TEXT.farmsPanel.subtitle}
-              </p>
-            </div>
+            <h3 className="font-serif font-black text-lg text-[#261304] leading-tight tracking-wide">
+              {UI_TEXT.farmsPanel.title}
+            </h3>
 
             <button
               onClick={() => setActiveModal(null)}
@@ -67,24 +71,36 @@ export const FarmsOverviewModal: React.FC = React.memo(() => {
             </button>
           </div>
 
-          {/* Banner Thông Tin Mùa Vụ & Chỉ Số Chung (Trải đều tuần tự, không chia dọc) */}
+          {/* Banner Thông Tin Mùa Vụ & Chỉ Số Chung (Xếp hàng tuần tự theo dòng dọc, không chia cột) */}
           <div className="flex flex-col gap-1.5 mb-3 p-2.5 rounded bg-black/[0.04] border border-[#8c6b44]/25 shrink-0 text-xs font-serif">
             <div className="flex items-center justify-between">
-              <span className="text-[#5c3e23]">{UI_TEXT.farmsPanel.stats.nextSeason}</span>
+              <span className="text-[#5c3e23]">Vụ mùa hiện tại:</span>
               <strong className="text-[#8c2d19] font-bold">
                 {nextHarvest.season.name} ({nextHarvest.targetDay}/{nextHarvest.targetMonth}) — còn {nextHarvest.daysRemaining} ngày
               </strong>
             </div>
 
             <div className="flex items-center justify-between pt-1 border-t border-[#8c6b44]/15">
-              <div>
-                <span className="text-[#5c3e23]">{UI_TEXT.farmsPanel.stats.workers} </span>
-                <strong className="text-[#15803d] font-bold">{totalAssignedWorkers} / {totalMaxWorkers} người</strong>
-              </div>
-              <div>
-                <span className="text-[#5c3e23]">{UI_TEXT.farmsPanel.stats.expectedYield} </span>
-                <strong className="text-[#b45309] font-bold">+{totalExpectedHarvest.toLocaleString()} thạch</strong>
-              </div>
+              <span className="text-[#5c3e23]">Thời tiết vụ mùa:</span>
+              <strong className={`font-bold ${
+                currentCondition === 'bountiful' ? 'text-[#15803d]' : currentCondition === 'poor' ? 'text-[#b45309]' : 'text-[#5c3e23]'
+              }`}>
+                {weatherLabel}
+              </strong>
+            </div>
+
+            <div className="flex items-center justify-between pt-1 border-t border-[#8c6b44]/15">
+              <span className="text-[#5c3e23]">Nông đinh canh tác:</span>
+              <strong className="text-[#15803d] font-bold">
+                {totalAssignedWorkers} / {totalMaxWorkers} người
+              </strong>
+            </div>
+
+            <div className="flex items-center justify-between pt-1 border-t border-[#8c6b44]/15">
+              <span className="text-[#5c3e23]">Sản lượng ước tính:</span>
+              <strong className="text-[#b45309] font-bold">
+                +{totalExpectedHarvest.toLocaleString()} thạch
+              </strong>
             </div>
           </div>
 
@@ -177,10 +193,7 @@ export const FarmsOverviewModal: React.FC = React.memo(() => {
           </div>
 
           {/* Footer nút hành động */}
-          <div className="pt-3 border-t border-[#8c6b44]/30 mt-2 flex items-center justify-between shrink-0">
-            <span className="text-[11px] text-[#704d2e] italic">
-              * Quốc sách "Ngụ binh ư nông": Binh lính và tráng phu tại căn cứ mặc định tự động cày cấy, chỉ rời ruộng khi xuất trận.
-            </span>
+          <div className="pt-3 border-t border-[#8c6b44]/30 mt-2 flex justify-end shrink-0">
             <button
               onClick={() => {
                 setActiveModal(null);

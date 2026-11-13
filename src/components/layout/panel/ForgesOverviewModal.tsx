@@ -33,14 +33,9 @@ export const ForgesOverviewModal: React.FC = React.memo(() => {
       <div className="relative z-10 p-5 md:p-6 flex flex-col h-full font-serif text-[#261304] overflow-hidden">
           {/* Header */}
           <div className="flex items-center justify-between border-b border-[#8c6b44]/35 pb-2.5 mb-3 shrink-0">
-            <div>
-              <h3 className="font-serif font-black text-lg text-[#261304] leading-tight tracking-wide">
-                {UI_TEXT.forgesPanel.title}
-              </h3>
-              <p className="text-[11px] text-[#704d2e] font-sans">
-                {UI_TEXT.forgesPanel.subtitle}
-              </p>
-            </div>
+            <h3 className="font-serif font-black text-lg text-[#261304] leading-tight tracking-wide">
+              {UI_TEXT.forgesPanel.title}
+            </h3>
 
             <button
               onClick={() => setActiveModal(null)}
@@ -51,14 +46,14 @@ export const ForgesOverviewModal: React.FC = React.memo(() => {
             </button>
           </div>
 
-          {/* Banner Thống kê */}
-          <div className="flex items-center justify-between mb-3 p-2.5 rounded bg-black/[0.04] border border-[#8c6b44]/25 shrink-0 text-xs">
-            <div>
-              <span className="text-[#5c3e23]">{UI_TEXT.forgesPanel.stats.totalForges} </span>
+          {/* Banner Thống kê (Xếp hàng tuần tự theo dòng dọc, không chia cột) */}
+          <div className="flex flex-col gap-1.5 mb-3 p-2.5 rounded bg-black/[0.04] border border-[#8c6b44]/25 shrink-0 text-xs font-serif">
+            <div className="flex items-center justify-between">
+              <span className="text-[#5c3e23]">{UI_TEXT.forgesPanel.stats.totalForges}</span>
               <strong className="text-[#8c2d19] font-bold">{forgeStructures.length} lò rèn</strong>
             </div>
-            <div>
-              <span className="text-[#5c3e23]">{UI_TEXT.forgesPanel.stats.activeForging} </span>
+            <div className="flex items-center justify-between pt-1 border-t border-[#8c6b44]/15">
+              <span className="text-[#5c3e23]">{UI_TEXT.forgesPanel.stats.activeForging}</span>
               <strong className="text-[#15803d] font-bold">{activeOrdersCount} / {forgeStructures.length}</strong>
             </div>
           </div>
@@ -157,10 +152,7 @@ export const ForgesOverviewModal: React.FC = React.memo(() => {
           </div>
 
           {/* Footer */}
-          <div className="pt-3 border-t border-[#8c6b44]/30 mt-2 flex items-center justify-between shrink-0">
-            <span className="text-[11px] text-[#704d2e] italic">
-              * Rèn đúc phát ra tiếng đe búa thu hút giặc Minh; lò ở núi rừng giúp che giấu tốt hơn.
-            </span>
+          <div className="pt-3 border-t border-[#8c6b44]/30 mt-2 flex justify-end shrink-0">
             <button
               onClick={() => {
                 setActiveModal(null);
