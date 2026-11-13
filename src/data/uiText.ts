@@ -118,7 +118,7 @@ export const UI_TEXT = {
       locate: 'Định vị',
     },
     travelingSectionTitle: 'Đội Thám Mã Đang Di Chuyển',
-    footerTip: 'Mỗi thám mã cắm chốt giúp làm rõ thực lực của giặc (-30 lương/lần phái).',
+    footerTip: '',
   },
 
   // --------------------------------------------------------------------------
@@ -126,9 +126,9 @@ export const UI_TEXT = {
   // --------------------------------------------------------------------------
   farmsPanel: {
     title: 'Quản Lý Đồn Điền',
-    subtitle: 'Theo dõi các khu ruộng canh tác và mùa gặt',
+    subtitle: '',
     stats: {
-      nextSeason: 'Vụ mùa kế tiếp:',
+      nextSeason: 'Vụ mùa hiện tại:',
       expectedYield: 'Sản lượng ước tính:',
       workers: 'Nông đinh canh tác:',
     },
@@ -147,7 +147,7 @@ export const UI_TEXT = {
   // --------------------------------------------------------------------------
   forgesPanel: {
     title: 'Quản Lý Lò Rèn',
-    subtitle: 'Rèn đúc vũ khí cung đao và bố trí thợ rèn',
+    subtitle: '',
     stats: {
       totalForges: 'Lò rèn:',
       activeForging: 'Đang rèn:',
@@ -166,13 +166,13 @@ export const UI_TEXT = {
   // 6. BẢNG THAO LUYỆN (TRAINING & POPULATION)
   // --------------------------------------------------------------------------
   trainingPanel: {
-    title: (cityName: string) => `Thao Luyện & Dân Cư — ${cityName}`,
+    title: (cityName: string) => `Thao Luyện — ${cityName}`,
     subtitle: (total: number) => `Tổng nhân khẩu: ${total} người`,
-    combatTroops: 'Nghĩa Binh (Chiến đấu)',
-    idleLaborers: 'Tráng Phu (Nhàn rỗi)',
-    farmingLaborers: 'Nông Đinh (Cày cấy)',
-    forgingLaborers: 'Thợ Rèn (Đúc khí giới)',
-    unfit: 'Lão Ấu (Già yếu, trẻ nhỏ)',
+    combatTroops: 'Nghĩa Binh',
+    idleLaborers: 'Rảnh rỗi',
+    farmingLaborers: 'Nông đinh',
+    forgingLaborers: 'Rèn đúc',
+    unfit: 'Lão, Ấu',
     startTrainingBtn: 'Thao Luyện Nghĩa Binh',
     cancelTrainingBtn: 'Hủy bỏ đợt thao luyện',
   },

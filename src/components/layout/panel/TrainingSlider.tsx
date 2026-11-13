@@ -347,26 +347,17 @@ export const TrainingSlider: React.FC<TrainingSliderProps> = ({
         })()}
       </div>
 
-      {/* 4. Diễn giải tác động chiến lược */}
-      <div className="text-xs leading-relaxed p-2.5 rounded-lg bg-[#8c6b44]/5 border border-[#8c6b44]/25 space-y-1.5 text-[#261304]">
-        {workingUsed > 0 ? (
-          <div className="text-[#b45309]">
-            * Cảnh báo sản xuất: Điều động <strong>{idleUsed}</strong> tráng phu nhàn rỗi và rút <strong>{workingUsed}</strong> tráng phu đang làm việc → Cắt cử <strong>{swappedCombatantsNeeded} Nghĩa Binh</strong> dày dạn thế chỗ cày cấy / rèn đúc!
-          </div>
-        ) : (
-          <div className="text-[#15803d]">
-            * Điều động an toàn: Huấn luyện <strong>{idleUsed}</strong> tráng phu nhàn rỗi, không làm gián đoạn sản xuất.
-          </div>
-        )}
-
-        <div className="text-[11px] text-[#6b4423] pt-1 border-t border-[#8c6b44]/20 space-y-0.5">
-          <div>
-            Binh khí tạm xuất: <strong className={isWeaponShortage ? 'text-[#8c2d19]' : 'text-[#261304]'}>{weaponsUsedTotal} món</strong>
-            {' '}(Kiếm {swordsUsed}/{availSwords} • Giáo {spearsUsed}/{availSpears} • Cung {bowsUsed}/{availBows} — Tổng kho: {weaponsAvailable})
-          </div>
-          <div className="text-[10px] text-[#7a5430]">
-            * Hoàn trả về kho sau khi luyện xong (chỉ hao mòn tối đa ~{calculateTrainingWearCount(weaponsUsedTotal)} món).
-          </div>
+      {/* 4. Thống kê điều động & Binh khí */}
+      <div className="text-xs leading-relaxed p-2.5 rounded-lg bg-[#8c6b44]/5 border border-[#8c6b44]/25 space-y-1 text-[#261304] font-serif">
+        <div className="flex items-center justify-between">
+          <span className="text-[#5c3e23]">Huy động:</span>
+          <strong>{trainCount} người</strong>
+        </div>
+        <div className="flex items-center justify-between pt-1 border-t border-[#8c6b44]/20 text-[11px]">
+          <span className="text-[#5c3e23]">Binh khí:</span>
+          <strong className={isWeaponShortage ? 'text-[#8c2d19]' : 'text-[#261304]'}>
+            Kiếm {swordsUsed}/{availSwords} • Giáo {spearsUsed}/{availSpears} • Cung {bowsUsed}/{availBows}
+          </strong>
         </div>
       </div>
 
