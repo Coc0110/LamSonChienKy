@@ -59,20 +59,12 @@ export const ScoutOverviewModal: React.FC = React.memo(() => {
             </button>
           </div>
 
-          {/* Banner Thống kê Tình Báo (Đơn dòng trải đều, không chia dọc tờ giấy) */}
-          <div className="flex items-center justify-between mb-3 p-2.5 rounded bg-black/[0.04] border border-[#8c6b44]/25 shrink-0 text-xs font-serif">
-            <div>
-              <span className="text-[#5c3e23]">{UI_TEXT.scoutPanel.stats.scouted} </span>
-              <strong className="text-[#8c2d19] font-bold text-sm">
-                {scoutedCities.length} thành trì
-              </strong>
-            </div>
-            <div>
-              <span className="text-[#5c3e23]">{UI_TEXT.scoutPanel.stats.laborers} </span>
-              <strong className="text-[#15803d] font-bold text-sm">
-                {idleLaborers} người ({Math.floor(resources.food).toLocaleString()} lương)
-              </strong>
-            </div>
+          {/* Banner Thống kê Tình Báo */}
+          <div className="mb-3 p-2.5 rounded bg-black/[0.04] border border-[#8c6b44]/25 shrink-0 text-xs font-serif">
+            <span className="text-[#5c3e23]">{UI_TEXT.scoutPanel.stats.scouted} </span>
+            <strong className="text-[#8c2d19] font-bold text-sm">
+              {scoutedCities.length} thành trì
+            </strong>
           </div>
 
           {/* Danh Sách Mục Tiêu Đồn Lũy Đã Phái Do Thám */}
@@ -82,12 +74,9 @@ export const ScoutOverviewModal: React.FC = React.memo(() => {
             </div>
 
             {scoutedCities.length === 0 ? (
-              <div className="py-8 px-4 text-center space-y-2 border border-[#8c6b44]/25 rounded-lg bg-black/[0.02]">
+              <div className="py-8 px-4 text-center border border-[#8c6b44]/25 rounded-lg bg-black/[0.02]">
                 <p className="text-xs text-[#704d2e] font-serif italic font-bold">
                   {UI_TEXT.scoutPanel.emptyText}
-                </p>
-                <p className="text-[11px] text-[#8c6b44] font-sans leading-relaxed">
-                  {UI_TEXT.scoutPanel.emptySubtext}
                 </p>
               </div>
             ) : (
@@ -241,12 +230,7 @@ export const ScoutOverviewModal: React.FC = React.memo(() => {
             )}
           </div>
 
-          {/* Footer */}
-          <div className="pt-2.5 border-t border-[#8c6b44]/30 mt-2 shrink-0">
-            <span className="text-[11px] text-[#704d2e] italic">
-              * {UI_TEXT.scoutPanel.footerTip}
-            </span>
-          </div>
+
         </div>
       </div>
   );
