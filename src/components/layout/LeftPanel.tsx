@@ -12,6 +12,7 @@ export const LeftPanel: React.FC = React.memo(() => {
   const selectCity = useUIStore(state => state.selectCity);
   const marchDrawMode = useUIStore(state => state.marchDrawMode);
   const activeModal = useUIStore(state => state.activeModal);
+  const isBuildPaperOpen = useUIStore(state => state.isBuildPaperOpen);
   const setActiveModal = useUIStore(state => state.setActiveModal);
 
   const cities = useGameStore(state => state.cities);
@@ -52,7 +53,7 @@ export const LeftPanel: React.FC = React.memo(() => {
   return (
     <>
       {/* THÔNG TIN CHI TIẾT BẢN DOANH & ĐỊA HẠT ĐANG CHỌN */}
-      {selectedCityId && (
+      {selectedCityId && !activeModal && !isBuildPaperOpen && (
         <div 
           className="fixed inset-x-3 bottom-3 md:inset-auto md:absolute md:top-24 md:left-[98px] z-30 md:w-[410px] max-h-[82vh] flex flex-col pointer-events-auto transition-all duration-300 select-none filter drop-shadow-[0_18px_30px_rgba(0,0,0,0.7)] drop-shadow-[0_3px_8px_rgba(0,0,0,0.45)]"
         >

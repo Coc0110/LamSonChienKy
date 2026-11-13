@@ -112,6 +112,7 @@ export const useUIStore = create<UIState>((set) => ({
   openDistrictMarket: (districtId) => set({
     activeModal: 'market',
     marketDistrictId: districtId,
+    selectedCityId: null,
     isBuildPaperOpen: false,
     isMilitaryBookOpen: false,
     placementMode: null,
@@ -120,6 +121,7 @@ export const useUIStore = create<UIState>((set) => ({
   setActiveModal: (modal) => set({ 
     activeModal: modal,
     ...(modal ? { 
+      selectedCityId: null,
       isBuildPaperOpen: false, 
       isMilitaryBookOpen: false,
       placementMode: null,
@@ -134,10 +136,18 @@ export const useUIStore = create<UIState>((set) => ({
   })),
   selectCity: (id) => set({ 
     selectedCityId: id,
-    ...(id ? { activeModal: null, isMilitaryBookOpen: false } : {}),
+    ...(id ? { activeModal: null, isMilitaryBookOpen: false, isBuildPaperOpen: false } : {}),
   }),
-  selectBase: (baseId) => set({ selectedCityId: baseId, selectionType: 'base' }),
-  selectDistrict: (districtId) => set({ selectedCityId: districtId, selectionType: 'district' }),
+  selectBase: (baseId) => set({ 
+    selectedCityId: baseId, 
+    selectionType: 'base',
+    ...(baseId ? { activeModal: null, isMilitaryBookOpen: false, isBuildPaperOpen: false } : {}),
+  }),
+  selectDistrict: (districtId) => set({ 
+    selectedCityId: districtId, 
+    selectionType: 'district',
+    ...(districtId ? { activeModal: null, isMilitaryBookOpen: false, isBuildPaperOpen: false } : {}),
+  }),
   setPlacementMode: (mode) => set({ placementMode: mode }),
   setBaseRelocateMode: (mode) => set({ baseRelocateMode: mode }),
   setMarchDrawMode: (mode) => set((state) => ({
@@ -175,13 +185,13 @@ export const useUIStore = create<UIState>((set) => ({
     return {
       isBuildPaperOpen: nextOpen,
       showGrid: nextOpen,
-      ...(nextOpen ? { activeModal: null, isMilitaryBookOpen: false } : { placementMode: null, baseRelocateMode: null }),
+      ...(nextOpen ? { activeModal: null, selectedCityId: null, isMilitaryBookOpen: false } : { placementMode: null, baseRelocateMode: null }),
     };
   }),
   setBuildPaperOpen: (open) => set(() => ({
     isBuildPaperOpen: open,
     showGrid: open,
-    ...(open ? { activeModal: null, isMilitaryBookOpen: false } : { placementMode: null, baseRelocateMode: null }),
+    ...(open ? { activeModal: null, selectedCityId: null, isMilitaryBookOpen: false } : { placementMode: null, baseRelocateMode: null }),
   })),
   toggleDropdown: (dropdown) => set((state) => ({
     activeDropdown: state.activeDropdown === dropdown ? null : dropdown
