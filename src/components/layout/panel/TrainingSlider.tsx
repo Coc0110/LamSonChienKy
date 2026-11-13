@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Minus, Plus, X } from 'lucide-react';
 import { notify } from '../../../store/dialogStore';
-import { calculateTrainingDays, calculateTrainingWearCount } from '../../../store/slices/militarySlice';
+import { calculateTrainingDays } from '../../../store/slices/militarySlice';
 import type { CityPopulation, General, Resources } from '../../../types';
 import type { ArmyRosterCounts } from '../../../types/armyFormation';
 import { TACTICAL_UNIT_CONFIGS } from '../../../types/armyFormation';
@@ -52,7 +52,7 @@ export const TrainingSlider: React.FC<TrainingSliderProps> = ({
   generals,
   onConfirm,
   onCancel,
-  weaponsAvailable,
+  weaponsAvailable: _weaponsAvailable,
   resources,
 }) => {
   const { idleLaborers, farmLaborers, forgeLaborers, unfitPopulation, combatTroops } = population;
@@ -92,7 +92,6 @@ export const TrainingSlider: React.FC<TrainingSliderProps> = ({
   };
 
   const trainCount = rosterTotal(roster);
-  const idleUsed = Math.min(trainCount, idleLaborers);
   const workingUsed = Math.max(0, trainCount - idleLaborers);
   const swappedCombatantsNeeded = workingUsed;
   const trainingDays = calculateTrainingDays(selectedCoach);
@@ -354,7 +353,7 @@ export const TrainingSlider: React.FC<TrainingSliderProps> = ({
           <strong>{trainCount} người</strong>
         </div>
         <div className="flex items-center justify-between pt-1 border-t border-[#8c6b44]/20 text-[11px]">
-          <span className="text-[#5c3e23]">Binh khí:</span>
+          <span className="text-[#5c3e23]">Binh khí ({weaponsUsedTotal} món):</span>
           <strong className={isWeaponShortage ? 'text-[#8c2d19]' : 'text-[#261304]'}>
             Kiếm {swordsUsed}/{availSwords} • Giáo {spearsUsed}/{availSpears} • Cung {bowsUsed}/{availBows}
           </strong>
