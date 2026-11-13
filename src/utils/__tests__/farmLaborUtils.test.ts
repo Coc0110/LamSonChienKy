@@ -50,12 +50,11 @@ assert(isFormationOnCampaign(marchingFormation), 'Marching army is on campaign')
 const testCity: CityNode = {
   id: 'lam_son',
   name: 'Lam Sơn',
+  type: 'camp',
   x: 50,
   y: 50,
-  terrain: 'forest',
   faction: 'lam_son',
   troops: 0,
-  isCapital: true,
   hasBase: true,
   population: {
     combatTroops: 20, // 20 reserve
@@ -63,6 +62,7 @@ const testCity: CityNode = {
     farmLaborers: 0,
     forgeLaborers: 0,
     unfitPopulation: 50,
+    swappedCombatants: 0,
   },
 };
 

@@ -12,12 +12,11 @@ console.log('--- Testing militaryBookAndFarming ---');
 const mockCity: CityNode = {
   id: 'lam_son',
   name: 'Lam Sơn',
+  type: 'camp',
   x: 55,
   y: 45,
-  terrain: 'plains',
   faction: 'lam_son',
   troops: 0,
-  isCapital: true,
   hasBase: true,
   population: {
     combatTroops: 100, // 100 quân chính quy
@@ -25,6 +24,7 @@ const mockCity: CityNode = {
     farmLaborers: 0,
     forgeLaborers: 0,
     unfitPopulation: 50,
+    swappedCombatants: 0,
   },
 };
 
