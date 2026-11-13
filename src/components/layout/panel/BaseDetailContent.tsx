@@ -77,6 +77,27 @@ export const BaseDetailContent: React.FC<BaseDetailContentProps> = React.memo(({
   const maxCapacity = CAMP_CAPACITY_BY_LEVEL[campLevel] || 500;
   const nextUpgradeCost = CAMP_UPGRADE_COSTS[campLevel + 1];
 
+  const handleConfirmUpgrade = () => {
+    if (!nextUpgradeCost) return;
+    const nextLevel = campLevel + 1;
+    const nextCapacity = CAMP_CAPACITY_BY_LEVEL[nextLevel] || 1000;
+    notify.confirm({
+      title: `Nâng Cấp Căn Cứ Lên Cấp ${nextLevel}`,
+      message:
+        `Mở rộng bản doanh [${selectedCity.name}] lên Cấp ${nextLevel} (sức chứa: ${nextCapacity.toLocaleString()} người).\n\n` +
+        `• Chi phí Vàng: ${nextUpgradeCost.gold} lượng\n` +
+        `• Lương thảo tiêu hao: ${nextUpgradeCost.food} thạch\n` +
+        `• Nhân công: ${nextUpgradeCost.workers} tráng phu nhàn rỗi\n` +
+        `• Thời gian thi công: ${nextUpgradeCost.days} ngày (${nextUpgradeCost.days * 12} canh giờ)\n\n` +
+        `Tướng quân có chắc chắn muốn tiến hành khởi công ngay không?`,
+      confirmText: 'Bắt Đầu Nâng Cấp',
+      cancelText: 'Hủy',
+      onConfirm: () => {
+        upgradeCamp(selectedCity.id);
+      },
+    });
+  };
+
   // Báo cáo tình báo thám mã đối với thành trì quân Minh
   const assignedScouts = selectedCity.assignedScouts || 0;
   const intelReport = useMemo(() => {
@@ -218,8 +239,8 @@ export const BaseDetailContent: React.FC<BaseDetailContentProps> = React.memo(({
         {/* ========================================================================= */}
         {isLamSon ? (
           <>
-            {/* 1.1. THÔNG TIN CĂN CỨ TỐI GIẢN (KHÔNG CHIA CỘT) */}
-            <div className="p-3 rounded-lg border border-[#8c6b44]/40 bg-[#f7eed8]/70 shadow-inner space-y-1.5 text-xs font-serif">
+            {/* 1.1. CẤP ĐỘ CĂN CỨ & NÂNG CẤP (TÁCH RIÊNG THÀNH 1 MỤC) */}
+            <div className="p-3 rounded-lg border border-[#8c6b44]/40 bg-[#f7eed8]/70 shadow-inner space-y-2 text-xs font-serif">
               <div className="flex items-center justify-between">
                 <span className="text-[#5c3e23]">
                   Căn cứ cấp {campLevel}: <strong className="text-[#261304] font-bold">{totalCityPop.toLocaleString()}/{maxCapacity.toLocaleString()}</strong>
@@ -230,16 +251,21 @@ export const BaseDetailContent: React.FC<BaseDetailContentProps> = React.memo(({
                   </span>
                 ) : campLevel < 4 && nextUpgradeCost ? (
                   <button
-                    onClick={() => upgradeCamp(selectedCity.id)}
-                    className="px-2 py-0.5 rounded bg-[#8c5828] hover:bg-[#6e421a] text-[#fef2d6] text-[11px] font-bold flex items-center gap-1 shadow cursor-pointer transition"
+                    onClick={handleConfirmUpgrade}
+                    className="px-2.5 py-1 rounded bg-[#8c5828] hover:bg-[#6e421a] text-[#fef2d6] text-[11px] font-bold flex items-center gap-1 shadow cursor-pointer transition active:scale-95"
                     title={`Mở rộng cấp ${campLevel + 1}: ${nextUpgradeCost.gold} Vàng, ${nextUpgradeCost.food} Lương, ${nextUpgradeCost.workers} Thợ (${nextUpgradeCost.days} ngày)`}
                   >
-                    <ArrowUpCircle size={12} />
+                    <ArrowUpCircle size={13} />
                     <span>Nâng Cấp</span>
                   </button>
-                ) : null}
+                ) : (
+                  <span className="text-[#15803d] font-bold text-[11px]">Cấp tối đa</span>
+                )}
               </div>
+            </div>
 
+            {/* 1.2. THÔNG TIN CĂN CỨ (ĐỒN TRÚ & ĐỊA THẾ - KHÔNG CHIA CỘT) */}
+            <div className="p-3 rounded-lg border border-[#8c6b44]/40 bg-[#f7eed8]/70 shadow-inner space-y-1.5 text-xs font-serif">
               <div className="text-[#5c3e23]">
                 Đồn trú: <strong className="text-[#261304] font-bold">{selectedCity.troops.toLocaleString()} binh</strong>
               </div>
@@ -249,7 +275,7 @@ export const BaseDetailContent: React.FC<BaseDetailContentProps> = React.memo(({
               </div>
             </div>
 
-            {/* 1.2. DANH SÁCH TƯỚNG LĨNH ĐÓNG TRÚ */}
+            {/* 1.3. DANH SÁCH TƯỚNG LĨNH ĐÓNG TRÚ */}
             <div className="space-y-1.5 pt-0.5">
               <div className="text-xs font-serif font-bold text-[#5c3e23] uppercase tracking-wider">
                 Tướng Lĩnh Đóng Trú ({stationedGenerals.length})
