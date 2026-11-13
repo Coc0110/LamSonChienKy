@@ -44,14 +44,8 @@ export const BaseDetailContent: React.FC<BaseDetailContentProps> = React.memo(({
   const setBaseRelocateMode = useUIStore(state => state.setBaseRelocateMode);
   const isBuildPaperOpen = useUIStore(state => state.isBuildPaperOpen);
   const setIsBuildPaperOpen = useUIStore(state => state.setBuildPaperOpen);
-  const setMarchDrawMode = useUIStore(state => state.setMarchDrawMode);
-  const setSelectedMapFormationId = useUIStore(state => state.setSelectedMapFormationId);
 
   const isLamSon = selectedCity.faction === 'lam_son';
-
-  const baseFormations = useMemo(() => {
-    return formations.filter(f => f.cityId === selectedCity.id);
-  }, [formations, selectedCity.id]);
 
   const totalCityPop = useMemo(() => {
     if (!selectedCity.population) return 0;
@@ -81,7 +75,6 @@ export const BaseDetailContent: React.FC<BaseDetailContentProps> = React.memo(({
   // Cấp độ & Sức chứa doanh trại Lam Sơn
   const campLevel = selectedCity.level || 1;
   const maxCapacity = CAMP_CAPACITY_BY_LEVEL[campLevel] || 500;
-  const capacityPercent = Math.min(100, Math.round((totalCityPop / maxCapacity) * 100));
   const nextUpgradeCost = CAMP_UPGRADE_COSTS[campLevel + 1];
 
   // Báo cáo tình báo thám mã đối với thành trì quân Minh
@@ -225,83 +218,38 @@ export const BaseDetailContent: React.FC<BaseDetailContentProps> = React.memo(({
         {/* ========================================================================= */}
         {isLamSon ? (
           <>
-            {/* 1.1. SỨC CHỨA CĂN CỨ & NÂNG CẤP DOANH TRẠI */}
-            <div className="p-3 rounded-lg border border-[#8c6b44]/40 bg-[#f7eed8]/70 shadow-inner space-y-2">
-              <div className="flex items-center justify-between text-xs font-serif font-bold">
-                <span className="text-[#5c3e23]">Sức Chứa Căn Cứ (Cấp {campLevel}):</span>
-                <span className={`${capacityPercent >= 95 ? 'text-[#8c2d19] font-black' : 'text-[#261304]'}`}>
-                  {totalCityPop.toLocaleString()} / {maxCapacity.toLocaleString()} người ({capacityPercent}%)
+            {/* 1.1. THÔNG TIN CĂN CỨ TỐI GIẢN (KHÔNG CHIA CỘT) */}
+            <div className="p-3 rounded-lg border border-[#8c6b44]/40 bg-[#f7eed8]/70 shadow-inner space-y-1.5 text-xs font-serif">
+              <div className="flex items-center justify-between">
+                <span className="text-[#5c3e23]">
+                  Căn cứ cấp {campLevel}: <strong className="text-[#261304] font-bold">{totalCityPop.toLocaleString()}/{maxCapacity.toLocaleString()}</strong>
                 </span>
-              </div>
-
-              {/* Thanh đo sức chứa */}
-              <div className="w-full h-2 rounded-full bg-[#3d240f]/20 overflow-hidden">
-                <div 
-                  className={`h-full transition-all duration-500 ${
-                    capacityPercent >= 95 ? 'bg-[#b91c1c]' : capacityPercent >= 80 ? 'bg-[#d97706]' : 'bg-[#15803d]'
-                  }`}
-                  style={{ width: `${capacityPercent}%` }}
-                />
-              </div>
-
-              {/* Tiến trình hoặc nút nâng cấp */}
-              {selectedCity.upgrading ? (
-                <div className="pt-1 text-xs font-serif text-[#8c2d19] flex items-center justify-between">
-                  <span>🚧 Đang thi công mở rộng lên Cấp {selectedCity.upgrading.targetLevel}...</span>
-                  <span className="font-bold">Còn {formatRemainingDays(selectedCity.upgrading.remainingDays)} ngày</span>
-                </div>
-              ) : campLevel < 4 && nextUpgradeCost ? (
-                <div className="pt-1 flex items-center justify-between gap-2 border-t border-[#8c6b44]/25">
-                  <div className="text-[11px] font-serif text-[#704d2e]">
-                    Mở rộng lên Cấp {campLevel + 1} ({CAMP_CAPACITY_BY_LEVEL[campLevel + 1].toLocaleString()} người):
-                    <div className="text-[10px] text-[#5c3e23]">
-                      Cần: {nextUpgradeCost.gold} Vàng • {nextUpgradeCost.food} Lương • {nextUpgradeCost.workers} Thợ ({nextUpgradeCost.days} ngày)
-                    </div>
-                  </div>
+                {selectedCity.upgrading ? (
+                  <span className="text-[#8c2d19] font-bold text-[11px]">
+                    Lên cấp {selectedCity.upgrading.targetLevel} (còn {formatRemainingDays(selectedCity.upgrading.remainingDays)} ngày)
+                  </span>
+                ) : campLevel < 4 && nextUpgradeCost ? (
                   <button
                     onClick={() => upgradeCamp(selectedCity.id)}
-                    className="px-2.5 py-1 rounded bg-[#8c5828] hover:bg-[#6e421a] text-[#fef2d6] text-xs font-serif font-bold flex items-center gap-1 shadow cursor-pointer shrink-0 transition"
+                    className="px-2 py-0.5 rounded bg-[#8c5828] hover:bg-[#6e421a] text-[#fef2d6] text-[11px] font-bold flex items-center gap-1 shadow cursor-pointer transition"
+                    title={`Mở rộng cấp ${campLevel + 1}: ${nextUpgradeCost.gold} Vàng, ${nextUpgradeCost.food} Lương, ${nextUpgradeCost.workers} Thợ (${nextUpgradeCost.days} ngày)`}
                   >
-                    <ArrowUpCircle size={13} />
+                    <ArrowUpCircle size={12} />
                     <span>Nâng Cấp</span>
                   </button>
-                </div>
-              ) : (
-                <div className="text-[11px] font-serif text-[#15803d] italic text-center">
-                  Doanh trại đã đạt cấp độ tối đa (Cấp 4 - 5.000 người).
-                </div>
-              )}
-            </div>
-
-            {/* 1.2. THÔNG TIN QUÂN LỰC & PHÒNG THỦ */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="p-2 rounded">
-                <div className="text-xs font-serif font-bold text-[#704d2e]">
-                  Quân đồn trú
-                </div>
-                <div className="mt-0.5 font-serif text-2xl text-[#2a1708] flex items-baseline gap-1">
-                  <span className="font-serif font-bold">{selectedCity.troops.toLocaleString()}</span>
-                  <span className="text-xs font-normal text-[#5c3e23]">binh</span>
-                </div>
-                <div className="mt-0.5 text-[11px] text-[#704d2e] font-serif">
-                  Lực lượng bảo vệ căn cứ
-                </div>
+                ) : null}
               </div>
 
-              <div className="p-2">
-                <div className="text-xs font-serif font-bold text-[#704d2e]">
-                  Địa thế phòng thủ
-                </div>
-                <div className="mt-0.5 font-serif text-base text-[#2a1708] font-bold">
-                  {selectedCity.type === 'city' ? 'Kiên thành' : 'Rừng núi hiểm trở'}
-                </div>
-                <div className="text-[11px] text-[#704d2e] font-serif">
-                  Dễ ẩn náu, khó công dễ thủ
-                </div>
+              <div className="text-[#5c3e23]">
+                Đồn trú: <strong className="text-[#261304] font-bold">{selectedCity.troops.toLocaleString()} binh</strong>
+              </div>
+
+              <div className="text-[#5c3e23]">
+                Địa thế: <strong className="text-[#261304] font-bold">{selectedCity.type === 'city' ? 'Kiên thành' : 'Rừng núi hiểm trở'}</strong>
               </div>
             </div>
 
-            {/* 1.3. DANH SÁCH TƯỚNG LĨNH ĐÓNG TRÚ */}
+            {/* 1.2. DANH SÁCH TƯỚNG LĨNH ĐÓNG TRÚ */}
             <div className="space-y-1.5 pt-0.5">
               <div className="text-xs font-serif font-bold text-[#5c3e23] uppercase tracking-wider">
                 Tướng Lĩnh Đóng Trú ({stationedGenerals.length})
@@ -321,47 +269,6 @@ export const BaseDetailContent: React.FC<BaseDetailContentProps> = React.memo(({
                 </div>
               )}
             </div>
-
-            {/* 1.4. ĐẠO QUÂN THUỘC QUYỀN */}
-            {baseFormations.length > 0 && (
-              <div className="space-y-1.5 pt-1">
-                <div className="text-xs font-serif font-bold text-[#5c3e23] uppercase tracking-wider">
-                  Đạo Quân Thuộc Quyền ({baseFormations.length})
-                </div>
-                <div className="space-y-1">
-                  {baseFormations.map(form => (
-                    <div
-                      key={form.id}
-                      onClick={() => setSelectedMapFormationId(form.id)}
-                      className="py-1.5 px-2.5 rounded border border-[#8c6b44]/35 bg-black/[0.03] hover:bg-black/[0.06] flex items-center justify-between cursor-pointer transition"
-                    >
-                      <div className="min-w-0 pr-2">
-                        <div className="font-serif font-bold text-xs text-[#261304] truncate">
-                          🚩 {form.name}
-                        </div>
-                        <div className="text-[10.5px] font-serif text-[#704d2e]">
-                          {form.totalTroops} binh • Khí giới: {form.totalWeapons}
-                        </div>
-                      </div>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (form.totalTroops <= 0) {
-                            notify.warning('Hãy đặt ít nhất 1 đơn vị lính vào đạo quân trước khi vẽ đường hành quân!');
-                            return;
-                          }
-                          setMarchDrawMode({ formationId: form.id });
-                        }}
-                        className="px-2.5 py-1 rounded bg-[#8c2d19] hover:bg-[#6e1e0d] text-white font-serif font-bold text-[11px] shrink-0 shadow cursor-pointer"
-                        title="Tự vẽ đường hành quân theo ô lưới trên bản đồ"
-                      >
-                        ✍️ Vẽ Đường
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
 
             {/* 1.5. NÚT PHẤT CỜ KHỞI NGHĨA (NẾU ĐANG Ở GIAI ĐOẠN TIỀN KHỞI NGHĨA) */}
             {!hasUprising && (

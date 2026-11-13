@@ -84,7 +84,7 @@ export const MARKET_GOODS: MarketGoodConfig[] = [
     label: 'Chiến Mã',
     unitLabel: 'con',
     lotSize: 1,
-    icon: '/troops/cavalry.png',
+    icon: '/icons/unit_cavalry.png',
     baseBuyPrice: 48,
     sellRatio: 0.68,
     safeLots: 0,

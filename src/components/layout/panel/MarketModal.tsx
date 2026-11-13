@@ -147,6 +147,10 @@ export const MarketModal: React.FC = React.memo(() => {
             </div>
 
             <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1.5 px-3 py-1 rounded bg-[#b45309]/15 border border-[#b45309]/40 text-[#b45309] font-bold">
+                <img src="/icons/gold.png" alt="Vàng" className="w-8 h-8 object-contain" />
+                <span className="font-mono text-base">{Math.floor(resources.gold).toLocaleString()}</span>
+              </div>
               <div className={`px-2.5 py-1 rounded border text-xs font-bold ${
                 suspicion >= 75
                   ? 'bg-[#8c2d19]/15 border-[#8c2d19] text-[#8c2d19]'
@@ -211,34 +215,34 @@ export const MarketModal: React.FC = React.memo(() => {
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs bg-black/[0.04] px-3 py-1.5 rounded border border-[#8c6b44]/30">
-              <span className="inline-flex items-center gap-1" title="Vàng (Ngân khố)">
-                <img src="/icons/gold.png" alt="Vàng" className="w-4 h-4 object-contain" />
-                <strong className="text-[#b45309] font-mono">{Math.floor(resources.gold).toLocaleString()}</strong>
+            <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5 text-xs bg-black/[0.04] px-3.5 py-1.5 rounded border border-[#8c6b44]/30">
+              <span className="inline-flex items-center gap-1.5" title="Lương thảo">
+                <img src="/icons/food.png" alt="Lương" className="w-8 h-8 object-contain" />
+                <strong className="font-mono text-xs">{Math.floor(resources.food).toLocaleString()}</strong>
               </span>
-              <span className="inline-flex items-center gap-1" title="Lương thảo">
-                <img src="/icons/food.png" alt="Lương" className="w-4 h-4 object-contain" />
-                <strong className="font-mono">{Math.floor(resources.food).toLocaleString()}</strong>
+              <span className="inline-flex items-center gap-1.5" title="Kiếm">
+                <img src="/icons/weapon_sword.png" alt="Kiếm" className="w-8 h-8 object-contain" />
+                <strong className="font-mono text-xs">{Math.floor(resources.swords)}</strong>
               </span>
-              <span className="inline-flex items-center gap-1" title="Kiếm">
-                <img src="/icons/weapon_sword.png" alt="Kiếm" className="w-4 h-4 object-contain" />
-                <strong className="font-mono">{Math.floor(resources.swords)}</strong>
+              <span className="inline-flex items-center gap-1.5" title="Giáo">
+                <img src="/icons/weapon_spear.png" alt="Giáo" className="w-8 h-8 object-contain" />
+                <strong className="font-mono text-xs">{Math.floor(resources.spears)}</strong>
               </span>
-              <span className="inline-flex items-center gap-1" title="Giáo">
-                <img src="/icons/weapon_spear.png" alt="Giáo" className="w-4 h-4 object-contain" />
-                <strong className="font-mono">{Math.floor(resources.spears)}</strong>
+              <span className="inline-flex items-center gap-1.5" title="Cung">
+                <img src="/icons/weapon_bow.png" alt="Cung" className="w-8 h-8 object-contain" />
+                <strong className="font-mono text-xs">{Math.floor(resources.bows)}</strong>
               </span>
-              <span className="inline-flex items-center gap-1" title="Cung">
-                <img src="/icons/weapon_bow.png" alt="Cung" className="w-4 h-4 object-contain" />
-                <strong className="font-mono">{Math.floor(resources.bows)}</strong>
+              <span className="inline-flex items-center gap-1.5" title="Quân trang">
+                <img src="/icons/weapon_armor.png" alt="Quân trang" className="w-8 h-8 object-contain" />
+                <strong className="font-mono text-xs">{Math.floor(resources.clothes)}</strong>
               </span>
-              <span className="inline-flex items-center gap-1" title="Quân trang">
-                <img src="/icons/fabric.png" alt="Quân trang" className="w-4 h-4 object-contain" />
-                <strong className="font-mono">{Math.floor(resources.clothes)}</strong>
+              <span className="inline-flex items-center gap-1.5" title="Chiến mã (Kỵ binh)">
+                <img src="/icons/unit_cavalry.png" alt="Ngựa" className="w-8 h-8 object-contain" />
+                <strong className="font-mono text-xs">{Math.floor(resources.horses)}</strong>
               </span>
-              <span className="inline-flex items-center gap-1" title="Chiến mã">
-                <img src="/icons/horse.png" alt="Ngựa" className="w-4 h-4 object-contain" />
-                <strong className="font-mono">{Math.floor(resources.horses)}</strong>
+              <span className="inline-flex items-center gap-1.5" title="Voi chiến (Tượng binh)">
+                <img src="/icons/unit_elephant.png" alt="Voi" className="w-8 h-8 object-contain" />
+                <strong className="font-mono text-xs">{Math.floor(resources.elephants)}</strong>
               </span>
             </div>
           </div>
@@ -267,11 +271,11 @@ export const MarketModal: React.FC = React.memo(() => {
                   className="p-2.5 rounded border border-[#8c6b44]/35 bg-black/[0.04] flex flex-wrap md:flex-nowrap items-center justify-between gap-3 text-xs"
                 >
                   {/* Tên hàng + tồn */}
-                  <div className="flex items-center gap-2.5 min-w-[200px]">
+                  <div className="flex items-center gap-3 min-w-[200px]">
                     <img
                       src={config.icon}
                       alt={config.label}
-                      className="w-8 h-8 object-contain shrink-0 pointer-events-none"
+                      className="w-14 h-14 object-contain shrink-0 pointer-events-none p-1 rounded bg-[#8c6b44]/10 border border-[#8c6b44]/25"
                       draggable={false}
                     />
                     <div>

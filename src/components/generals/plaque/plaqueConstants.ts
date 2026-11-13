@@ -43,22 +43,22 @@ export const TROOP_SPECS: {
   {
     id: 'spearman',
     label: 'Giáo Binh',
-    iconUrl: '/icons/weapon_spear.png',
+    iconUrl: '/icons/unit_spear.png',
   },
   {
     id: 'cavalry',
     label: 'Thiết Đột (Kỵ)',
-    iconUrl: '/troops/cavalry.png',
+    iconUrl: '/icons/unit_cavalry.png',
   },
   {
     id: 'archer',
     label: 'Cung Nỏ',
-    iconUrl: '/troops/archer.png',
+    iconUrl: '/icons/unit_bow.png',
   },
   {
     id: 'elephant',
     label: 'Tượng Binh',
-    iconUrl: '/troops/elephant.png',
+    iconUrl: '/icons/unit_elephant.png',
   },
   {
     id: 'navy',
