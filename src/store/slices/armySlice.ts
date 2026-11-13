@@ -21,6 +21,7 @@ import {
   rosterTotal,
 } from '../../utils/armyCompositionUtils';
 import { applyWorldStratagem, ENGAGEMENT_RADIUS_PCT, resolveWorldMapCombatTick } from '../../utils/worldMapCombatEngine';
+import { recalculateFarmWorkers } from '../../utils/farmLaborUtils';
 import { spawnMingFieldFormation, updateMingFormationsAI } from '../../utils/mingMapAI';
 import { deductWeaponsFromPool } from './militarySlice';
 import { getFormationMapPos, MARCH_ENDPOINT_ACTIONS } from '../../utils/marchPathUtils';
@@ -1117,6 +1118,12 @@ export const createArmySlice: StateCreator<GameStore, [], [], ArmySlice> = (set,
       ),
     }));
 
+    // Cập nhật nhân lực làm ruộng theo "Ngụ binh ư nông" khi đạo quân xuất kích
+    const farmSyncAfterMarch = recalculateFarmWorkers(get().cities, get().structures, get().formations);
+    if (farmSyncAfterMarch.hasChanged) {
+      set({ cities: farmSyncAfterMarch.cities, structures: farmSyncAfterMarch.structures });
+    }
+
     // Trá bại: quân Minh xuất thành thành đạo quân thật trên bản đồ (không mở màn hình giao chiến riêng)
     if (isEmergencyRetreat && pursuingEnemy) {
       const lured = pursuingEnemy;
@@ -2113,9 +2120,15 @@ export const createArmySlice: StateCreator<GameStore, [], [], ArmySlice> = (set,
       const nextBows = Math.max(0, prev.resources.bows + captured.bows - weaponLoss.bows);
       const nextSpears = Math.max(0, prev.resources.spears + captured.spears - weaponLoss.spears);
 
+      // Đồng bộ nhân lực ruộng nương theo "Ngụ binh ư nông"
+      const farmSyncAtStep = recalculateFarmWorkers(updatedCities, prev.structures, formations);
+      const finalCities = farmSyncAtStep.hasChanged ? farmSyncAtStep.cities : updatedCities;
+      const finalStructures = farmSyncAtStep.hasChanged ? farmSyncAtStep.structures : prev.structures;
+
       return {
         formations,
-        cities: updatedCities,
+        cities: finalCities,
+        structures: finalStructures,
         activeFormationId: activeFormationIdReset ? null : prev.activeFormationId,
         pendingMarketOrders: nextPendingOrders,
         ...(switchToWarMode

@@ -15,7 +15,6 @@ export const FarmsOverviewModal: React.FC = React.memo(() => {
   const month = useGameStore(state => state.month);
   const year = useGameStore(state => state.year);
   const structures = useGameStore(state => state.structures);
-  const assignFarmWorkers = useGameStore(state => state.assignFarmWorkers);
 
   if (activeModal !== 'farms') return null;
 
@@ -150,24 +149,13 @@ export const FarmsOverviewModal: React.FC = React.memo(() => {
                     <div className="flex items-center justify-between pt-1.5 border-t border-[#8c6b44]/20">
                       <div>
                         {!isBuilding && (
-                          <div className="flex items-center gap-1.5">
-                            <button
-                              onClick={() => assignFarmWorkers(farm.id, -1)}
-                              disabled={assigned <= 0}
-                              className="px-2 py-0.5 rounded border border-[#8c6b44]/40 bg-white/70 hover:bg-white text-[#261304] text-[11px] font-bold disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition active:scale-95"
-                              title={UI_TEXT.farmsPanel.actions.decreaseWorker}
-                            >
-                              - Bớt Đinh
-                            </button>
-                            <button
-                              onClick={() => assignFarmWorkers(farm.id, 1)}
-                              disabled={assigned >= max}
-                              className="px-2 py-0.5 rounded border border-[#8c6b44]/40 bg-white/70 hover:bg-white text-[#8c2d19] text-[11px] font-bold disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition active:scale-95"
-                              title={UI_TEXT.farmsPanel.actions.increaseWorker}
-                            >
-                              + Thêm Đinh
-                            </button>
-                          </div>
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold border ${
+                            assigned >= max
+                              ? 'bg-emerald-100/70 text-emerald-800 border-emerald-600/30'
+                              : 'bg-amber-100/70 text-amber-900 border-amber-600/30'
+                          }`}>
+                            {assigned >= max ? '✓ Đủ người cày cấy' : `Thiếu ${max - assigned} người`}
+                          </span>
                         )}
                       </div>
 
@@ -191,7 +179,7 @@ export const FarmsOverviewModal: React.FC = React.memo(() => {
           {/* Footer nút hành động */}
           <div className="pt-3 border-t border-[#8c6b44]/30 mt-2 flex items-center justify-between shrink-0">
             <span className="text-[11px] text-[#704d2e] italic">
-              * Chính sách "Ngụ binh ư nông": khi thiếu tráng phu, nghĩa binh rảnh tại căn cứ sẽ tự động thế chỗ cày ruộng.
+              * Quốc sách "Ngụ binh ư nông": Binh lính và tráng phu tại căn cứ mặc định tự động cày cấy, chỉ rời ruộng khi xuất trận.
             </span>
             <button
               onClick={() => {

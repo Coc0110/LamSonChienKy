@@ -15,7 +15,6 @@ export const FarmDetailSection: React.FC<FarmDetailSectionProps> = React.memo(({
   isMingOccupied,
   taxRatePercent,
 }) => {
-  const setFarmWorkers = useGameStore(state => state.setFarmWorkers);
   const upgradeFarm = useGameStore(state => state.upgradeFarm);
   const cities = useGameStore(state => state.cities);
   const structures = useGameStore(state => state.structures);
@@ -74,25 +73,18 @@ export const FarmDetailSection: React.FC<FarmDetailSectionProps> = React.memo(({
           </span>
         </div>
 
-        {/* Thanh kéo thả điều động nông đinh */}
+        {/* Hiển thị nhân lực canh tác tự động theo Ngụ binh ư nông */}
         {structure.status === 'active' && (
           <div className="pt-1.5 border-t border-[#8c6b44]/20 space-y-1">
             <div className="flex justify-between items-center whitespace-nowrap">
-              <span className="text-[#5c3e23] font-bold shrink-0">Nông đinh:</span>
+              <span className="text-[#5c3e23] font-bold shrink-0">Nông đinh canh tác:</span>
               <span className="font-serif font-black text-sm text-[#8c2d19]">
-                {workers}/{maxWorkers}
+                {workers}/{maxWorkers} người
               </span>
             </div>
-            <input
-              type="range"
-              min={0}
-              max={maxWorkers}
-              value={workers}
-              onChange={(e) => {
-                setFarmWorkers(structure.id, parseInt(e.target.value) || 0);
-              }}
-              className="w-full accent-[#8c2d19] cursor-pointer"
-            />
+            <p className="text-[10.5px] text-[#704d2e] italic leading-tight">
+              Tự động phân bổ theo quốc sách "Ngụ binh ư nông" (chỉ rút khi xuất quân ra trận).
+            </p>
           </div>
         )}
       </div>

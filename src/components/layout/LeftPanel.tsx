@@ -3,7 +3,6 @@ import { useGameStore } from '../../store/gameStore';
 import { useUIStore } from '../../store/uiStore';
 import { CityPopulationModal } from './panel/CityPopulationModal';
 import { DistrictDetailPanel } from './panel/DistrictDetailPanel';
-import { MilitaryBookPanel } from './panel/MilitaryBookPanel';
 import { BuildPaperPanel } from './panel/BuildPaperPanel';
 import { BaseDetailContent } from './panel/BaseDetailContent';
 
@@ -11,7 +10,6 @@ export const LeftPanel: React.FC = React.memo(() => {
   const selectedCityId = useUIStore(state => state.selectedCityId);
   const selectionType = useUIStore(state => state.selectionType);
   const selectCity = useUIStore(state => state.selectCity);
-  const isListOpen = useUIStore(state => state.isMilitaryBookOpen);
   const marchDrawMode = useUIStore(state => state.marchDrawMode);
   const activeModal = useUIStore(state => state.activeModal);
   const setActiveModal = useUIStore(state => state.setActiveModal);
@@ -53,11 +51,8 @@ export const LeftPanel: React.FC = React.memo(() => {
 
   return (
     <>
-      {/* 1. QUÂN THƯ DANH SÁCH BẢN DOANH & ĐỊA HẠT */}
-      {isListOpen && <MilitaryBookPanel />}
-
-      {/* 2. CHIẾN THƯ CHI TIẾT (KHI KHÔNG MỞ QUÂN THƯ) */}
-      {!isListOpen && selectedCityId && (
+      {/* THÔNG TIN CHI TIẾT BẢN DOANH & ĐỊA HẠT ĐANG CHỌN */}
+      {selectedCityId && (
         <div 
           className="fixed inset-x-3 bottom-3 md:inset-auto md:absolute md:top-24 md:left-[98px] z-30 md:w-[410px] max-h-[82vh] flex flex-col pointer-events-auto transition-all duration-300 select-none filter drop-shadow-[0_18px_30px_rgba(0,0,0,0.7)] drop-shadow-[0_3px_8px_rgba(0,0,0,0.45)]"
         >

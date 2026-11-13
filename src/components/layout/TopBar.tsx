@@ -15,6 +15,10 @@ export const TopBar: React.FC = React.memo(() => {
   
   const activeDropdown = useUIStore(state => state.activeDropdown);
   const setActiveDropdown = useUIStore(state => state.setActiveDropdown);
+  const isMilitaryBookOpen = useUIStore(state => state.isMilitaryBookOpen);
+  const toggleMilitaryBook = useUIStore(state => state.toggleMilitaryBook);
+  const militaryNotices = useGameStore(state => state.militaryNotices || []);
+  const unreadNoticesCount = militaryNotices.filter(n => !n.read).length;
 
   useEffect(() => {
     const handleOutsideClick = (e: MouseEvent) => {
@@ -178,6 +182,46 @@ export const TopBar: React.FC = React.memo(() => {
               />
               <span className="leading-none">Ngân khố: {Math.floor(gold).toLocaleString()}</span>
             </div>
+
+            {/* Phân cách */}
+            <div className="w-px h-6 bg-[#8c6b44]/40 shrink-0 self-center" />
+
+            {/* QUÂN THƯ (TOGGLE PANE Ở PHÍA TRÊN CÙNG BÊN PHẢI) */}
+            <button
+              type="button"
+              onClick={() => toggleMilitaryBook()}
+              className={`relative flex items-center gap-1.5 px-3 py-1 rounded transition-all cursor-pointer ${
+                isMilitaryBookOpen ? 'scale-105' : 'hover:bg-black/[0.06] active:scale-95'
+              }`}
+              title="Quân Thư & Tin Báo Quân Cơ (Nhấp để bật/tắt)"
+            >
+              {isMilitaryBookOpen && (
+                <img
+                  src="/ink_stroke_red.png"
+                  alt="Vết mực đỏ"
+                  className="absolute inset-0 w-full h-full object-fill pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]"
+                />
+              )}
+              <div className="relative z-10 w-6 h-6 flex items-center justify-center">
+                <img
+                  src="/icons/scroll.png"
+                  alt="Quân Thư"
+                  className="w-full h-full object-contain filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]"
+                />
+                {unreadNoticesCount > 0 && (
+                  <span className="absolute -top-1.5 -right-2 min-w-4 h-4 px-1 bg-[#8c2d19] text-[#fff3db] border border-[#fef08a] rounded-full text-[9px] font-mono font-bold flex items-center justify-center shadow-md animate-pulse">
+                    {unreadNoticesCount}
+                  </span>
+                )}
+              </div>
+              <span className={`relative z-10 font-serif font-black text-xs md:text-sm leading-none ${
+                isMilitaryBookOpen
+                  ? 'text-[#fcf4e4] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]'
+                  : 'text-[#2a1708]'
+              }`}>
+                Quân Thư
+              </span>
+            </button>
           </div>
 
         </div>

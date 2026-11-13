@@ -13,6 +13,7 @@ import { FarmsOverviewModal } from './components/layout/panel/FarmsOverviewModal
 import { ForgesOverviewModal } from './components/layout/panel/ForgesOverviewModal';
 import { ScoutOverviewModal } from './components/layout/panel/ScoutOverviewModal';
 import { MarketModal } from './components/layout/panel/MarketModal';
+import { MilitaryBookPanel } from './components/layout/panel/MilitaryBookPanel';
 import { BattlefieldModal } from './components/battle/BattlefieldModal';
 import { BattleTesterModal } from './components/battle/BattleTesterModal';
 import { BattleResultModal } from './components/battle/BattleResultModal';
@@ -52,6 +53,7 @@ function App() {
   const baseRelocateMode = useUIStore(state => state.baseRelocateMode);
   const selectedStructureModal = useUIStore(state => state.selectedStructureModal);
   const activeForgeModalStructureId = useUIStore(state => state.activeForgeModalStructureId);
+  const isMilitaryBookOpen = useUIStore(state => state.isMilitaryBookOpen);
 
   // Tự động ngưng thời gian khi mở các chế độ toàn màn hình không xem bản đồ
   // (xây dựng ô lưới, di dời căn cứ, xem danh tướng toàn màn hình, sa bàn 32x32)
@@ -150,6 +152,7 @@ function App() {
       <ForgesOverviewModal />
       <ScoutOverviewModal />
       <MarketModal />
+      {isMilitaryBookOpen && <MilitaryBookPanel />}
       <ParchmentToastContainer />
       <ParchmentConfirmModal />
       <RefugeeIntakeModal />

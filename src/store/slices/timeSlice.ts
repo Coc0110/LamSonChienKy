@@ -9,6 +9,7 @@ import { calculateTrainingWeaponReturn } from './militarySlice';
 import { deployMingForce } from './armySlice';
 import { roundRemainingDays } from '../../utils/formatters';
 import { addTrainedTroopsToRoster } from '../../utils/armyCompositionUtils';
+import { recalculateFarmWorkers } from '../../utils/farmLaborUtils';
 
 export const getDaysInMonth = (month: number, year: number): number => {
   return new Date(year, month, 0).getDate();
@@ -412,7 +413,16 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
       nextPendingRefugees = nextPendingRefugees.filter(w => !w.departed && (w.daysRemaining ?? 0) > 0);
     }
 
-    let updatedStructures = state.structures.map(structure => {
+    // Tự động phân bổ nhân lực ruộng nương theo chính sách "Ngụ binh ư nông":
+    // Binh lính không phải xuất trận cùng tráng phu nhàn rỗi mặc định đi làm ruộng
+    const farmPreRecalc = recalculateFarmWorkers(updatedCities, state.structures, state.formations);
+    if (farmPreRecalc.hasChanged) {
+      updatedCities = farmPreRecalc.cities;
+      citiesChanged = true;
+      structuresChanged = true;
+    }
+
+    let updatedStructures = farmPreRecalc.structures.map(structure => {
       let currentStruct = structure;
 
 
@@ -600,6 +610,15 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
 
       return currentStruct;
     });
+
+    // Tái đồng bộ sau khi công trình mới hoàn tất thi công
+    const farmPostRecalc = recalculateFarmWorkers(updatedCities, updatedStructures, state.formations);
+    if (farmPostRecalc.hasChanged) {
+      updatedCities = farmPostRecalc.cities;
+      updatedStructures = farmPostRecalc.structures;
+      citiesChanged = true;
+      structuresChanged = true;
+    }
 
     // 2.2. KIỂM TRA ĐẠI VỤ THU HOẠCH CỐ ĐỊNH TRONG NĂM (Vụ Chiêm 15/5, Vụ Mùa 15/10)
     const harvestInfo = isHarvestDay(newDay, newMonth);

@@ -4,25 +4,21 @@ import { useGameStore } from '../../store/gameStore';
 import { useUIStore } from '../../store/uiStore';
 import { UI_TEXT } from '../../data/uiText';
 
-type DockTarget = 'army' | 'training' | 'scout' | 'farms' | 'forges' | 'build' | 'market' | 'refugees' | 'generals' | 'military_book';
+type DockTarget = 'army' | 'training' | 'scout' | 'farms' | 'forges' | 'build' | 'market' | 'refugees' | 'generals';
 
 export const LeftCommandDock: React.FC = React.memo(() => {
   const activeModal = useUIStore(state => state.activeModal);
   const setActiveModal = useUIStore(state => state.setActiveModal);
   const isBuildPaperOpen = useUIStore(state => state.isBuildPaperOpen);
   const setBuildPaperOpen = useUIStore(state => state.setBuildPaperOpen);
-  const isMilitaryBookOpen = useUIStore(state => state.isMilitaryBookOpen);
-  const setMilitaryBookOpen = useUIStore(state => state.setMilitaryBookOpen);
+
   const selectCity = useUIStore(state => state.selectCity);
   
   const pendingRefugees = useGameStore(state => state.pendingRefugees || []);
   const openRefugeeModal = useGameStore(state => state.openRefugeeModal);
   const closeRefugeeModal = useGameStore(state => state.closeRefugeeModal);
   const isRefugeeModalOpen = useGameStore(state => state.isRefugeeModalOpen);
-  const militaryNotices = useGameStore(state => state.militaryNotices || []);
-
   const pendingRefugeesCount = pendingRefugees.filter(w => !w.departed && (w.daysRemaining ?? 0) > 0).length;
-  const unreadNoticesCount = militaryNotices.filter(n => !n.read).length;
 
   // Xử lý chuyển đổi độc quyền: Đóng toàn bộ các mục khác khi bấm vào 1 mục, không bao giờ mở chồng chéo
   const handleDockClick = (target: DockTarget) => {
@@ -35,13 +31,11 @@ export const LeftCommandDock: React.FC = React.memo(() => {
       (target === 'market' && activeModal === 'market') ||
       (target === 'build' && isBuildPaperOpen) ||
       (target === 'refugees' && isRefugeeModalOpen) ||
-      (target === 'generals' && activeModal === 'generals') ||
-      (target === 'military_book' && isMilitaryBookOpen);
+      (target === 'generals' && activeModal === 'generals');
 
     // 1. Đóng sạch toàn bộ các cửa sổ đang mở
     setActiveModal(null);
     setBuildPaperOpen(false);
-    setMilitaryBookOpen(false);
     if (isRefugeeModalOpen) {
       closeRefugeeModal();
     }
@@ -53,8 +47,7 @@ export const LeftCommandDock: React.FC = React.memo(() => {
         setBuildPaperOpen(true);
       } else if (target === 'refugees') {
         openRefugeeModal();
-      } else if (target === 'military_book') {
-        setMilitaryBookOpen(true);
+
       } else {
         setActiveModal(target);
       }
@@ -373,42 +366,7 @@ export const LeftCommandDock: React.FC = React.memo(() => {
           </span>
         </button>
 
-        {/* 3.3. QUÂN THƯ */}
-        <button
-          type="button"
-          onClick={() => handleDockClick('military_book')}
-          className={`relative w-[74px] py-1 px-1 rounded flex flex-col items-center justify-center transition-all cursor-pointer ${
-            isMilitaryBookOpen ? 'scale-105' : 'hover:bg-black/[0.05] active:scale-95'
-          }`}
-          title={UI_TEXT.leftDock.buttons.military_book.tooltip}
-        >
-          {isMilitaryBookOpen && (
-            <img
-              src="/ink_stroke_red.png"
-              alt="Vết mực đỏ"
-              className="absolute inset-0 w-full h-full object-fill pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]"
-            />
-          )}
-          <div className="relative z-10 w-6 h-6 flex items-center justify-center">
-            <img
-              src="/icons/scroll.png"
-              alt={UI_TEXT.leftDock.buttons.military_book.label}
-              className="w-full h-full object-contain filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]"
-            />
-            {unreadNoticesCount > 0 && (
-              <span className="absolute -top-1 -right-2 min-w-4 h-4 px-1 bg-[#8c2d19] text-[#fff3db] border border-[#fef08a] rounded-full text-[9px] font-mono font-bold flex items-center justify-center shadow-md animate-pulse">
-                {unreadNoticesCount}
-              </span>
-            )}
-          </div>
-          <span className={`relative z-10 font-serif font-black text-[11px] mt-0.5 leading-tight ${
-            isMilitaryBookOpen
-              ? 'text-[#fcf4e4] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]'
-              : 'text-[#2a1708]'
-          }`}>
-            {UI_TEXT.leftDock.buttons.military_book.label}
-          </span>
-        </button>
+
 
       </div>
     </nav>
