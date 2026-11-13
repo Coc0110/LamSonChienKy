@@ -55,21 +55,21 @@ export const ArmyOverviewPanel: React.FC = React.memo(() => {
           </button>
         </div>
 
-        {/* Banner Tổng kết lực lượng (Đơn dòng trải đều, không chia dọc tờ giấy) */}
-        <div className="flex items-center justify-between mb-2.5 p-2 rounded bg-black/[0.04] border border-[#8c6b44]/25 shrink-0 text-xs font-serif">
-          <div>
+        {/* Banner Tổng kết lực lượng (Xếp hàng tuần tự theo dòng dọc, không chia cột) */}
+        <div className="flex flex-col gap-1 mb-2.5 p-2 rounded bg-black/[0.04] border border-[#8c6b44]/25 shrink-0 text-xs font-serif">
+          <div className="flex items-center justify-between">
             <span className="text-[#5c3e23]">{UI_TEXT.armyPanel.stats.totalArmies}: </span>
             <strong className="text-[#8c2d19] font-bold text-sm">
               {formations.length} đạo
             </strong>
           </div>
-          <div>
+          <div className="flex items-center justify-between pt-1 border-t border-[#8c6b44]/15">
             <span className="text-[#5c3e23]">{UI_TEXT.armyPanel.stats.totalTroops}: </span>
             <strong className="text-[#b45309] font-bold text-sm">
               {totalTroops.toLocaleString()} quân
             </strong>
           </div>
-          <div>
+          <div className="flex items-center justify-between pt-1 border-t border-[#8c6b44]/15">
             <span className="text-[#5c3e23]">{UI_TEXT.armyPanel.stats.supplies}: </span>
             <strong className="text-[#15803d] font-bold text-sm">
               {totalWeapons} khí / {Math.floor(totalFood)} thạch
