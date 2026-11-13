@@ -104,8 +104,8 @@ export const CityPopulationModal: React.FC<CityPopulationModalProps> = ({
             <h2 className="font-serif font-black text-base text-[#261304] tracking-wide">
               {UI_TEXT.trainingPanel.title(city.name)}
             </h2>
-            <p className="text-[11px] text-[#704d2e] font-sans">
-              {UI_TEXT.trainingPanel.subtitle(totalPop)}
+            <p className="text-[11px] text-[#704d2e] font-serif">
+              Tổng nhân khẩu: {totalPop} người
             </p>
           </div>
           <button
@@ -119,11 +119,11 @@ export const CityPopulationModal: React.FC<CityPopulationModalProps> = ({
 
         {/* 1. KHỐI THỐNG KÊ CHI TIẾT DẠNG BÁO CÁO CÔNG VĂN (DÒNG CHẢY DỌC TOÀN TRANG, KHÔNG CHIA ĐÔI CỘT) */}
         <div className="flex flex-col gap-2.5 font-serif">
-          {/* Mục 1: Nghĩa Binh (Chiến đấu) */}
+          {/* Mục 1: Nghĩa Binh */}
           <div className="p-3 rounded-lg border border-[#8c6b44]/30 bg-[#8c6b44]/5 flex flex-col gap-2 text-xs">
             <div className="flex items-center justify-between border-b border-[#8c6b44]/20 pb-1">
               <h4 className="font-serif font-black text-sm text-[#8c2d19] tracking-wide">
-                {UI_TEXT.trainingPanel.combatTroops}
+                Nghĩa Binh
               </h4>
               <strong className="text-sm font-bold text-[#8c2d19]">
                 {pop.combatTroops + formationTroops} người
@@ -131,25 +131,19 @@ export const CityPopulationModal: React.FC<CityPopulationModalProps> = ({
             </div>
             <ul className="space-y-1.5 text-xs text-[#261304] border-l-2 border-[#8c2d19]/40 pl-3 py-0.5">
               <li>
-                <span className="text-[#6b4423]">Dự bị tại trại: </span>
+                <span className="text-[#6b4423]">Tại trại: </span>
                 <strong className="text-[#261304] font-bold">{pop.combatTroops} người</strong>
               </li>
               {formationTroops > 0 && (
                 <li>
-                  <span className="text-[#6b4423]">Trong biên chế đạo quân: </span>
+                  <span className="text-[#6b4423]">Biên chế: </span>
                   <strong className="text-[#b45309] font-bold">{formationTroops} người</strong>
-                </li>
-              )}
-              {pop.swappedCombatants > 0 && (
-                <li>
-                  <span className="text-[#6b4423]">Nghĩa binh thế chỗ cày cấy / rèn đúc: </span>
-                  <strong className="text-[#15803d] font-bold">{pop.swappedCombatants} người</strong>
                 </li>
               )}
             </ul>
           </div>
 
-          {/* Mục 2: Tráng Phu & Dân cư */}
+          {/* Mục 2: Tráng Phu & Hậu Cần */}
           <div className="p-3 rounded-lg border border-[#8c6b44]/30 bg-[#8c6b44]/5 flex flex-col gap-2 text-xs">
             <div className="flex items-center justify-between border-b border-[#8c6b44]/20 pb-1">
               <h4 className="font-serif font-black text-sm text-[#8c2d19] tracking-wide">
@@ -158,26 +152,20 @@ export const CityPopulationModal: React.FC<CityPopulationModalProps> = ({
             </div>
             <ul className="space-y-1.5 text-xs text-[#261304] border-l-2 border-[#8c2d19]/40 pl-3 py-0.5">
               <li>
-                <span className="text-[#6b4423]">{UI_TEXT.trainingPanel.idleLaborers}: </span>
+                <span className="text-[#6b4423]">Rảnh rỗi: </span>
                 <strong className="text-[#15803d] font-bold">{pop.idleLaborers} người</strong>
               </li>
               <li>
-                <span className="text-[#6b4423]">{UI_TEXT.trainingPanel.farmingLaborers}: </span>
+                <span className="text-[#6b4423]">Nông đinh: </span>
                 <strong className="text-[#b45309] font-bold">{pop.farmLaborers} người</strong>
               </li>
               <li>
-                <span className="text-[#6b4423]">{UI_TEXT.trainingPanel.forgingLaborers}: </span>
+                <span className="text-[#6b4423]">Rèn đúc: </span>
                 <strong className="text-[#8c2d19] font-bold">{pop.forgeLaborers} người</strong>
               </li>
-              {builderWorkers > 0 && (
-                <li>
-                  <span className="text-[#6b4423]">Đang thi công công trình: </span>
-                  <strong className="text-[#704d2e] font-bold">{builderWorkers} người</strong>
-                </li>
-              )}
               <li>
-                <span className="text-[#6b4423]">{UI_TEXT.trainingPanel.unfit}: </span>
-                <span className="text-[#704d2e]">{pop.unfitPopulation} người</span>
+                <span className="text-[#6b4423]">Lão, Ấu: </span>
+                <span className="text-[#704d2e] font-bold">{pop.unfitPopulation} người</span>
               </li>
             </ul>
           </div>
@@ -242,22 +230,16 @@ export const CityPopulationModal: React.FC<CityPopulationModalProps> = ({
         ) : (
           /* Nút mở thao luyện */
           availableGenerals.length === 0 ? (
-            <div className="pt-1 flex flex-col gap-1.5 font-serif border border-[#8c6b44]/35 bg-[#8c6b44]/10 rounded-lg p-3">
+            <div className="pt-1 flex flex-col gap-1 font-serif border border-[#8c6b44]/35 bg-[#8c6b44]/10 rounded-lg p-2.5 text-center">
               <p className="text-xs font-bold text-[#8c2d19]">
-                Không thể hạ lệnh thao luyện tân binh
-              </p>
-              <p className="text-[11px] text-[#6b4423] leading-relaxed">
-                Toàn bộ tướng lĩnh hiện đang thống lĩnh các đạo quân ngoài chiến tuyến. Cần có ít nhất một vị tướng rảnh rỗi tại căn cứ để chủ trì thao luyện binh sĩ.
+                Cần có tướng rảnh rỗi tại căn cứ để chủ trì thao luyện.
               </p>
             </div>
           ) : (
-            <div className="pt-1 flex items-center justify-between gap-3 font-serif">
-              <div className="text-xs text-[#704d2e]">
-                Có <strong className="text-[#15803d] font-bold">{pop.idleLaborers}</strong> tráng phu nhàn rỗi sẵn sàng tiếp nhận cung kiếm để học võ.
-              </div>
+            <div className="pt-1 flex justify-end font-serif">
               <button
                 onClick={() => setIsSliderOpen(true)}
-                className="px-5 py-2.5 rounded-lg bg-[#8c2d19] hover:bg-[#6e1e0d] text-[#fff3db] font-serif font-black text-xs uppercase tracking-wider shadow transition cursor-pointer active:scale-95"
+                className="w-full py-2.5 rounded-lg bg-[#8c2d19] hover:bg-[#6e1e0d] text-[#fff3db] font-serif font-black text-xs uppercase tracking-wider shadow transition cursor-pointer active:scale-95 text-center"
               >
                 <span>{UI_TEXT.trainingPanel.startTrainingBtn}</span>
               </button>
