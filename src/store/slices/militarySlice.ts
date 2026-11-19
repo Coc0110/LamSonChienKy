@@ -561,8 +561,9 @@ export const createMilitarySlice: StateCreator<GameStore, [], [], MilitarySlice>
       if (arrivedMissions.length > 0) {
         arrivedMissions.forEach(arr => {
           notify.success(
-            `Toán thám mã (${arr.scoutCount} quân) đã vượt đèo lội suối thâm nhập thành công vào ${arr.targetCityName}! Tình báo quân sự được mở rộng.`
+            `Toán thám mã (${arr.scoutCount} quân) đã vượt đèo lội suối thâm nhập thành công vào ${arr.targetCityName}! Bản đồ 3D khu vực đã được mở khóa.`
           );
+          queueMicrotask(() => get().markRegionScouted(arr.targetCityId));
         });
       }
 

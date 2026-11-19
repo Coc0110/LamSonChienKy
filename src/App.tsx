@@ -17,6 +17,10 @@ import { MilitaryBookPanel } from './components/layout/panel/MilitaryBookPanel';
 import { BattlefieldModal } from './components/battle/BattlefieldModal';
 import { BattleTesterModal } from './components/battle/BattleTesterModal';
 import { BattleResultModal } from './components/battle/BattleResultModal';
+import { Region3DOverlay } from './components/region/Region3DOverlay';
+import { Siege3DModal } from './components/region/Siege3DModal';
+import { Ambush3DModal } from './components/region/Ambush3DModal';
+import { Defense3DModal } from './components/region/Defense3DModal';
 import { useGameStore } from './store/gameStore';
 import { useUIStore } from './store/uiStore';
 
@@ -46,6 +50,13 @@ function App() {
   const closeBattleModal = useGameStore(state => state.closeBattleModal);
   const closeBattleResultModal = useGameStore(state => state.closeBattleResultModal);
   const setBattleStance = useGameStore(state => state.setBattleStance);
+  const activeSiegeBattle = useGameStore(state => state.activeSiegeBattle);
+  const resolveSiege3D = useGameStore(state => state.resolveSiege3D);
+  const closeSiege3D = useGameStore(state => state.closeSiege3D);
+  const activeAmbushBattle = useGameStore(state => state.activeAmbushBattle);
+  const resolveAmbush3D = useGameStore(state => state.resolveAmbush3D);
+  const activeDefenseBattle = useGameStore(state => state.activeDefenseBattle);
+  const resolveDefense3D = useGameStore(state => state.resolveDefense3D);
 
   // Trạng thái các giao diện "không trên dòng thời gian"
   const activeModal = useUIStore(state => state.activeModal);
@@ -158,6 +169,26 @@ function App() {
       <RefugeeIntakeModal />
       <EndgameModal />
       <BattleTesterModal />
+      <Region3DOverlay />
+      {activeSiegeBattle && (
+        <Siege3DModal
+          initialState={activeSiegeBattle}
+          onComplete={resolveSiege3D}
+          onClose={closeSiege3D}
+        />
+      )}
+      {activeAmbushBattle && (
+        <Ambush3DModal
+          initialState={activeAmbushBattle}
+          onComplete={resolveAmbush3D}
+        />
+      )}
+      {activeDefenseBattle && (
+        <Defense3DModal
+          initialState={activeDefenseBattle}
+          onComplete={resolveDefense3D}
+        />
+      )}
       {isBattleModalOpen && currentBattle && (
         <BattlefieldModal
           battleState={currentBattle}

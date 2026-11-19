@@ -41,6 +41,8 @@ export const BaseDetailContent: React.FC<BaseDetailContentProps> = React.memo(({
 
 
   const selectCity = useUIStore(state => state.selectCity);
+  const setActiveRegion3D = useUIStore(state => state.setActiveRegion3D);
+  const scoutedRegionIds = useGameStore(state => state.scoutedRegionIds);
   const setBaseRelocateMode = useUIStore(state => state.setBaseRelocateMode);
   const isBuildPaperOpen = useUIStore(state => state.isBuildPaperOpen);
   const setIsBuildPaperOpen = useUIStore(state => state.setBuildPaperOpen);
@@ -144,6 +146,17 @@ export const BaseDetailContent: React.FC<BaseDetailContentProps> = React.memo(({
             {selectedCity.name}
           </h3>
 
+          {!isLamSon && (Boolean(scoutedRegionIds[selectedCity.id]) || (selectedCity.assignedScouts || 0) > 0) && (
+            <div className="mt-2">
+              <button
+                onClick={() => setActiveRegion3D({ cityId: selectedCity.id, mode: 'scout_view' })}
+                className="w-full rounded-lg border border-sky-800/40 bg-sky-800 px-3 py-1.5 text-xs font-semibold text-white shadow hover:bg-sky-900 cursor-pointer"
+              >
+                Xem Bản Đồ Do Thám 3D
+              </button>
+            </div>
+          )}
+
           {/* NÚT THAO TÁC CỦA NGHĨA QUÂN LAM SƠN: XÂY DỰNG, DI DỜI, GIẢI THỂ */}
           {isLamSon && (
             <div className="flex items-center gap-2 mt-2 pt-1">
@@ -161,6 +174,21 @@ export const BaseDetailContent: React.FC<BaseDetailContentProps> = React.memo(({
                 />
                 <span className="relative z-10 font-serif font-bold text-xs text-[#fcf4e4] tracking-wider uppercase drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
                   Xây Dựng
+                </span>
+              </button>
+
+              <button
+                onClick={() => setActiveRegion3D({ cityId: selectedCity.id, mode: 'base_build' })}
+                className="relative group flex-1 h-[32px] px-3 flex items-center justify-center transition-transform hover:scale-105 active:scale-95 cursor-pointer"
+                title="Mở bản đồ 3D khu vực căn cứ để xây dựng & nâng cấp"
+              >
+                <img
+                  src="/ink_stroke_1.png"
+                  alt="Vết mực"
+                  className="absolute inset-0 w-full h-full object-fill pointer-events-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.35)] group-hover:brightness-125 transition-all"
+                />
+                <span className="relative z-10 font-serif font-bold text-xs text-[#fde68a] tracking-wider uppercase drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
+                  Khu Vực 3D
                 </span>
               </button>
 

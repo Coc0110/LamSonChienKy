@@ -344,3 +344,5 @@ export interface PendingRefugeeWave {
   daysRemaining: number;    // Thời gian lưu lại ngoài cổng (mặc định 30 ngày / ~1 tháng, sau đó tự rời đi)
   departed?: boolean;       // Đã hết thời hạn chờ ngoài cổng, rời đi
 }
+
+export * from './region';

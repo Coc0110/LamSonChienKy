@@ -1679,8 +1679,16 @@ export const createArmySlice: StateCreator<GameStore, [], [], ArmySlice> = (set,
             };
           }
 
-          // Quân Minh tới đích thì dừng chân chờ giao chiến
+          // Quân Minh tới đích -> nếu áp sát căn cứ Lam Sơn thì mở trận Phòng Thủ 3D
           if (isMing) {
+            const nearLamSonBase = cities.find(
+              c => c.faction === 'lam_son' && Math.hypot(c.x - currentPos.x, c.y - currentPos.y) <= 3.5
+            );
+            if (nearLamSonBase && !get().activeDefenseBattle) {
+              const atkTroops = Math.max(40, form.totalTroops);
+              queueMicrotask(() => get().startDefense3D(nearLamSonBase.id, atkTroops));
+              return { ...moved, status: 'idle' as const, totalTroops: 0, mapPosition: currentPos, marchOrder: null };
+            }
             return { ...moved, status: 'stationed' as const, mapPosition: currentPos, marchOrder: null };
           }
 
@@ -1821,13 +1829,14 @@ export const createArmySlice: StateCreator<GameStore, [], [], ArmySlice> = (set,
               }
             }
             if (nearMing) {
-              finalStatus = 'engaging';
+              finalStatus = 'stationed';
               engagedTargetCityId = nearMing.id;
-              // Quân Minh trong thành xuất kích nghênh chiến ngay trên bản đồ (không mở màn hình riêng)
-              deploy(nearMing.id, { x: currentPos.x, y: currentPos.y }, getMingSortieSize(nearMing));
+              const siegeTargetId = nearMing.id;
+              const siegeFormId = form.id;
+              queueMicrotask(() => get().startSiege3D(siegeTargetId, siegeFormId));
               toastsToEmit.push({
                 type: 'warning',
-                text: `⚔️ [${form.name}] tập kích ${nearMing.name}! Quân Minh xuất thành nghênh chiến.`,
+                text: `⚔️ [${form.name}] tiến sát ${nearMing.name}! Khai mở trận Công Thành 3D.`,
               });
             } else {
               toastsToEmit.push({
@@ -1921,6 +1930,27 @@ export const createArmySlice: StateCreator<GameStore, [], [], ArmySlice> = (set,
           return f;
         });
         const getTerrainAtPos = (x: number, y: number) => getGridTerrainAt(x, y);
+        if (!get().activeAmbushBattle && !get().activeSiegeBattle && !get().activeDefenseBattle) {
+          const marchingLS = formations.find(
+            f => (f.faction ?? 'lam_son') === 'lam_son' && f.status === 'marching' && f.totalTroops > 0 && f.mapPosition
+          );
+          if (marchingLS && marchingLS.mapPosition) {
+            const largeMing = formations.find(
+              m =>
+                m.faction === 'ming' &&
+                m.totalTroops >= 120 &&
+                !m.isRouting &&
+                m.mapPosition &&
+                Math.hypot(m.mapPosition.x - marchingLS.mapPosition!.x, m.mapPosition.y - marchingLS.mapPosition!.y) <= ENGAGEMENT_RADIUS_PCT
+            );
+            if (largeMing) {
+              const ambFormId = marchingLS.id;
+              const ambMingTroops = largeMing.totalTroops;
+              formations = formations.map(x => (x.id === largeMing.id ? { ...x, totalTroops: 0, status: 'idle' as const } : x));
+              queueMicrotask(() => get().startAmbush3D(ambFormId, 'Đèo Rừng Phục Kích', ambMingTroops));
+            }
+          }
+        }
         const combatLogs: string[] = [];
         for (let i = 0; i < combatTicks; i++) {
           const res = resolveWorldMapCombatTick(formations, prev.generals, getTerrainAtPos);

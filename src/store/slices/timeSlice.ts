@@ -1064,5 +1064,6 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
   });
 
 
+    get().tickRegionConstruction();
   },
 });

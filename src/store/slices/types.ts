@@ -129,6 +129,7 @@ export interface MilitarySlice {
 }
 
 import type { BattleSlice } from './battleSlice';
+import type { RegionSlice } from './regionSlice';
 
-export type { ArmySlice, SaveSlice, GameStatus, BattleSlice };
-export type GameStore = TimeSlice & CitySlice & StructureSlice & MilitarySlice & ArmySlice & SaveSlice & BattleSlice;
+export type { ArmySlice, SaveSlice, GameStatus, BattleSlice, RegionSlice };
+export type GameStore = TimeSlice & CitySlice & StructureSlice & MilitarySlice & ArmySlice & SaveSlice & BattleSlice & RegionSlice;

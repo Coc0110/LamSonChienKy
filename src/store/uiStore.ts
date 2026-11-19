@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { StructureType, PlacedStructure } from '../types';
 import type { TerrainType } from '../types/terrain';
+import type { Region3DViewState } from '../types/region';
 
 export type ModalType = 'army' | 'tactical_grid' | 'supplies' | 'generals' | 'training' | 'scout' | 'farms' | 'forges' | 'market' | null;
 
@@ -50,8 +51,10 @@ interface UIState {
   brushSize: 1 | 3 | 5 | 9;
   hoveredCell: { col: number; row: number } | null;
   flyToTarget: { x: number; y: number } | null;
+  activeRegion3D: Region3DViewState | null;
 
   setActiveModal: (modal: ModalType) => void;
+  setActiveRegion3D: (region: Region3DViewState | null) => void;
   openDistrictMarket: (districtId: string) => void;
   setFlyToTarget: (target: { x: number; y: number } | null) => void;
   toggleEditMode: () => void;
@@ -108,6 +111,7 @@ export const useUIStore = create<UIState>((set) => ({
   brushSize: 1,
   hoveredCell: null,
   flyToTarget: null,
+  activeRegion3D: null,
 
   openDistrictMarket: (districtId) => set({
     activeModal: 'market',
@@ -129,6 +133,7 @@ export const useUIStore = create<UIState>((set) => ({
     } : {}),
   }),
   setFlyToTarget: (target) => set({ flyToTarget: target }),
+  setActiveRegion3D: (region) => set({ activeRegion3D: region }),
   toggleEditMode: () => set((state) => ({ 
     isEditMode: !state.isEditMode, 
     terrainEditMode: false,
