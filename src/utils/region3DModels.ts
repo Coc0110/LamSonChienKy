@@ -180,27 +180,47 @@ function getFlagBannerMaterial(isEnemy: boolean): THREE.MeshStandardMaterial {
   if (isEnemy && cachedMingFlagMat) return cachedMingFlagMat;
 
   const canvas = document.createElement('canvas');
-  canvas.width = 128;
-  canvas.height = 96;
+  canvas.width = 256;
+  canvas.height = 160;
   const ctx = canvas.getContext('2d');
   if (ctx) {
+    ctx.clearRect(0, 0, 256, 160);
+    // Cờ đuôi nheo viền răng cưa vàng kiểu cờ lệnh khởi nghĩa
+    ctx.beginPath();
+    ctx.moveTo(0, 8);
+    ctx.lineTo(240, 18);
+    ctx.lineTo(205, 80);
+    ctx.lineTo(240, 142);
+    ctx.lineTo(0, 152);
+    ctx.closePath();
     ctx.fillStyle = isEnemy ? '#1e3a8a' : '#b91c1c';
-    ctx.fillRect(0, 0, 128, 96);
+    ctx.fill();
+
+    ctx.lineWidth = 8;
     ctx.strokeStyle = '#fbbf24';
-    ctx.lineWidth = 5;
-    ctx.strokeRect(4, 4, 120, 88);
+    ctx.stroke();
+
+    // Viền trong
+    ctx.beginPath();
+    ctx.arc(98, 80, 48, 0, Math.PI * 2);
+    ctx.fillStyle = isEnemy ? 'rgba(30, 64, 175, 0.7)' : 'rgba(153, 27, 27, 0.85)';
+    ctx.fill();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = '#fde047';
+    ctx.stroke();
 
     ctx.fillStyle = '#fef08a';
-    ctx.font = 'bold 46px serif';
+    ctx.font = 'bold 58px serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(isEnemy ? '明' : 'Lê', 64, 50);
+    ctx.fillText(isEnemy ? '明' : 'Lê', 98, 82);
   }
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
   const mat = new THREE.MeshStandardMaterial({
     map: tex,
-    roughness: 0.65,
+    alphaTest: 0.2,
+    roughness: 0.6,
     side: THREE.DoubleSide,
   });
 
@@ -349,49 +369,191 @@ function getBuildingParts(
 
   switch (type) {
     case 'main_hall': {
-      // 5x5 Nhà sàn gỗ lớn, nền đất nện đắp cao, mái tranh dày, trống cái & giá binh khí trước sân
-      push('earthDark', box(4.75, 0.24, 4.75, 0, 0.12, 0));
-      push('earth', box(4.35, 0.2, 4.35, 0, 0.34, 0));
-      // Sàn gỗ cao & hàng cột nhà sàn
-      for (const cx of [-1.45, -0.5, 0.5, 1.45]) {
-        for (const cz of [-1.2, 0.1, 0.9]) {
-          push('woodDark', cyl(0.09, 0.11, 0.65, 8, cx, 0.72, cz));
+      // === 1. NỀN ĐẤT NỆN ĐẮP CAO 2 TẦNG + ĐÁ HỘC GIỮ NỀN + LỐI ĐÁ ===
+      push('earthDark', box(4.85, 0.22, 4.85, 0, 0.11, 0));
+      push('earth', box(4.45, 0.18, 4.45, 0, 0.31, 0));
+      // Đá hộc chèn góc nền đất
+      for (const [sx, sz] of [[-2.28, -2.28], [2.28, -2.28], [-2.28, 2.28], [2.28, 2.28]]) {
+        push('stoneDark', box(0.36, 0.28, 0.36, sx, 0.2, sz));
+      }
+      // Lối lát đá phiến từ cổng rào vào chân cầu thang
+      for (let st = 0; st < 4; st++) {
+        push('stone', box(0.88 - st * 0.04, 0.05, 0.26, 0, 0.42, 2.15 - st * 0.28));
+      }
+
+      // === 2. RÀO TRE BAO QUANH SÂN (CHỪA LỐI VÀO GIỮA) ===
+      const addBambooFenceSegment = (fx: number, fz: number, horizontal: boolean) => {
+        if (horizontal) {
+          for (const ox of [-0.3, -0.1, 0.1, 0.3]) {
+            push('bamboo', cyl(0.032, 0.038, 0.46, 6, fx + ox, 0.62, fz));
+            push('bamboo', cone(0.034, 0.1, 6, fx + ox, 0.89, fz));
+          }
+          push('bambooDry', box(0.78, 0.045, 0.05, fx, 0.56, fz));
+          push('bambooDry', box(0.78, 0.045, 0.05, fx, 0.74, fz));
+        } else {
+          for (const oz of [-0.3, -0.1, 0.1, 0.3]) {
+            push('bamboo', cyl(0.032, 0.038, 0.46, 6, fx, 0.62, fz + oz));
+            push('bamboo', cone(0.034, 0.1, 6, fx, 0.89, fz + oz));
+          }
+          push('bambooDry', box(0.05, 0.045, 0.78, fx, 0.56, fz));
+          push('bambooDry', box(0.05, 0.045, 0.78, fx, 0.74, fz));
+        }
+      };
+      // Rào mặt trước (2 cánh trái/phải)
+      addBambooFenceSegment(-1.68, 2.15, true);
+      addBambooFenceSegment(-0.92, 2.15, true);
+      addBambooFenceSegment(0.92, 2.15, true);
+      addBambooFenceSegment(1.68, 2.15, true);
+      // Rào 2 bên hông sân
+      addBambooFenceSegment(-2.12, 1.65, false);
+      addBambooFenceSegment(-2.12, 0.9, false);
+      addBambooFenceSegment(2.12, 1.65, false);
+      addBambooFenceSegment(2.12, 0.9, false);
+      // 2 Cột đuốc gỗ ở cổng rào
+      for (const tx of [-0.52, 0.52]) {
+        push('woodDark', cyl(0.045, 0.055, 0.85, 6, tx, 0.82, 2.18));
+        push('ember', sphere(0.09, tx, 1.28, 2.18));
+      }
+
+      // === 3. NHÀ SÀN GỖ LỚN + HIÊN + CẦU THANG + CỬA SỔ KHUNG TRE ===
+      // 12 cột gỗ lim + đá tảng kê chân cột
+      for (const cx of [-1.55, -0.52, 0.52, 1.55]) {
+        for (const cz of [-1.45, -0.25, 0.82]) {
+          push('stoneDark', cyl(0.14, 0.16, 0.12, 8, cx, 0.46, cz));
+          push('woodDark', cyl(0.085, 0.1, 0.68, 8, cx, 0.84, cz));
         }
       }
-      push('wood', box(3.4, 0.16, 2.6, 0, 1.05, -0.15));
-      // Cầu thang gỗ lên nhà sàn
-      for (let s = 0; s < 4; s++) {
-        push('woodDark', box(0.75, 0.08, 0.22, 0, 0.48 + s * 0.15, 1.48 - s * 0.15));
+      // Dầm sàn & Sàn ván gỗ + Hiên nhà phía trước
+      push('woodDark', box(3.55, 0.12, 2.75, 0, 1.15, -0.32));
+      push('wood', box(3.65, 0.1, 2.85, 0, 1.25, -0.32));
+      // Lan can gỗ hiên trước (chừa lối cầu thang ở giữa)
+      push('woodDark', box(1.22, 0.06, 0.07, -1.16, 1.58, 1.06));
+      push('woodDark', box(1.22, 0.06, 0.07, 1.16, 1.58, 1.06));
+      for (const rx of [-1.72, -1.35, -0.95, -0.58, 0.58, 0.95, 1.35, 1.72]) {
+        push('wood', cyl(0.03, 0.03, 0.32, 6, rx, 1.44, 1.06));
       }
-      // Thân nhà gỗ
-      push('wood', box(3.0, 0.95, 2.2, 0, 1.6, -0.15));
-      push('woodDark', box(0.72, 0.72, 0.08, 0, 1.5, 0.96)); // Cửa gỗ lớn
-      // Mái lợp tranh dày đặc trưng Việt Nam cổ (2 lớp mái chóp vát)
-      push('thatchDark', box(3.7, 0.18, 2.95, 0, 2.15, -0.15));
-      push('thatch', cone(2.55, 1.15, 4, 0, 2.75, -0.15, Math.PI / 4));
-      push('thatchDark', box(0.22, 0.16, 2.1, 0, 3.3, -0.15)); // Sống nóc mái
+      // Cầu thang gỗ 5 bậc có tay vịn
+      for (let s = 0; s < 5; s++) {
+        push('woodDark', box(0.84, 0.07, 0.18, 0, 0.48 + s * 0.16, 1.72 - s * 0.16));
+      }
+      for (const hx of [-0.44, 0.44]) {
+        const rail = box(0.06, 0.06, 0.98, 0, 0, 0);
+        rail.rotateX(Math.PI / 4);
+        rail.translate(hx, 1.02, 1.38);
+        push('woodDark', rail);
+      }
+
+      // Thân nhà gỗ chính (vách gỗ + cột khung)
+      push('wood', box(3.15, 0.96, 1.95, 0, 1.78, -0.45));
+      // Cửa chính 2 cánh gỗ lim nẹp đồng
+      push('woodDark', box(0.76, 0.78, 0.1, 0, 1.68, 0.54));
+      push('gold', box(0.06, 0.12, 0.14, -0.06, 1.66, 0.55));
+      push('gold', box(0.06, 0.12, 0.14, 0.06, 1.66, 0.55));
+
+      // Cửa sổ khung tre 2 bên mặt tiền (x = -1.02 và +1.02, z = 0.54)
+      for (const wx of [-1.02, 1.02]) {
+        push('woodDark', box(0.56, 0.46, 0.08, wx, 1.82, 0.54)); // Khung
+        push('earthDark', box(0.46, 0.36, 0.09, wx, 1.82, 0.54)); // Lòng cửa tối
+        // Song tre dọc
+        for (const barX of [-0.15, -0.05, 0.05, 0.15]) {
+          push('bambooDry', cyl(0.016, 0.016, 0.36, 5, wx + barX, 1.82, 0.57));
+        }
+        // Cánh cửa tre chống lên che nắng
+        const shutter = box(0.5, 0.04, 0.34, 0, 0, 0);
+        shutter.rotateX(-0.45);
+        shutter.translate(wx, 2.04, 0.7);
+        push('bamboo', shutter);
+      }
+      // Cửa sổ khung tre 2 bên hông nhà (x = -1.58 và +1.58, z = -0.45)
+      for (const sx of [-1.58, 1.58]) {
+        push('woodDark', box(0.08, 0.44, 0.62, sx, 1.82, -0.45));
+        push('earthDark', box(0.09, 0.34, 0.52, sx, 1.82, -0.45));
+        for (const bz of [-0.16, 0, 0.16]) {
+          push('bambooDry', cyl(0.016, 0.016, 0.34, 5, sx + (sx > 0 ? 0.03 : -0.03), 1.82, -0.45 + bz));
+        }
+      }
+
+      // === 4. MÁI LÁ TRANH DÀY XẾP LỚP ĐẶC TRƯNG VIỆT CỔ ===
+      // Diềm mái & đầu kèo gỗ
+      push('woodDark', box(3.9, 0.1, 2.8, 0, 2.26, -0.45));
+      // 4 tầng bó lá tranh xếp chồng giật cấp (mặt dưới tối -> mặt trên sáng)
+      push('thatchDark', box(4.05, 0.16, 2.95, 0, 2.34, -0.45));
+      push('thatch', cone(2.75, 0.65, 4, 0, 2.66, -0.45, Math.PI / 4));
+      push('thatchDark', cone(2.3, 0.58, 4, 0, 2.95, -0.45, Math.PI / 4));
+      push('thatch', cone(1.85, 0.55, 4, 0, 3.24, -0.45, Math.PI / 4));
       if (tier >= 3) {
-        push('thatch', cone(1.65, 0.75, 4, 0, 3.45, -0.15, Math.PI / 4));
+        push('thatchDark', cone(1.35, 0.48, 4, 0, 3.58, -0.45, Math.PI / 4));
+        push('thatch', cone(1.05, 0.42, 4, 0, 3.8, -0.45, Math.PI / 4));
       }
-      // Trống cái lớn đặt trên giá gỗ trước sân (bên trái)
-      push('woodDark', box(0.75, 0.36, 0.12, -1.25, 0.62, 1.68));
-      push('woodDark', box(0.75, 0.36, 0.12, -1.25, 0.62, 1.32));
-      const drumBody = cyl(0.32, 0.32, 0.56, 12, 0, 0, 0);
-      drumBody.rotateZ(Math.PI / 2);
-      drumBody.translate(-1.25, 0.88, 1.5);
-      push(bannerMat, drumBody);
-      push('gold', box(0.08, 0.68, 0.68, -1.52, 0.88, 1.5));
-      // Giá cắm binh khí trước sân (bên phải)
-      push('woodDark', box(1.0, 0.08, 0.14, 1.25, 0.92, 1.52));
-      push('woodDark', cyl(0.04, 0.05, 0.6, 6, 0.82, 0.7, 1.52));
-      push('woodDark', cyl(0.04, 0.05, 0.6, 6, 1.68, 0.7, 1.52));
-      for (const wx of [0.95, 1.15, 1.35, 1.55]) {
-        push('wood', cyl(0.025, 0.025, 1.05, 6, wx, 0.92, 1.52));
-        push('iron', cone(0.045, 0.2, 6, wx, 1.5, 1.52));
+      // Diềm bó lá tranh nhô ra ở mép mái trước & sau
+      for (let lx = -1.8; lx <= 1.8; lx += 0.36) {
+        push('thatch', box(0.24, 0.09, 0.2, lx, 2.3, 1.05));
+        push('thatch', box(0.24, 0.09, 0.2, lx, 2.3, -1.95));
       }
-      // Cột cờ lệnh cao trước sân (lá cờ có canvas chữ "Lê" gắn riêng trong createBuildingGroup)
-      push('woodDark', cyl(0.05, 0.07, 2.75, 8, -1.85, 1.8, 1.75));
-      push('gold', sphere(0.09, -1.85, 3.2, 1.75));
+      // Sống nóc mái bện rơm dày + 2 sừng nóc giao chéo
+      const ridgeY = tier >= 3 ? 3.96 : 3.48;
+      push('thatchDark', box(1.9, 0.18, 0.24, 0, ridgeY, -0.45));
+      for (const hx of [-0.95, 0.95]) {
+        const horn1 = box(0.07, 0.34, 0.07, 0, 0, 0);
+        horn1.rotateZ(0.45);
+        horn1.translate(hx, ridgeY + 0.12, -0.45);
+        const horn2 = box(0.07, 0.34, 0.07, 0, 0, 0);
+        horn2.rotateZ(-0.45);
+        horn2.translate(hx, ridgeY + 0.12, -0.45);
+        push('bambooDry', horn1);
+        push('bambooDry', horn2);
+      }
+
+      // === 5. TRỐNG TRẬN (TRỐNG CÁI LỚN) TRÊN GIÁ GỖ (SÂN TRÁI) ===
+      for (const gz of [1.38, 1.72]) {
+        const leg1 = box(0.08, 0.72, 0.08, 0, 0, 0);
+        leg1.rotateZ(0.5);
+        leg1.translate(-1.38, 0.68, gz);
+        const leg2 = box(0.08, 0.72, 0.08, 0, 0, 0);
+        leg2.rotateZ(-0.5);
+        leg2.translate(-1.38, 0.68, gz);
+        push('woodDark', leg1);
+        push('woodDark', leg2);
+      }
+      // Tang trống gỗ sơn đỏ bo cong 3 khúc
+      const drumMid = cyl(0.36, 0.36, 0.34, 14, 0, 0, 0);
+      drumMid.rotateZ(Math.PI / 2);
+      drumMid.translate(-1.38, 0.98, 1.55);
+      push(bannerMat, drumMid);
+      const drumEnds = cyl(0.31, 0.31, 0.62, 14, 0, 0, 0);
+      drumEnds.rotateZ(Math.PI / 2);
+      drumEnds.translate(-1.38, 0.98, 1.55);
+      push(bannerMat, drumEnds);
+      // Mặt trống da trâu vàng kem 2 bên + đinh đồng
+      const drumFace = cyl(0.29, 0.29, 0.65, 14, 0, 0, 0);
+      drumFace.rotateZ(Math.PI / 2);
+      drumFace.translate(-1.38, 0.98, 1.55);
+      push('plaster', drumFace);
+      push('gold', box(0.04, 0.68, 0.06, -1.68, 0.98, 1.55));
+      push('gold', box(0.04, 0.68, 0.06, -1.08, 0.98, 1.55));
+      // 2 dùi trống gác cạnh giá trống
+      push('wood', cyl(0.022, 0.022, 0.45, 6, -1.02, 0.64, 1.78));
+      push('plaster', sphere(0.045, -1.02, 0.87, 1.78));
+
+      // === 6. GIÁ BINH KHÍ (SÂN PHẢI) ===
+      push('woodDark', box(1.15, 0.08, 0.14, 1.32, 0.98, 1.55));
+      push('woodDark', box(1.15, 0.06, 0.14, 1.32, 0.56, 1.55));
+      push('woodDark', cyl(0.045, 0.055, 0.72, 6, 0.82, 0.74, 1.55));
+      push('woodDark', cyl(0.045, 0.055, 0.72, 6, 1.82, 0.74, 1.55));
+      for (const wx of [0.96, 1.18, 1.4, 1.62]) {
+        push('wood', cyl(0.024, 0.024, 1.18, 6, wx, 0.98, 1.55));
+        push('iron', cone(0.045, 0.22, 6, wx, 1.62, 1.55));
+      }
+      // Khiên mây tròn dựa giá binh khí
+      const shield = cyl(0.24, 0.24, 0.06, 12, 0, 0, 0);
+      shield.rotateX(Math.PI / 2 - 0.2);
+      shield.translate(1.72, 0.64, 1.66);
+      push('bambooDry', shield);
+
+      // === 7. CỘT CỜ KHỞI NGHĨA ("LÊ") ===
+      push('stoneDark', cyl(0.24, 0.3, 0.24, 8, -1.92, 0.5, 1.88));
+      push('bamboo', cyl(0.05, 0.075, 3.25, 8, -1.92, 2.15, 1.88));
+      push('gold', sphere(0.1, -1.92, 3.82, 1.88));
       break;
     }
 
@@ -671,12 +833,12 @@ export function createBuildingGroup(
     group.add(mesh);
   }
 
-  // Gắn lá cờ lệnh lớn thêu chữ "Lê" (hoặc "明") trên Nhà Chính
+  // Gắn lá cờ lệnh khởi nghĩa đuôi nheo thêu chữ "Lê" (hoặc "明") trên Nhà Chính
   if (type === 'main_hall') {
-    const flagGeo = new THREE.PlaneGeometry(0.95, 0.68);
+    const flagGeo = new THREE.PlaneGeometry(1.35, 0.84);
     const flagMat = getFlagBannerMaterial(isEnemy);
     const flagMesh = new THREE.Mesh(flagGeo, flagMat);
-    flagMesh.position.set(-1.38, 2.75, 1.75);
+    flagMesh.position.set(-1.25, 3.3, 1.88);
     flagMesh.castShadow = true;
     group.add(flagMesh);
   }
