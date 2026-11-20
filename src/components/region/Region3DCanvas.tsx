@@ -2,7 +2,11 @@ import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { BaseBuilding, RegionCombatUnit, RegionLayout } from '../../types/region';
-import { DIORAMA_PALETTE, getBuildingColor, getBuildingGeometry } from '../../utils/region3DModels';
+import {
+  DIORAMA_PALETTE,
+  createBuildingGroup,
+  createUnitGroup,
+} from '../../utils/region3DModels';
 
 interface PlacementPreviewConfig {
   spanCols: number;
@@ -107,6 +111,8 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.05;
     container.appendChild(renderer.domElement);
 
     const controls = new OrbitControls(camera, renderer.domElement);
@@ -137,13 +143,53 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
     sun.shadow.camera.bottom = -16;
     scene.add(sun);
 
-    // Đế đảo Diorama 24x24
-    const islandGeo = new THREE.BoxGeometry(gridSize, 1.4, gridSize);
+    // Đế đảo Diorama 24x24 có viền rừng cây bao quanh kiểu Clash of Clans
+    const outerRimGeo = new THREE.BoxGeometry(gridSize + 4.4, 1.5, gridSize + 4.4);
     const islandMat = new THREE.MeshStandardMaterial({ color: DIORAMA_PALETTE.cliff, roughness: 0.92 });
-    const island = new THREE.Mesh(islandGeo, islandMat);
-    island.position.y = -0.75;
+    const island = new THREE.Mesh(outerRimGeo, islandMat);
+    island.position.y = -0.82;
     island.receiveShadow = true;
     scene.add(island);
+
+    const outerGrassGeo = new THREE.BoxGeometry(gridSize + 4.2, 0.14, gridSize + 4.2);
+    const outerGrassMat = new THREE.MeshStandardMaterial({ color: DIORAMA_PALETTE.groundAlt, roughness: 0.95 });
+    const outerGrass = new THREE.Mesh(outerGrassGeo, outerGrassMat);
+    outerGrass.position.y = -0.08;
+    outerGrass.receiveShadow = true;
+    scene.add(outerGrass);
+
+    // Cây rừng trang trí rìa ngoài (ngoài vùng 24x24)
+    const decoTrunkGeo = new THREE.CylinderGeometry(0.11, 0.15, 0.55, 6);
+    const decoLeaf1Geo = new THREE.ConeGeometry(0.55, 0.85, 7);
+    const decoLeaf2Geo = new THREE.ConeGeometry(0.4, 0.7, 7);
+    const decoTrunkMat = new THREE.MeshStandardMaterial({ color: DIORAMA_PALETTE.woodDark, roughness: 0.9 });
+    const decoLeafMat = new THREE.MeshStandardMaterial({ color: DIORAMA_PALETTE.leaf, roughness: 0.85 });
+    const decoLeafLightMat = new THREE.MeshStandardMaterial({ color: DIORAMA_PALETTE.leafLight, roughness: 0.85 });
+
+    for (let i = -half - 1.2; i <= half + 1.2; i += 2.6) {
+      const positions: Array<[number, number]> = [
+        [i, -half - 1.25],
+        [i, half + 1.25],
+        [-half - 1.25, i],
+        [half + 1.25, i],
+      ];
+      for (const [tx, tz] of positions) {
+        const treeGroup = new THREE.Group();
+        const tr = new THREE.Mesh(decoTrunkGeo, decoTrunkMat);
+        tr.position.y = 0.25;
+        const lf1 = new THREE.Mesh(decoLeaf1Geo, (Math.abs(Math.round(tx + tz)) % 2 === 0) ? decoLeafMat : decoLeafLightMat);
+        lf1.position.y = 0.8;
+        lf1.castShadow = true;
+        const lf2 = new THREE.Mesh(decoLeaf2Geo, decoLeafLightMat);
+        lf2.position.y = 1.25;
+        lf2.castShadow = true;
+        treeGroup.add(tr, lf1, lf2);
+        const s = 0.85 + (Math.abs(Math.sin(tx * 1.7 + tz * 2.3)) * 0.35);
+        treeGroup.scale.set(s, s, s);
+        treeGroup.position.set(tx, 0, tz);
+        scene.add(treeGroup);
+      }
+    }
 
     // Mặt cỏ chính (plane raycast duy nhất)
     const groundGeo = new THREE.PlaneGeometry(gridSize, gridSize);
@@ -269,24 +315,12 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
       for (const b of currentLayout.buildings) {
         if (b.status === 'destroyed') continue;
 
-        const geo = getBuildingGeometry(b.type, b.level);
-        const baseColor = getBuildingColor(b.type, enemy);
         const isConstructing = b.status === 'building' || b.status === 'upgrading';
-        const mat = new THREE.MeshStandardMaterial({
-          color: baseColor,
-          roughness: 0.72,
-          metalness: 0.08,
-          transparent: isConstructing,
-          opacity: isConstructing ? 0.65 : 1,
-        });
-
-        const mesh = new THREE.Mesh(geo, mat);
+        const group = createBuildingGroup(b.type, b.level, enemy, isConstructing);
         const cx = b.col + b.spanCols / 2 - half;
         const cz = b.row + b.spanRows / 2 - half;
-        mesh.position.set(cx, 0, cz);
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
-        buildingsGroup.add(mesh);
+        group.position.set(cx, 0, cz);
+        buildingsGroup.add(group);
 
         // Thanh máu nếu bị tổn thương
         if (b.hp < b.maxHp) {
@@ -321,11 +355,6 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
       }
     };
 
-    const unitGeo = new THREE.CylinderGeometry(0.24, 0.3, 0.65, 8);
-    unitGeo.translate(0, 0.325, 0);
-    const elephantGeo = new THREE.BoxGeometry(0.75, 0.8, 0.95);
-    elephantGeo.translate(0, 0.4, 0);
-
     const syncUnits = () => {
       while (unitsGroup.children.length > 0) {
         unitsGroup.remove(unitsGroup.children[0]);
@@ -338,12 +367,9 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
         if (u.hp <= 0 || u.soldiers <= 0) continue;
         const wx = u.x - half;
         const wz = u.z - half;
-        const color = u.faction === 'lam_son' ? 0xd93829 : 0x2563eb;
-        const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.65 });
-        const mesh = new THREE.Mesh(u.unitType === 'elephant' ? elephantGeo : unitGeo, mat);
-        mesh.position.set(wx, 0, wz);
-        mesh.castShadow = true;
-        unitsGroup.add(mesh);
+        const unitMesh = createUnitGroup(u.unitType, u.faction);
+        unitMesh.position.set(wx, 0, wz);
+        unitsGroup.add(unitMesh);
 
         if (selU && u.id === selU) {
           selectionRing.scale.set(0.85, 0.85, 1);
