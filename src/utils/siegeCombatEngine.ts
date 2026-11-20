@@ -63,6 +63,8 @@ export function createSiegeBattle(
   };
 
   const units: RegionCombatUnit[] = [];
+  const gs = enemyLayout.gridSize || 32;
+  const center = gs / 2;
   const garrisonCount = Math.min(8, Math.max(2, Math.floor(enemyTroops / 150)));
   for (let i = 0; i < garrisonCount; i++) {
     const kind: UnitKind = i % 3 === 0 ? 'archer' : i % 2 === 0 ? 'spearman' : 'swordsman';
@@ -72,8 +74,8 @@ export function createSiegeBattle(
       id: `ming_garrison_${i}`,
       faction: 'ming',
       unitType: kind,
-      x: 12 + Math.cos(angle) * 4.2,
-      z: 12 + Math.sin(angle) * 4.2,
+      x: center + Math.cos(angle) * 5.2,
+      z: center + Math.sin(angle) * 5.2,
       hp: st.hp,
       maxHp: st.hp,
       atk: st.atk,

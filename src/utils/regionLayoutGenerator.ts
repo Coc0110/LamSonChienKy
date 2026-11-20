@@ -56,38 +56,35 @@ export function generateLamSonStarterLayout(cityId = 'lam_son'): RegionLayout {
     }
   };
 
-  // Đại Bản Doanh ở trung tâm (10..13, 10..13)
-  add('main_hall', 10, 10, 1);
+  // Nhà Chính 5x5 ở trung tâm (13..17, 13..17)
+  add('main_hall', 13, 13, 1);
 
-  // Khu quân sự & hậu cần quanh bản doanh
-  add('barracks', 6, 10, 1);
-  add('food_storage', 14, 10, 1);
-  add('armory', 14, 13, 1);
-  add('farm', 6, 14, 1);
-  add('forge', 10, 14, 1);
-  add('house', 10, 7, 1);
-  add('house', 13, 7, 1);
+  // Khu quân sự & hậu cần quanh nhà chính
+  add('barracks', 8, 13, 1);       // 3x3 (8..10, 13..15)
+  add('food_storage', 19, 13, 1);  // 3x3 (19..21, 13..15)
+  add('armory', 19, 17, 1);        // 3x3 (19..21, 17..19)
+  add('farm', 7, 19, 1);           // 5x5 (7..11, 19..23)
+  add('forge', 14, 20, 1);         // 3x3 (14..16, 20..22)
+  add('house', 11, 9, 1);          // 2x2
+  add('house', 15, 9, 1);          // 2x2
 
-  // Chòi canh 2 góc
-  add('watchtower', 6, 6, 1);
-  add('watchtower', 16, 16, 1);
+  // Chòi canh 2x2
+  add('watchtower', 7, 7, 1);
+  add('watchtower', 22, 22, 1);
 
-  // Lũy tre bao quanh vòng trong (cột 5..18, hàng 5..18), chừa cổng ở phía Nam & Đông
-  for (let c = 5; c <= 18; c++) {
-    if (c === 11 || c === 12) continue;
+  // Tường rào tre/gỗ lim (cột 5..26, hàng 5..26), chừa Cổng Thành 3x1 ở phía Bắc & Nam (14..16)
+  for (let c = 5; c <= 26; c++) {
+    if (c >= 14 && c <= 16) continue;
     add('wall', c, 5, 1);
-    if (c === 11) {
-      add('gate', 11, 18, 1);
-    } else if (c !== 12) {
-      add('wall', c, 18, 1);
-    }
+    add('wall', c, 26, 1);
   }
-  add('gate', 11, 5, 1);
+  add('gate', 14, 5, 1);
+  add('gate', 14, 26, 1);
 
-  for (let r = 6; r <= 17; r++) {
-    if (r === 11 || r === 12) continue;
+  for (let r = 6; r <= 25; r++) {
+    if (r >= 14 && r <= 16) continue;
     add('wall', 5, r, 1);
-    add('wall', 18, r, 1);
+    add('wall', 26, r, 1);
   }
 
   return {
@@ -111,45 +108,46 @@ export function generateEnemyCityLayout(city: CityNode): RegionLayout {
     }
   };
 
-  // Phủ Đường / Thành chính
-  add('main_hall', 10, 10, tier);
+  // Phủ Đường 5x5 trung tâm
+  add('main_hall', 13, 13, tier);
 
-  // Doanh trại & kho quân nhu
-  add('barracks', 6, 10, tier);
-  add('barracks', 14, 10, tier);
-  add('food_storage', 10, 6, tier);
-  add('armory', 10, 14, tier);
-  add('house', 6, 14, tier);
-  add('house', 14, 14, tier);
+  // Doanh trại & kho 3x3
+  add('barracks', 8, 13, tier);
+  add('barracks', 20, 13, tier);
+  add('food_storage', 14, 8, tier);
+  add('armory', 14, 20, tier);
+  add('house', 9, 19, tier);
+  add('house', 20, 19, tier);
 
   // Chòi canh cung 4 góc
-  add('watchtower', 6, 6, tier);
-  add('watchtower', 16, 6, tier);
-  add('watchtower', 6, 16, tier);
-  add('watchtower', 16, 16, tier);
+  add('watchtower', 7, 7, tier);
+  add('watchtower', 23, 7, tier);
+  add('watchtower', 7, 23, tier);
+  add('watchtower', 23, 23, tier);
 
-  // Tường thành kiên cố bao quanh (4..19)
+  // Tường thành kiên cố bao quanh (4..27)
   const minWall = city.type === 'camp' ? 5 : 4;
-  const maxWall = city.type === 'camp' ? 18 : 19;
+  const maxWall = city.type === 'camp' ? 26 : 27;
 
   for (let c = minWall; c <= maxWall; c++) {
-    if (c === 11 || c === 12) continue;
+    if (c >= 14 && c <= 16) continue;
     add('wall', c, minWall, tier);
     add('wall', c, maxWall, tier);
   }
-  add('gate', 11, minWall, tier);
-  add('gate', 11, maxWall, tier);
+  add('gate', 14, minWall, tier);
+  add('gate', 14, maxWall, tier);
 
   for (let r = minWall + 1; r <= maxWall - 1; r++) {
-    if (r === 11 || r === 12) continue;
+    if (r >= 14 && r <= 16) continue;
     add('wall', minWall, r, tier);
     add('wall', maxWall, r, tier);
   }
 
   // Bẫy chông trước cổng
-  add('spike_trap', 11, maxWall + 1, tier);
-  add('spike_trap', 12, maxWall + 1, tier);
-  add('spike_trap', 11, minWall - 1, tier);
+  add('spike_trap', 14, maxWall + 1, tier);
+  add('spike_trap', 15, maxWall + 1, tier);
+  add('spike_trap', 16, maxWall + 1, tier);
+  add('spike_trap', 15, minWall - 1, tier);
 
   const seed = city.id.split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
   return {

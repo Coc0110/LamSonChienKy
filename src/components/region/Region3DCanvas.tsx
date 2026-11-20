@@ -5,7 +5,12 @@ import type { BaseBuilding, RegionCombatUnit, RegionLayout } from '../../types/r
 import {
   DIORAMA_PALETTE,
   createBuildingGroup,
+  createDecorProp,
+  createDetailedGroundTexture,
+  createNpcGroup,
   createUnitGroup,
+  createVietnameseTree,
+  type VietnameseTreeKind,
 } from '../../utils/region3DModels';
 
 interface PlacementPreviewConfig {
@@ -121,7 +126,7 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
     controls.minPolarAngle = 0.35;
     controls.maxPolarAngle = Math.PI / 2.25;
     controls.minDistance = 11;
-    controls.maxDistance = 38;
+    controls.maxDistance = 46;
     controls.target.set(0, 0, 0);
 
     let zoomOutTriggered = false;
@@ -158,15 +163,10 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
     outerGrass.receiveShadow = true;
     scene.add(outerGrass);
 
-    // Cây rừng trang trí rìa ngoài (ngoài vùng 24x24)
-    const decoTrunkGeo = new THREE.CylinderGeometry(0.11, 0.15, 0.55, 6);
-    const decoLeaf1Geo = new THREE.ConeGeometry(0.55, 0.85, 7);
-    const decoLeaf2Geo = new THREE.ConeGeometry(0.4, 0.7, 7);
-    const decoTrunkMat = new THREE.MeshStandardMaterial({ color: DIORAMA_PALETTE.woodDark, roughness: 0.9 });
-    const decoLeafMat = new THREE.MeshStandardMaterial({ color: DIORAMA_PALETTE.leaf, roughness: 0.85 });
-    const decoLeafLightMat = new THREE.MeshStandardMaterial({ color: DIORAMA_PALETTE.leafLight, roughness: 0.85 });
-
-    for (let i = -half - 1.2; i <= half + 1.2; i += 2.6) {
+    // Cây cối bản địa Việt Nam trang trí rìa ngoài (bụi tre, cây chuối, cây dừa, cây đa)
+    const treeKinds: VietnameseTreeKind[] = ['bamboo', 'banana', 'coconut', 'banyan'];
+    let tIdx = 0;
+    for (let i = -half - 1.2; i <= half + 1.2; i += 2.7) {
       const positions: Array<[number, number]> = [
         [i, -half - 1.25],
         [i, half + 1.25],
@@ -174,27 +174,21 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
         [half + 1.25, i],
       ];
       for (const [tx, tz] of positions) {
-        const treeGroup = new THREE.Group();
-        const tr = new THREE.Mesh(decoTrunkGeo, decoTrunkMat);
-        tr.position.y = 0.25;
-        const lf1 = new THREE.Mesh(decoLeaf1Geo, (Math.abs(Math.round(tx + tz)) % 2 === 0) ? decoLeafMat : decoLeafLightMat);
-        lf1.position.y = 0.8;
-        lf1.castShadow = true;
-        const lf2 = new THREE.Mesh(decoLeaf2Geo, decoLeafLightMat);
-        lf2.position.y = 1.25;
-        lf2.castShadow = true;
-        treeGroup.add(tr, lf1, lf2);
-        const s = 0.85 + (Math.abs(Math.sin(tx * 1.7 + tz * 2.3)) * 0.35);
+        const kind = treeKinds[tIdx++ % treeKinds.length];
+        const treeGroup = createVietnameseTree(kind);
+        const s = 0.85 + Math.abs(Math.sin(tx * 1.7 + tz * 2.3)) * 0.35;
         treeGroup.scale.set(s, s, s);
+        treeGroup.rotation.y = (tIdx * 1.1) % (Math.PI * 2);
         treeGroup.position.set(tx, 0, tz);
         scene.add(treeGroup);
       }
     }
 
-    // Mặt cỏ chính (plane raycast duy nhất)
+    // Mặt cỏ chi tiết kèm lối mòn đất nện (plane raycast duy nhất)
     const groundGeo = new THREE.PlaneGeometry(gridSize, gridSize);
     groundGeo.rotateX(-Math.PI / 2);
-    const groundMat = new THREE.MeshStandardMaterial({ color: DIORAMA_PALETTE.ground, roughness: 0.95 });
+    const groundTex = createDetailedGroundTexture(gridSize, layoutRef.current.buildings);
+    const groundMat = new THREE.MeshStandardMaterial({ map: groundTex, roughness: 0.94 });
     const groundPlane = new THREE.Mesh(groundGeo, groundMat);
     groundPlane.receiveShadow = true;
     scene.add(groundPlane);
@@ -252,7 +246,7 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
       const leafGeo = new THREE.ConeGeometry(0.42, 0.9, 6);
       const rockGeo = new THREE.DodecahedronGeometry(0.48, 0);
       const trunkMat = new THREE.MeshStandardMaterial({ color: DIORAMA_PALETTE.woodDark, roughness: 0.9 });
-      const leafMat = new THREE.MeshStandardMaterial({ color: DIORAMA_PALETTE.leaf, roughness: 0.85 });
+      const leafMat = new THREE.MeshStandardMaterial({ color: DIORAMA_PALETTE.leafMid, roughness: 0.85 });
       const rockMat = new THREE.MeshStandardMaterial({ color: DIORAMA_PALETTE.stone, roughness: 0.95 });
 
       for (const t of blockedTiles) {
@@ -303,24 +297,101 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
     selectionRing.visible = false;
     scene.add(selectionRing);
 
+    const npcsGroup = new THREE.Group();
+    scene.add(npcsGroup);
+
+    const animatedNpcs: Array<{
+      mesh: THREE.Group;
+      role: 'farmer' | 'smith' | 'guard';
+      baseX: number;
+      baseZ: number;
+      phase: number;
+    }> = [];
+
     const syncBuildings = () => {
       while (buildingsGroup.children.length > 0) {
         buildingsGroup.remove(buildingsGroup.children[0]);
       }
+      while (npcsGroup.children.length > 0) {
+        npcsGroup.remove(npcsGroup.children[0]);
+      }
+      animatedNpcs.length = 0;
 
       const currentLayout = layoutRef.current;
       const enemy = isEnemyRef.current;
       const selId = selectedBuildingIdRef.current;
 
+      // Cập nhật lối mòn đất nện trên texture mặt cỏ
+      const nextTex = createDetailedGroundTexture(gridSize, currentLayout.buildings);
+      if (groundMat.map && groundMat.map !== nextTex) {
+        groundMat.map.dispose();
+      }
+      groundMat.map = nextTex;
+      groundMat.needsUpdate = true;
+
+      // Xây map ô tường/cổng để tự động nối liền tường rào
+      const wallOccupied = new Set<string>();
+      for (const b of currentLayout.buildings) {
+        if (b.status === 'destroyed') continue;
+        if (b.type === 'wall' || b.type === 'gate') {
+          for (let c = b.col; c < b.col + b.spanCols; c++) {
+            for (let r = b.row; r < b.row + b.spanRows; r++) {
+              wallOccupied.add(`${c},${r}`);
+            }
+          }
+        }
+      }
+
       for (const b of currentLayout.buildings) {
         if (b.status === 'destroyed') continue;
 
+        let wallMask = 0;
+        if (b.type === 'wall') {
+          if (wallOccupied.has(`${b.col},${b.row - 1}`)) wallMask |= 1; // Bắc
+          if (wallOccupied.has(`${b.col},${b.row + 1}`)) wallMask |= 2; // Nam
+          if (wallOccupied.has(`${b.col + 1},${b.row}`)) wallMask |= 4; // Đông
+          if (wallOccupied.has(`${b.col - 1},${b.row}`)) wallMask |= 8; // Tây
+        }
+
         const isConstructing = b.status === 'building' || b.status === 'upgrading';
-        const group = createBuildingGroup(b.type, b.level, enemy, isConstructing);
+        const group = createBuildingGroup(b.type, b.level, enemy, isConstructing, wallMask);
         const cx = b.col + b.spanCols / 2 - half;
         const cz = b.row + b.spanRows / 2 - half;
         group.position.set(cx, 0, cz);
         buildingsGroup.add(group);
+
+        // Vật dụng trang trí & NPC hoạt động quanh công trình
+        if (!isConstructing) {
+          if (b.type === 'farm') {
+            const farmer = createNpcGroup('farmer');
+            farmer.position.set(cx + 0.8, 0.25, cz + 0.5);
+            npcsGroup.add(farmer);
+            animatedNpcs.push({ mesh: farmer, role: 'farmer', baseX: cx + 0.8, baseZ: cz + 0.5, phase: b.col });
+          } else if (b.type === 'forge') {
+            const smith = createNpcGroup('smith');
+            smith.position.set(cx + 0.25, 0.14, cz + 0.72);
+            npcsGroup.add(smith);
+            animatedNpcs.push({ mesh: smith, role: 'smith', baseX: cx + 0.25, baseZ: cz + 0.72, phase: b.row });
+            const woodpile = createDecorProp('woodpile');
+            woodpile.position.set(cx - 1.05, 0.14, cz + 0.9);
+            buildingsGroup.add(woodpile);
+          } else if (b.type === 'barracks') {
+            const rack = createDecorProp('drying_rack');
+            rack.position.set(cx - 1.0, 0.1, cz + 0.9);
+            buildingsGroup.add(rack);
+          } else if (b.type === 'main_hall') {
+            const guard = createNpcGroup('guard');
+            guard.position.set(cx, 0.02, cz + 2.75);
+            npcsGroup.add(guard);
+            animatedNpcs.push({ mesh: guard, role: 'guard', baseX: cx, baseZ: cz + 2.75, phase: 0 });
+            const jar = createDecorProp('rain_jar');
+            jar.position.set(cx + 2.0, 0.05, cz + 1.8);
+            buildingsGroup.add(jar);
+            const fence = createDecorProp('bamboo_fence');
+            fence.position.set(cx - 2.05, 0.05, cz + 2.1);
+            buildingsGroup.add(fence);
+          }
+        }
 
         // Thanh máu nếu bị tổn thương
         if (b.hp < b.maxHp) {
@@ -479,9 +550,22 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
     window.addEventListener('resize', handleResize);
 
     let rafId = 0;
-    const animate = () => {
+    const animate = (now: number) => {
       rafId = requestAnimationFrame(animate);
       controls.update();
+
+      const t = now * 0.002;
+      for (const npc of animatedNpcs) {
+        if (npc.role === 'guard') {
+          npc.mesh.position.x = npc.baseX + Math.sin(t * 0.7 + npc.phase) * 1.4;
+          npc.mesh.rotation.y = Math.cos(t * 0.7 + npc.phase) >= 0 ? Math.PI / 2 : -Math.PI / 2;
+        } else if (npc.role === 'smith') {
+          npc.mesh.rotation.x = Math.sin(t * 3.5 + npc.phase) * 0.25;
+        } else {
+          npc.mesh.position.x = npc.baseX + Math.sin(t * 0.4 + npc.phase) * 0.45;
+          npc.mesh.rotation.x = Math.abs(Math.sin(t * 1.8 + npc.phase)) * 0.22;
+        }
+      }
 
       const camDist = camera.position.distanceTo(controls.target);
       if (!zoomOutTriggered && camDist >= controls.maxDistance - 0.35 && onZoomOutRef.current) {
@@ -493,7 +577,7 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
 
       renderer.render(scene, camera);
     };
-    animate();
+    rafId = requestAnimationFrame(animate);
 
     return () => {
       cancelAnimationFrame(rafId);

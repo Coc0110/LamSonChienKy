@@ -18,10 +18,11 @@ export function createDefenseBattle(
   const waves = Math.min(10, Math.max(3, Math.floor(mingAttackTroops / 100)));
   const perWave = Math.max(15, Math.round(mingAttackTroops / waves));
 
+  const gs = playerLayout.gridSize || 32;
   for (let i = 0; i < waves; i++) {
     const edge = i % 4;
-    const x = edge === 0 ? 1 : edge === 1 ? 22.5 : 4 + ((i * 5) % 16);
-    const z = edge === 2 ? 1 : edge === 3 ? 22.5 : 4 + ((i * 5) % 16);
+    const x = edge === 0 ? 1 : edge === 1 ? gs - 1.5 : 4 + ((i * 5) % (gs - 8));
+    const z = edge === 2 ? 1 : edge === 3 ? gs - 1.5 : 4 + ((i * 5) % (gs - 8));
     const ut: UnitKind = i % 4 === 0 ? 'cavalry' : i % 3 === 0 ? 'archer' : 'swordsman';
     units.push({
       id: `ming_atk_${i}`,
