@@ -993,7 +993,7 @@ function getBuildingParts(
         }
       };
 
-      // === 1. LỚP MÓNG ĐẦU TIÊN LÁT ĐÁ (KHÔNG XUYÊN NHAU, MÀU SẮC RANDOM ĐA DẠNG) + NỀN ĐẤT TẦNG 2 ===
+      // === 1. LỚP MÓNG ĐẦU TIÊN LÁT ĐÁ KHÍT NHAU (CHỈ HỞ KẼ NHỎ TỰ NHIÊN, KHÔNG XUYÊN NHAU) + NỀN ĐẤT TẦNG 2 ===
       const stoneTones: MaterialKey[] = ['stone', 'stoneDark', 'stoneWarm', 'stonePale', 'stoneMoss'];
       const mixHash = (n: number): number => {
         let h = (Math.floor(n * 1000) ^ 0x9e3779b9) >>> 0;
@@ -1004,82 +1004,110 @@ function getBuildingParts(
       const pickStone = (seed: number): MaterialKey =>
         stoneTones[Math.floor(mixHash(seed) * stoneTones.length) % stoneTones.length];
 
-      // Lớp đất lót mỏng dưới chân móng đá (nằm ẩn trong khe đá)
-      const mortarBed = createOrganicEarthMound(4.62, 4.62, 0.08, 1.3);
+      // Lớp đất lót mỏng nằm dưới khe đá
+      const mortarBed = createOrganicEarthMound(4.68, 4.68, 0.08, 1.3);
       mortarBed.translate(0, 0.03, 0);
       push('earthDark', mortarBed);
 
-      const placedStones: Array<{ x: number; z: number; r: number }> = [];
-      const canPlaceStone = (x: number, z: number, r: number) =>
-        placedStones.every((p) => Math.hypot(x - p.x, z - p.z) >= p.r + r + 0.015);
+      // Xếp đá hộc viền móng nối tiếp nhau khít khao (tiến dọc theo từng cạnh, chỉ hở kẽ 1-2cm)
+      const layTightStoneEdge = (
+        fixedCoord: number,
+        start: number,
+        end: number,
+        isHoriz: boolean,
+        skipCenterGap: boolean,
+        seedBase: number
+      ) => {
+        let cursor = start;
+        let idx = 0;
+        while (cursor < end - 0.14) {
+          const seed = seedBase + idx * 13.7;
+          const len = Math.min(end - cursor, 0.24 + mixHash(seed + 1) * 0.14);
+          const center = cursor + len / 2;
+          const seam = 0.012 + mixHash(seed + 2) * 0.014; // Kẽ hở nhỏ 1.2 - 2.6cm
+          cursor += len + seam;
+          idx++;
 
-      // Viền đá hộc xếp quanh chu vi tầng 1 (kiểm tra va chạm để các tảng đá không xuyên qua nhau)
-      const placePerimeterStones = (x1: number, z1: number, x2: number, z2: number, count: number, seedBase: number) => {
-        for (let i = 0; i < count; i++) {
-          const t = i / (count - 1);
-          const sx = x1 + (x2 - x1) * t + (mixHash(seedBase + i * 3.1) - 0.5) * 0.04;
-          const sz = z1 + (z2 - z1) * t + (mixHash(seedBase + i * 5.7) - 0.5) * 0.04;
-          if (sz > 2.15 && Math.abs(sx) < 0.58) continue;
-          const rad = 0.11 + mixHash(seedBase + i * 7.3) * 0.055;
-          const boundR = rad * 1.18;
-          if (!canPlaceStone(sx, sz, boundR)) continue;
-          placedStones.push({ x: sx, z: sz, r: boundR });
-          const rock = createNaturalBoulder(rad, seedBase + i * 2.9);
-          rock.rotateY(mixHash(seedBase + i * 11.1) * Math.PI * 2);
-          rock.translate(sx, 0.11 + mixHash(seedBase + i * 4.3) * 0.02, sz);
-          push(pickStone(seedBase + i * 17.3 + 0.5), rock);
+          if (skipCenterGap && Math.abs(center) < 0.56) continue;
+
+          const thick = 0.24 + mixHash(seed + 3) * 0.06;
+          const h = 0.14 + mixHash(seed + 4) * 0.04;
+          const w = isHoriz ? len : thick;
+          const d = isHoriz ? thick : len;
+          const x = isHoriz ? center : fixedCoord + (mixHash(seed + 5) - 0.5) * 0.02;
+          const z = isHoriz ? fixedCoord + (mixHash(seed + 5) - 0.5) * 0.02 : center;
+
+          const stoneBlock = createNaturalFlagstone(w, h, d, seed);
+          stoneBlock.translate(x, 0.04, z);
+          push(pickStone(seed + 7.1), stoneBlock);
         }
       };
-      placePerimeterStones(-2.34, 2.34, 2.34, 2.34, 13, 11);   // Mặt trước
-      placePerimeterStones(-2.34, -2.34, 2.34, -2.34, 13, 53); // Mặt sau
-      placePerimeterStones(-2.34, -2.02, -2.34, 2.02, 11, 97); // Cạnh trái
-      placePerimeterStones(2.34, -2.02, 2.34, 2.02, 11, 149);  // Cạnh phải
 
-      // Lát mặt nền tầng 1 bằng các phiến đá nhỏ không đè lên nhau
-      for (let gx = -1.98; gx <= 1.98; gx += 0.42) {
-        for (let gz = -1.98; gz <= 1.98; gz += 0.42) {
-          const inOuterBand = Math.abs(gx) > 1.72 || Math.abs(gz) > 1.72;
-          if (!inOuterBand) continue;
-          const sSeed = gx * 31.7 + gz * 57.3;
-          const pw = 0.24 + mixHash(sSeed + 1) * 0.08;
-          const pd = 0.24 + mixHash(sSeed + 2) * 0.08;
-          const sx = gx + (mixHash(sSeed + 4) - 0.5) * 0.04;
-          const sz = gz + (mixHash(sSeed + 6) - 0.5) * 0.04;
-          const boundR = Math.max(pw, pd) * 0.52;
-          if (!canPlaceStone(sx, sz, boundR)) continue;
-          placedStones.push({ x: sx, z: sz, r: boundR });
-          const slab = createNaturalFlagstone(pw, 0.055, pd, sSeed);
-          slab.rotateY(mixHash(sSeed + 3) * Math.PI);
-          slab.translate(sx, 0.14 + mixHash(sSeed + 5) * 0.02, sz);
-          push(pickStone(sSeed + 7.9), slab);
+      layTightStoneEdge(2.32, -2.42, 2.42, true, true, 11);    // Viền trước (chừa lối tam cấp)
+      layTightStoneEdge(-2.32, -2.42, 2.42, true, false, 71);  // Viền sau
+      layTightStoneEdge(-2.32, -2.18, 2.18, false, false, 131);// Viền trái
+      layTightStoneEdge(2.32, -2.18, 2.18, false, false, 191); // Viền phải
+
+      // Lát kín vành nền tầng 1 bằng các hàng phiến đá xếp so le khít nhau (chỉ hở kẽ nhỏ)
+      let rowZ = -2.16;
+      let rIdx = 0;
+      while (rowZ < 2.12) {
+        const rowDepth = Math.min(2.16 - rowZ, 0.26 + mixHash(rIdx * 23.1) * 0.09);
+        const zCenter = rowZ + rowDepth / 2;
+        const rowSeam = 0.014 + mixHash(rIdx * 11.3) * 0.012;
+        let colX = -2.16;
+        let cIdx = 0;
+        while (colX < 2.12) {
+          const seed = rIdx * 197 + cIdx * 31.3;
+          const colW = Math.min(2.16 - colX, 0.28 + mixHash(seed + 1) * 0.14);
+          const xCenter = colX + colW / 2;
+          const colSeam = 0.014 + mixHash(seed + 2) * 0.012;
+          colX += colW + colSeam;
+          cIdx++;
+
+          // Chỉ lát vành ngoài tầng 1 (từ +-1.78 ra tới +-2.16)
+          if (Math.abs(xCenter) < 1.78 && Math.abs(zCenter) < 1.78) continue;
+
+          const slab = createNaturalFlagstone(
+            colW,
+            0.055 + mixHash(seed + 3) * 0.02,
+            rowDepth,
+            seed + 5
+          );
+          slab.translate(xCenter, 0.14, zCenter);
+          push(pickStone(seed + 9.7), slab);
         }
+        rowZ += rowDepth + rowSeam;
+        rIdx++;
       }
 
       // Nền đất nện tầng 2 ở bên trong
-      const moundTop = createOrganicEarthMound(3.98, 3.98, 0.16, 4.7);
+      const moundTop = createOrganicEarthMound(3.86, 3.86, 0.16, 4.7);
       moundTop.translate(0, 0.21, 0);
       push('earth', moundTop);
 
-      // Bậc tam cấp trước ghép từ nhiều phiến đá nhỏ (mỗi bậc 3 phiến tách rời nhẹ)
+      // Bậc tam cấp trước ghép từ các phiến đá khít nhau (mỗi bậc 3 phiến sát nhau, chỉ hở kẽ nhỏ)
       for (let st = 0; st < 3; st++) {
         const yStep = 0.06 + st * 0.11;
-        const zStep = 2.66 - st * 0.23;
-        for (const [subIdx, ox] of ([-0.34, 0, 0.34] as const).entries()) {
+        const zStep = 2.66 - st * 0.22;
+        let sx = -0.52;
+        for (let subIdx = 0; subIdx < 3; subIdx++) {
           const sSeed = st * 41 + subIdx * 17 + 3;
-          const stepSlab = createNaturalFlagstone(0.28 + mixHash(sSeed) * 0.04, 0.07, 0.21, sSeed);
-          stepSlab.rotateY((mixHash(sSeed + 1) - 0.5) * 0.14);
-          stepSlab.translate(ox + (mixHash(sSeed + 2) - 0.5) * 0.02, yStep, zStep);
+          const sw = subIdx === 2 ? 0.52 - sx : 0.31 + mixHash(sSeed) * 0.06;
+          const stepSlab = createNaturalFlagstone(sw, 0.075, 0.22, sSeed);
+          stepSlab.translate(sx + sw / 2, yStep, zStep);
           push(pickStone(sSeed + 5.3), stepSlab);
+          sx += sw + 0.016;
         }
       }
       // Lối lát đá nhỏ dẫn vào chân cầu thang
       for (const [idx, [px, pz, pw, pd, rot]] of ([
-        [-0.22, 2.12, 0.3, 0.22, 0.14],
-        [0.18, 2.08, 0.28, 0.2, -0.12],
-        [-0.04, 1.84, 0.34, 0.2, 0.08],
-        [-0.2, 1.6, 0.28, 0.18, -0.16],
-        [0.16, 1.56, 0.26, 0.18, 0.12],
-        [0.0, 1.38, 0.32, 0.17, -0.05],
+        [-0.2, 2.1, 0.34, 0.24, 0.08],
+        [0.18, 2.08, 0.32, 0.22, -0.07],
+        [-0.02, 1.84, 0.38, 0.22, 0.05],
+        [-0.18, 1.6, 0.32, 0.2, -0.09],
+        [0.16, 1.58, 0.3, 0.2, 0.08],
+        [0.0, 1.38, 0.36, 0.19, -0.04],
       ] as const).entries()) {
         const slab = createNaturalFlagstone(pw, 0.045, pd, idx * 6.3 + 2.1);
         slab.rotateY(rot);
