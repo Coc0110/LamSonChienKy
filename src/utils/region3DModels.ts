@@ -159,9 +159,11 @@ function getSharedMaterial(key: MaterialKey, transparent = false, opacity = 1): 
         roughness: 0.86,
       });
       break;
-    case 'bamboo':
-      mat = new THREE.MeshStandardMaterial({ color: DIORAMA_PALETTE.bamboo, roughness: 0.72 });
+    case 'bamboo': {
+      const tex = getWoodGrainTexture('#789440', '#4f6926');
+      mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.68 });
       break;
+    }
     case 'bambooDry':
       mat = new THREE.MeshStandardMaterial({ color: DIORAMA_PALETTE.bambooDry, roughness: 0.85 });
       break;
@@ -557,6 +559,54 @@ function createOrganicEarthMound(width: number, depth: number, height: number, s
   return g;
 }
 
+/**
+ * Thân tre đúc liền khối bằng LatheGeometry (thon dần lên ngọn, có gờ đốt tre tự nhiên, không vòng vàng rời)
+ */
+function createBambooCulmLathe(radius: number, height: number, nodes: number): THREE.BufferGeometry {
+  const pts: THREE.Vector2[] = [];
+  const steps = Math.max(8, (nodes + 1) * 5);
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const y = t * height;
+    const taper = 1 - t * 0.18;
+    // Tính khoảng cách tới đốt tre gần nhất để tạo gờ đốt tự nhiên
+    let nodeBump = 0;
+    for (let n = 1; n <= nodes; n++) {
+      const nt = n / (nodes + 1);
+      const d = Math.abs(t - nt);
+      if (d < 0.035) {
+        nodeBump = Math.max(nodeBump, (1 - d / 0.035) * radius * 0.16);
+      }
+    }
+    pts.push(new THREE.Vector2(Math.max(0.005, radius * taper + nodeBump), y));
+  }
+  return new THREE.LatheGeometry(pts, 9);
+}
+
+/**
+ * Cụm lá tre gồm nhiều phiến lá thon dài nhọn đầu rủ tự nhiên
+ */
+function createBambooLeafSprayGeo(): THREE.BufferGeometry {
+  const blades: THREE.BufferGeometry[] = [];
+  const count = 6;
+  for (let i = 0; i < count; i++) {
+    const shape = new THREE.Shape();
+    shape.moveTo(0, 0);
+    shape.quadraticCurveTo(0.035, 0.14, 0.012, 0.34);
+    shape.lineTo(0, 0.42);
+    shape.lineTo(-0.012, 0.34);
+    shape.quadraticCurveTo(-0.035, 0.14, 0, 0);
+
+    const blade = new THREE.ShapeGeometry(shape, 4);
+    const angleY = (i / count) * Math.PI * 2 + (i % 2) * 0.25;
+    const droop = 0.72 + (i % 3) * 0.16;
+    blade.rotateX(droop);
+    blade.rotateY(angleY);
+    blades.push(blade);
+  }
+  return safeMerge(blades);
+}
+
 function hash01(seed: number): number {
   const x = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
   return x - Math.floor(x);
@@ -700,16 +750,11 @@ function getBuildingParts(
         bz: number,
         withTip = false
       ) => {
-        push('bamboo', cyl(r * 0.9, r, h, 7, bx, byBase + h / 2, bz));
-        for (let n = 1; n <= nodes; n++) {
-          const ny = byBase + (h * n) / (nodes + 1);
-          const ring = torus(r * 1.16, r * 0.28, 5, 8);
-          ring.rotateX(Math.PI / 2);
-          ring.translate(bx, ny, bz);
-          push('bambooDry', ring);
-        }
+        const culm = createBambooCulmLathe(r, h, nodes);
+        culm.translate(bx, byBase, bz);
+        push('bamboo', culm);
         if (withTip) {
-          push('bamboo', cone(r * 0.95, 0.11, 6, bx, byBase + h + 0.055, bz));
+          push('bamboo', cone(r * 0.82, 0.11, 6, bx, byBase + h + 0.05, bz));
         }
       };
 
@@ -1412,33 +1457,90 @@ const treeLeafMatBright = new THREE.MeshStandardMaterial({ color: DIORAMA_PALETT
 const bambooStalkMat = new THREE.MeshStandardMaterial({ color: DIORAMA_PALETTE.bamboo, roughness: 0.72 });
 const woodBarkMat = new THREE.MeshStandardMaterial({ color: DIORAMA_PALETTE.woodDark, roughness: 0.92 });
 
+const bambooLeafDoubleMatMid = new THREE.MeshStandardMaterial({
+  color: DIORAMA_PALETTE.leafMid,
+  roughness: 0.78,
+  side: THREE.DoubleSide,
+});
+const bambooLeafDoubleMatBright = new THREE.MeshStandardMaterial({
+  color: DIORAMA_PALETTE.leafBright,
+  roughness: 0.76,
+  side: THREE.DoubleSide,
+});
+const bambooCulmTexMat = new THREE.MeshStandardMaterial({
+  map: getWoodGrainTexture('#74913c', '#4c6623'),
+  roughness: 0.68,
+});
+
+let cachedBambooLeafSprayGeo: THREE.BufferGeometry | null = null;
+
 export function createVietnameseTree(kind: VietnameseTreeKind): THREE.Group {
   const group = new THREE.Group();
 
   if (kind === 'bamboo') {
-    // Bụi tre gồm nhiều thân tre cao mảnh & tán lá tre xum xuê
-    const offsets = [
-      [0, 0, 1.9, 0.08],
-      [-0.22, 0.14, 1.65, -0.1],
-      [0.24, -0.1, 1.75, 0.12],
-      [-0.12, -0.24, 1.5, -0.07],
-      [0.14, 0.22, 1.6, 0.09],
+    // Bụi tre Việt Nam tự nhiên: 9 thân tre cong tỏa ra từ gốc + cành nhánh + tán lá tre thon nhọn
+    if (!cachedBambooLeafSprayGeo) {
+      cachedBambooLeafSprayGeo = createBambooLeafSprayGeo();
+    }
+    const culms = [
+      [0.0, 0.0, 2.25, 0.04, 0.02],
+      [-0.14, 0.1, 2.05, -0.18, 0.12],
+      [0.16, -0.08, 2.1, 0.2, -0.14],
+      [-0.08, -0.16, 1.85, -0.12, -0.22],
+      [0.12, 0.16, 1.92, 0.16, 0.2],
+      [-0.22, -0.02, 1.65, -0.28, -0.05],
+      [0.22, 0.05, 1.72, 0.26, 0.08],
+      [0.02, -0.22, 1.55, 0.04, -0.26],
+      [-0.04, 0.22, 1.6, -0.06, 0.26],
     ];
-    for (const [ox, oz, h, tilt] of offsets) {
-      const stalk = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.048, h, 6), bambooStalkMat);
-      stalk.position.set(ox, h / 2, oz);
-      stalk.rotation.z = tilt;
-      stalk.castShadow = true;
-      group.add(stalk);
 
-      const crown = new THREE.Mesh(
-        new THREE.DodecahedronGeometry(0.32, 0),
-        tilt > 0 ? treeLeafMatBright : treeLeafMatMid
-      );
-      crown.scale.set(1.2, 0.65, 1.2);
-      crown.position.set(ox - tilt * 0.8, h * 0.95, oz);
-      crown.castShadow = true;
-      group.add(crown);
+    for (let idx = 0; idx < culms.length; idx++) {
+      const [ox, oz, h, bendX, bendZ] = culms[idx];
+      const stalkGeo = createBambooCulmLathe(0.038, h, 5);
+      // Uốn cong thân tre mượt mà theo chiều cao
+      const pos = stalkGeo.getAttribute('position');
+      for (let i = 0; i < pos.count; i++) {
+        const y = pos.getY(i);
+        const t = y / h;
+        const curve = t * t;
+        pos.setX(i, pos.getX(i) + bendX * curve);
+        pos.setZ(i, pos.getZ(i) + bendZ * curve);
+      }
+      stalkGeo.computeVertexNormals();
+
+      const stalkMesh = new THREE.Mesh(stalkGeo, bambooCulmTexMat);
+      stalkMesh.position.set(ox, 0, oz);
+      stalkMesh.castShadow = true;
+      group.add(stalkMesh);
+
+      // Cành nhánh & chùm lá tre thon nhọn ở nửa trên thân cây
+      for (let b = 0; b < 3; b++) {
+        const bt = 0.58 + b * 0.19;
+        const by = h * bt;
+        const bx = ox + bendX * bt * bt;
+        const bz = oz + bendZ * bt * bt;
+        const bAngle = idx * 1.9 + b * 2.2;
+        const dx = Math.cos(bAngle) * 0.24;
+        const dz = Math.sin(bAngle) * 0.24;
+
+        const twig = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.008, 0.013, 0.3, 5),
+          bambooCulmTexMat
+        );
+        twig.position.set(bx + dx * 0.5, by + 0.08, bz + dz * 0.5);
+        twig.rotation.z = -Math.cos(bAngle) * 0.65;
+        twig.rotation.x = Math.sin(bAngle) * 0.65;
+        group.add(twig);
+
+        const spray = new THREE.Mesh(
+          cachedBambooLeafSprayGeo,
+          (idx + b) % 2 === 0 ? bambooLeafDoubleMatBright : bambooLeafDoubleMatMid
+        );
+        spray.position.set(bx + dx, by + 0.16, bz + dz);
+        spray.rotation.y = bAngle;
+        spray.castShadow = true;
+        group.add(spray);
+      }
     }
   } else if (kind === 'banana') {
     // Cây chuối: thân bẹ xanh + 5 tàu lá chuối bản rộng tỏa ra
