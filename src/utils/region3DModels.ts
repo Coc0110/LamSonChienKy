@@ -41,6 +41,7 @@ export const DIORAMA_PALETTE = {
 type MaterialKey =
   | 'stone'
   | 'stoneDark'
+  | 'stoneWarm'
   | 'earth'
   | 'earthDark'
   | 'wood'
@@ -198,6 +199,12 @@ function getSharedMaterial(key: MaterialKey, transparent = false, opacity = 1): 
       mat = new THREE.MeshStandardMaterial({
         map: getStoneTexture('#646870', '#45484f'),
         roughness: 0.93,
+      });
+      break;
+    case 'stoneWarm':
+      mat = new THREE.MeshStandardMaterial({
+        map: getStoneTexture('#7d776d', '#575249'),
+        roughness: 0.91,
       });
       break;
     case 'earth':
@@ -635,6 +642,18 @@ function createOrganicEarthMound(width: number, depth: number, height: number, s
 export function createNaturalBoulder(radius: number, seed: number): THREE.BufferGeometry {
   const g = new THREE.IcosahedronGeometry(radius, 2);
   const pos = g.getAttribute('position');
+
+  // 3 mặt cắt phong hóa bất đối xứng giúp đá có mặt phẳng gãy tự nhiên xen lẫn cạnh tròn
+  const planes = [
+    new THREE.Vector3(Math.sin(seed * 1.3), 0.7, Math.cos(seed * 1.3)).normalize(),
+    new THREE.Vector3(Math.cos(seed * 2.1), -0.35, Math.sin(seed * 2.1)).normalize(),
+    new THREE.Vector3(-Math.sin(seed * 3.4), 0.25, Math.cos(seed * 1.9)).normalize(),
+  ];
+
+  const sx = 0.85 + Math.abs(Math.sin(seed * 1.7)) * 0.45;
+  const sy = 0.58 + Math.abs(Math.cos(seed * 2.3)) * 0.35;
+  const sz = 0.85 + Math.abs(Math.sin(seed * 2.9)) * 0.45;
+
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i);
     const y = pos.getY(i);
@@ -644,17 +663,21 @@ export function createNaturalBoulder(radius: number, seed: number): THREE.Buffer
     const ny = y / len;
     const nz = z / len;
 
-    const n1 = Math.sin(nx * 3.1 + seed) * Math.cos(ny * 2.7 - seed * 0.7) * Math.sin(nz * 2.9 + seed * 1.3);
-    const n2 = Math.sin(nx * 5.7 - seed * 1.1) * Math.cos(nz * 5.3 + seed * 0.5) * 0.35;
-    const disp = 1 + (n1 * 0.22 + n2 * 0.12);
+    let disp = 1 + Math.sin(nx * 3.7 + seed) * Math.cos(nz * 3.3 - seed) * 0.14;
+    for (let p = 0; p < planes.length; p++) {
+      const dot = nx * planes[p].x + ny * planes[p].y + nz * planes[p].z;
+      const limit = 0.62 + (p * 0.08);
+      if (dot > limit) {
+        disp -= (dot - limit) * 0.42;
+      }
+    }
 
-    let fx = x * disp;
-    let fy = y * disp * 0.78;
-    let fz = z * disp;
+    let fx = x * disp * sx;
+    let fy = y * disp * sy;
+    let fz = z * disp * sz;
 
-    // Làm phẳng nhẹ mặt đáy để tảng đá cắm tự nhiên vào đất
-    if (fy < -radius * 0.28) {
-      fy = -radius * 0.28 + (fy + radius * 0.28) * 0.25;
+    if (fy < -radius * 0.24) {
+      fy = -radius * 0.24 + (fy + radius * 0.24) * 0.2;
     }
 
     pos.setXYZ(i, fx, fy, fz);
@@ -956,45 +979,85 @@ function getBuildingParts(
         }
       };
 
-      // === 1. NỀN ĐẤT TỰ NHIÊN 2 TẦNG (KHÔNG THẲNG TẮP / BO TRÒN) + ĐÁ HỘC + TAM CẤP ĐÁ ===
-      const moundBase = createOrganicEarthMound(4.82, 4.82, 0.16, 1.3);
-      moundBase.translate(0, 0.06, 0);
-      push('earthDark', moundBase);
+      // === 1. LỚP MÓNG ĐẦU TIÊN LÁT ĐÁ (RÁP TỪ NHIỀU CỤC ĐÁ & PHIẾN ĐÁ NHỎ) + NỀN ĐẤT TẦNG 2 ===
+      const stoneTones: MaterialKey[] = ['stone', 'stoneDark', 'stoneWarm'];
+      const pickStone = (seed: number): MaterialKey =>
+        stoneTones[Math.floor(hash01(seed) * stoneTones.length) % stoneTones.length];
 
-      const moundTop = createOrganicEarthMound(4.46, 4.46, 0.15, 4.7);
-      moundTop.translate(0, 0.24, 0);
+      // Lớp đất lót mỏng dưới chân móng đá (nằm ẩn trong khe đá)
+      const mortarBed = createOrganicEarthMound(4.65, 4.65, 0.08, 1.3);
+      mortarBed.translate(0, 0.03, 0);
+      push('earthDark', mortarBed);
+
+      // Viền đá hộc xếp quanh chu vi tầng 1 (ráp từ hàng chục cục đá nhỏ tự nhiên, chừa lối tam cấp trước)
+      const placePerimeterStones = (x1: number, z1: number, x2: number, z2: number, count: number, seedBase: number) => {
+        for (let i = 0; i < count; i++) {
+          const t = i / (count - 1);
+          const sx = x1 + (x2 - x1) * t + (hash01(seedBase + i * 3.1) - 0.5) * 0.08;
+          const sz = z1 + (z2 - z1) * t + (hash01(seedBase + i * 5.7) - 0.5) * 0.08;
+          if (sz > 2.15 && Math.abs(sx) < 0.55) continue; // Chừa lối bậc tam cấp
+          const rad = 0.14 + hash01(seedBase + i * 7.3) * 0.09;
+          const rock = createNaturalBoulder(rad, seedBase + i * 2.9);
+          rock.rotateY(hash01(seedBase + i * 11.1) * Math.PI * 2);
+          rock.translate(sx, 0.11 + hash01(seedBase + i * 4.3) * 0.03, sz);
+          push(pickStone(seedBase + i * 13.7), rock);
+        }
+      };
+      placePerimeterStones(-2.36, 2.36, 2.36, 2.36, 18, 11);   // Mặt trước
+      placePerimeterStones(-2.36, -2.36, 2.36, -2.36, 18, 53); // Mặt sau
+      placePerimeterStones(-2.36, -2.1, -2.36, 2.1, 15, 97);   // Cạnh trái
+      placePerimeterStones(2.36, -2.1, 2.36, 2.1, 15, 149);    // Cạnh phải
+
+      // Lát mặt nền tầng 1 bằng các phiến đá nhỏ xen kẽ quanh viền ngoài tầng 2
+      for (let gx = -2.15; gx <= 2.15; gx += 0.38) {
+        for (let gz = -2.15; gz <= 2.15; gz += 0.38) {
+          // Chỉ lát phần vành ngoài (từ 1.85..2.35) và lối đi trước
+          const inOuterBand = Math.abs(gx) > 1.78 || Math.abs(gz) > 1.78;
+          if (!inOuterBand) continue;
+          const sSeed = gx * 31.7 + gz * 57.3;
+          const pw = 0.28 + hash01(sSeed + 1) * 0.11;
+          const pd = 0.26 + hash01(sSeed + 2) * 0.11;
+          const slab = createNaturalFlagstone(pw, 0.06, pd, sSeed);
+          slab.rotateY(hash01(sSeed + 3) * Math.PI);
+          slab.translate(
+            gx + (hash01(sSeed + 4) - 0.5) * 0.07,
+            0.14 + hash01(sSeed + 5) * 0.025,
+            gz + (hash01(sSeed + 6) - 0.5) * 0.07
+          );
+          push(pickStone(sSeed + 7), slab);
+        }
+      }
+
+      // Nền đất nện tầng 2 ở bên trong
+      const moundTop = createOrganicEarthMound(4.15, 4.15, 0.16, 4.7);
+      moundTop.translate(0, 0.21, 0);
       push('earth', moundTop);
 
-      for (const [idx, [sx, sz]] of ([[-2.35, -2.35], [2.35, -2.35], [-2.35, 2.35], [2.35, 2.35]] as const).entries()) {
-        const rock = createNaturalBoulder(0.32, idx * 3.7 + 1.2);
-        rock.scale(1.15, 0.9, 1.05);
-        rock.rotateY(sx * 0.7 + sz);
-        rock.translate(sx, 0.2, sz);
-        push('stoneDark', rock);
-        const subRock = createNaturalBoulder(0.18, idx * 5.1 + 2.4);
-        subRock.translate(sx * 0.88, 0.16, sz * 1.04);
-        push('stone', subRock);
-        const pebble = createNaturalBoulder(0.11, idx * 7.3 + 0.9);
-        pebble.translate(sx * 1.05, 0.12, sz * 0.86);
-        push('stone', pebble);
-      }
-
+      // Bậc tam cấp trước ghép từ nhiều phiến đá nhỏ (mỗi bậc 3 phiến đá)
       for (let st = 0; st < 3; st++) {
-        const stepSlab = createNaturalFlagstone(1.1 - st * 0.06, 0.08, 0.3, st * 4.1 + 1.5);
-        stepSlab.translate(0, 0.04 + st * 0.11, 2.66 - st * 0.2);
-        push('stone', stepSlab);
+        const yStep = 0.06 + st * 0.11;
+        const zStep = 2.66 - st * 0.22;
+        for (const [subIdx, ox] of ([-0.32, 0, 0.32] as const).entries()) {
+          const sSeed = st * 41 + subIdx * 17;
+          const stepSlab = createNaturalFlagstone(0.32 + hash01(sSeed) * 0.06, 0.075, 0.26, sSeed);
+          stepSlab.rotateY((hash01(sSeed + 1) - 0.5) * 0.18);
+          stepSlab.translate(ox + (hash01(sSeed + 2) - 0.5) * 0.03, yStep, zStep);
+          push(pickStone(sSeed + 3), stepSlab);
+        }
       }
+      // Lối lát đá nhỏ dẫn vào chân cầu thang
       for (const [idx, [px, pz, pw, pd, rot]] of ([
-        [-0.18, 2.08, 0.38, 0.26, 0.12],
-        [0.2, 2.02, 0.34, 0.24, -0.1],
-        [0.02, 1.78, 0.44, 0.24, 0.07],
-        [-0.15, 1.54, 0.36, 0.22, -0.14],
-        [0.18, 1.5, 0.32, 0.22, 0.11],
+        [-0.22, 2.12, 0.32, 0.24, 0.14],
+        [0.18, 2.08, 0.3, 0.22, -0.12],
+        [-0.04, 1.84, 0.36, 0.22, 0.08],
+        [-0.2, 1.6, 0.3, 0.2, -0.16],
+        [0.16, 1.56, 0.28, 0.2, 0.12],
+        [0.0, 1.38, 0.34, 0.18, -0.05],
       ] as const).entries()) {
         const slab = createNaturalFlagstone(pw, 0.045, pd, idx * 6.3 + 2.1);
         slab.rotateY(rot);
-        slab.translate(px, 0.38, pz);
-        push('stone', slab);
+        slab.translate(px, 0.36, pz);
+        push(pickStone(idx * 9.1 + 4), slab);
       }
 
       // === 2. HÀNG RÀO TRE CÓ ĐỐT TRE RÕ RỆT + DÂY MÂY + ĐUỐC LỬA ===
