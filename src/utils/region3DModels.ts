@@ -134,13 +134,12 @@ function getBambooCulmTexture(): THREE.CanvasTexture {
       ctx.fillRect(x, 0, 1.5, 256);
     }
 
-    // Các vệt mắt tre tự nhiên (vòng tối nhẹ + viền sáng mảnh, lặp theo đốt)
-    for (const ny of [42, 85, 128, 171, 214]) {
-      ctx.fillStyle = 'rgba(42, 58, 18, 0.55)';
-      ctx.fillRect(0, ny - 3, 128, 6);
-      ctx.fillStyle = 'rgba(182, 206, 120, 0.45)';
-      ctx.fillRect(0, ny + 2, 128, 2);
-    }
+    // Một vệt mắt tre duy nhất ở biên v = 0 / 1 (khi lặp UV theo số đốt sẽ khớp 100% vị trí gờ nhô)
+    ctx.fillStyle = 'rgba(40, 56, 16, 0.58)';
+    ctx.fillRect(0, 0, 128, 12);
+    ctx.fillRect(0, 244, 128, 12);
+    ctx.fillStyle = 'rgba(182, 206, 120, 0.45)';
+    ctx.fillRect(0, 12, 128, 4);
   }
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
@@ -606,18 +605,26 @@ function createBambooCulmLathe(radius: number, height: number, nodes: number): T
     for (let n = 1; n <= nodes; n++) {
       const nt = n / (nodes + 1);
       const d = t - nt;
-      if (Math.abs(d) < 0.04) {
-        // Rãnh thắt nhẹ ngay dưới mắt + gờ mắt tre nổi rõ
+      if (Math.abs(d) < 0.032) {
         if (d < 0) {
-          nodeOffset = -radius * 0.08 * (1 + d / 0.04);
+          nodeOffset = -radius * 0.07 * (1 + d / 0.032);
         } else {
-          nodeOffset = radius * 0.28 * (1 - d / 0.04);
+          nodeOffset = radius * 0.28 * (1 - d / 0.032);
         }
       }
     }
     pts.push(new THREE.Vector2(Math.max(0.006, radius * taper + nodeOffset), y));
   }
-  return new THREE.LatheGeometry(pts, 10);
+  const geo = new THREE.LatheGeometry(pts, 10);
+  // Đồng bộ UV.y theo (nodes + 1) để vệt mắt tre trên texture khớp 100% vào vị trí gờ nhô
+  const pos = geo.getAttribute('position');
+  const uv = geo.getAttribute('uv');
+  for (let i = 0; i < pos.count; i++) {
+    const t = Math.min(1, Math.max(0, pos.getY(i) / Math.max(0.001, height)));
+    uv.setY(i, t * (nodes + 1));
+  }
+  uv.needsUpdate = true;
+  return geo;
 }
 
 /**
@@ -890,7 +897,8 @@ function getBuildingParts(
           const t = count === 1 ? 0.5 : i / (count - 1);
           const bx = x1 + (x2 - x1) * t;
           const bz = z1 + (z2 - z1) * t;
-          const h = 0.46 + (i % 3) * 0.035;
+          const rnd = hash01(i * 19.7 + x1 * 3.1 + z1 * 5.7);
+          const h = 0.45 + (rnd - 0.5) * 0.065; // Chiều dài random nhưng săm sắp nhau
           addBambooPole(0.033, h, 2, bx, 0.38, bz, true);
         }
         const len = Math.hypot(x2 - x1, z2 - z1);
