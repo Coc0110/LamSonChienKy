@@ -218,13 +218,14 @@ export function preloadSoldierBaseModel(): Promise<boolean> {
           geo,
           0.014,
           (x, y) =>
-            (y >= 0.76 && y <= 1.26 && Math.abs(x) < 0.22) ||
-            (Math.abs(x) >= 0.16 && Math.abs(x) <= 0.56 && y >= 0.92 && y <= 1.34)
+            (y >= 0.76 && y <= 1.22 && Math.abs(x) < 0.22) ||
+            (Math.abs(x) >= 0.16 && Math.abs(x) <= 0.55 && y >= 0.94 && y <= 1.28)
         );
+        // Quần vải phủ kín từ hông xuống tới bàn chân (để không hở da chân dưới giày giáp)
         cachedPantsShellGeo = buildBodyShellGeo(
           geo,
           0.015,
-          (_x, y) => y >= 0.1 && y <= 0.78
+          (_x, y) => y >= 0.0 && y <= 0.78
         );
 
         // Tải thêm model giáp trụ /models/soldier_armor.glb và skin lên cùng 12 xương
@@ -267,20 +268,50 @@ export function preloadSoldierBaseModel(): Promise<boolean> {
 
               // Phóng kích thước từng nhóm giáp để bọc BÊN NGOÀI thân người stickman (tránh chìm vào trong)
               if (isHelmet) {
-                g.scale(1.32, 0.92, 1.35);
-                g.translate(0, -0.07, 0.01);
+                g.scale(1.4, 1.15, 1.4);
+                g.translate(0, -0.39, -0.01);
               } else if (isTorsoArmor) {
                 g.scale(1.44, 0.88, 1.48);
                 g.translate(0, -0.01, -0.005);
               } else if (isWaistSkirt) {
                 g.scale(1.34, 0.88, 1.4);
               } else if (isLegBoot) {
-                g.scale(1.16, 0.92, 1.26);
+                g.scale(1.18, 0.92, 1.32);
                 if (partName === 'leg_low') {
-                  g.translate(0, 0, 0.055);
+                  g.translate(0, 0, 0.075);
+                } else {
+                  // Kéo giày sát vào trục chân x = ±0.11 và căn giữa z
+                  const sPos = g.getAttribute('position');
+                  for (let i = 0; i < sPos.count; i++) {
+                    const sx = sPos.getX(i);
+                    const sz = sPos.getZ(i);
+                    sPos.setX(i, sx + (sx < 0 ? 0.035 : -0.035));
+                    sPos.setZ(i, sz - 0.025);
+                  }
+                  sPos.needsUpdate = true;
                 }
               } else if (isArmPart) {
-                g.scale(0.95, 1.12, 1.25);
+                // Xoay tay giáp từ A-pose lên T-pose TRƯỚC khi scale để trục giáp trùng khít trục cẳng tay
+                const rotAngle = 0.72;
+                const cosA = Math.cos(rotAngle);
+                const sinA = Math.sin(rotAngle);
+                const aPos = g.getAttribute('position');
+                for (let i = 0; i < aPos.count; i++) {
+                  const vx = aPos.getX(i);
+                  const vy = aPos.getY(i);
+                  const vz = aPos.getZ(i);
+                  const isLeft = vx < 0;
+                  const pivX = isLeft ? -0.24 : 0.24;
+                  const pivY = 1.17;
+                  const dx = vx - pivX;
+                  const dy = vy - pivY;
+                  const rx = isLeft ? dx * cosA + dy * sinA : dx * cosA - dy * sinA;
+                  const ry = isLeft ? -dx * sinA + dy * cosA : dx * sinA + dy * cosA;
+                  // Căn về cẳng tay |x| ∈ [0.38, 0.60], tâm y = 1.19, phồng nhẹ theo Y/Z
+                  aPos.setXYZ(i, (isLeft ? -0.22 : 0.22) + rx * 0.95, 1.19 + ry * 1.22, vz * 1.22);
+                }
+                aPos.needsUpdate = true;
+                g.computeVertexNormals();
               } else {
                 g.scale(1.25, 0.9, 1.25);
               }
@@ -297,27 +328,6 @@ export function preloadSoldierBaseModel(): Promise<boolean> {
                 sWgt[idx * 4] = w0 / sum;
                 sWgt[idx * 4 + 1] = w1 / sum;
               };
-
-              if (isArmPart) {
-                // Xoay tay giáp từ A-pose lên T-pose để trùng khớp xương cánh tay
-                const rotAngle = 0.72;
-                const cosA = Math.cos(rotAngle);
-                const sinA = Math.sin(rotAngle);
-                for (let i = 0; i < vCount; i++) {
-                  const vx = pPos.getX(i);
-                  const vy = pPos.getY(i);
-                  const isLeft = vx < 0;
-                  const pivX = isLeft ? -0.2 : 0.2;
-                  const pivY = 1.15;
-                  const dx = vx - pivX;
-                  const dy = vy - pivY;
-                  const rx = isLeft ? dx * cosA + dy * sinA : dx * cosA - dy * sinA;
-                  const ry = isLeft ? -dx * sinA + dy * cosA : dx * sinA + dy * cosA;
-                  pPos.setXY(i, pivX + rx + (isLeft ? -0.06 : 0.06), 1.19 + ry);
-                }
-                pPos.needsUpdate = true;
-                g.computeVertexNormals();
-              }
 
               for (let i = 0; i < vCount; i++) {
                 const vx = pPos.getX(i);
