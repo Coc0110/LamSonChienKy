@@ -624,11 +624,11 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
           if (ds > 0.0001) {
             npc.mesh.rotation.y = dir >= 0 ? Math.PI / 2 : -Math.PI / 2;
           }
-          // Đồng bộ nhịp bước chân chính xác theo quãng đường di chuyển ds (không bị lướt)
+          // Đồng bộ 1:1 tốc độ bàn chân chạm đất với quãng đường di chuyển ds (không lướt)
           const walkPhase = (npc.mesh.userData.walkPhase as number | undefined) ?? 0;
-          const nextPhase = walkPhase + ds * (Math.PI / (0.88 * npc.mesh.scale.x));
+          const nextPhase = walkPhase + ds / (0.4836 * Math.max(0.3, npc.mesh.scale.x));
           npc.mesh.userData.walkPhase = nextPhase;
-          animateSoldierWalk(npc.mesh, nextPhase, ds > 0.0002);
+          animateSoldierWalk(npc.mesh, nextPhase, ds > 0.0001);
         } else if (npc.role === 'smith') {
           npc.mesh.rotation.x = Math.sin(t * 3.5 + npc.phase) * 0.25;
         } else {
@@ -646,8 +646,8 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
         vis.group.position.z = nextZ;
         const ds = Math.hypot(nextX - prevX, nextZ - prevZ);
         const moving = vis.isMoving || ds > 0.002;
-        if (ds > 0.0002) {
-          vis.phase += ds * (Math.PI / (0.88 * Math.max(0.3, vis.group.scale.x)));
+        if (ds > 0.0001) {
+          vis.phase += ds / (0.4836 * Math.max(0.3, vis.group.scale.x));
         }
         animateSoldierWalk(vis.group, vis.phase, moving);
       }

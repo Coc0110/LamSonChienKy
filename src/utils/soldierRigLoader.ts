@@ -218,8 +218,8 @@ export function preloadSoldierBaseModel(): Promise<boolean> {
           geo,
           0.014,
           (x, y) =>
-            (y >= 0.76 && y <= 1.22 && Math.abs(x) < 0.22) ||
-            (Math.abs(x) >= 0.16 && Math.abs(x) <= 0.55 && y >= 0.94 && y <= 1.28)
+            (y >= 0.76 && y <= 1.08 && Math.abs(x) < 0.22) ||
+            (Math.abs(x) >= 0.17 && Math.abs(x) <= 0.55 && y >= 0.94 && y <= 1.28)
         );
         // Quần vải phủ kín từ hông xuống tới bàn chân (để không hở da chân dưới giày giáp)
         cachedPantsShellGeo = buildBodyShellGeo(
@@ -271,12 +271,35 @@ export function preloadSoldierBaseModel(): Promise<boolean> {
                 g.scale(1.56, 1.24, 1.56);
                 g.translate(0, -0.52, -0.01);
               } else if (isTorsoArmor) {
-                g.scale(1.32, 0.88, 1.46);
-                g.translate(0, -0.01, -0.005);
+                if (partName === 'Shoulder3_low') {
+                  // Xoay giáp vai lên tư thế ngang T-pose trước khi scale để không đâm vào cánh tay khi hạ tay
+                  const sPos = g.getAttribute('position');
+                  const rotS = 0.52;
+                  const cosS = Math.cos(rotS);
+                  const sinS = Math.sin(rotS);
+                  for (let i = 0; i < sPos.count; i++) {
+                    const sx = sPos.getX(i);
+                    const sy = sPos.getY(i);
+                    const sz = sPos.getZ(i);
+                    const isLeft = sx < 0;
+                    const pivX = isLeft ? -0.18 : 0.18;
+                    const pivY = 1.38;
+                    const dx = sx - pivX;
+                    const dy = sy - pivY;
+                    const rx = isLeft ? dx * cosS + dy * sinS : dx * cosS - dy * sinS;
+                    const ry = isLeft ? -dx * sinS + dy * cosS : dx * sinS + dy * cosS;
+                    sPos.setXYZ(i, (isLeft ? -0.22 : 0.22) + rx * 1.15, 1.24 + ry * 1.1, sz * 1.45);
+                  }
+                  sPos.needsUpdate = true;
+                  g.computeVertexNormals();
+                } else {
+                  g.scale(1.36, 0.94, 1.58);
+                  g.translate(0, 0.015, -0.005);
+                }
               } else if (isWaistSkirt) {
-                g.scale(1.3, 0.88, 1.4);
+                g.scale(1.32, 0.88, 1.44);
               } else if (isLegBoot) {
-                // Kéo giãn và căn từng ống chân / giày vào đúng tâm chân stickman (tránh hở chân)
+                // Kéo giãn và căn từng ống chân / giày vào đúng tâm chân stickman (to và cao phủ tới gối)
                 const lPos = g.getAttribute('position');
                 for (let i = 0; i < lPos.count; i++) {
                   const lx = lPos.getX(i);
@@ -288,13 +311,13 @@ export function preloadSoldierBaseModel(): Promise<boolean> {
                     const dstCx = isLeft ? -0.131 : 0.131;
                     const srcCz = -0.059;
                     const dstCz = 0.001;
-                    lPos.setXYZ(i, dstCx + (lx - srcCx) * 1.58, ly * 0.94, dstCz + (lz - srcCz) * 1.5);
+                    lPos.setXYZ(i, dstCx + (lx - srcCx) * 1.72, ly * 1.08, dstCz + (lz - srcCz) * 1.65);
                   } else {
                     const srcCx = isLeft ? -0.198 : 0.198;
                     const dstCx = isLeft ? -0.149 : 0.149;
                     const srcCz = 0.03;
                     const dstCz = 0.006;
-                    lPos.setXYZ(i, dstCx + (lx - srcCx) * 1.58, ly * 1.15, dstCz + (lz - srcCz) * 1.14);
+                    lPos.setXYZ(i, dstCx + (lx - srcCx) * 1.65, ly * 1.18, dstCz + (lz - srcCz) * 1.18);
                   }
                 }
                 lPos.needsUpdate = true;
@@ -422,9 +445,9 @@ function createSkinnedSkeleton(): { rootBone: THREE.Bone; bones: THREE.Bone[]; r
   const chest = new THREE.Bone(); chest.position.set(0, 0.2, 0);
   const head = new THREE.Bone(); head.position.set(0, 0.18, 0);
 
-  const leftUpperArm = new THREE.Bone(); leftUpperArm.position.set(-0.18, 0.03, 0);
+  const leftUpperArm = new THREE.Bone(); leftUpperArm.position.set(-0.22, 0.03, 0);
   const leftForearm = new THREE.Bone(); leftForearm.position.set(-0.26, 0, 0);
-  const rightUpperArm = new THREE.Bone(); rightUpperArm.position.set(0.18, 0.03, 0);
+  const rightUpperArm = new THREE.Bone(); rightUpperArm.position.set(0.22, 0.03, 0);
   const rightForearm = new THREE.Bone(); rightForearm.position.set(0.26, 0, 0);
 
   const leftThigh = new THREE.Bone(); leftThigh.position.set(-0.11, -0.02, 0);
