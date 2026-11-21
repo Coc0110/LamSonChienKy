@@ -222,10 +222,16 @@ function getSharedMaterial(key: MaterialKey, transparent = false, opacity = 1): 
       });
       break;
     case 'earth':
-      mat = new THREE.MeshStandardMaterial({ color: DIORAMA_PALETTE.earth, roughness: 0.95 });
+      mat = new THREE.MeshStandardMaterial({
+        map: getStoneTexture('#9b7e56', '#745937'),
+        roughness: 0.95,
+      });
       break;
     case 'earthDark':
-      mat = new THREE.MeshStandardMaterial({ color: DIORAMA_PALETTE.earthDark, roughness: 0.96 });
+      mat = new THREE.MeshStandardMaterial({
+        map: getStoneTexture('#755c3c', '#523e26'),
+        roughness: 0.96,
+      });
       break;
     case 'wood':
       mat = new THREE.MeshStandardMaterial({
@@ -600,53 +606,47 @@ function createStonePlinthLathe(): THREE.BufferGeometry {
 }
 
 /**
- * Tạo gò đất nện tự nhiên (mép gồ ghề uốn lượn không thẳng tắp hay bo tròn đều)
+ * Tạo gò đất nện tự nhiên (dốc thoải tự nhiên, mép uốn lượn, mặt đất lồi lõm nhẹ như đất đầm thật)
  */
 function createOrganicEarthMound(width: number, depth: number, height: number, seed: number): THREE.BufferGeometry {
-  const shape = new THREE.Shape();
+  const g = new THREE.BoxGeometry(width, height, depth, 14, 3, 14);
+  const pos = g.getAttribute('position');
   const hw = width / 2;
   const hd = depth / 2;
-  const pts: Array<[number, number]> = [];
-  const segsPerEdge = 10;
+  const hh = height / 2;
 
-  const jitter = (i: number, amp: number) =>
-    Math.sin(i * 2.31 + seed) * amp + Math.cos(i * 4.17 + seed * 1.7) * (amp * 0.55);
+  for (let i = 0; i < pos.count; i++) {
+    let x = pos.getX(i);
+    let y = pos.getY(i);
+    let z = pos.getZ(i);
 
-  // Cạnh trên (-hd)
-  for (let i = 0; i < segsPerEdge; i++) {
-    const t = i / segsPerEdge;
-    pts.push([-hw + width * t, -hd + jitter(i, 0.09)]);
-  }
-  // Cạnh phải (+hw)
-  for (let i = 0; i < segsPerEdge; i++) {
-    const t = i / segsPerEdge;
-    pts.push([hw + jitter(i + 20, 0.09), -hd + depth * t]);
-  }
-  // Cạnh dưới (+hd)
-  for (let i = 0; i < segsPerEdge; i++) {
-    const t = i / segsPerEdge;
-    pts.push([hw - width * t, hd + jitter(i + 40, 0.09)]);
-  }
-  // Cạnh trái (-hw)
-  for (let i = 0; i < segsPerEdge; i++) {
-    const t = i / segsPerEdge;
-    pts.push([-hw + jitter(i + 60, 0.09), hd - depth * t]);
-  }
+    const ty = (y + hh) / Math.max(0.001, height); // 0 (đáy) .. 1 (mặt trên)
+    const rx = Math.abs(x) / hw;
+    const rz = Math.abs(z) / hd;
+    const edge = Math.max(rx, rz);
 
-  shape.moveTo(pts[0][0], pts[0][1]);
-  for (let i = 1; i < pts.length; i++) {
-    shape.lineTo(pts[i][0], pts[i][1]);
-  }
-  shape.closePath();
+    // Dốc thoải tự nhiên thu hẹp nhẹ về phía mặt trên
+    const slopeShrink = 1 - ty * 0.055 * Math.max(0, edge - 0.65) * 2.8;
+    const ang = Math.atan2(z, x);
+    const rimWave = (Math.sin(ang * 5 + seed) * 0.055 + Math.cos(ang * 9 - seed * 1.4) * 0.03) * edge;
 
-  const g = new THREE.ExtrudeGeometry(shape, {
-    depth: height,
-    bevelEnabled: true,
-    bevelThickness: 0.06,
-    bevelSize: 0.08,
-    bevelSegments: 2,
-  });
-  g.rotateX(-Math.PI / 2);
+    x = x * slopeShrink + Math.cos(ang) * rimWave;
+    z = z * slopeShrink + Math.sin(ang) * rimWave;
+
+    // Mặt trên lồi lõm nhẹ tự nhiên (tránh phẳng lì)
+    if (y > hh * 0.45) {
+      const undulate =
+        Math.sin(x * 2.3 + seed) * Math.cos(z * 2.1 - seed * 0.7) * 0.016 +
+        Math.sin((x + z) * 4.5 + seed * 1.3) * 0.007;
+      // Bo thoải nhẹ ở sát mép gò đất
+      const edgeDrop = edge > 0.86 ? -((edge - 0.86) / 0.14) * height * 0.22 : 0;
+      y = hh + undulate + edgeDrop;
+    }
+
+    pos.setXYZ(i, x, y, z);
+  }
+  g.computeVertexNormals();
+  g.translate(0, hh, 0);
   return g;
 }
 

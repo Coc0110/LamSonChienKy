@@ -388,9 +388,6 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
             const jar = createDecorProp('rain_jar');
             jar.position.set(cx + 2.0, 0.05, cz + 1.8);
             buildingsGroup.add(jar);
-            const fence = createDecorProp('bamboo_fence');
-            fence.position.set(cx - 2.05, 0.05, cz + 2.1);
-            buildingsGroup.add(fence);
           }
         }
 
