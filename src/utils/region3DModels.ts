@@ -352,49 +352,95 @@ function getFlagBannerMaterial(isEnemy: boolean): THREE.MeshStandardMaterial {
   if (isEnemy && cachedMingFlagMat) return cachedMingFlagMat;
 
   const canvas = document.createElement('canvas');
-  canvas.width = 256;
-  canvas.height = 176;
+  canvas.width = 512;
+  canvas.height = 352;
   const ctx = canvas.getContext('2d');
   if (ctx) {
-    ctx.clearRect(0, 0, 256, 176);
-    // Quai treo cờ trên thanh ngang
-    ctx.fillStyle = '#d97706';
-    for (const lx of [28, 72, 116, 160, 204]) {
-      ctx.fillRect(lx, 0, 10, 16);
+    ctx.clearRect(0, 0, 512, 352);
+
+    // Quai vải & móc đồng treo cờ trên thanh ngang
+    for (const lx of [44, 134, 224, 314, 404]) {
+      ctx.fillStyle = '#92400e';
+      ctx.fillRect(lx, 0, 20, 32);
+      ctx.fillStyle = '#fbbf24';
+      ctx.fillRect(lx + 4, 4, 12, 22);
     }
 
     // Thân cờ đuôi nheo
     ctx.beginPath();
-    ctx.moveTo(8, 14);
-    ctx.lineTo(246, 14);
-    ctx.lineTo(206, 92);
-    ctx.lineTo(246, 168);
-    ctx.lineTo(8, 168);
+    ctx.moveTo(16, 26);
+    ctx.lineTo(492, 26);
+    ctx.lineTo(416, 178);
+    ctx.lineTo(492, 326);
+    ctx.lineTo(16, 326);
     ctx.closePath();
-    ctx.fillStyle = isEnemy ? '#1e3a8a' : '#a81c1c';
+    const grad = ctx.createLinearGradient(0, 26, 492, 326);
+    if (isEnemy) {
+      grad.addColorStop(0, '#1e3a8a');
+      grad.addColorStop(1, '#172554');
+    } else {
+      grad.addColorStop(0, '#b91c1c');
+      grad.addColorStop(0.5, '#991b1b');
+      grad.addColorStop(1, '#7f1d1d');
+    }
+    ctx.fillStyle = grad;
     ctx.fill();
 
-    ctx.lineWidth = 7;
-    ctx.strokeStyle = '#eab308';
+    // Sợi dệt lụa ngang dọc mờ
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.04)';
+    for (let y = 32; y < 320; y += 6) {
+      ctx.fillRect(22, y, 400, 1.5);
+    }
+
+    // Viền gấm vàng kép
+    ctx.lineWidth = 12;
+    ctx.strokeStyle = '#d97706';
+    ctx.stroke();
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = '#fde047';
     ctx.stroke();
 
-    // Khung chữ nhật vàng bên trong giống ảnh mẫu
+    // Tua rua vàng dọc mép dưới cờ
+    ctx.fillStyle = '#facc15';
+    for (let tx = 24; tx <= 478; tx += 12) {
+      ctx.fillRect(tx, 328, 6, 20);
+    }
+
+    // Khung gấm họa tiết góc bên trong
     ctx.strokeStyle = '#facc15';
     ctx.lineWidth = 4;
-    ctx.strokeRect(24, 30, 152, 122);
+    ctx.strokeRect(46, 56, 310, 240);
+    for (const [cx, cy] of [[60, 70], [342, 70], [60, 282], [342, 282]]) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, 10, 0, Math.PI * 2);
+      ctx.stroke();
+    }
 
-    ctx.fillStyle = '#fde047';
-    ctx.font = 'bold 78px serif';
+    // Vòng tròn kim tuyến trung tâm
+    ctx.beginPath();
+    ctx.arc(201, 176, 94, 0, Math.PI * 2);
+    ctx.fillStyle = isEnemy ? 'rgba(30, 58, 138, 0.7)' : 'rgba(127, 29, 29, 0.85)';
+    ctx.fill();
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = '#fde047';
+    ctx.stroke();
+
+    // Chữ Hán (Hanzi) "黎" (Lê) nét thư pháp đậm
+    ctx.fillStyle = '#fef08a';
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
+    ctx.shadowBlur = 8;
+    ctx.font = 'bold 138px "KaiTi", "DFKai-SB", "Noto Serif SC", "SimSun", "PMingLiU", serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(isEnemy ? '明' : 'Lê', 100, 94);
+    ctx.fillText(isEnemy ? '明' : '黎', 201, 182);
   }
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
   const mat = new THREE.MeshStandardMaterial({
     map: tex,
     alphaTest: 0.2,
-    roughness: 0.58,
+    roughness: 0.55,
     side: THREE.DoubleSide,
   });
 
@@ -1259,14 +1305,21 @@ function getBuildingParts(
         push(pickStone(idx * 19.7 + 4.2), slab);
       }
 
-      // === 2. HÀNG RÀO TRE CÓ ĐỐT TRE RÕ RỆT + DÂY MÂY + ĐUỐC LỬA ===
-      const addBambooRow = (x1: number, z1: number, x2: number, z2: number, count: number) => {
+      // === 2. HÀNG RÀO TRE (KHÔNG BỊ DOUBLE Ở 4 GÓC) + 2 CỘT ĐÈN LỐI VÀO CHI TIẾT ===
+      const addBambooRow = (
+        x1: number,
+        z1: number,
+        x2: number,
+        z2: number,
+        count: number,
+        railPad = 0.06
+      ) => {
         for (let i = 0; i < count; i++) {
           const t = count === 1 ? 0.5 : i / (count - 1);
           const bx = x1 + (x2 - x1) * t;
           const bz = z1 + (z2 - z1) * t;
           const rnd = hash01(i * 19.7 + x1 * 3.1 + z1 * 5.7);
-          const h = 0.66 + (rnd - 0.5) * 0.065; // Cắm sâu từ y = 0.14 xuống nền đá, không bay lơ lửng
+          const h = 0.66 + (rnd - 0.5) * 0.065;
           addBambooPole(0.033, h, 3, bx, 0.14, bz, true);
         }
         const len = Math.hypot(x2 - x1, z2 - z1);
@@ -1274,24 +1327,45 @@ function getBuildingParts(
         const mz = (z1 + z2) / 2;
         const isHoriz = Math.abs(x2 - x1) >= Math.abs(z2 - z1);
         for (const ry of [0.38, 0.62]) {
-          push('bambooDry', cyl(0.024, 0.024, len + 0.06, 6, 0, 0, 0)
+          push('bambooDry', cyl(0.024, 0.024, len + railPad, 6, 0, 0, 0)
             .rotateZ(isHoriz ? Math.PI / 2 : 0)
             .rotateX(isHoriz ? 0 : Math.PI / 2)
             .translate(mx, ry, mz));
         }
       };
-      addBambooRow(-2.2, 2.22, -0.58, 2.22, 16);
-      addBambooRow(0.58, 2.22, 2.2, 2.22, 16);
-      addBambooRow(-2.22, -2.2, -2.22, 2.2, 34);
-      addBambooRow(2.22, -2.2, 2.22, 2.2, 34);
-      addBambooRow(-2.2, -2.22, 2.2, -2.22, 34);
+      // Mặt trước & mặt sau giữ 4 góc; 2 cạnh bên thụt vào (-2.08..+2.08) để không trùng cột góc
+      addBambooRow(-2.22, 2.22, -0.6, 2.22, 16, 0.06);
+      addBambooRow(0.6, 2.22, 2.22, 2.22, 16, 0.06);
+      addBambooRow(-2.22, -2.22, 2.22, -2.22, 36, 0.06);
+      addBambooRow(-2.22, -2.09, -2.22, 2.09, 31, 0.28);
+      addBambooRow(2.22, -2.09, 2.22, 2.09, 31, 0.28);
 
-      for (const tx of [-0.52, 0.52]) {
-        push('woodDark', cyl(0.042, 0.052, 0.88, 7, tx, 0.58, 2.24));
-        push('iron', torus(0.065, 0.018, 6, 10).rotateX(Math.PI / 2).translate(tx, 1.01, 2.24));
+      // 2 Cột đèn/đuốc lối vào chi tiết: đế đá tảng, trụ gỗ nẹp đồng, lồng sắt 4 nan, bầu lửa, mái che nhỏ
+      for (const tx of [-0.54, 0.54]) {
+        const tz = 2.24;
+        const base = createStonePlinthLathe();
+        base.scale(0.6, 0.75, 0.6);
+        base.translate(tx, 0.1, tz);
+        push('stoneDark', base);
+
+        push('woodDark', cyl(0.044, 0.056, 0.86, 8, tx, 0.58, tz));
+        push('gold', torus(0.052, 0.012, 6, 10).rotateX(Math.PI / 2).translate(tx, 0.42, tz));
+        push('gold', torus(0.048, 0.012, 6, 10).rotateX(Math.PI / 2).translate(tx, 0.86, tz));
+
+        // Đĩa đỡ lồng đèn sắt & 4 thanh lồng sắt
+        push('iron', cyl(0.11, 0.07, 0.05, 8, tx, 1.0, tz));
+        for (const [ox, oz] of [[-0.08, -0.08], [0.08, -0.08], [-0.08, 0.08], [0.08, 0.08]]) {
+          push('iron', cyl(0.01, 0.01, 0.24, 5, tx + ox, 1.12, tz + oz));
+        }
+        // Than hồng & ngọn lửa bên trong lồng đèn
+        push('charcoal', cyl(0.06, 0.06, 0.03, 8, tx, 1.03, tz));
         const flame = createTorchFlameLathe();
-        flame.translate(tx, 1.02, 2.24);
+        flame.scale(0.88, 0.92, 0.88);
+        flame.translate(tx, 1.03, tz);
         push('ember', flame);
+        // Mái che nhỏ trên đỉnh cột đèn
+        push('woodDark', cone(0.16, 0.1, 4, tx, 1.28, tz, Math.PI / 4));
+        push('gold', sphere(0.028, tx, 1.34, tz));
       }
 
       // === 3. NHÀ SÀN GỖ: TƯỜNG GHÉP TỪ NHIỀU MIẾNG GỖ CÓ VÂN & MÀU SẮC KHÁC NHAU ===
