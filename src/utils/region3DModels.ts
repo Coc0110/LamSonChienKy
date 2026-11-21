@@ -52,10 +52,13 @@ type MaterialKey =
   | 'plaster'
   | 'thatch'
   | 'thatchDark'
+  | 'thatchWarm'
+  | 'thatchSoft'
   | 'roofRed'
   | 'roofBlue'
   | 'gold'
   | 'iron'
+  | 'steel'
   | 'ember'
   | 'charcoal'
   | 'water'
@@ -171,6 +174,12 @@ function getSharedMaterial(key: MaterialKey, transparent = false, opacity = 1): 
     case 'thatchDark':
       mat = new THREE.MeshStandardMaterial({ color: DIORAMA_PALETTE.thatchDark, roughness: 0.94 });
       break;
+    case 'thatchWarm':
+      mat = new THREE.MeshStandardMaterial({ color: 0xcba85d, roughness: 0.92 });
+      break;
+    case 'thatchSoft':
+      mat = new THREE.MeshStandardMaterial({ color: 0xddbd73, roughness: 0.91 });
+      break;
     case 'roofRed':
       mat = new THREE.MeshStandardMaterial({ color: DIORAMA_PALETTE.tileRed, roughness: 0.65 });
       break;
@@ -182,6 +191,9 @@ function getSharedMaterial(key: MaterialKey, transparent = false, opacity = 1): 
       break;
     case 'iron':
       mat = new THREE.MeshStandardMaterial({ color: DIORAMA_PALETTE.iron, roughness: 0.45, metalness: 0.6 });
+      break;
+    case 'steel':
+      mat = new THREE.MeshStandardMaterial({ color: 0xcfd6de, roughness: 0.28, metalness: 0.72 });
       break;
     case 'ember':
       mat = new THREE.MeshStandardMaterial({
@@ -545,29 +557,34 @@ function createOrganicEarthMound(width: number, depth: number, height: number, s
   return g;
 }
 
+function hash01(seed: number): number {
+  const x = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
+  return x - Math.floor(x);
+}
+
 /**
- * Tán tranh (bó lá tranh thuôn xòe có mép sợi lởm chởm)
+ * Tán tranh chi tiết (bó lá tranh thuôn xòe có nhiều răng sợi tranh mịn)
  */
 function createThatchBundle(width: number, length: number, thickness: number): THREE.BufferGeometry {
   const shape = new THREE.Shape();
   const hw = width / 2;
   const hl = length / 2;
-  shape.moveTo(-hw * 0.72, hl);
-  shape.lineTo(hw * 0.72, hl);
+  shape.moveTo(-hw * 0.68, hl);
+  shape.lineTo(hw * 0.68, hl);
   shape.lineTo(hw, -hl);
-  // Mép dưới chia 4 răng sợi tranh nhọn không đều
-  shape.lineTo(hw * 0.55, -hl - 0.055);
-  shape.lineTo(hw * 0.2, -hl + 0.025);
-  shape.lineTo(-hw * 0.15, -hl - 0.06);
-  shape.lineTo(-hw * 0.55, -hl + 0.02);
-  shape.lineTo(-hw, -hl - 0.04);
+  const teeth = 7;
+  for (let i = teeth; i >= 0; i--) {
+    const x = -hw + (width * i) / teeth;
+    const jag = i % 2 === 0 ? -0.065 : 0.028;
+    shape.lineTo(x, -hl + jag);
+  }
   shape.closePath();
 
   const g = new THREE.ExtrudeGeometry(shape, {
     depth: thickness,
     bevelEnabled: true,
-    bevelThickness: 0.014,
-    bevelSize: 0.012,
+    bevelThickness: 0.012,
+    bevelSize: 0.01,
     bevelSegments: 1,
   });
   g.center();
@@ -776,11 +793,23 @@ function getBuildingParts(
         }
       }
       push('woodDark', rbox(3.52, 0.11, 2.65, 0.025, 0, 1.18, -0.4));
-      // Sàn ghép từng thanh ván gỗ nhiều màu
+      // Sàn ghép từng thanh ván gỗ dài ngắn & màu sắc ngẫu nhiên
       const woodTones: MaterialKey[] = ['wood', 'woodLight', 'woodWarm', 'woodDark'];
+      const pickWood = (seed: number): MaterialKey =>
+        woodTones[Math.floor(hash01(seed) * woodTones.length) % woodTones.length];
+
       for (let p = 0; p < 12; p++) {
         const pz = -1.72 + p * 0.23;
-        push(woodTones[p % 3], rbox(3.62, 0.075, 0.21, 0.01, 0, 1.26, pz));
+        const split = hash01(p * 7.3 + 1.1) > 0.4;
+        if (split) {
+          const splitX = -0.7 + hash01(p * 3.9) * 1.4;
+          const wL = splitX + 1.81;
+          const wR = 1.81 - splitX;
+          push(pickWood(p * 11 + 1), rbox(wL - 0.02, 0.075, 0.21, 0.01, -1.81 + wL / 2, 1.26, pz));
+          push(pickWood(p * 17 + 3), rbox(wR - 0.02, 0.075, 0.21, 0.01, 1.81 - wR / 2, 1.26, pz));
+        } else {
+          push(pickWood(p * 13 + 5), rbox(3.62, 0.075, 0.21, 0.01, 0, 1.26, pz));
+        }
       }
 
       push('woodDark', rbox(1.18, 0.06, 0.075, 0.015, -1.18, 1.58, 0.94));
@@ -807,39 +836,72 @@ function getBuildingParts(
         push('woodDark', cyl(0.035, 0.035, 0.34, 6, hx, 1.44, 0.94));
       }
 
-      // Tường gỗ ghép từng miếng ván dọc có vân gỗ & màu sắc khác nhau (mặt trước, sau, trái, phải)
+      // Tường gỗ ghép từng miếng ván dài ngắn khác nhau, màu sắc phân bổ ngẫu nhiên
+      const addRandomPlankColumn = (
+        px: number,
+        pz: number,
+        totalH: number,
+        baseY: number,
+        w: number,
+        d: number,
+        seed: number
+      ) => {
+        const r = hash01(seed);
+        if (r < 0.35) {
+          // 1 thanh dài nguyên tấm
+          push(pickWood(seed + 1.7), box(w, totalH, d, px, baseY, pz));
+        } else if (r < 0.72) {
+          // 2 thanh dài/ngắn ghép nối
+          const ratio = 0.35 + hash01(seed + 2.9) * 0.3;
+          const h1 = totalH * ratio;
+          const h2 = totalH - h1;
+          push(pickWood(seed + 3.1), box(w, h1 - 0.012, d, px, baseY - totalH / 2 + h1 / 2, pz));
+          push(pickWood(seed + 5.7), box(w, h2 - 0.012, d, px, baseY + totalH / 2 - h2 / 2, pz));
+        } else {
+          // 3 thanh ngắn ghép xen kẽ
+          const h1 = totalH * (0.25 + hash01(seed + 4.1) * 0.15);
+          const h2 = totalH * (0.25 + hash01(seed + 6.3) * 0.15);
+          const h3 = totalH - h1 - h2;
+          const yBot = baseY - totalH / 2;
+          push(pickWood(seed + 7.1), box(w, h1 - 0.012, d, px, yBot + h1 / 2, pz));
+          push(pickWood(seed + 8.3), box(w, h2 - 0.012, d, px, yBot + h1 + h2 / 2, pz));
+          push(pickWood(seed + 9.7), box(w, h3 - 0.012, d, px, yBot + h1 + h2 + h3 / 2, pz));
+        }
+      };
+
       const frontPlankCount = 18;
       for (let i = 0; i < frontPlankCount; i++) {
         const px = -1.5 + i * (3.0 / (frontPlankCount - 1));
         const inDoor = Math.abs(px) < 0.36;
         const inWin = Math.abs(Math.abs(px) - 1.02) < 0.24;
-        const tone = woodTones[(i * 3 + 1) % woodTones.length];
-        const pzOff = (i % 2 === 0 ? 0.012 : -0.012);
+        const pzOff = (hash01(i * 4.3) - 0.5) * 0.028;
+        const pw = 0.145 + hash01(i * 9.1) * 0.025;
         if (inDoor) {
-          push(tone, box(0.16, 0.22, 0.08, px, 2.16, 0.28 + pzOff));
+          addRandomPlankColumn(px, 0.28 + pzOff, 0.22, 2.16, pw, 0.08, i * 11 + 1);
         } else if (inWin) {
-          push(tone, box(0.16, 0.32, 0.08, px, 1.46, 0.28 + pzOff));
-          push(tone, box(0.16, 0.22, 0.08, px, 2.16, 0.28 + pzOff));
+          addRandomPlankColumn(px, 0.28 + pzOff, 0.32, 1.46, pw, 0.08, i * 11 + 2);
+          addRandomPlankColumn(px, 0.28 + pzOff, 0.22, 2.16, pw, 0.08, i * 11 + 3);
         } else {
-          push(tone, box(0.165, 0.96, 0.08, px, 1.78, 0.28 + pzOff));
+          addRandomPlankColumn(px, 0.28 + pzOff, 0.96, 1.78, pw, 0.08, i * 11 + 4);
         }
         // Tường sau
-        push(woodTones[(i + 2) % woodTones.length], box(0.165, 0.96, 0.08, px, 1.78, -1.44 + pzOff));
+        addRandomPlankColumn(px, -1.44 - pzOff, 0.96, 1.78, pw, 0.08, i * 13 + 9);
       }
 
-      // Tường 2 bên hông ghép miếng gỗ ngang/dọc nhiều tông màu
+      // Tường 2 bên hông ghép miếng gỗ dài ngắn & màu ngẫu nhiên
       const sidePlankCount = 10;
       for (let i = 0; i < sidePlankCount; i++) {
         const pz = -1.36 + i * (1.56 / (sidePlankCount - 1));
         const inSideWin = Math.abs(pz + 0.58) < 0.26;
-        const pxOff = (i % 2 === 0 ? 0.012 : -0.012);
+        const pd = 0.145 + hash01(i * 6.7) * 0.025;
         for (const sx of [-1.56, 1.56]) {
-          const tone = woodTones[(i + (sx > 0 ? 1 : 2)) % woodTones.length];
+          const pxOff = (hash01(i * 5.1 + sx) - 0.5) * 0.028;
+          const seed = i * 19 + (sx > 0 ? 7 : 3);
           if (inSideWin) {
-            push(tone, box(0.08, 0.32, 0.16, sx + pxOff, 1.46, pz));
-            push(tone, box(0.08, 0.22, 0.16, sx + pxOff, 2.16, pz));
+            addRandomPlankColumn(sx + pxOff, pz, 0.32, 1.46, 0.08, pd, seed + 1);
+            addRandomPlankColumn(sx + pxOff, pz, 0.22, 2.16, 0.08, pd, seed + 2);
           } else {
-            push(tone, box(0.08, 0.96, 0.165, sx + pxOff, 1.78, pz));
+            addRandomPlankColumn(sx + pxOff, pz, 0.96, 1.78, 0.08, pd, seed + 3);
           }
         }
       }
@@ -883,48 +945,55 @@ function getBuildingParts(
       }
 
       const roofSlope = 0.62;
-      const thatchTones: MaterialKey[] = ['thatch', 'thatchDark', 'bambooDry'];
-      // Lợp từng tán tranh riêng lẻ (4 hàng x 11 tán mỗi mặt mái)
-      for (let layer = 0; layer < 4; layer++) {
-        const t = layer / 3;
-        const yPos = 2.36 + t * 0.85;
-        const zOff = 0.94 - t * 0.68;
-        const cols = 11;
-        const totalW = 3.74 - t * 0.12;
-        const bundleW = totalW / cols + 0.05;
+      const thatchTones: MaterialKey[] = ['thatch', 'thatchWarm', 'thatchSoft'];
+      const pickThatch = (seed: number): MaterialKey =>
+        thatchTones[Math.floor(hash01(seed) * thatchTones.length) % thatchTones.length];
+
+      // Lợp từng tán tranh dày dặn (5 hàng x 15 tán mỗi mặt mái, màu gần giống nhau & phân bổ ngẫu nhiên)
+      for (let layer = 0; layer < 5; layer++) {
+        const t = layer / 4;
+        const yPos = 2.32 + t * 0.92;
+        const zOff = 0.98 - t * 0.74;
+        const cols = 15;
+        const totalW = 3.76 - t * 0.12;
+        const bundleW = totalW / cols + 0.04;
 
         for (let c = 0; c < cols; c++) {
-          const bx = -totalW / 2 + (c + 0.5) * (totalW / cols);
-          const staggerY = ((c + layer) % 2 === 0 ? 0.015 : -0.01);
-          const tiltZ = Math.sin(c * 2.1 + layer) * 0.04;
-          const tone = thatchTones[(c + layer * 2) % 3];
+          const seedF = layer * 101 + c * 17.3;
+          const seedB = layer * 137 + c * 23.1;
+          const bx = -totalW / 2 + (c + 0.5) * (totalW / cols) + (hash01(seedF) - 0.5) * 0.03;
+          const staggerY = (hash01(seedF + 1) - 0.5) * 0.025;
+          const tiltZ = (hash01(seedF + 2) - 0.5) * 0.07;
+          const lenScale = 0.92 + hash01(seedF + 3) * 0.18;
 
-          const bundleF = createThatchBundle(bundleW, 0.56, 0.08);
+          const bundleF = createThatchBundle(bundleW, 0.48 * lenScale, 0.07);
           bundleF.rotateZ(tiltZ);
           bundleF.rotateX(roofSlope);
           bundleF.translate(bx, yPos + staggerY, -0.58 + zOff);
-          push(tone, bundleF);
+          push(pickThatch(seedF + 5), bundleF);
 
-          const bundleB = createThatchBundle(bundleW, 0.56, 0.08);
+          const bundleB = createThatchBundle(bundleW, 0.48 * lenScale, 0.07);
           bundleB.rotateY(Math.PI);
           bundleB.rotateZ(-tiltZ);
           bundleB.rotateX(-roofSlope);
           bundleB.translate(bx, yPos + staggerY, -0.58 - zOff);
-          push(tone, bundleB);
+          push(pickThatch(seedB + 7), bundleB);
 
-          // Sợi tranh mảnh nhô ra ở mép mỗi tán tranh
-          for (const fiberOff of [-0.08, 0.07]) {
-            const fF = cyl(0.008, 0.014, 0.24, 4, 0, 0, 0);
-            fF.rotateX(roofSlope + Math.PI / 2 - 0.15);
-            fF.rotateZ(fiberOff * 2);
-            fF.translate(bx + fiberOff, yPos - 0.14, -0.58 + zOff + 0.24);
-            push('bambooDry', fF);
+          // Nhiều sợi tranh mảnh nhô ra ở mép mỗi tán tranh
+          for (let f = 0; f < 3; f++) {
+            const fiberOff = -0.09 + f * 0.09 + (hash01(seedF + f * 9) - 0.5) * 0.03;
+            const fLen = 0.18 + hash01(seedF + f * 13) * 0.1;
+            const fF = cyl(0.006, 0.012, fLen, 4, 0, 0, 0);
+            fF.rotateX(roofSlope + Math.PI / 2 - 0.12);
+            fF.rotateZ(fiberOff * 1.6);
+            fF.translate(bx + fiberOff, yPos - 0.12, -0.58 + zOff + 0.21);
+            push(pickThatch(seedF + f * 3), fF);
 
-            const fB = cyl(0.008, 0.014, 0.24, 4, 0, 0, 0);
-            fB.rotateX(-roofSlope - Math.PI / 2 + 0.15);
-            fB.rotateZ(-fiberOff * 2);
-            fB.translate(bx + fiberOff, yPos - 0.14, -0.58 - zOff - 0.24);
-            push('bambooDry', fB);
+            const fB = cyl(0.006, 0.012, fLen, 4, 0, 0, 0);
+            fB.rotateX(-roofSlope - Math.PI / 2 + 0.12);
+            fB.rotateZ(-fiberOff * 1.6);
+            fB.translate(bx + fiberOff, yPos - 0.12, -0.58 - zOff - 0.21);
+            push(pickThatch(seedB + f * 3), fB);
           }
         }
       }
@@ -1002,20 +1071,20 @@ function getBuildingParts(
         push('woodDark', legB);
       }
       for (const [wx, isHalberd] of [[0.9, false], [1.14, true], [1.38, true], [1.62, false]] as const) {
-        // Cán gỗ thuôn + đốc kim loại + khâu đồng + tua đỏ
+        // Cán gỗ thuôn + đốc kim loại + khâu đồng + tua đỏ + lưỡi thép sáng
         push('woodWarm', cyl(0.018, 0.025, 1.14, 7, wx, 0.94, 1.32));
-        push('iron', cone(0.024, 0.08, 6, wx, 0.35, 1.32).rotateX(Math.PI));
+        push('steel', cone(0.024, 0.08, 6, wx, 0.35, 1.32).rotateX(Math.PI));
         push('gold', cyl(0.028, 0.028, 0.05, 8, wx, 1.5, 1.32));
         push(bannerMat, cone(0.045, 0.14, 7, wx, 1.43, 1.32));
         if (isHalberd) {
           const blade = extrudeDetailedHalberd();
           blade.rotateY(Math.PI / 2);
           blade.translate(wx, 1.66, 1.34);
-          push('iron', blade);
+          push('steel', blade);
         } else {
           const spearHead = extrudeSpearHead();
           spearHead.translate(wx, 1.65, 1.32);
-          push('iron', spearHead);
+          push('steel', spearHead);
         }
       }
       const rattanShield = cyl(0.26, 0.26, 0.05, 16, 0, 0, 0);
