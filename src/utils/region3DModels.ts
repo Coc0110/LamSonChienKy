@@ -205,20 +205,20 @@ function getSharedMaterial(key: MaterialKey, transparent = false, opacity = 1): 
       break;
     case 'stoneWarm':
       mat = new THREE.MeshStandardMaterial({
-        map: getStoneTexture('#7d776d', '#575249'),
+        map: getStoneTexture('#777c84', '#565a61'),
         roughness: 0.91,
       });
       break;
     case 'stonePale':
       mat = new THREE.MeshStandardMaterial({
-        map: getStoneTexture('#a2a6ab', '#7a7f87'),
+        map: getStoneTexture('#a2a6ac', '#7a7f87'),
         roughness: 0.89,
       });
       break;
     case 'stoneMoss':
       mat = new THREE.MeshStandardMaterial({
-        map: getStoneTexture('#6e7862', '#4c5443'),
-        roughness: 0.92,
+        map: getStoneTexture('#838890', '#60656d'),
+        roughness: 0.9,
       });
       break;
     case 'earth':
@@ -734,8 +734,8 @@ function createCrazyPavingStone(
     const nz = ex / len;
     // Điểm gãy 1/3 và 2/3 cạnh (đối xứng theo hướng cạnh)
     const dirSign = ax < bx || (ax === bx && az < bz) ? 1 : -1;
-    const off1 = (edgeHash(ax, az, bx, bz, 1.7) - 0.5) * 0.075 * dirSign;
-    const off2 = (edgeHash(ax, az, bx, bz, 5.3) - 0.5) * 0.075 * dirSign;
+    const off1 = (edgeHash(ax, az, bx, bz, 1.7) - 0.5) * 0.036 * dirSign;
+    const off2 = (edgeHash(ax, az, bx, bz, 5.3) - 0.5) * 0.036 * dirSign;
     const p1t = dirSign > 0 ? 0.34 : 0.66;
     const p2t = dirSign > 0 ? 0.66 : 0.34;
     if (dirSign > 0) {
@@ -774,24 +774,33 @@ function createCrazyPavingStone(
 
   const g = new THREE.ExtrudeGeometry(shape, {
     depth: height,
+    steps: 3,
     bevelEnabled: true,
-    bevelThickness: Math.min(0.028, height * 0.32),
-    bevelSize: 0.012,
+    bevelThickness: Math.min(0.026, height * 0.3),
+    bevelSize: 0.011,
     bevelSegments: 2,
   });
   g.rotateX(-Math.PI / 2);
 
-  // Làm mặt trên lồi lõm nhẹ tự nhiên
+  // Làm cả mặt trên lẫn cạnh bên lồi lõm nhẹ tự nhiên
   const pos = g.getAttribute('position');
   for (let i = 0; i < pos.count; i++) {
+    const vx = pos.getX(i);
     const y = pos.getY(i);
-    if (y > height * 0.6) {
-      const vx = pos.getX(i);
-      const vz = pos.getZ(i);
+    const vz = pos.getZ(i);
+    if (y > height * 0.72) {
       const bump =
-        Math.sin(vx * 11.3 + seed) * Math.cos(vz * 10.7 - seed * 0.8) * 0.014 +
-        Math.sin((vx - vz) * 16.5 + seed * 1.7) * 0.006;
+        Math.sin(vx * 11.3 + seed) * Math.cos(vz * 10.7 - seed * 0.8) * 0.013 +
+        Math.sin((vx - vz) * 16.5 + seed * 1.7) * 0.005;
       pos.setY(i, y + bump);
+    } else if (y > 0.015) {
+      // Cạnh bên lồi lõm nhẹ theo chiều cao
+      const dx = vx - cx;
+      const dz = vz - cz;
+      const d = Math.hypot(dx, dz) || 1;
+      const sideBump = Math.sin(y * 38 + vx * 17 + vz * 19 + seed) * 0.014;
+      pos.setX(i, vx + (dx / d) * sideBump);
+      pos.setZ(i, vz + (dz / d) * sideBump);
     }
   }
   g.computeVertexNormals();
@@ -1107,48 +1116,91 @@ function getBuildingParts(
       mortarBed.translate(0, 0.03, 0);
       push('earthDark', mortarBed);
 
-      // Lưới đỉnh chia sẻ cho toàn bộ móng đá 15x15 (x, z từ -2.42 .. +2.42)
-      const N = 14;
-      const minC = -2.42;
-      const maxC = 2.42;
-      const stepC = (maxC - minC) / N;
+      // Lưới đỉnh chia sẻ kích thước không đều (có viên to viên nhỏ, biên độ lệch vừa phải)
+      const buildNonUniformAxis = (minVal: number, maxVal: number, seedBase: number) => {
+        const coords = [minVal];
+        let cur = minVal;
+        let k = 0;
+        while (cur < maxVal - 0.34) {
+          const step = 0.24 + mixHash(seedBase + k * 19.3) * 0.22;
+          cur = Math.min(maxVal, cur + step);
+          coords.push(cur);
+          k++;
+        }
+        if (coords[coords.length - 1] < maxVal - 0.05) {
+          coords[coords.length - 1] = maxVal;
+        }
+        return coords;
+      };
+
+      const xAxis = buildNonUniformAxis(-2.42, 2.42, 31);
+      const zAxis = buildNonUniformAxis(-2.42, 2.42, 97);
+      const nx = xAxis.length - 1;
+      const nz = zAxis.length - 1;
+
       const vLattice: Array<Array<[number, number]>> = [];
-      for (let rz = 0; rz <= N; rz++) {
+      for (let rz = 0; rz <= nz; rz++) {
         const rowPts: Array<[number, number]> = [];
-        for (let cx = 0; cx <= N; cx++) {
-          const bx = minC + cx * stepC;
-          const bz = minC + rz * stepC;
+        for (let cx = 0; cx <= nx; cx++) {
+          const bx = xAxis[cx];
+          const bz = zAxis[rz];
           const s = rz * 131 + cx * 37;
-          // Lệch mạnh ±0.11 để các viên đá méo tự nhiên, không còn góc vuông
-          const jx = (mixHash(s + 1.3) - 0.5) * 0.21;
-          const jz = (mixHash(s + 4.9) - 0.5) * 0.21;
+          // Biên độ lệch vừa phải (±0.05) để không méo quá đà
+          const jx = (mixHash(s + 1.3) - 0.5) * 0.1;
+          const jz = (mixHash(s + 4.9) - 0.5) * 0.1;
           rowPts.push([bx + jx, bz + jz]);
         }
         vLattice.push(rowPts);
       }
 
-      for (let rz = 0; rz < N; rz++) {
-        for (let cx = 0; cx < N; cx++) {
-          const isRim = rz === 0 || rz === N - 1 || cx === 0 || cx === N - 1;
-          const isSecondBand = rz === 1 || rz === N - 2 || cx === 1 || cx === N - 2;
+      const usedCell: boolean[][] = Array.from({ length: nz }, () => Array(nx).fill(false));
+
+      for (let rz = 0; rz < nz; rz++) {
+        for (let cx = 0; cx < nx; cx++) {
+          if (usedCell[rz][cx]) continue;
+          const isRim = rz === 0 || rz === nz - 1 || cx === 0 || cx === nx - 1;
+          const isSecondBand = rz === 1 || rz === nz - 2 || cx === 1 || cx === nx - 2;
           if (!isRim && !isSecondBand) continue;
 
+          const seed = rz * 197 + cx * 43.1;
+          let cxEnd = cx + 1;
+          let rzEnd = rz + 1;
+
+          // Gộp ngẫu nhiên ~28% ô liền kề cùng vành để có viên đá to, viên đá nhỏ đan xen
+          const mergeRoll = mixHash(seed + 15.1);
+          if (
+            mergeRoll < 0.18 &&
+            cx + 1 < nx &&
+            !usedCell[rz][cx + 1] &&
+            ((rz === 0 || rz === nz - 1) || (cx > 0 && cx + 1 < nx - 1))
+          ) {
+            cxEnd = cx + 2;
+            usedCell[rz][cx + 1] = true;
+          } else if (
+            mergeRoll >= 0.18 &&
+            mergeRoll < 0.3 &&
+            rz + 1 < nz &&
+            !usedCell[rz + 1][cx] &&
+            ((cx === 0 || cx === nx - 1) || (rz > 0 && rz + 1 < nz - 1))
+          ) {
+            rzEnd = rz + 2;
+            usedCell[rz + 1][cx] = true;
+          }
+          usedCell[rz][cx] = true;
+
           const pTL = vLattice[rz][cx];
-          const pTR = vLattice[rz][cx + 1];
-          const pBR = vLattice[rz + 1][cx + 1];
-          const pBL = vLattice[rz + 1][cx];
+          const pTR = vLattice[rz][cxEnd];
+          const pBR = vLattice[rzEnd][cxEnd];
+          const pBL = vLattice[rzEnd][cx];
           const avgX = (pTL[0] + pTR[0] + pBR[0] + pBL[0]) / 4;
 
-          // Chừa lối bậc tam cấp ở mặt trước
-          if (rz === N - 1 && Math.abs(avgX) < 0.56) continue;
+          if (rz === nz - 1 && Math.abs(avgX) < 0.56) continue;
 
-          const seed = rz * 197 + cx * 43.1;
           const h = isRim
             ? 0.14 + mixHash(seed + 2) * 0.045
             : 0.08 + mixHash(seed + 2) * 0.03;
           const baseY = isRim ? 0.04 : 0.12;
 
-          // Đảm bảo thứ tự ngược chiều kim đồng hồ trong mặt phẳng XZ cho Shape (pTL -> pBL -> pBR -> pTR)
           const stoneGeo = createCrazyPavingStone([pTL, pBL, pBR, pTR], h, seed);
           stoneGeo.translate(0, baseY, 0);
           push(pickStone(seed + 8.3), stoneGeo);
