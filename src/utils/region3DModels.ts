@@ -1213,8 +1213,8 @@ function getBuildingParts(
         }
       }
 
-      // Nền đất nện tầng 2 ở bên trong
-      const moundTop = createOrganicEarthMound(3.75, 3.75, 0.16, 4.7);
+      // Nền đất nện tầng 2 tràn ra khít đến tận chân hàng rào tre (±2.22)
+      const moundTop = createOrganicEarthMound(4.48, 4.48, 0.16, 4.7);
       moundTop.translate(0, 0.21, 0);
       push('earth', moundTop);
 
