@@ -617,7 +617,7 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
       for (const npc of animatedNpcs) {
         if (npc.role === 'guard') {
           const prevX = npc.mesh.position.x;
-          const nextX = npc.baseX + Math.sin(t * 0.55 + npc.phase) * 1.4;
+          const nextX = npc.baseX + Math.sin(t * 0.28 + npc.phase) * 1.4;
           const ds = Math.abs(nextX - prevX);
           const dir = nextX >= prevX ? 1 : -1;
           npc.mesh.position.x = nextX;
@@ -640,8 +640,8 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
       for (const vis of unitVisuals.values()) {
         const prevX = vis.group.position.x;
         const prevZ = vis.group.position.z;
-        const nextX = prevX + (vis.targetX - prevX) * 0.28;
-        const nextZ = prevZ + (vis.targetZ - prevZ) * 0.28;
+        const nextX = prevX + (vis.targetX - prevX) * 0.14;
+        const nextZ = prevZ + (vis.targetZ - prevZ) * 0.14;
         vis.group.position.x = nextX;
         vis.group.position.z = nextZ;
         const ds = Math.hypot(nextX - prevX, nextZ - prevZ);

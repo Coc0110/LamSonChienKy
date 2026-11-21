@@ -27,10 +27,16 @@ export interface SkinnedSoldierRig {
   rightShin: THREE.Bone;
 }
 
+interface CachedArmorPart {
+  name: string;
+  geo: THREE.BufferGeometry;
+  mat: THREE.Material;
+}
+
 let cachedRiggedBodyGeo: THREE.BufferGeometry | null = null;
-let cachedTunicShellGeo: THREE.BufferGeometry | null = null;
-let cachedArmorShellGeo: THREE.BufferGeometry | null = null;
-let cachedShinWrapShellGeo: THREE.BufferGeometry | null = null;
+let cachedShirtShellGeo: THREE.BufferGeometry | null = null;
+let cachedPantsShellGeo: THREE.BufferGeometry | null = null;
+let cachedArmorParts: CachedArmorPart[] = [];
 let loadPromise: Promise<boolean> | null = null;
 const loadListeners = new Set<() => void>();
 
@@ -208,23 +214,136 @@ export function preloadSoldierBaseModel(): Promise<boolean> {
         geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(skinWeights, 4));
 
         cachedRiggedBodyGeo = geo;
-        cachedTunicShellGeo = buildBodyShellGeo(
-          geo,
-          0.015,
-          (x, y) => (y >= 0.66 && y <= 1.24 && Math.abs(x) < 0.34)
-        );
-        cachedArmorShellGeo = buildBodyShellGeo(
-          geo,
-          0.026,
-          (x, y) => y >= 0.88 && y <= 1.23 && Math.abs(x) < 0.21
-        );
-        cachedShinWrapShellGeo = buildBodyShellGeo(
+        cachedShirtShellGeo = buildBodyShellGeo(
           geo,
           0.014,
-          (_x, y) => y >= 0.12 && y <= 0.38
+          (x, y) =>
+            (y >= 0.76 && y <= 1.26 && Math.abs(x) < 0.22) ||
+            (Math.abs(x) >= 0.16 && Math.abs(x) <= 0.56 && y >= 0.92 && y <= 1.34)
         );
-        loadListeners.forEach((cb) => cb());
-        resolve(true);
+        cachedPantsShellGeo = buildBodyShellGeo(
+          geo,
+          0.015,
+          (_x, y) => y >= 0.1 && y <= 0.78
+        );
+
+        // Tải thêm model giáp trụ /models/soldier_armor.glb và skin lên cùng 12 xương
+        loader.load(
+          '/models/soldier_armor.glb',
+          (armorGltf) => {
+            armorGltf.scene.updateMatrixWorld(true);
+            const parts: CachedArmorPart[] = [];
+            const scaleArmor = 0.88;
+
+            armorGltf.scene.traverse((obj) => {
+              if (!(obj instanceof THREE.Mesh)) return;
+              const partName = obj.parent?.name || obj.name;
+              const g = obj.geometry.clone();
+              g.applyMatrix4(obj.matrixWorld);
+              g.scale(scaleArmor, scaleArmor, scaleArmor);
+
+              const pPos = g.getAttribute('position');
+              const vCount = pPos.count;
+              const sIdx = new Uint16Array(vCount * 4);
+              const sWgt = new Float32Array(vCount * 4);
+
+              const assignW = (idx: number, b0: number, w0: number, b1 = 0, w1 = 0) => {
+                const sum = w0 + w1 || 1;
+                sIdx[idx * 4] = b0;
+                sIdx[idx * 4 + 1] = b1;
+                sWgt[idx * 4] = w0 / sum;
+                sWgt[idx * 4 + 1] = w1 / sum;
+              };
+
+              const isArmPart = partName === 'Arm_low' || partName === 'hand1_low';
+              if (isArmPart) {
+                // Xoay tay giáp từ A-pose lên T-pose để trùng khớp xương cánh tay
+                const rotAngle = 0.72;
+                const cosA = Math.cos(rotAngle);
+                const sinA = Math.sin(rotAngle);
+                for (let i = 0; i < vCount; i++) {
+                  const vx = pPos.getX(i);
+                  const vy = pPos.getY(i);
+                  const isLeft = vx < 0;
+                  const pivX = isLeft ? -0.18 : 0.18;
+                  const pivY = 1.03;
+                  const dx = vx - pivX;
+                  const dy = vy - pivY;
+                  // Trái: xoay theo -rotAngle; Phải: xoay theo +rotAngle
+                  const rx = isLeft ? dx * cosA + dy * sinA : dx * cosA - dy * sinA;
+                  const ry = isLeft ? -dx * sinA + dy * cosA : dx * sinA + dy * cosA;
+                  pPos.setXY(i, pivX + rx + (isLeft ? -0.05 : 0.05), 1.19 + ry);
+                }
+                pPos.needsUpdate = true;
+                g.computeVertexNormals();
+              }
+
+              for (let i = 0; i < vCount; i++) {
+                const vx = pPos.getX(i);
+                const vy = pPos.getY(i);
+
+                if (
+                  partName === 'boridge_low' ||
+                  partName === 'top_low' ||
+                  partName === 'main_low' ||
+                  partName === 'tridge_low'
+                ) {
+                  assignW(i, 3, 1); // head
+                } else if (partName === 'Neck_low' || partName === 'shoulder_strap_low' || partName === 'chest_low') {
+                  assignW(i, 2, 1); // chest
+                } else if (partName === 'Body_piece_low') {
+                  const t = Math.max(0, Math.min(1, (vy - 0.94) / 0.2));
+                  assignW(i, 2, t, 1, 1 - t); // chest <-> spine
+                } else if (partName === 'belt_low' || partName === 'Waist_cushion1_low' || partName === 'foohead_low') {
+                  const t = Math.max(0, Math.min(1, (vy - 0.86) / 0.14));
+                  assignW(i, 1, t, 0, 1 - t); // spine <-> hips
+                } else if (
+                  partName === 'Side_skirt1_low' ||
+                  partName === 'Side_skirt2_low' ||
+                  partName === 'Side_skirt3_low'
+                ) {
+                  if (vy >= 0.8) {
+                    assignW(i, 0, 1); // hips
+                  } else {
+                    const thigh = vx < 0 ? 8 : 10;
+                    const t = Math.max(0, Math.min(1, (0.8 - vy) / 0.18)) * 0.72;
+                    assignW(i, thigh, t, 0, 1 - t);
+                  }
+                } else if (partName === 'Shoulder3_low') {
+                  const upperArm = vx < 0 ? 4 : 6;
+                  const t = Math.max(0, Math.min(1, (Math.abs(vx) - 0.16) / 0.12));
+                  assignW(i, upperArm, t, 2, 1 - t);
+                } else if (isArmPart) {
+                  assignW(i, vx < 0 ? 5 : 7, 1); // leftForearm / rightForearm
+                } else if (
+                  partName === 'leg_low' ||
+                  partName === 'shoes_main1_low' ||
+                  partName === 'sole_low' ||
+                  partName === 'shoes_top_low'
+                ) {
+                  assignW(i, vx < 0 ? 9 : 11, 1); // leftShin / rightShin
+                } else {
+                  assignW(i, 0, 1);
+                }
+              }
+
+              g.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(sIdx, 4));
+              g.setAttribute('skinWeight', new THREE.Float32BufferAttribute(sWgt, 4));
+
+              const origMat = Array.isArray(obj.material) ? obj.material[0] : obj.material;
+              parts.push({ name: partName, geo: g, mat: origMat });
+            });
+
+            cachedArmorParts = parts;
+            loadListeners.forEach((cb) => cb());
+            resolve(true);
+          },
+          undefined,
+          () => {
+            loadListeners.forEach((cb) => cb());
+            resolve(true);
+          }
+        );
       },
       undefined,
       () => resolve(false)
@@ -346,124 +465,112 @@ export function createRiggedLeSoldier(
     return m;
   };
 
-  // === TRANG PHỤC ÔM SÁT THÂN NGƯỜI (SKINNED MESH DÙNG CHUNG XƯƠNG) ===
-  if (cachedTunicShellGeo) {
-    const tunicMesh = new THREE.SkinnedMesh(cachedTunicShellGeo, tunicMat);
-    tunicMesh.castShadow = true;
-    tunicMesh.bind(skeleton);
-    container.add(tunicMesh);
+  const pantsMat = getGearMat(
+    role === 'farmer' ? 'pants_farmer' : role === 'smith' ? 'pants_smith' : isMing ? 'pants_ming' : 'pants_le',
+    role === 'farmer' ? 0x4b3b2b : role === 'smith' ? 0x332924 : isMing ? 0x1e293b : 0x2c221e,
+    0.85
+  );
+
+  // === QUẦN ÁO VẢI ÔM SÁT THÂN NGƯỜI (CHỖ KHÔNG CÓ GIÁP MẶC QUẦN/ÁO VẢI) ===
+  if (cachedShirtShellGeo) {
+    const shirtMesh = new THREE.SkinnedMesh(cachedShirtShellGeo, tunicMat);
+    shirtMesh.castShadow = true;
+    shirtMesh.bind(skeleton);
+    container.add(shirtMesh);
   }
-  if (cachedShinWrapShellGeo) {
-    const shinMesh = new THREE.SkinnedMesh(cachedShinWrapShellGeo, woodMat);
-    shinMesh.castShadow = true;
-    shinMesh.bind(skeleton);
-    container.add(shinMesh);
+  if (cachedPantsShellGeo) {
+    const pantsMesh = new THREE.SkinnedMesh(cachedPantsShellGeo, pantsMat);
+    pantsMesh.castShadow = true;
+    pantsMesh.bind(skeleton);
+    container.add(pantsMesh);
   }
 
-  // Vạt áo chiến bào ngắn ôm sát hông
-  const skirt = mk(new THREE.CylinderGeometry(0.165, 0.205, 0.22, 12), tunicMat);
-  skirt.scale.set(1.0, 1.0, 0.78);
-  skirt.position.set(0, -0.04, 0);
-  rig.hips.add(skirt);
-
-  // 2. Giáp trụ xếp lớp thời Lê (nếu là binh lính/lính gác)
-  if (role !== 'farmer' && role !== 'smith') {
-    if (cachedArmorShellGeo) {
-      const armorMesh = new THREE.SkinnedMesh(cachedArmorShellGeo, armorMat);
+  // 2. Giáp trụ từ model /models/soldier_armor.glb (hoặc giáp nhẹ dự phòng)
+  const isSoldier = role !== 'farmer' && role !== 'smith';
+  if (isSoldier && cachedArmorParts.length > 0) {
+    for (const part of cachedArmorParts) {
+      const armorMesh = new THREE.SkinnedMesh(part.geo, part.mat);
       armorMesh.castShadow = true;
+      armorMesh.receiveShadow = true;
       armorMesh.bind(skeleton);
       container.add(armorMesh);
     }
 
-    const collarTrim = mk(new THREE.TorusGeometry(0.14, 0.022, 6, 12), goldMat);
-    collarTrim.rotation.x = Math.PI / 2;
-    collarTrim.position.set(0, 0.1, 0);
-    rig.chest.add(collarTrim);
-
-    // Giáp vai ôm sát khớp vai
-    const pL = mk(new THREE.SphereGeometry(0.095, 8, 6), armorMat);
-    pL.position.set(-0.02, 0.03, 0);
-    rig.leftUpperArm.add(pL);
-
-    const pR = mk(new THREE.SphereGeometry(0.095, 8, 6), armorMat);
-    pR.position.set(0.02, 0.03, 0);
-    rig.rightUpperArm.add(pR);
-
-    // Thắt lưng da khóa đồng & Bao đao đeo bên hông trái
-    const belt = mk(new THREE.CylinderGeometry(0.175, 0.175, 0.065, 12), woodMat);
-    belt.scale.set(1.0, 1.0, 0.78);
-    belt.position.set(0, 0.04, 0);
-    rig.hips.add(belt);
-
-    const buckle = mk(new RoundedBoxGeometry(0.075, 0.065, 0.04, 1, 0.01), goldMat);
-    buckle.position.set(0, 0.04, 0.145);
-    rig.hips.add(buckle);
-
+    // Bao đao đeo bên hông trái
     const hipSword = new THREE.Group();
-    hipSword.position.set(-0.18, 0.02, 0.01);
+    hipSword.position.set(-0.2, 0.02, 0.01);
     hipSword.rotation.x = -0.65;
     hipSword.add(mk(new RoundedBoxGeometry(0.04, 0.052, 0.52, 1, 0.01), woodMat).translateZ(-0.14));
     hipSword.add(mk(new RoundedBoxGeometry(0.048, 0.06, 0.045, 1, 0.01), goldMat).translateZ(0.04));
     hipSword.add(mk(new THREE.CylinderGeometry(0.02, 0.022, 0.16, 6), woodMat).rotateX(Math.PI / 2).translateZ(0.18));
     hipSword.add(mk(new THREE.SphereGeometry(0.032, 6, 6), goldMat).translateZ(0.27));
     rig.hips.add(hipSword);
+  } else if (!isSoldier) {
+    // Nông dân / Thợ rèn đội nón lá (hoặc để đầu trần)
+    if (role === 'farmer') {
+      const nonLa = mk(new THREE.ConeGeometry(0.32, 0.19, 16), strawMat);
+      nonLa.position.set(0, 0.27, 0);
+      const rim = mk(new THREE.TorusGeometry(0.315, 0.014, 5, 18), bambooMat);
+      rim.rotation.x = Math.PI / 2;
+      rim.position.set(0, 0.175, 0);
+      rig.head.add(nonLa, rim);
+    }
   }
 
-  // 3. Đầu đội Nón Lá (hoặc Mũ sắt Minh)
-  if (!isMing && role !== 'smith') {
-    const nonLa = mk(new THREE.ConeGeometry(0.32, 0.19, 16), strawMat);
-    nonLa.position.set(0, 0.27, 0);
-    const rim = mk(new THREE.TorusGeometry(0.315, 0.014, 5, 18), bambooMat);
-    rim.rotation.x = Math.PI / 2;
-    rim.position.set(0, 0.175, 0);
-    rig.head.add(nonLa, rim);
-  } else if (isMing) {
-    const helm = mk(new THREE.ConeGeometry(0.22, 0.2, 12), armorMat);
-    helm.position.set(0, 0.26, 0);
-    const tip = mk(new THREE.SphereGeometry(0.035, 8, 6), goldMat);
-    tip.position.set(0, 0.37, 0);
-    rig.head.add(helm, tip);
-  }
-
-  // 4. Vũ khí gắn chuẩn vào bàn tay phải (+0.22) hoặc trái (-0.22)
+  // 4. Vũ khí gắn chuẩn vào bàn tay phải (+0.24) hoặc trái (-0.24)
+  const hasSpear = role === 'spearman' || role === 'guard' || role === 'cavalry_rider';
   if (role === 'swordsman') {
     const blade = mk(new RoundedBoxGeometry(0.03, 0.52, 0.09, 1, 0.008), steelMat);
-    blade.position.set(0.22, 0.12, 0.16);
+    blade.position.set(0.24, 0.12, 0.16);
     blade.rotation.z = 1.24;
     blade.rotation.x = 0.55;
     rig.rightForearm.add(blade);
 
     const shield = mk(new THREE.CylinderGeometry(0.24, 0.24, 0.045, 14), woodMat);
     shield.rotation.x = Math.PI / 2;
-    shield.position.set(-0.22, 0.0, 0.1);
+    shield.position.set(-0.24, 0.0, 0.1);
     rig.leftForearm.add(shield);
-  } else if (role === 'spearman' || role === 'guard' || role === 'cavalry_rider') {
+  } else if (hasSpear) {
+    // Tư thế tay phải gập khuỷu cầm chắc thân thương phía trước
+    rig.rightUpperArm.rotation.set(-0.25, 0, -1.05);
+    rig.rightForearm.rotation.set(0, -1.15, 0);
+
     const spear = new THREE.Group();
-    spear.position.set(0.22, 0, 0.04);
-    spear.rotation.z = 1.24; // Ngược dấu -1.24 của vai để mũi giáo hướng LÊN TRỜI
-    spear.rotation.x = 0.16; // Hơi chếch về trước
-    spear.add(mk(new THREE.CylinderGeometry(0.02, 0.024, 1.55, 6), woodMat).translateY(0.22));
-    spear.add(mk(new THREE.CylinderGeometry(0.03, 0.03, 0.06, 7), goldMat).translateY(0.98));
-    spear.add(mk(new THREE.ConeGeometry(0.052, 0.22, 6), steelMat).translateY(1.12));
+    spear.position.set(0.24, 0, 0);
+
+    // Tính quaternion chính xác để cây thương hướng lên trời & hơi chếch về trước bất kể góc gập tay
+    const armWorldQ = new THREE.Quaternion()
+      .setFromEuler(rig.rightUpperArm.rotation)
+      .multiply(new THREE.Quaternion().setFromEuler(rig.rightForearm.rotation));
+    const desiredSpearWorldQ = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.24, 0, -0.05));
+    spear.quaternion.copy(armWorldQ).invert().multiply(desiredSpearWorldQ);
+
+    // Bàn tay nắm chặt bao quanh thân cây thương
+    const fistGrip = mk(new RoundedBoxGeometry(0.075, 0.095, 0.075, 2, 0.025), skinBodyMat);
+    spear.add(fistGrip);
+    spear.add(mk(new THREE.CylinderGeometry(0.021, 0.024, 1.55, 6), woodMat).translateY(0.28));
+    spear.add(mk(new THREE.CylinderGeometry(0.03, 0.03, 0.06, 7), goldMat).translateY(1.04));
+    spear.add(mk(new THREE.ConeGeometry(0.052, 0.22, 6), steelMat).translateY(1.18));
     rig.rightForearm.add(spear);
   } else if (role === 'archer') {
     const bow = mk(new THREE.TorusGeometry(0.3, 0.02, 6, 12, Math.PI), woodMat);
     bow.rotation.y = Math.PI / 2;
-    bow.position.set(-0.22, 0, 0.12);
+    bow.position.set(-0.24, 0, 0.12);
     rig.leftForearm.add(bow);
   } else if (role === 'farmer') {
     const hoe = mk(new THREE.CylinderGeometry(0.02, 0.02, 1.05, 6), woodMat);
-    hoe.position.set(0.22, 0, 0.04);
+    hoe.position.set(0.24, 0, 0.04);
     hoe.rotation.z = 1.24;
     rig.rightForearm.add(hoe);
   } else if (role === 'smith') {
     const hammer = mk(new RoundedBoxGeometry(0.16, 0.11, 0.11, 1, 0.02), armorMat);
-    hammer.position.set(0.22, 0, 0.1);
+    hammer.position.set(0.24, 0, 0.1);
     rig.rightForearm.add(hammer);
   }
 
   container.scale.set(scale, scale, scale);
   container.userData.skinnedRig = rig;
+  container.userData.hasSpear = hasSpear;
   return container;
 }
 
@@ -486,15 +593,22 @@ export function animateRiggedSoldierWalk(
     return;
   }
 
+  const hasSpear = group.userData.hasSpear === true;
+
   if (!isMoving) {
     rig.leftThigh.rotation.x = 0;
     rig.rightThigh.rotation.x = 0;
     rig.leftShin.rotation.x = 0;
     rig.rightShin.rotation.x = 0;
     rig.leftUpperArm.rotation.x = 0;
-    rig.rightUpperArm.rotation.x = -0.15;
     rig.leftForearm.rotation.z = 0.15;
-    rig.rightForearm.rotation.z = -0.15;
+    if (hasSpear) {
+      rig.rightUpperArm.rotation.set(-0.25, 0, -1.05);
+      rig.rightForearm.rotation.set(0, -1.15, 0);
+    } else {
+      rig.rightUpperArm.rotation.x = -0.15;
+      rig.rightForearm.rotation.z = -0.15;
+    }
     rig.hips.position.y = 0.78;
     rig.spine.rotation.y = 0;
     return;
@@ -507,10 +621,15 @@ export function animateRiggedSoldierWalk(
   rig.leftShin.rotation.x = Math.max(0, -s) * 0.65;
   rig.rightShin.rotation.x = Math.max(0, s) * 0.65;
 
-  rig.leftUpperArm.rotation.x = -s * 0.45;
-  rig.rightUpperArm.rotation.x = s * 0.25 - 0.18;
+  rig.leftUpperArm.rotation.x = -s * 0.42;
   rig.leftForearm.rotation.y = Math.max(0, s) * 0.35;
-  rig.rightForearm.rotation.y = -Math.max(0, -s) * 0.25;
+  if (hasSpear) {
+    rig.rightUpperArm.rotation.set(-0.25 + s * 0.08, 0, -1.05);
+    rig.rightForearm.rotation.set(0, -1.15 + s * 0.06, 0);
+  } else {
+    rig.rightUpperArm.rotation.x = s * 0.25 - 0.18;
+    rig.rightForearm.rotation.y = -Math.max(0, -s) * 0.25;
+  }
 
   rig.hips.position.y = 0.78 + Math.abs(c) * 0.04;
   rig.spine.rotation.y = s * 0.08;
