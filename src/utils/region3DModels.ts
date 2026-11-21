@@ -701,6 +701,67 @@ export function createNaturalBoulder(radius: number, seed: number): THREE.Buffer
 }
 
 /**
+ * Khối đá lát / đá hộc khít cạnh (mép trái/phải khớp rãnh với viên kế bên, mặt trên lồi lõm nhẹ tự nhiên)
+ */
+function createInterlockingStone(
+  width: number,
+  height: number,
+  depth: number,
+  seed: number,
+  leftEdgeJitter: [number, number, number] = [0, 0, 0],
+  rightEdgeJitter: [number, number, number] = [0, 0, 0]
+): THREE.BufferGeometry {
+  const g = new THREE.BoxGeometry(width, height, depth, 4, 2, 4);
+  const pos = g.getAttribute('position');
+  const hw = width / 2;
+  const hh = height / 2;
+  const hd = depth / 2;
+
+  const interp3 = (arr: [number, number, number], t: number) => {
+    // t in [0..1] from back (-hd) to front (+hd)
+    if (t <= 0.5) return arr[0] + (arr[1] - arr[0]) * (t * 2);
+    return arr[1] + (arr[2] - arr[1]) * ((t - 0.5) * 2);
+  };
+
+  for (let i = 0; i < pos.count; i++) {
+    let x = pos.getX(i);
+    let y = pos.getY(i);
+    let z = pos.getZ(i);
+
+    const tx = (x + hw) / Math.max(0.001, width);  // 0 (trái) .. 1 (phải)
+    const tz = (z + hd) / Math.max(0.001, depth);  // 0 (sau) .. 1 (trước)
+
+    // Khớp mép trái/phải theo đường nứt chung với viên kề bên
+    const jL = interp3(leftEdgeJitter, tz);
+    const jR = interp3(rightEdgeJitter, tz);
+    x += jL * (1 - tx) + jR * tx;
+
+    // Lượn nhẹ cạnh trước/sau
+    const edgeWaveZ = Math.sin(tx * Math.PI * 2 + seed) * 0.012;
+    if (Math.abs(z) > hd * 0.45) {
+      z += edgeWaveZ;
+    }
+
+    // Mặt trên có vát mép nhẹ & lồi lõm tự nhiên một chút
+    if (y > 0) {
+      const edgeDistX = 1 - Math.abs(tx - 0.5) * 2;
+      const edgeDistZ = 1 - Math.abs(tz - 0.5) * 2;
+      const edgeFactor = Math.min(edgeDistX, edgeDistZ);
+      const bevel = edgeFactor < 0.22 ? -0.014 * (1 - edgeFactor / 0.22) : 0.006;
+      const bump =
+        Math.sin(tx * 5.2 + seed * 1.3) * Math.cos(tz * 4.8 - seed * 0.9) * 0.013 +
+        Math.sin((tx + tz) * 7.5 + seed) * 0.005;
+      y = hh + bevel + bump;
+    }
+
+    pos.setXYZ(i, x, y, z);
+  }
+  g.computeVertexNormals();
+  g.translate(0, hh, 0);
+  return g;
+}
+
+/**
  * Phiến đá tự nhiên (lát sân / bậc tam cấp) với mép lượn hữu cơ thay vì hình chữ nhật
  */
 function createNaturalFlagstone(width: number, height: number, depth: number, seed: number): THREE.BufferGeometry {
@@ -1009,7 +1070,7 @@ function getBuildingParts(
       mortarBed.translate(0, 0.03, 0);
       push('earthDark', mortarBed);
 
-      // Xếp đá hộc viền móng nối tiếp nhau khít khao (tiến dọc theo từng cạnh, chỉ hở kẽ 1-2cm)
+      // Xếp đá hộc viền móng nối tiếp khít hoàn toàn (chung đường nứt giữa 2 viên kề nhau, chỉ hở kẽ 1cm)
       const layTightStoneEdge = (
         fixedCoord: number,
         start: number,
@@ -1020,26 +1081,39 @@ function getBuildingParts(
       ) => {
         let cursor = start;
         let idx = 0;
+        let prevEdge: [number, number, number] = [0, 0, 0];
         while (cursor < end - 0.14) {
           const seed = seedBase + idx * 13.7;
           const len = Math.min(end - cursor, 0.24 + mixHash(seed + 1) * 0.14);
           const center = cursor + len / 2;
-          const seam = 0.012 + mixHash(seed + 2) * 0.014; // Kẽ hở nhỏ 1.2 - 2.6cm
+          const seam = 0.01; // Kẽ hở siêu mảnh 1cm
           cursor += len + seam;
           idx++;
 
-          if (skipCenterGap && Math.abs(center) < 0.56) continue;
+          const nextEdge: [number, number, number] = [
+            (mixHash(seed + 10) - 0.5) * 0.04,
+            (mixHash(seed + 11) - 0.5) * 0.04,
+            (mixHash(seed + 12) - 0.5) * 0.04,
+          ];
 
-          const thick = 0.24 + mixHash(seed + 3) * 0.06;
-          const h = 0.14 + mixHash(seed + 4) * 0.04;
+          if (skipCenterGap && Math.abs(center) < 0.56) {
+            prevEdge = nextEdge;
+            continue;
+          }
+
+          const thick = 0.26 + mixHash(seed + 3) * 0.04;
+          const h = 0.15 + mixHash(seed + 4) * 0.03;
           const w = isHoriz ? len : thick;
           const d = isHoriz ? thick : len;
-          const x = isHoriz ? center : fixedCoord + (mixHash(seed + 5) - 0.5) * 0.02;
-          const z = isHoriz ? fixedCoord + (mixHash(seed + 5) - 0.5) * 0.02 : center;
+          const x = isHoriz ? center : fixedCoord + (mixHash(seed + 5) - 0.5) * 0.01;
+          const z = isHoriz ? fixedCoord + (mixHash(seed + 5) - 0.5) * 0.01 : center;
 
-          const stoneBlock = createNaturalFlagstone(w, h, d, seed);
+          const stoneBlock = isHoriz
+            ? createInterlockingStone(w, h, d, seed, prevEdge, nextEdge)
+            : createInterlockingStone(w, h, d, seed);
           stoneBlock.translate(x, 0.04, z);
           push(pickStone(seed + 7.1), stoneBlock);
+          prevEdge = nextEdge;
         }
       };
 
@@ -1048,34 +1122,46 @@ function getBuildingParts(
       layTightStoneEdge(-2.32, -2.18, 2.18, false, false, 131);// Viền trái
       layTightStoneEdge(2.32, -2.18, 2.18, false, false, 191); // Viền phải
 
-      // Lát kín vành nền tầng 1 bằng các hàng phiến đá xếp so le khít nhau (chỉ hở kẽ nhỏ)
-      let rowZ = -2.16;
+      // Lát kín vành nền tầng 1 bằng các hàng phiến đá khớp rãnh khít nhau (chỉ hở kẽ mảnh)
+      let rowZ = -2.18;
       let rIdx = 0;
-      while (rowZ < 2.12) {
-        const rowDepth = Math.min(2.16 - rowZ, 0.26 + mixHash(rIdx * 23.1) * 0.09);
+      while (rowZ < 2.14) {
+        const rowDepth = Math.min(2.18 - rowZ, 0.28 + mixHash(rIdx * 23.1) * 0.08);
         const zCenter = rowZ + rowDepth / 2;
-        const rowSeam = 0.014 + mixHash(rIdx * 11.3) * 0.012;
-        let colX = -2.16;
+        const rowSeam = 0.01;
+        let colX = -2.18;
         let cIdx = 0;
-        while (colX < 2.12) {
+        let prevColEdge: [number, number, number] = [0, 0, 0];
+        while (colX < 2.14) {
           const seed = rIdx * 197 + cIdx * 31.3;
-          const colW = Math.min(2.16 - colX, 0.28 + mixHash(seed + 1) * 0.14);
+          const colW = Math.min(2.18 - colX, 0.28 + mixHash(seed + 1) * 0.14);
           const xCenter = colX + colW / 2;
-          const colSeam = 0.014 + mixHash(seed + 2) * 0.012;
+          const colSeam = 0.01;
           colX += colW + colSeam;
           cIdx++;
 
-          // Chỉ lát vành ngoài tầng 1 (từ +-1.78 ra tới +-2.16)
-          if (Math.abs(xCenter) < 1.78 && Math.abs(zCenter) < 1.78) continue;
+          const nextColEdge: [number, number, number] = [
+            (mixHash(seed + 21) - 0.5) * 0.04,
+            (mixHash(seed + 22) - 0.5) * 0.04,
+            (mixHash(seed + 23) - 0.5) * 0.04,
+          ];
 
-          const slab = createNaturalFlagstone(
+          if (Math.abs(xCenter) < 1.78 && Math.abs(zCenter) < 1.78) {
+            prevColEdge = nextColEdge;
+            continue;
+          }
+
+          const slab = createInterlockingStone(
             colW,
-            0.055 + mixHash(seed + 3) * 0.02,
+            0.06 + mixHash(seed + 3) * 0.015,
             rowDepth,
-            seed + 5
+            seed + 5,
+            prevColEdge,
+            nextColEdge
           );
           slab.translate(xCenter, 0.14, zCenter);
           push(pickStone(seed + 9.7), slab);
+          prevColEdge = nextColEdge;
         }
         rowZ += rowDepth + rowSeam;
         rIdx++;
@@ -1086,18 +1172,24 @@ function getBuildingParts(
       moundTop.translate(0, 0.21, 0);
       push('earth', moundTop);
 
-      // Bậc tam cấp trước ghép từ các phiến đá khít nhau (mỗi bậc 3 phiến sát nhau, chỉ hở kẽ nhỏ)
+      // Bậc tam cấp trước ghép từ các phiến đá khít rãnh (mỗi bậc 3 phiến khớp nhau)
       for (let st = 0; st < 3; st++) {
         const yStep = 0.06 + st * 0.11;
         const zStep = 2.66 - st * 0.22;
         let sx = -0.52;
+        let prevStepEdge: [number, number, number] = [0, 0, 0];
         for (let subIdx = 0; subIdx < 3; subIdx++) {
           const sSeed = st * 41 + subIdx * 17 + 3;
-          const sw = subIdx === 2 ? 0.52 - sx : 0.31 + mixHash(sSeed) * 0.06;
-          const stepSlab = createNaturalFlagstone(sw, 0.075, 0.22, sSeed);
+          const sw = subIdx === 2 ? 0.52 - sx : 0.32 + mixHash(sSeed) * 0.05;
+          const nextStepEdge: [number, number, number] =
+            subIdx === 2
+              ? [0, 0, 0]
+              : [(mixHash(sSeed + 10) - 0.5) * 0.03, (mixHash(sSeed + 11) - 0.5) * 0.03, (mixHash(sSeed + 12) - 0.5) * 0.03];
+          const stepSlab = createInterlockingStone(sw, 0.075, 0.22, sSeed, prevStepEdge, nextStepEdge);
           stepSlab.translate(sx + sw / 2, yStep, zStep);
           push(pickStone(sSeed + 5.3), stepSlab);
-          sx += sw + 0.016;
+          sx += sw + 0.01;
+          prevStepEdge = nextStepEdge;
         }
       }
       // Lối lát đá nhỏ dẫn vào chân cầu thang
