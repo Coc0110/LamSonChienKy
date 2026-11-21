@@ -1131,7 +1131,9 @@ function getBuildingParts(
         return coords;
       };
 
-      const xAxis = buildNonUniformAxis(-2.42, 2.42, 31);
+      const xLeft = buildNonUniformAxis(-2.42, -0.54, 31);
+      const xRight = buildNonUniformAxis(0.54, 2.42, 61);
+      const xAxis = [...xLeft, -0.18, 0.18, ...xRight];
       const zAxis = buildNonUniformAxis(-2.42, 2.42, 97);
       const nx = xAxis.length - 1;
       const nz = zAxis.length - 1;
@@ -1143,8 +1145,8 @@ function getBuildingParts(
           const bx = xAxis[cx];
           const bz = zAxis[rz];
           const s = rz * 131 + cx * 37;
-          // Biên độ lệch vừa phải (±0.05) để không méo quá đà
-          const jx = (mixHash(s + 1.3) - 0.5) * 0.1;
+          const isStairEdge = rz >= nz - 1 && (Math.abs(bx - -0.54) < 0.01 || Math.abs(bx - 0.54) < 0.01);
+          const jx = isStairEdge ? 0 : (mixHash(s + 1.3) - 0.5) * 0.1;
           const jz = (mixHash(s + 4.9) - 0.5) * 0.1;
           rowPts.push([bx + jx, bz + jz]);
         }
@@ -1160,13 +1162,22 @@ function getBuildingParts(
           const isSecondBand = rz === 1 || rz === nz - 2 || cx === 1 || cx === nx - 2;
           if (!isRim && !isSecondBand) continue;
 
+          const cellMidX = (xAxis[cx] + xAxis[cx + 1]) / 2;
+          if (rz === nz - 1 && cellMidX > -0.53 && cellMidX < 0.53) {
+            usedCell[rz][cx] = true;
+            continue;
+          }
+
           const seed = rz * 197 + cx * 43.1;
           let cxEnd = cx + 1;
           let rzEnd = rz + 1;
 
-          // Gộp ngẫu nhiên ~28% ô liền kề cùng vành để có viên đá to, viên đá nhỏ đan xen
+          // Gộp ngẫu nhiên ~28% ô liền kề cùng vành (không gộp xuyên qua mép cầu thang)
           const mergeRoll = mixHash(seed + 15.1);
+          const nextCellMidX = cx + 1 < nx ? (xAxis[cx + 1] + xAxis[cx + 2]) / 2 : 99;
+          const crossStairBoundary = rz === nz - 1 && Math.abs(nextCellMidX) < 0.53;
           if (
+            !crossStairBoundary &&
             mergeRoll < 0.18 &&
             cx + 1 < nx &&
             !usedCell[rz][cx + 1] &&
@@ -1190,9 +1201,6 @@ function getBuildingParts(
           const pTR = vLattice[rz][cxEnd];
           const pBR = vLattice[rzEnd][cxEnd];
           const pBL = vLattice[rzEnd][cx];
-          const avgX = (pTL[0] + pTR[0] + pBR[0] + pBL[0]) / 4;
-
-          if (rz === nz - 1 && Math.abs(avgX) < 0.56) continue;
 
           const h = isRim
             ? 0.14 + mixHash(seed + 2) * 0.045
@@ -1258,14 +1266,14 @@ function getBuildingParts(
           const bx = x1 + (x2 - x1) * t;
           const bz = z1 + (z2 - z1) * t;
           const rnd = hash01(i * 19.7 + x1 * 3.1 + z1 * 5.7);
-          const h = 0.45 + (rnd - 0.5) * 0.065; // Chiều dài random nhưng săm sắp nhau
-          addBambooPole(0.033, h, 2, bx, 0.38, bz, true);
+          const h = 0.66 + (rnd - 0.5) * 0.065; // Cắm sâu từ y = 0.14 xuống nền đá, không bay lơ lửng
+          addBambooPole(0.033, h, 3, bx, 0.14, bz, true);
         }
         const len = Math.hypot(x2 - x1, z2 - z1);
         const mx = (x1 + x2) / 2;
         const mz = (z1 + z2) / 2;
         const isHoriz = Math.abs(x2 - x1) >= Math.abs(z2 - z1);
-        for (const ry of [0.51, 0.7]) {
+        for (const ry of [0.38, 0.62]) {
           push('bambooDry', cyl(0.024, 0.024, len + 0.06, 6, 0, 0, 0)
             .rotateZ(isHoriz ? Math.PI / 2 : 0)
             .rotateX(isHoriz ? 0 : Math.PI / 2)
@@ -1279,10 +1287,10 @@ function getBuildingParts(
       addBambooRow(-2.2, -2.22, 2.2, -2.22, 34);
 
       for (const tx of [-0.52, 0.52]) {
-        push('woodDark', cyl(0.042, 0.052, 0.72, 7, tx, 0.72, 2.24));
-        push('iron', torus(0.065, 0.018, 6, 10).rotateX(Math.PI / 2).translate(tx, 1.07, 2.24));
+        push('woodDark', cyl(0.042, 0.052, 0.88, 7, tx, 0.58, 2.24));
+        push('iron', torus(0.065, 0.018, 6, 10).rotateX(Math.PI / 2).translate(tx, 1.01, 2.24));
         const flame = createTorchFlameLathe();
-        flame.translate(tx, 1.08, 2.24);
+        flame.translate(tx, 1.02, 2.24);
         push('ember', flame);
       }
 
