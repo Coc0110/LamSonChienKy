@@ -268,28 +268,37 @@ export function preloadSoldierBaseModel(): Promise<boolean> {
 
               // Phóng kích thước từng nhóm giáp để bọc BÊN NGOÀI thân người stickman (tránh chìm vào trong)
               if (isHelmet) {
-                g.scale(1.4, 1.15, 1.4);
-                g.translate(0, -0.39, -0.01);
+                g.scale(1.56, 1.24, 1.56);
+                g.translate(0, -0.52, -0.01);
               } else if (isTorsoArmor) {
-                g.scale(1.44, 0.88, 1.48);
+                g.scale(1.32, 0.88, 1.46);
                 g.translate(0, -0.01, -0.005);
               } else if (isWaistSkirt) {
-                g.scale(1.34, 0.88, 1.4);
+                g.scale(1.3, 0.88, 1.4);
               } else if (isLegBoot) {
-                g.scale(1.18, 0.92, 1.32);
-                if (partName === 'leg_low') {
-                  g.translate(0, 0, 0.075);
-                } else {
-                  // Kéo giày sát vào trục chân x = ±0.11 và căn giữa z
-                  const sPos = g.getAttribute('position');
-                  for (let i = 0; i < sPos.count; i++) {
-                    const sx = sPos.getX(i);
-                    const sz = sPos.getZ(i);
-                    sPos.setX(i, sx + (sx < 0 ? 0.035 : -0.035));
-                    sPos.setZ(i, sz - 0.025);
+                // Kéo giãn và căn từng ống chân / giày vào đúng tâm chân stickman (tránh hở chân)
+                const lPos = g.getAttribute('position');
+                for (let i = 0; i < lPos.count; i++) {
+                  const lx = lPos.getX(i);
+                  const ly = lPos.getY(i);
+                  const lz = lPos.getZ(i);
+                  const isLeft = lx < 0;
+                  if (partName === 'leg_low') {
+                    const srcCx = isLeft ? -0.147 : 0.147;
+                    const dstCx = isLeft ? -0.131 : 0.131;
+                    const srcCz = -0.059;
+                    const dstCz = 0.001;
+                    lPos.setXYZ(i, dstCx + (lx - srcCx) * 1.58, ly * 0.94, dstCz + (lz - srcCz) * 1.5);
+                  } else {
+                    const srcCx = isLeft ? -0.198 : 0.198;
+                    const dstCx = isLeft ? -0.149 : 0.149;
+                    const srcCz = 0.03;
+                    const dstCz = 0.006;
+                    lPos.setXYZ(i, dstCx + (lx - srcCx) * 1.58, ly * 1.15, dstCz + (lz - srcCz) * 1.14);
                   }
-                  sPos.needsUpdate = true;
                 }
+                lPos.needsUpdate = true;
+                g.computeVertexNormals();
               } else if (isArmPart) {
                 // Xoay tay giáp từ A-pose lên T-pose TRƯỚC khi scale để trục giáp trùng khít trục cẳng tay
                 const rotAngle = 0.72;
@@ -487,9 +496,9 @@ export function createRiggedLeSoldier(
   skinnedMesh.bind(skeleton);
   container.add(skinnedMesh);
 
-  // Hạ tay từ chữ T xuống tư thế tự nhiên
-  rig.leftUpperArm.rotation.z = 1.24;
-  rig.rightUpperArm.rotation.z = -1.24;
+  // Hạ tay từ chữ T xuống tư thế tự nhiên (hơi mở rộng ra ngoài để không chìm vào giáp ngực)
+  rig.leftUpperArm.rotation.z = 1.12;
+  rig.rightUpperArm.rotation.z = -0.98;
 
   const isMing = faction === 'ming';
   const tunicMat = getGearMat(
@@ -576,8 +585,8 @@ export function createRiggedLeSoldier(
     shield.position.set(-0.24, 0.0, 0.1);
     rig.leftForearm.add(shield);
   } else if (hasSpear) {
-    // Tư thế tay phải gập khuỷu cầm chắc thân thương phía trước
-    rig.rightUpperArm.rotation.set(-0.25, 0, -1.05);
+    // Tư thế tay phải gập khuỷu cầm chắc thân thương phía trước (mở vai nhẹ để không chìm vào giáp ngực)
+    rig.rightUpperArm.rotation.set(-0.25, 0, -0.95);
     rig.rightForearm.rotation.set(0, -1.15, 0);
 
     const spear = new THREE.Group();
@@ -648,7 +657,7 @@ export function animateRiggedSoldierWalk(
     rig.leftUpperArm.rotation.x = 0;
     rig.leftForearm.rotation.z = 0.15;
     if (hasSpear) {
-      rig.rightUpperArm.rotation.set(-0.25, 0, -1.05);
+      rig.rightUpperArm.rotation.set(-0.25, 0, -0.95);
       rig.rightForearm.rotation.set(0, -1.15, 0);
     } else {
       rig.rightUpperArm.rotation.x = -0.15;
@@ -669,7 +678,7 @@ export function animateRiggedSoldierWalk(
   rig.leftUpperArm.rotation.x = -s * 0.42;
   rig.leftForearm.rotation.y = Math.max(0, s) * 0.35;
   if (hasSpear) {
-    rig.rightUpperArm.rotation.set(-0.25 + s * 0.08, 0, -1.05);
+    rig.rightUpperArm.rotation.set(-0.25 + s * 0.08, 0, -0.95);
     rig.rightForearm.rotation.set(0, -1.15 + s * 0.06, 0);
   } else {
     rig.rightUpperArm.rotation.x = s * 0.25 - 0.18;
