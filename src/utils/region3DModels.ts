@@ -701,63 +701,100 @@ export function createNaturalBoulder(radius: number, seed: number): THREE.Buffer
 }
 
 /**
- * Khối đá lát / đá hộc khít cạnh (mép trái/phải khớp rãnh với viên kế bên, mặt trên lồi lõm nhẹ tự nhiên)
+ * Khối đá tự nhiên đa giác méo (crazy-paving) chia sẻ cạnh chung với viên kế bên:
+ * - Không vuông vức (góc xiên & cạnh gãy khúc ngẫu nhiên)
+ * - Khớp khít 100% không hở lỗ tam giác
+ * - Mặt trên có lồi lõm nhẹ tự nhiên
  */
-function createInterlockingStone(
-  width: number,
+function createCrazyPavingStone(
+  cornersXZ: [[number, number], [number, number], [number, number], [number, number]],
   height: number,
-  depth: number,
-  seed: number,
-  leftEdgeJitter: [number, number, number] = [0, 0, 0],
-  rightEdgeJitter: [number, number, number] = [0, 0, 0]
+  seed: number
 ): THREE.BufferGeometry {
-  const g = new THREE.BoxGeometry(width, height, depth, 4, 2, 4);
-  const pos = g.getAttribute('position');
-  const hw = width / 2;
-  const hh = height / 2;
-  const hd = depth / 2;
-
-  const interp3 = (arr: [number, number, number], t: number) => {
-    // t in [0..1] from back (-hd) to front (+hd)
-    if (t <= 0.5) return arr[0] + (arr[1] - arr[0]) * (t * 2);
-    return arr[1] + (arr[2] - arr[1]) * ((t - 0.5) * 2);
+  const edgeHash = (ax: number, az: number, bx: number, bz: number, salt: number) => {
+    // Đảm bảo cạnh (A->B) và (B->A) cho cùng 1 độ lệch tại tâm cạnh
+    const k1 = Math.round(ax * 100) * 73856093 + Math.round(az * 100) * 19349663;
+    const k2 = Math.round(bx * 100) * 73856093 + Math.round(bz * 100) * 19349663;
+    const sym = (k1 + k2) ^ (Math.min(k1, k2) * 31);
+    const v = Math.sin(sym * 0.0001 + salt) * 43758.5453;
+    return v - Math.floor(v);
   };
 
+  // Xây dựng đa giác 12 đỉnh từ 4 góc + 2 điểm gãy trên mỗi cạnh
+  const rawPts: Array<[number, number]> = [];
+  for (let i = 0; i < 4; i++) {
+    const [ax, az] = cornersXZ[i];
+    const [bx, bz] = cornersXZ[(i + 1) % 4];
+    rawPts.push([ax, az]);
+
+    const ex = bx - ax;
+    const ez = bz - az;
+    const len = Math.hypot(ex, ez) || 1;
+    const nx = -ez / len;
+    const nz = ex / len;
+    // Điểm gãy 1/3 và 2/3 cạnh (đối xứng theo hướng cạnh)
+    const dirSign = ax < bx || (ax === bx && az < bz) ? 1 : -1;
+    const off1 = (edgeHash(ax, az, bx, bz, 1.7) - 0.5) * 0.075 * dirSign;
+    const off2 = (edgeHash(ax, az, bx, bz, 5.3) - 0.5) * 0.075 * dirSign;
+    const p1t = dirSign > 0 ? 0.34 : 0.66;
+    const p2t = dirSign > 0 ? 0.66 : 0.34;
+    if (dirSign > 0) {
+      rawPts.push([ax + ex * p1t + nx * off1, az + ez * p1t + nz * off1]);
+      rawPts.push([ax + ex * p2t + nx * off2, az + ez * p2t + nz * off2]);
+    } else {
+      rawPts.push([ax + ex * 0.34 + nx * off2, az + ez * 0.34 + nz * off2]);
+      rawPts.push([ax + ex * 0.66 + nx * off1, az + ez * 0.66 + nz * off1]);
+    }
+  }
+
+  // Tính tâm & thu vào 9mm tạo khe hở mảnh tự nhiên
+  let cx = 0;
+  let cz = 0;
+  for (const [px, pz] of rawPts) {
+    cx += px;
+    cz += pz;
+  }
+  cx /= rawPts.length;
+  cz /= rawPts.length;
+
+  const shape = new THREE.Shape();
+  for (let i = 0; i < rawPts.length; i++) {
+    const [px, pz] = rawPts[i];
+    const dx = px - cx;
+    const dz = pz - cz;
+    const d = Math.hypot(dx, dz) || 1;
+    const inset = Math.max(0.05, d - 0.009) / d;
+    // Shape dùng (x, -z) để khi rotateX(-PI/2) khớp đúng (x, +z)
+    const sx = cx + dx * inset;
+    const sy = -(cz + dz * inset);
+    if (i === 0) shape.moveTo(sx, sy);
+    else shape.lineTo(sx, sy);
+  }
+  shape.closePath();
+
+  const g = new THREE.ExtrudeGeometry(shape, {
+    depth: height,
+    bevelEnabled: true,
+    bevelThickness: Math.min(0.028, height * 0.32),
+    bevelSize: 0.012,
+    bevelSegments: 2,
+  });
+  g.rotateX(-Math.PI / 2);
+
+  // Làm mặt trên lồi lõm nhẹ tự nhiên
+  const pos = g.getAttribute('position');
   for (let i = 0; i < pos.count; i++) {
-    let x = pos.getX(i);
-    let y = pos.getY(i);
-    let z = pos.getZ(i);
-
-    const tx = (x + hw) / Math.max(0.001, width);  // 0 (trái) .. 1 (phải)
-    const tz = (z + hd) / Math.max(0.001, depth);  // 0 (sau) .. 1 (trước)
-
-    // Khớp mép trái/phải theo đường nứt chung với viên kề bên
-    const jL = interp3(leftEdgeJitter, tz);
-    const jR = interp3(rightEdgeJitter, tz);
-    x += jL * (1 - tx) + jR * tx;
-
-    // Lượn nhẹ cạnh trước/sau
-    const edgeWaveZ = Math.sin(tx * Math.PI * 2 + seed) * 0.012;
-    if (Math.abs(z) > hd * 0.45) {
-      z += edgeWaveZ;
-    }
-
-    // Mặt trên có vát mép nhẹ & lồi lõm tự nhiên một chút
-    if (y > 0) {
-      const edgeDistX = 1 - Math.abs(tx - 0.5) * 2;
-      const edgeDistZ = 1 - Math.abs(tz - 0.5) * 2;
-      const edgeFactor = Math.min(edgeDistX, edgeDistZ);
-      const bevel = edgeFactor < 0.22 ? -0.014 * (1 - edgeFactor / 0.22) : 0.006;
+    const y = pos.getY(i);
+    if (y > height * 0.6) {
+      const vx = pos.getX(i);
+      const vz = pos.getZ(i);
       const bump =
-        Math.sin(tx * 5.2 + seed * 1.3) * Math.cos(tz * 4.8 - seed * 0.9) * 0.013 +
-        Math.sin((tx + tz) * 7.5 + seed) * 0.005;
-      y = hh + bevel + bump;
+        Math.sin(vx * 11.3 + seed) * Math.cos(vz * 10.7 - seed * 0.8) * 0.014 +
+        Math.sin((vx - vz) * 16.5 + seed * 1.7) * 0.006;
+      pos.setY(i, y + bump);
     }
-
-    pos.setXYZ(i, x, y, z);
   }
   g.computeVertexNormals();
-  g.translate(0, hh, 0);
   return g;
 }
 
@@ -1054,7 +1091,7 @@ function getBuildingParts(
         }
       };
 
-      // === 1. LỚP MÓNG ĐẦU TIÊN LÁT ĐÁ KHÍT NHAU (CHỈ HỞ KẼ NHỎ TỰ NHIÊN, KHÔNG XUYÊN NHAU) + NỀN ĐẤT TẦNG 2 ===
+      // === 1. LỚP MÓNG ĐÁ TỰ NHIÊN (ĐA GIÁC MÉO KHÍT NHAU KIỂU CRAZY-PAVING, KHÔNG VUÔNG VỨC) ===
       const stoneTones: MaterialKey[] = ['stone', 'stoneDark', 'stoneWarm', 'stonePale', 'stoneMoss'];
       const mixHash = (n: number): number => {
         let h = (Math.floor(n * 1000) ^ 0x9e3779b9) >>> 0;
@@ -1066,130 +1103,87 @@ function getBuildingParts(
         stoneTones[Math.floor(mixHash(seed) * stoneTones.length) % stoneTones.length];
 
       // Lớp đất lót mỏng nằm dưới khe đá
-      const mortarBed = createOrganicEarthMound(4.68, 4.68, 0.08, 1.3);
+      const mortarBed = createOrganicEarthMound(4.65, 4.65, 0.08, 1.3);
       mortarBed.translate(0, 0.03, 0);
       push('earthDark', mortarBed);
 
-      // Xếp đá hộc viền móng nối tiếp khít hoàn toàn (chung đường nứt giữa 2 viên kề nhau, chỉ hở kẽ 1cm)
-      const layTightStoneEdge = (
-        fixedCoord: number,
-        start: number,
-        end: number,
-        isHoriz: boolean,
-        skipCenterGap: boolean,
-        seedBase: number
-      ) => {
-        let cursor = start;
-        let idx = 0;
-        let prevEdge: [number, number, number] = [0, 0, 0];
-        while (cursor < end - 0.14) {
-          const seed = seedBase + idx * 13.7;
-          const len = Math.min(end - cursor, 0.24 + mixHash(seed + 1) * 0.14);
-          const center = cursor + len / 2;
-          const seam = 0.01; // Kẽ hở siêu mảnh 1cm
-          cursor += len + seam;
-          idx++;
-
-          const nextEdge: [number, number, number] = [
-            (mixHash(seed + 10) - 0.5) * 0.04,
-            (mixHash(seed + 11) - 0.5) * 0.04,
-            (mixHash(seed + 12) - 0.5) * 0.04,
-          ];
-
-          if (skipCenterGap && Math.abs(center) < 0.56) {
-            prevEdge = nextEdge;
-            continue;
-          }
-
-          const thick = 0.26 + mixHash(seed + 3) * 0.04;
-          const h = 0.15 + mixHash(seed + 4) * 0.03;
-          const w = isHoriz ? len : thick;
-          const d = isHoriz ? thick : len;
-          const x = isHoriz ? center : fixedCoord + (mixHash(seed + 5) - 0.5) * 0.01;
-          const z = isHoriz ? fixedCoord + (mixHash(seed + 5) - 0.5) * 0.01 : center;
-
-          const stoneBlock = isHoriz
-            ? createInterlockingStone(w, h, d, seed, prevEdge, nextEdge)
-            : createInterlockingStone(w, h, d, seed);
-          stoneBlock.translate(x, 0.04, z);
-          push(pickStone(seed + 7.1), stoneBlock);
-          prevEdge = nextEdge;
+      // Lưới đỉnh chia sẻ cho toàn bộ móng đá 15x15 (x, z từ -2.42 .. +2.42)
+      const N = 14;
+      const minC = -2.42;
+      const maxC = 2.42;
+      const stepC = (maxC - minC) / N;
+      const vLattice: Array<Array<[number, number]>> = [];
+      for (let rz = 0; rz <= N; rz++) {
+        const rowPts: Array<[number, number]> = [];
+        for (let cx = 0; cx <= N; cx++) {
+          const bx = minC + cx * stepC;
+          const bz = minC + rz * stepC;
+          const s = rz * 131 + cx * 37;
+          // Lệch mạnh ±0.11 để các viên đá méo tự nhiên, không còn góc vuông
+          const jx = (mixHash(s + 1.3) - 0.5) * 0.21;
+          const jz = (mixHash(s + 4.9) - 0.5) * 0.21;
+          rowPts.push([bx + jx, bz + jz]);
         }
-      };
+        vLattice.push(rowPts);
+      }
 
-      layTightStoneEdge(2.32, -2.42, 2.42, true, true, 11);    // Viền trước (chừa lối tam cấp)
-      layTightStoneEdge(-2.32, -2.42, 2.42, true, false, 71);  // Viền sau
-      layTightStoneEdge(-2.32, -2.18, 2.18, false, false, 131);// Viền trái
-      layTightStoneEdge(2.32, -2.18, 2.18, false, false, 191); // Viền phải
+      for (let rz = 0; rz < N; rz++) {
+        for (let cx = 0; cx < N; cx++) {
+          const isRim = rz === 0 || rz === N - 1 || cx === 0 || cx === N - 1;
+          const isSecondBand = rz === 1 || rz === N - 2 || cx === 1 || cx === N - 2;
+          if (!isRim && !isSecondBand) continue;
 
-      // Lát kín vành nền tầng 1 bằng các hàng phiến đá khớp rãnh khít nhau (chỉ hở kẽ mảnh)
-      let rowZ = -2.18;
-      let rIdx = 0;
-      while (rowZ < 2.14) {
-        const rowDepth = Math.min(2.18 - rowZ, 0.28 + mixHash(rIdx * 23.1) * 0.08);
-        const zCenter = rowZ + rowDepth / 2;
-        const rowSeam = 0.01;
-        let colX = -2.18;
-        let cIdx = 0;
-        let prevColEdge: [number, number, number] = [0, 0, 0];
-        while (colX < 2.14) {
-          const seed = rIdx * 197 + cIdx * 31.3;
-          const colW = Math.min(2.18 - colX, 0.28 + mixHash(seed + 1) * 0.14);
-          const xCenter = colX + colW / 2;
-          const colSeam = 0.01;
-          colX += colW + colSeam;
-          cIdx++;
+          const pTL = vLattice[rz][cx];
+          const pTR = vLattice[rz][cx + 1];
+          const pBR = vLattice[rz + 1][cx + 1];
+          const pBL = vLattice[rz + 1][cx];
+          const avgX = (pTL[0] + pTR[0] + pBR[0] + pBL[0]) / 4;
 
-          const nextColEdge: [number, number, number] = [
-            (mixHash(seed + 21) - 0.5) * 0.04,
-            (mixHash(seed + 22) - 0.5) * 0.04,
-            (mixHash(seed + 23) - 0.5) * 0.04,
-          ];
+          // Chừa lối bậc tam cấp ở mặt trước
+          if (rz === N - 1 && Math.abs(avgX) < 0.56) continue;
 
-          if (Math.abs(xCenter) < 1.78 && Math.abs(zCenter) < 1.78) {
-            prevColEdge = nextColEdge;
-            continue;
-          }
+          const seed = rz * 197 + cx * 43.1;
+          const h = isRim
+            ? 0.14 + mixHash(seed + 2) * 0.045
+            : 0.08 + mixHash(seed + 2) * 0.03;
+          const baseY = isRim ? 0.04 : 0.12;
 
-          const slab = createInterlockingStone(
-            colW,
-            0.06 + mixHash(seed + 3) * 0.015,
-            rowDepth,
-            seed + 5,
-            prevColEdge,
-            nextColEdge
-          );
-          slab.translate(xCenter, 0.14, zCenter);
-          push(pickStone(seed + 9.7), slab);
-          prevColEdge = nextColEdge;
+          // Đảm bảo thứ tự ngược chiều kim đồng hồ trong mặt phẳng XZ cho Shape (pTL -> pBL -> pBR -> pTR)
+          const stoneGeo = createCrazyPavingStone([pTL, pBL, pBR, pTR], h, seed);
+          stoneGeo.translate(0, baseY, 0);
+          push(pickStone(seed + 8.3), stoneGeo);
         }
-        rowZ += rowDepth + rowSeam;
-        rIdx++;
       }
 
       // Nền đất nện tầng 2 ở bên trong
-      const moundTop = createOrganicEarthMound(3.86, 3.86, 0.16, 4.7);
+      const moundTop = createOrganicEarthMound(3.75, 3.75, 0.16, 4.7);
       moundTop.translate(0, 0.21, 0);
       push('earth', moundTop);
 
-      // Bậc tam cấp trước ghép từ các phiến đá khít rãnh (mỗi bậc 3 phiến khớp nhau)
+      // Bậc tam cấp trước ghép từ các phiến đá đa giác méo khít nhau
       for (let st = 0; st < 3; st++) {
         const yStep = 0.06 + st * 0.11;
-        const zStep = 2.66 - st * 0.22;
-        let sx = -0.52;
-        let prevStepEdge: [number, number, number] = [0, 0, 0];
+        const zBack = 2.54 - st * 0.22;
+        const zFront = zBack + 0.22;
+        const xs = [-0.54, -0.18 + (mixHash(st * 11) - 0.5) * 0.08, 0.18 + (mixHash(st * 23) - 0.5) * 0.08, 0.54];
         for (let subIdx = 0; subIdx < 3; subIdx++) {
           const sSeed = st * 41 + subIdx * 17 + 3;
-          const sw = subIdx === 2 ? 0.52 - sx : 0.32 + mixHash(sSeed) * 0.05;
-          const nextStepEdge: [number, number, number] =
-            subIdx === 2
-              ? [0, 0, 0]
-              : [(mixHash(sSeed + 10) - 0.5) * 0.03, (mixHash(sSeed + 11) - 0.5) * 0.03, (mixHash(sSeed + 12) - 0.5) * 0.03];
-          const stepSlab = createInterlockingStone(sw, 0.075, 0.22, sSeed, prevStepEdge, nextStepEdge);
-          stepSlab.translate(sx + sw / 2, yStep, zStep);
-          push(pickStone(sSeed + 5.3), stepSlab);
-          sx += sw + 0.01;
-          prevStepEdge = nextStepEdge;
+          const xL = xs[subIdx];
+          const xR = xs[subIdx + 1];
+          const j1 = (mixHash(sSeed + 1) - 0.5) * 0.05;
+          const j2 = (mixHash(sSeed + 2) - 0.5) * 0.05;
+          const stepGeo = createCrazyPavingStone(
+            [
+              [xL, zBack + j1],
+              [xL, zFront + j2],
+              [xR, zFront - j1],
+              [xR, zBack - j2],
+            ],
+            0.075,
+            sSeed
+          );
+          stepGeo.translate(0, yStep, 0);
+          push(pickStone(sSeed + 5.3), stepGeo);
         }
       }
       // Lối lát đá nhỏ dẫn vào chân cầu thang
