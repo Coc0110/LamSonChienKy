@@ -2377,10 +2377,224 @@ function getUnitParts(
   return result;
 }
 
+export interface SoldierRig {
+  leftLeg: THREE.Group;
+  rightLeg: THREE.Group;
+  leftArm: THREE.Group;
+  rightArm: THREE.Group;
+  leftForearm: THREE.Group;
+  rightForearm: THREE.Group;
+  torso: THREE.Group;
+  head: THREE.Group;
+  baseTorsoY: number;
+}
+
+export function animateSoldierWalk(group: THREE.Group, phase: number, isMoving: boolean): void {
+  const rig = group.userData.rig as SoldierRig | undefined;
+  if (!rig) return;
+
+  if (!isMoving) {
+    rig.leftLeg.rotation.x = 0;
+    rig.rightLeg.rotation.x = 0;
+    rig.leftArm.rotation.x = 0;
+    rig.rightArm.rotation.x = -0.25;
+    rig.leftForearm.rotation.x = -0.25;
+    rig.rightForearm.rotation.x = -0.45;
+    rig.torso.position.y = rig.baseTorsoY;
+    rig.torso.rotation.y = 0;
+    return;
+  }
+
+  const s = Math.sin(phase);
+  const c = Math.cos(phase);
+  rig.leftLeg.rotation.x = s * 0.58;
+  rig.rightLeg.rotation.x = -s * 0.58;
+  rig.leftArm.rotation.x = -s * 0.45;
+  rig.rightArm.rotation.x = s * 0.25 - 0.2;
+  rig.leftForearm.rotation.x = -0.35 - Math.max(0, -s) * 0.25;
+  rig.rightForearm.rotation.x = -0.48 - Math.max(0, s) * 0.2;
+  rig.torso.position.y = rig.baseTorsoY + Math.abs(c) * 0.024;
+  rig.torso.rotation.y = s * 0.07;
+  rig.head.rotation.y = -s * 0.04;
+}
+
+const soldierGeoCache: Record<string, THREE.BufferGeometry> = {};
+function cachedGeo(key: string, builder: () => THREE.BufferGeometry): THREE.BufferGeometry {
+  if (!soldierGeoCache[key]) soldierGeoCache[key] = builder();
+  return soldierGeoCache[key];
+}
+
+function createArticulatedInfantryGroup(
+  unitType: 'swordsman' | 'spearman' | 'archer',
+  faction: 'lam_son' | 'ming'
+): THREE.Group {
+  const root = new THREE.Group();
+  const bodyMat = getSharedMaterial(faction === 'lam_son' ? 'bannerLS' : 'bannerMing');
+  const armorMat = getSharedMaterial(faction === 'lam_son' ? 'iron' : 'stoneDark');
+  const goldMat = getSharedMaterial('gold');
+  const woodMat = getSharedMaterial('woodDark');
+  const leatherMat = getSharedMaterial('wood');
+  const steelMat = getSharedMaterial('steel');
+  const skinMat = getSharedMaterial('skin');
+  const hatMat = getSharedMaterial(faction === 'lam_son' ? 'thatch' : 'iron');
+  const hatRimMat = getSharedMaterial('bambooDry');
+
+  const mk = (geo: THREE.BufferGeometry, mat: THREE.Material) => {
+    const m = new THREE.Mesh(geo, mat);
+    m.castShadow = true;
+    return m;
+  };
+
+  // === 1. CHÂN TRÁI & CHÂN PHẢI (ĐÙI + XÀ CẠP + ỦNG) ===
+  const buildLeg = (side: -1 | 1) => {
+    const legPivot = new THREE.Group();
+    legPivot.position.set(side * 0.068, 0.26, 0);
+    const thigh = mk(cachedGeo('s_thigh', () => cyl(0.046, 0.038, 0.14, 7, 0, -0.07, 0)), woodMat);
+    const shin = mk(cachedGeo('s_shin', () => cyl(0.036, 0.032, 0.12, 7, 0, -0.18, 0)), leatherMat);
+    const boot = mk(cachedGeo('s_boot', () => rbox(0.076, 0.06, 0.115, 0.015, 0, -0.23, 0.018)), armorMat);
+    legPivot.add(thigh, shin, boot);
+    return legPivot;
+  };
+  const leftLeg = buildLeg(-1);
+  const rightLeg = buildLeg(1);
+  root.add(leftLeg, rightLeg);
+
+  // === 2. THÂN NGƯỜI (ÁO CHIẾN BÀO + GIÁP TRỤ + THẮT LƯNG + BAO ĐAO BÊN HÔNG) ===
+  const torso = new THREE.Group();
+  const baseTorsoY = 0.25;
+  torso.position.set(0, baseTorsoY, 0);
+  root.add(torso);
+
+  // Áo chiến bào & vạt giáp hông
+  torso.add(mk(cachedGeo('s_tunic', () => cyl(0.11, 0.14, 0.32, 9, 0, 0.16, 0)), bodyMat));
+  // Giáp trụ ngực & lưng xếp lớp + nẹp vai
+  torso.add(mk(cachedGeo('s_chest', () => rbox(0.225, 0.21, 0.185, 0.03, 0, 0.2, 0)), armorMat));
+  torso.add(mk(cachedGeo('s_chest_trim', () => rbox(0.232, 0.035, 0.192, 0.01, 0, 0.27, 0)), goldMat));
+  // Tấm giáp che hông trước & sau
+  torso.add(mk(cachedGeo('s_tasset_f', () => rbox(0.16, 0.12, 0.03, 0.01, 0, 0.04, 0.095)), armorMat));
+  torso.add(mk(cachedGeo('s_tasset_b', () => rbox(0.16, 0.12, 0.03, 0.01, 0, 0.04, -0.095)), armorMat));
+  // Thắt lưng da + khóa đồng
+  torso.add(mk(cachedGeo('s_belt', () => cyl(0.132, 0.134, 0.055, 9, 0, 0.09, 0)), leatherMat));
+  torso.add(mk(cachedGeo('s_buckle', () => rbox(0.065, 0.055, 0.035, 0.008, 0, 0.09, 0.13)), goldMat));
+
+  // Hông trái đeo đao (vỏ đao nẹp đồng + chuôi đao nghiêng 35 độ)
+  const hipSword = new THREE.Group();
+  hipSword.position.set(-0.145, 0.08, 0.02);
+  hipSword.rotation.x = -0.6;
+  hipSword.rotation.z = 0.12;
+  hipSword.add(mk(cachedGeo('s_scabbard', () => rbox(0.032, 0.045, 0.34, 0.008, 0, 0, -0.08)), woodMat));
+  hipSword.add(mk(cachedGeo('s_scab_ring', () => rbox(0.038, 0.052, 0.035, 0.005, 0, 0, 0.02)), goldMat));
+  hipSword.add(mk(cachedGeo('s_hilt', () => cyl(0.016, 0.018, 0.12, 6, 0, 0, 0).rotateX(Math.PI / 2).translate(0, 0, 0.14)), leatherMat));
+  hipSword.add(mk(cachedGeo('s_pommel', () => sphere(0.024, 0, 0, 0.2)), goldMat));
+  torso.add(hipSword);
+
+  // === 3. ĐẦU + CỔ + NÓN LÁ (LAM SƠN) / MŨ SẮT (MINH) ===
+  const head = new THREE.Group();
+  head.position.set(0, 0.34, 0);
+  torso.add(head);
+
+  head.add(mk(cachedGeo('s_neck', () => cyl(0.042, 0.048, 0.07, 7, 0, 0.03, 0)), skinMat));
+  head.add(mk(cachedGeo('s_head', () => sphere(0.084, 0, 0.11, 0)), skinMat));
+
+  if (faction === 'lam_son') {
+    // Nón lá Việt Nam chóp nhọn có vành tre & quai nón
+    head.add(mk(cachedGeo('s_nonla', () => cone(0.21, 0.125, 14, 0, 0.21, 0)), hatMat));
+    head.add(
+      mk(
+        cachedGeo('s_nonla_rim', () => torus(0.206, 0.01, 5, 16).rotateX(Math.PI / 2).translate(0, 0.15, 0)),
+        hatRimMat
+      )
+    );
+    head.add(mk(cachedGeo('s_nonla_tip', () => sphere(0.018, 0, 0.272, 0)), hatRimMat));
+  } else {
+    head.add(mk(cachedGeo('s_ming_helm', () => cone(0.13, 0.13, 10, 0, 0.2, 0)), hatMat));
+    head.add(mk(cachedGeo('s_ming_tip', () => sphere(0.024, 0, 0.27, 0)), goldMat));
+  }
+
+  // === 4. CÁNH TAY TRÊN + CẲNG TAY + BÀN TAY (TRÁI & PHẢI) ===
+  const buildArm = (side: -1 | 1) => {
+    const armPivot = new THREE.Group();
+    armPivot.position.set(side * 0.155, 0.28, 0);
+    // Giáp vai + cánh tay trên
+    armPivot.add(mk(cachedGeo('s_pauldron', () => sphere(0.062, 0, 0, 0)), armorMat));
+    armPivot.add(mk(cachedGeo('s_upperarm', () => cyl(0.038, 0.032, 0.13, 7, 0, -0.065, 0)), bodyMat));
+
+    const forearmPivot = new THREE.Group();
+    forearmPivot.position.set(0, -0.13, 0);
+    forearmPivot.add(mk(cachedGeo('s_forearm', () => cyl(0.032, 0.026, 0.12, 7, 0, -0.06, 0)), armorMat));
+    forearmPivot.add(mk(cachedGeo('s_hand', () => sphere(0.03, 0, -0.13, 0)), skinMat));
+    armPivot.add(forearmPivot);
+    return { armPivot, forearmPivot };
+  };
+
+  const left = buildArm(-1);
+  const right = buildArm(1);
+  torso.add(left.armPivot, right.armPivot);
+
+  // Vũ khí gắn trực tiếp vào bàn tay (xoay theo cánh tay khi bước đi!)
+  if (unitType === 'swordsman') {
+    const sabre = mk(
+      cachedGeo('s_sabre', () => {
+        const b = extrudeDetailedHalberd();
+        b.scale(0.82, 0.92, 0.82);
+        b.rotateY(Math.PI / 2);
+        b.rotateX(Math.PI / 2 - 0.2);
+        b.translate(0, -0.14, 0.16);
+        return b;
+      }),
+      steelMat
+    );
+    right.forearmPivot.add(sabre);
+
+    const shield = mk(
+      cachedGeo('s_shield', () => cyl(0.18, 0.18, 0.04, 14, 0, 0, 0).rotateZ(Math.PI / 2).translate(-0.04, -0.11, 0.04)),
+      leatherMat
+    );
+    const shieldBoss = mk(cachedGeo('s_shield_boss', () => sphere(0.042, -0.06, -0.11, 0.04)), goldMat);
+    left.forearmPivot.add(shield, shieldBoss);
+  } else if (unitType === 'spearman') {
+    const shaft = mk(cachedGeo('s_spear_shaft', () => cyl(0.017, 0.021, 1.05, 6, 0, 0.18, 0.02)), leatherMat);
+    const collar = mk(cachedGeo('s_spear_collar', () => cyl(0.025, 0.025, 0.04, 7, 0, 0.68, 0.02)), goldMat);
+    const tassel = mk(cachedGeo('s_spear_tassel', () => cone(0.038, 0.11, 6, 0, 0.61, 0.02)), bodyMat);
+    const headSp = mk(cachedGeo('s_spear_head', () => extrudeSpearHead().translate(0, 0.8, 0.02)), steelMat);
+    right.forearmPivot.add(shaft, collar, tassel, headSp);
+  } else if (unitType === 'archer') {
+    const bow = mk(
+      cachedGeo('s_bow', () => torus(0.21, 0.016, 6, 12).rotateY(Math.PI / 2).translate(0, -0.08, 0.1)),
+      leatherMat
+    );
+    left.forearmPivot.add(bow);
+    const quiver = mk(cachedGeo('s_quiver', () => cyl(0.042, 0.036, 0.26, 6, -0.05, 0.2, -0.12).rotateZ(0.3)), leatherMat);
+    torso.add(quiver);
+  }
+
+  right.armPivot.rotation.x = -0.25;
+  right.forearmPivot.rotation.x = -0.45;
+  left.forearmPivot.rotation.x = -0.25;
+
+  const rig: SoldierRig = {
+    leftLeg,
+    rightLeg,
+    leftArm: left.armPivot,
+    rightArm: right.armPivot,
+    leftForearm: left.forearmPivot,
+    rightForearm: right.forearmPivot,
+    torso,
+    head,
+    baseTorsoY,
+  };
+  root.userData.rig = rig;
+  return root;
+}
+
 export function createUnitGroup(
   unitType: RegionCombatUnit['unitType'],
   faction: 'lam_son' | 'ming'
 ): THREE.Group {
+  if (unitType === 'swordsman' || unitType === 'spearman' || unitType === 'archer') {
+    return createArticulatedInfantryGroup(unitType, faction);
+  }
+
   const parts = getUnitParts(unitType);
   const group = new THREE.Group();
 

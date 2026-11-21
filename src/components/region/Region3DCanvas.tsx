@@ -4,6 +4,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { BaseBuilding, RegionCombatUnit, RegionLayout } from '../../types/region';
 import {
   DIORAMA_PALETTE,
+  animateSoldierWalk,
   createBuildingGroup,
   createDecorProp,
   createDetailedGroundTexture,
@@ -431,26 +432,57 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
       }
     };
 
-    const syncUnits = () => {
-      while (unitsGroup.children.length > 0) {
-        unitsGroup.remove(unitsGroup.children[0]);
-      }
+    const unitVisuals = new Map<
+      string,
+      { group: THREE.Group; targetX: number; targetZ: number; isMoving: boolean; phase: number }
+    >();
 
+    const syncUnits = () => {
       const list = unitsRef.current;
       const selU = selectedUnitIdRef.current;
+      const activeIds = new Set<string>();
 
       for (const u of list) {
         if (u.hp <= 0 || u.soldiers <= 0) continue;
+        activeIds.add(u.id);
         const wx = u.x - half;
         const wz = u.z - half;
-        const unitMesh = createUnitGroup(u.unitType, u.faction);
-        unitMesh.position.set(wx, 0, wz);
-        unitsGroup.add(unitMesh);
+        const existing = unitVisuals.get(u.id);
+
+        if (existing) {
+          const dx = wx - existing.targetX;
+          const dz = wz - existing.targetZ;
+          const dist = Math.hypot(dx, dz);
+          existing.isMoving = dist > 0.002;
+          if (existing.isMoving) {
+            existing.group.rotation.y = Math.atan2(dx, dz);
+          }
+          existing.targetX = wx;
+          existing.targetZ = wz;
+        } else {
+          const unitMesh = createUnitGroup(u.unitType, u.faction);
+          unitMesh.position.set(wx, 0, wz);
+          unitsGroup.add(unitMesh);
+          unitVisuals.set(u.id, {
+            group: unitMesh,
+            targetX: wx,
+            targetZ: wz,
+            isMoving: false,
+            phase: (u.x + u.z) * 1.7,
+          });
+        }
 
         if (selU && u.id === selU) {
           selectionRing.scale.set(0.85, 0.85, 1);
           selectionRing.position.set(wx, 0.06, wz);
           selectionRing.visible = true;
+        }
+      }
+
+      for (const [id, vis] of unitVisuals.entries()) {
+        if (!activeIds.has(id)) {
+          unitsGroup.remove(vis.group);
+          unitVisuals.delete(id);
         }
       }
     };
@@ -573,14 +605,27 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
 
       for (const npc of animatedNpcs) {
         if (npc.role === 'guard') {
-          npc.mesh.position.x = npc.baseX + Math.sin(t * 0.7 + npc.phase) * 1.4;
-          npc.mesh.rotation.y = Math.cos(t * 0.7 + npc.phase) >= 0 ? Math.PI / 2 : -Math.PI / 2;
+          const nextX = npc.baseX + Math.sin(t * 0.7 + npc.phase) * 1.4;
+          const dir = Math.cos(t * 0.7 + npc.phase) >= 0 ? 1 : -1;
+          npc.mesh.position.x = nextX;
+          npc.mesh.rotation.y = dir >= 0 ? Math.PI / 2 : -Math.PI / 2;
+          animateSoldierWalk(npc.mesh, t * 3.6 + npc.phase, true);
         } else if (npc.role === 'smith') {
           npc.mesh.rotation.x = Math.sin(t * 3.5 + npc.phase) * 0.25;
         } else {
           npc.mesh.position.x = npc.baseX + Math.sin(t * 0.4 + npc.phase) * 0.45;
           npc.mesh.rotation.x = Math.abs(Math.sin(t * 1.8 + npc.phase)) * 0.22;
         }
+      }
+
+      for (const vis of unitVisuals.values()) {
+        vis.group.position.x += (vis.targetX - vis.group.position.x) * 0.28;
+        vis.group.position.z += (vis.targetZ - vis.group.position.z) * 0.28;
+        const moving =
+          vis.isMoving ||
+          Math.hypot(vis.targetX - vis.group.position.x, vis.targetZ - vis.group.position.z) > 0.02;
+        if (moving) vis.phase += 0.16;
+        animateSoldierWalk(vis.group, vis.phase, moving);
       }
 
       const camDist = camera.position.distanceTo(controls.target);
