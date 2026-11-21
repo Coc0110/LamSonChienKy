@@ -616,11 +616,19 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
 
       for (const npc of animatedNpcs) {
         if (npc.role === 'guard') {
-          const nextX = npc.baseX + Math.sin(t * 0.7 + npc.phase) * 1.4;
-          const dir = Math.cos(t * 0.7 + npc.phase) >= 0 ? 1 : -1;
+          const prevX = npc.mesh.position.x;
+          const nextX = npc.baseX + Math.sin(t * 0.55 + npc.phase) * 1.4;
+          const ds = Math.abs(nextX - prevX);
+          const dir = nextX >= prevX ? 1 : -1;
           npc.mesh.position.x = nextX;
-          npc.mesh.rotation.y = dir >= 0 ? Math.PI / 2 : -Math.PI / 2;
-          animateSoldierWalk(npc.mesh, t * 3.6 + npc.phase, true);
+          if (ds > 0.0001) {
+            npc.mesh.rotation.y = dir >= 0 ? Math.PI / 2 : -Math.PI / 2;
+          }
+          // Đồng bộ nhịp bước chân chính xác theo quãng đường di chuyển ds (không bị lướt)
+          const walkPhase = (npc.mesh.userData.walkPhase as number | undefined) ?? 0;
+          const nextPhase = walkPhase + ds * (Math.PI / (0.88 * npc.mesh.scale.x));
+          npc.mesh.userData.walkPhase = nextPhase;
+          animateSoldierWalk(npc.mesh, nextPhase, ds > 0.0002);
         } else if (npc.role === 'smith') {
           npc.mesh.rotation.x = Math.sin(t * 3.5 + npc.phase) * 0.25;
         } else {
@@ -630,12 +638,17 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
       }
 
       for (const vis of unitVisuals.values()) {
-        vis.group.position.x += (vis.targetX - vis.group.position.x) * 0.28;
-        vis.group.position.z += (vis.targetZ - vis.group.position.z) * 0.28;
-        const moving =
-          vis.isMoving ||
-          Math.hypot(vis.targetX - vis.group.position.x, vis.targetZ - vis.group.position.z) > 0.02;
-        if (moving) vis.phase += 0.16;
+        const prevX = vis.group.position.x;
+        const prevZ = vis.group.position.z;
+        const nextX = prevX + (vis.targetX - prevX) * 0.28;
+        const nextZ = prevZ + (vis.targetZ - prevZ) * 0.28;
+        vis.group.position.x = nextX;
+        vis.group.position.z = nextZ;
+        const ds = Math.hypot(nextX - prevX, nextZ - prevZ);
+        const moving = vis.isMoving || ds > 0.002;
+        if (ds > 0.0002) {
+          vis.phase += ds * (Math.PI / (0.88 * Math.max(0.3, vis.group.scale.x)));
+        }
         animateSoldierWalk(vis.group, vis.phase, moving);
       }
 
