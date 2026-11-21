@@ -78,7 +78,7 @@ const cachedMaterials = new Map<string, THREE.MeshStandardMaterial>();
 const cachedPartGeometries = new Map<string, Array<{ matKey: MaterialKey; geo: THREE.BufferGeometry }>>();
 const cachedUnitPartGeometries = new Map<
   string,
-  Array<{ matKey: 'body' | 'armor' | 'wood' | 'iron' | 'gold' | 'skin'; geo: THREE.BufferGeometry }>
+  Array<{ matKey: 'body' | 'armor' | 'wood' | 'iron' | 'steel' | 'gold' | 'skin'; geo: THREE.BufferGeometry }>
 >();
 
 let woodGrainTexCache: Map<string, THREE.CanvasTexture> | null = null;
@@ -1978,6 +1978,7 @@ export function createBuildingGroup(
     flagGeo.computeVertexNormals();
     const flagMat = getFlagBannerMaterial(isEnemy);
     const flagMesh = new THREE.Mesh(flagGeo, flagMat);
+    flagMesh.name = 'animated_flag';
     flagMesh.position.set(-1.24, 2.86, 1.65);
     flagMesh.castShadow = true;
     group.add(flagMesh);
@@ -2194,83 +2195,181 @@ export function createDecorProp(kind: 'woodpile' | 'drying_rack' | 'bamboo_fence
  * Nhân vật NPC mini (Nông dân, Thợ rèn, Lính gác đi tuần)
  */
 export function createNpcGroup(role: 'farmer' | 'smith' | 'guard'): THREE.Group {
+  if (role === 'guard') {
+    const g = createUnitGroup('spearman', 'lam_son');
+    g.scale.set(0.85, 0.85, 0.85);
+    return g;
+  }
+
   const g = new THREE.Group();
-  const bodyColor =
-    role === 'farmer' ? 'earth' : role === 'smith' ? 'woodDark' : 'bannerLS';
-  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.13, 0.36, 8), getSharedMaterial(bodyColor));
-  body.position.y = 0.18;
+  const bodyColor = role === 'farmer' ? 'earth' : 'woodDark';
+  // Hai chân
+  for (const lx of [-0.055, 0.055]) {
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.032, 0.2, 6), getSharedMaterial('woodDark'));
+    leg.position.set(lx, 0.1, 0);
+    g.add(leg);
+  }
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.095, 0.125, 0.3, 8), getSharedMaterial(bodyColor));
+  body.position.y = 0.32;
   body.castShadow = true;
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 6), getSharedMaterial('skin'));
-  head.position.y = 0.42;
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.075, 8, 6), getSharedMaterial('skin'));
+  head.position.y = 0.53;
   g.add(body, head);
 
   if (role === 'farmer') {
-    const hat = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.1, 8), getSharedMaterial('thatch'));
-    hat.position.y = 0.5;
+    const hat = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.09, 10), getSharedMaterial('thatch'));
+    hat.position.y = 0.6;
     g.add(hat);
-  } else if (role === 'smith') {
-    const hammer = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.08, 0.08), getSharedMaterial('iron'));
-    hammer.position.set(0.16, 0.3, 0.1);
-    g.add(hammer);
   } else {
-    const helm = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.12, 8), getSharedMaterial('iron'));
-    helm.position.y = 0.5;
-    const spear = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.72, 6), getSharedMaterial('wood'));
-    spear.position.set(0.14, 0.36, 0.06);
-    g.add(helm, spear);
+    const hammer = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.08, 0.08), getSharedMaterial('iron'));
+    hammer.position.set(0.16, 0.38, 0.1);
+    g.add(hammer);
   }
   return g;
 }
 
 function getUnitParts(
   unitType: RegionCombatUnit['unitType']
-): Array<{ matKey: 'body' | 'armor' | 'wood' | 'iron' | 'gold' | 'skin'; geo: THREE.BufferGeometry }> {
+): Array<{ matKey: 'body' | 'armor' | 'wood' | 'iron' | 'steel' | 'gold' | 'skin'; geo: THREE.BufferGeometry }> {
   const hit = cachedUnitPartGeometries.get(unitType);
   if (hit) return hit;
 
-  const buckets = new Map<'body' | 'armor' | 'wood' | 'iron' | 'gold' | 'skin', THREE.BufferGeometry[]>();
-  const push = (m: 'body' | 'armor' | 'wood' | 'iron' | 'gold' | 'skin', g: THREE.BufferGeometry) => {
+  const buckets = new Map<'body' | 'armor' | 'wood' | 'iron' | 'steel' | 'gold' | 'skin', THREE.BufferGeometry[]>();
+  const push = (m: 'body' | 'armor' | 'wood' | 'iron' | 'steel' | 'gold' | 'skin', g: THREE.BufferGeometry) => {
     const arr = buckets.get(m);
     if (arr) arr.push(g);
     else buckets.set(m, [g]);
   };
 
+  const addSoldierBody = (ox: number, oy: number, oz: number, withPauldrons = true) => {
+    // 2 chân + ủng
+    for (const lx of [-0.065, 0.065]) {
+      push('iron', rbox(0.075, 0.07, 0.11, 0.015, ox + lx, oy + 0.035, oz + 0.015));
+      push('wood', cyl(0.042, 0.038, 0.2, 7, ox + lx, oy + 0.15, oz));
+    }
+    // Thân áo chiến bào & thắt lưng khóa đồng
+    push('body', cyl(0.115, 0.145, 0.34, 9, ox, oy + 0.38, oz));
+    push('wood', cyl(0.132, 0.132, 0.06, 9, ox, oy + 0.3, oz));
+    push('gold', rbox(0.07, 0.065, 0.04, 0.01, ox, oy + 0.3, oz + 0.13));
+    // Giáp ngực
+    push('armor', rbox(0.22, 0.19, 0.19, 0.03, ox, oy + 0.43, oz));
+    if (withPauldrons) {
+      push('armor', sphere(0.068, ox - 0.15, oy + 0.5, oz));
+      push('armor', sphere(0.068, ox + 0.15, oy + 0.5, oz));
+    }
+    // Cánh tay
+    push('body', cyl(0.036, 0.032, 0.22, 6, ox - 0.15, oy + 0.39, oz + 0.04).rotateX(-0.35));
+    push('body', cyl(0.036, 0.032, 0.22, 6, ox + 0.15, oy + 0.39, oz + 0.06).rotateX(-0.55));
+    // Đầu & Mũ trụ có chóp
+    push('skin', sphere(0.088, ox, oy + 0.62, oz));
+    push('armor', cone(0.125, 0.13, 10, ox, oy + 0.71, oz));
+    push('gold', sphere(0.028, ox, oy + 0.78, oz));
+  };
+
   if (unitType === 'elephant') {
-    push('skin', box(0.65, 0.56, 0.92, 0, 0.52, 0));
-    for (const [lx, lz] of [[-0.22, 0.3], [0.22, 0.3], [-0.22, -0.3], [0.22, -0.3]]) {
-      push('skin', cyl(0.11, 0.12, 0.38, 8, lx, 0.19, lz));
+    // Thân voi bo tròn
+    const body = new THREE.SphereGeometry(0.42, 12, 10);
+    body.scale(0.88, 0.78, 1.32);
+    body.translate(0, 0.56, 0);
+    push('skin', body);
+    // 4 chân cột voi + móng
+    for (const [lx, lz] of [[-0.22, 0.32], [0.22, 0.32], [-0.22, -0.32], [0.22, -0.32]]) {
+      push('skin', cyl(0.115, 0.13, 0.42, 9, lx, 0.21, lz));
+      push('gold', cyl(0.132, 0.136, 0.05, 9, lx, 0.025, lz));
     }
-    push('skin', box(0.42, 0.38, 0.36, 0, 0.68, 0.54));
-    push('skin', cyl(0.07, 0.04, 0.42, 6, 0, 0.48, 0.78));
-    push('gold', cone(0.045, 0.35, 6, -0.14, 0.55, 0.78));
-    push('gold', cone(0.045, 0.35, 6, 0.14, 0.55, 0.78));
-    push('body', box(0.5, 0.32, 0.52, 0, 0.94, -0.02));
-    push('armor', cone(0.38, 0.25, 4, 0, 1.22, -0.02, Math.PI / 4));
+    // Đầu voi & 2 tai lớn
+    push('skin', sphere(0.26, 0, 0.72, 0.52));
+    for (const ex of [-0.24, 0.24]) {
+      const ear = rbox(0.04, 0.28, 0.24, 0.015, 0, 0, 0);
+      ear.rotateY(ex > 0 ? 0.35 : -0.35);
+      ear.translate(ex, 0.74, 0.46);
+      push('skin', ear);
+    }
+    // Vòi voi cong TubeGeometry
+    const trunkCurve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(0, 0.66, 0.72),
+      new THREE.Vector3(0, 0.46, 0.88),
+      new THREE.Vector3(0, 0.28, 0.82),
+      new THREE.Vector3(0, 0.32, 0.96),
+    ]);
+    push('skin', new THREE.TubeGeometry(trunkCurve, 12, 0.055, 7, false));
+    // 2 Ngà voi cong
+    for (const tx of [-0.13, 0.13]) {
+      const tusk = cone(0.036, 0.38, 7, 0, 0, 0);
+      tusk.rotateX(Math.PI / 2 - 0.35);
+      tusk.translate(tx, 0.56, 0.82);
+      push('gold', tusk);
+    }
+    // Bành voi gỗ & mái che phe
+    push('wood', rbox(0.56, 0.28, 0.58, 0.03, 0, 0.94, -0.02));
+    push('body', rbox(0.6, 0.08, 0.62, 0.02, 0, 0.8, -0.02));
+    for (const [px, pz] of [[-0.24, -0.25], [0.24, -0.25], [-0.24, 0.25], [0.24, 0.25]]) {
+      push('wood', cyl(0.025, 0.025, 0.42, 6, px, 1.2, pz));
+    }
+    push('body', cone(0.45, 0.26, 4, 0, 1.5, -0.02, Math.PI / 4));
+    // Quản tượng ngồi trên cổ voi
+    addSoldierBody(0, 0.78, 0.28, false);
   } else if (unitType === 'cavalry') {
-    push('wood', box(0.34, 0.32, 0.76, 0, 0.42, 0));
-    for (const [lx, lz] of [[-0.12, 0.26], [0.12, 0.26], [-0.12, -0.26], [0.12, -0.26]]) {
-      push('wood', cyl(0.04, 0.045, 0.32, 6, lx, 0.16, lz));
+    // Ngựa chiến bo cong
+    push('wood', rbox(0.32, 0.28, 0.76, 0.08, 0, 0.44, 0));
+    // 4 chân ngựa có khớp & móng sắt
+    for (const [lx, lz] of [[-0.11, 0.26], [0.11, 0.26], [-0.11, -0.26], [0.11, -0.26]]) {
+      push('wood', cyl(0.04, 0.034, 0.34, 6, lx, 0.17, lz));
+      push('iron', cyl(0.038, 0.04, 0.04, 6, lx, 0.02, lz));
     }
-    push('wood', box(0.18, 0.24, 0.26, 0, 0.66, 0.42));
-    push('body', cyl(0.12, 0.15, 0.42, 8, 0, 0.74, -0.04));
-    push('armor', cone(0.14, 0.2, 8, 0, 1.02, -0.04));
-    push('iron', cyl(0.022, 0.022, 1.05, 6, 0.2, 0.85, 0.28));
+    // Cổ & đầu ngựa + bờm + đuôi
+    const neck = cyl(0.075, 0.11, 0.32, 7, 0, 0, 0);
+    neck.rotateX(0.48);
+    neck.translate(0, 0.62, 0.36);
+    push('wood', neck);
+    const horseHead = rbox(0.14, 0.16, 0.28, 0.04, 0, 0, 0);
+    horseHead.rotateX(0.35);
+    horseHead.translate(0, 0.74, 0.48);
+    push('wood', horseHead);
+    push('iron', cyl(0.03, 0.04, 0.28, 6, 0, 0.4, -0.44).rotateX(-0.45)); // Đuôi
+    // Yên ngựa phe
+    push('body', rbox(0.36, 0.08, 0.34, 0.02, 0, 0.58, -0.02));
+    // Kỵ sĩ mặc giáp cầm trường thương thép sáng
+    addSoldierBody(0, 0.48, -0.02, true);
+    push('wood', cyl(0.018, 0.022, 1.15, 6, 0.22, 0.96, 0.28).rotateX(0.42));
+    push('steel', extrudeSpearHead().rotateX(0.42).translate(0.22, 1.48, 0.54));
+    push('body', cone(0.042, 0.12, 6, 0.22, 1.38, 0.48).rotateX(0.42));
   } else {
-    push('body', cyl(0.14, 0.18, 0.44, 8, 0, 0.28, 0));
-    push('skin', cyl(0.09, 0.09, 0.16, 8, 0, 0.56, 0));
-    push('armor', cone(0.15, 0.16, 8, 0, 0.68, 0));
+    addSoldierBody(0, 0, 0, true);
     if (unitType === 'swordsman') {
-      push('iron', box(0.04, 0.4, 0.07, 0.2, 0.42, 0.14));
-      push('wood', box(0.06, 0.32, 0.22, -0.18, 0.36, 0.1));
+      // Đao cong thép sáng + Khiên tròn viền đồng
+      const sabre = extrudeDetailedHalberd();
+      sabre.scale(0.85, 0.95, 0.85);
+      sabre.rotateY(Math.PI / 2);
+      sabre.rotateX(-0.35);
+      sabre.translate(0.2, 0.56, 0.24);
+      push('steel', sabre);
+      push('gold', cyl(0.025, 0.025, 0.1, 6, 0.2, 0.4, 0.16));
+
+      const shield = cyl(0.19, 0.19, 0.04, 14, 0, 0, 0);
+      shield.rotateZ(Math.PI / 2);
+      shield.rotateY(0.4);
+      shield.translate(-0.2, 0.39, 0.12);
+      push('wood', shield);
+      push('gold', sphere(0.048, -0.22, 0.39, 0.13));
     } else if (unitType === 'spearman') {
-      push('wood', cyl(0.02, 0.02, 0.95, 6, 0.16, 0.55, 0.16));
-      push('iron', cone(0.04, 0.16, 6, 0.16, 1.06, 0.16));
+      // Trường giáo cán gỗ + khâu đồng + tua đỏ + mũi giáo lá liễu thép sáng
+      push('wood', cyl(0.018, 0.022, 1.05, 6, 0.17, 0.58, 0.15));
+      push('gold', cyl(0.026, 0.026, 0.04, 7, 0.17, 1.08, 0.15));
+      push('body', cone(0.04, 0.12, 6, 0.17, 1.01, 0.15));
+      push('steel', extrudeSpearHead().translate(0.17, 1.2, 0.15));
     } else if (unitType === 'archer') {
-      push('wood', box(0.05, 0.42, 0.08, 0.14, 0.4, 0.22));
+      // Cung cong Torus + ống tên sau lưng
+      const bow = torus(0.22, 0.018, 6, 12);
+      bow.rotateY(Math.PI / 2);
+      bow.translate(0.15, 0.44, 0.22);
+      push('wood', bow);
+      push('steel', cyl(0.008, 0.008, 0.36, 4, 0.15, 0.44, 0.32).rotateX(Math.PI / 2));
+      push('wood', cyl(0.045, 0.038, 0.28, 6, -0.06, 0.45, -0.14).rotateZ(0.3));
     }
   }
 
-  const result: Array<{ matKey: 'body' | 'armor' | 'wood' | 'iron' | 'gold' | 'skin'; geo: THREE.BufferGeometry }> = [];
+  const result: Array<{ matKey: 'body' | 'armor' | 'wood' | 'iron' | 'steel' | 'gold' | 'skin'; geo: THREE.BufferGeometry }> = [];
   for (const [matKey, geos] of buckets.entries()) {
     result.push({ matKey, geo: safeMerge(geos) });
   }
@@ -2289,6 +2388,7 @@ export function createUnitGroup(
   const armorMat = getSharedMaterial(faction === 'lam_son' ? 'gold' : 'iron');
   const woodMat = getSharedMaterial('wood');
   const ironMat = getSharedMaterial('iron');
+  const steelMat = getSharedMaterial('steel');
   const goldMat = getSharedMaterial('gold');
   const skinMat = getSharedMaterial(unitType === 'elephant' ? 'stoneDark' : 'plaster');
 
@@ -2302,6 +2402,8 @@ export function createUnitGroup(
         ? woodMat
         : p.matKey === 'iron'
         ? ironMat
+        : p.matKey === 'steel'
+        ? steelMat
         : p.matKey === 'gold'
         ? goldMat
         : skinMat;

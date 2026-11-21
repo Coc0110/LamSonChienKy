@@ -308,6 +308,7 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
       baseZ: number;
       phase: number;
     }> = [];
+    const animatedFlags: THREE.Mesh[] = [];
 
     const syncBuildings = () => {
       while (buildingsGroup.children.length > 0) {
@@ -317,6 +318,7 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
         npcsGroup.remove(npcsGroup.children[0]);
       }
       animatedNpcs.length = 0;
+      animatedFlags.length = 0;
 
       const currentLayout = layoutRef.current;
       const enemy = isEnemyRef.current;
@@ -359,6 +361,11 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
         const cx = b.col + b.spanCols / 2 - half;
         const cz = b.row + b.spanRows / 2 - half;
         group.position.set(cx, 0, cz);
+        group.traverse((obj) => {
+          if (obj instanceof THREE.Mesh && obj.name === 'animated_flag') {
+            animatedFlags.push(obj);
+          }
+        });
         buildingsGroup.add(group);
 
         // Vật dụng trang trí & NPC hoạt động quanh công trình
@@ -553,6 +560,17 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
       controls.update();
 
       const t = now * 0.002;
+      for (const flag of animatedFlags) {
+        const pos = flag.geometry.getAttribute('position');
+        for (let i = 0; i < pos.count; i++) {
+          const fx = pos.getX(i);
+          const fy = pos.getY(i);
+          const u = (fx + 0.61) / 1.22;
+          pos.setZ(i, Math.sin(u * 6.2 - t * 2.4 + fy * 1.6) * 0.085 * u);
+        }
+        pos.needsUpdate = true;
+      }
+
       for (const npc of animatedNpcs) {
         if (npc.role === 'guard') {
           npc.mesh.position.x = npc.baseX + Math.sin(t * 0.7 + npc.phase) * 1.4;
