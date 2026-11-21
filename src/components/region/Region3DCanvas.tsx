@@ -7,6 +7,7 @@ import {
   createBuildingGroup,
   createDecorProp,
   createDetailedGroundTexture,
+  createNaturalBoulder,
   createNpcGroup,
   createUnitGroup,
   createVietnameseTree,
@@ -244,7 +245,7 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
     if (blockedTiles.length > 0) {
       const trunkGeo = new THREE.CylinderGeometry(0.1, 0.14, 0.5, 6);
       const leafGeo = new THREE.ConeGeometry(0.42, 0.9, 6);
-      const rockGeo = new THREE.DodecahedronGeometry(0.48, 0);
+      const rockGeo = createNaturalBoulder(0.48, 3.7);
       const trunkMat = new THREE.MeshStandardMaterial({ color: DIORAMA_PALETTE.woodDark, roughness: 0.9 });
       const leafMat = new THREE.MeshStandardMaterial({ color: DIORAMA_PALETTE.leafMid, roughness: 0.85 });
       const rockMat = new THREE.MeshStandardMaterial({ color: DIORAMA_PALETTE.stone, roughness: 0.95 });

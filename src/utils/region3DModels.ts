@@ -116,6 +116,38 @@ function getWoodGrainTexture(baseHex: string, grainHex: string): THREE.CanvasTex
   return tex;
 }
 
+const stoneTexCache = new Map<string, THREE.CanvasTexture>();
+function getStoneTexture(baseHex: string, speckHex: string): THREE.CanvasTexture {
+  const key = `${baseHex}_${speckHex}`;
+  const hit = stoneTexCache.get(key);
+  if (hit) return hit;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    ctx.fillStyle = baseHex;
+    ctx.fillRect(0, 0, 128, 128);
+    for (let i = 0; i < 220; i++) {
+      const rx = ((Math.sin(i * 17.13) * 43758.54) % 1 + 1) % 1;
+      const ry = ((Math.sin(i * 63.71) * 43758.54) % 1 + 1) % 1;
+      const r = 1.5 + (i % 5);
+      ctx.fillStyle = i % 7 === 0 ? 'rgba(92, 114, 62, 0.28)' : speckHex;
+      ctx.globalAlpha = 0.22 + (i % 4) * 0.08;
+      ctx.beginPath();
+      ctx.arc(rx * 128, ry * 128, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  stoneTexCache.set(key, tex);
+  return tex;
+}
+
 let cachedBambooTex: THREE.CanvasTexture | null = null;
 function getBambooCulmTexture(): THREE.CanvasTexture {
   if (cachedBambooTex) return cachedBambooTex;
@@ -157,10 +189,16 @@ function getSharedMaterial(key: MaterialKey, transparent = false, opacity = 1): 
   let mat: THREE.MeshStandardMaterial;
   switch (key) {
     case 'stone':
-      mat = new THREE.MeshStandardMaterial({ color: DIORAMA_PALETTE.stone, roughness: 0.88 });
+      mat = new THREE.MeshStandardMaterial({
+        map: getStoneTexture('#8d9198', '#686d75'),
+        roughness: 0.9,
+      });
       break;
     case 'stoneDark':
-      mat = new THREE.MeshStandardMaterial({ color: DIORAMA_PALETTE.stoneDark, roughness: 0.92 });
+      mat = new THREE.MeshStandardMaterial({
+        map: getStoneTexture('#646870', '#45484f'),
+        roughness: 0.93,
+      });
       break;
     case 'earth':
       mat = new THREE.MeshStandardMaterial({ color: DIORAMA_PALETTE.earth, roughness: 0.95 });
@@ -592,6 +630,69 @@ function createOrganicEarthMound(width: number, depth: number, height: number, s
 }
 
 /**
+ * Tảng đá tự nhiên mài mòn (IcosahedronGeometry bậc 2 + biến dạng nhiễu mượt, không góc cạnh thô)
+ */
+export function createNaturalBoulder(radius: number, seed: number): THREE.BufferGeometry {
+  const g = new THREE.IcosahedronGeometry(radius, 2);
+  const pos = g.getAttribute('position');
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const z = pos.getZ(i);
+    const len = Math.hypot(x, y, z) || 1;
+    const nx = x / len;
+    const ny = y / len;
+    const nz = z / len;
+
+    const n1 = Math.sin(nx * 3.1 + seed) * Math.cos(ny * 2.7 - seed * 0.7) * Math.sin(nz * 2.9 + seed * 1.3);
+    const n2 = Math.sin(nx * 5.7 - seed * 1.1) * Math.cos(nz * 5.3 + seed * 0.5) * 0.35;
+    const disp = 1 + (n1 * 0.22 + n2 * 0.12);
+
+    let fx = x * disp;
+    let fy = y * disp * 0.78;
+    let fz = z * disp;
+
+    // Làm phẳng nhẹ mặt đáy để tảng đá cắm tự nhiên vào đất
+    if (fy < -radius * 0.28) {
+      fy = -radius * 0.28 + (fy + radius * 0.28) * 0.25;
+    }
+
+    pos.setXYZ(i, fx, fy, fz);
+  }
+  g.computeVertexNormals();
+  return g;
+}
+
+/**
+ * Phiến đá tự nhiên (lát sân / bậc tam cấp) với mép lượn hữu cơ thay vì hình chữ nhật
+ */
+function createNaturalFlagstone(width: number, height: number, depth: number, seed: number): THREE.BufferGeometry {
+  const shape = new THREE.Shape();
+  const pts = 10;
+  const hw = width / 2;
+  const hd = depth / 2;
+  for (let i = 0; i < pts; i++) {
+    const a = (i / pts) * Math.PI * 2;
+    const rMod = 0.88 + Math.sin(i * 2.7 + seed) * 0.11 + Math.cos(i * 4.3 + seed) * 0.06;
+    const px = Math.cos(a) * hw * rMod;
+    const py = Math.sin(a) * hd * rMod;
+    if (i === 0) shape.moveTo(px, py);
+    else shape.lineTo(px, py);
+  }
+  shape.closePath();
+
+  const g = new THREE.ExtrudeGeometry(shape, {
+    depth: height,
+    bevelEnabled: true,
+    bevelThickness: Math.min(0.025, height * 0.3),
+    bevelSize: 0.022,
+    bevelSegments: 2,
+  });
+  g.rotateX(-Math.PI / 2);
+  return g;
+}
+
+/**
  * Thân tre đúc liền khối bằng LatheGeometry (thon dần lên ngọn, mắt tre nổi rõ tự nhiên)
  */
 function createBambooCulmLathe(radius: number, height: number, nodes: number): THREE.BufferGeometry {
@@ -864,30 +965,35 @@ function getBuildingParts(
       moundTop.translate(0, 0.24, 0);
       push('earth', moundTop);
 
-      for (const [sx, sz] of [[-2.35, -2.35], [2.35, -2.35], [-2.35, 2.35], [2.35, 2.35]]) {
-        const rock = new THREE.DodecahedronGeometry(0.28, 0);
-        rock.scale(1.25, 0.85, 1.1);
+      for (const [idx, [sx, sz]] of ([[-2.35, -2.35], [2.35, -2.35], [-2.35, 2.35], [2.35, 2.35]] as const).entries()) {
+        const rock = createNaturalBoulder(0.32, idx * 3.7 + 1.2);
+        rock.scale(1.15, 0.9, 1.05);
         rock.rotateY(sx * 0.7 + sz);
-        rock.translate(sx, 0.22, sz);
+        rock.translate(sx, 0.2, sz);
         push('stoneDark', rock);
-        const subRock = new THREE.DodecahedronGeometry(0.16, 0);
-        subRock.translate(sx * 0.9, 0.16, sz * 1.02);
+        const subRock = createNaturalBoulder(0.18, idx * 5.1 + 2.4);
+        subRock.translate(sx * 0.88, 0.16, sz * 1.04);
         push('stone', subRock);
+        const pebble = createNaturalBoulder(0.11, idx * 7.3 + 0.9);
+        pebble.translate(sx * 1.05, 0.12, sz * 0.86);
+        push('stone', pebble);
       }
 
       for (let st = 0; st < 3; st++) {
-        push('stone', rbox(1.06 - st * 0.06, 0.11, 0.27, 0.025, 0, 0.08 + st * 0.11, 2.66 - st * 0.2));
+        const stepSlab = createNaturalFlagstone(1.1 - st * 0.06, 0.08, 0.3, st * 4.1 + 1.5);
+        stepSlab.translate(0, 0.04 + st * 0.11, 2.66 - st * 0.2);
+        push('stone', stepSlab);
       }
-      for (const [px, pz, pw, pd, rot] of [
-        [-0.18, 2.08, 0.36, 0.24, 0.08],
-        [0.2, 2.02, 0.32, 0.22, -0.06],
-        [0.02, 1.78, 0.42, 0.22, 0.04],
-        [-0.15, 1.54, 0.34, 0.2, -0.1],
-        [0.18, 1.5, 0.3, 0.2, 0.09],
-      ] as const) {
-        const slab = rbox(pw, 0.055, pd, 0.015, 0, 0, 0);
+      for (const [idx, [px, pz, pw, pd, rot]] of ([
+        [-0.18, 2.08, 0.38, 0.26, 0.12],
+        [0.2, 2.02, 0.34, 0.24, -0.1],
+        [0.02, 1.78, 0.44, 0.24, 0.07],
+        [-0.15, 1.54, 0.36, 0.22, -0.14],
+        [0.18, 1.5, 0.32, 0.22, 0.11],
+      ] as const).entries()) {
+        const slab = createNaturalFlagstone(pw, 0.045, pd, idx * 6.3 + 2.1);
         slab.rotateY(rot);
-        slab.translate(px, 0.4, pz);
+        slab.translate(px, 0.38, pz);
         push('stone', slab);
       }
 
