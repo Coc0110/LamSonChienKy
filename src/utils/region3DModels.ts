@@ -782,23 +782,26 @@ function createCrazyPavingStone(
   });
   g.rotateX(-Math.PI / 2);
 
-  // Làm cả mặt trên lẫn cạnh bên lồi lõm nhẹ tự nhiên
+  // Làm mặt trên và cạnh bên lồi lõm ngẫu nhiên theo từng viên (không dùng sóng sin lặp hoa văn)
   const pos = g.getAttribute('position');
   for (let i = 0; i < pos.count; i++) {
     const vx = pos.getX(i);
     const y = pos.getY(i);
     const vz = pos.getZ(i);
     if (y > height * 0.72) {
-      const bump =
-        Math.sin(vx * 11.3 + seed) * Math.cos(vz * 10.7 - seed * 0.8) * 0.013 +
-        Math.sin((vx - vz) * 16.5 + seed * 1.7) * 0.005;
+      const n1 = Math.sin((vx - cx) * (8.5 + (seed % 5)) + seed * 1.9);
+      const n2 = Math.cos((vz - cz) * (9.2 + (seed % 4)) - seed * 2.3);
+      const bump = n1 * n2 * 0.012;
       pos.setY(i, y + bump);
     } else if (y > 0.015) {
-      // Cạnh bên lồi lõm nhẹ theo chiều cao
       const dx = vx - cx;
       const dz = vz - cz;
       const d = Math.hypot(dx, dz) || 1;
-      const sideBump = Math.sin(y * 38 + vx * 17 + vz * 19 + seed) * 0.014;
+      const ang = Math.atan2(dz, dx);
+      const yBand = Math.round(y * 40);
+      const hVal = Math.sin(ang * 3.7 + yBand * 17.3 + seed * 5.1) * 43758.5453;
+      const rnd = (hVal - Math.floor(hVal)) - 0.5;
+      const sideBump = rnd * 0.018;
       pos.setX(i, vx + (dx / d) * sideBump);
       pos.setZ(i, vz + (dz / d) * sideBump);
     }
@@ -1110,11 +1113,6 @@ function getBuildingParts(
       };
       const pickStone = (seed: number): MaterialKey =>
         stoneTones[Math.floor(mixHash(seed) * stoneTones.length) % stoneTones.length];
-
-      // Lớp đất lót mỏng nằm dưới khe đá
-      const mortarBed = createOrganicEarthMound(4.65, 4.65, 0.08, 1.3);
-      mortarBed.translate(0, 0.03, 0);
-      push('earthDark', mortarBed);
 
       // Lưới đỉnh chia sẻ kích thước không đều (có viên to viên nhỏ, biên độ lệch vừa phải)
       const buildNonUniformAxis = (minVal: number, maxVal: number, seedBase: number) => {
