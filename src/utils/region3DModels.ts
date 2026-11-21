@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import type { BaseBuilding, BaseBuildingType, RegionCombatUnit } from '../types/region';
 
 export const DIORAMA_PALETTE = {
@@ -312,9 +313,167 @@ export function createDetailedGroundTexture(
 }
 
 function safeMerge(parts: THREE.BufferGeometry[]): THREE.BufferGeometry {
-  const nonIndexed = parts.map((g) => (g.index ? g.toNonIndexed() : g));
+  const nonIndexed = parts.map((g) => {
+    const ni = g.index ? g.toNonIndexed() : g;
+    if (!ni.getAttribute('normal')) ni.computeVertexNormals();
+    if (!ni.getAttribute('uv')) {
+      const count = ni.getAttribute('position').count;
+      ni.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(count * 2), 2));
+    }
+    return ni;
+  });
   const merged = BufferGeometryUtils.mergeGeometries(nonIndexed, false);
   return merged || nonIndexed[0];
+}
+
+function rbox(
+  w: number,
+  h: number,
+  d: number,
+  radius: number,
+  x: number,
+  y: number,
+  z: number
+): THREE.BufferGeometry {
+  const g = new RoundedBoxGeometry(w, h, d, 2, radius);
+  g.translate(x, y, z);
+  return g;
+}
+
+function torus(
+  r: number,
+  tubeRadius: number,
+  radialSeg: number,
+  tubularSeg: number
+): THREE.BufferGeometry {
+  return new THREE.TorusGeometry(r, tubeRadius, radialSeg, tubularSeg);
+}
+
+function extrudeGableTriangle(width: number, height: number, depth: number): THREE.BufferGeometry {
+  const shape = new THREE.Shape();
+  shape.moveTo(-width / 2, 0);
+  shape.lineTo(width / 2, 0);
+  shape.lineTo(0, height);
+  shape.closePath();
+  const g = new THREE.ExtrudeGeometry(shape, {
+    depth,
+    bevelEnabled: true,
+    bevelThickness: 0.025,
+    bevelSize: 0.02,
+    bevelSegments: 2,
+  });
+  g.center();
+  return g;
+}
+
+function extrudeCurvedHorn(): THREE.BufferGeometry {
+  const shape = new THREE.Shape();
+  shape.moveTo(-0.045, -0.34);
+  shape.quadraticCurveTo(-0.08, 0.05, -0.02, 0.42);
+  shape.lineTo(0.055, 0.39);
+  shape.quadraticCurveTo(0.02, 0.05, 0.045, -0.34);
+  shape.closePath();
+  const g = new THREE.ExtrudeGeometry(shape, {
+    depth: 0.08,
+    bevelEnabled: true,
+    bevelThickness: 0.015,
+    bevelSize: 0.015,
+    bevelSegments: 2,
+  });
+  g.center();
+  return g;
+}
+
+function extrudeHalberdBlade(): THREE.BufferGeometry {
+  const shape = new THREE.Shape();
+  shape.moveTo(0, 0);
+  shape.lineTo(0.03, 0.32);
+  shape.quadraticCurveTo(0.14, 0.22, 0.11, 0.04);
+  shape.quadraticCurveTo(0.05, 0.07, 0, 0);
+  const g = new THREE.ExtrudeGeometry(shape, {
+    depth: 0.02,
+    bevelEnabled: true,
+    bevelThickness: 0.008,
+    bevelSize: 0.006,
+    bevelSegments: 1,
+  });
+  g.center();
+  return g;
+}
+
+function extrudeSerratedThatchSheet(width: number, slopeLen: number, thickness: number): THREE.BufferGeometry {
+  const teeth = 14;
+  const shape = new THREE.Shape();
+  shape.moveTo(-width / 2, slopeLen / 2);
+  shape.lineTo(width / 2, slopeLen / 2);
+  shape.lineTo(width / 2, -slopeLen / 2);
+  for (let i = teeth; i >= 0; i--) {
+    const x = -width / 2 + (width * i) / teeth;
+    const jag = i % 2 === 0 ? -0.055 : 0.035;
+    shape.lineTo(x, -slopeLen / 2 + jag);
+  }
+  shape.closePath();
+  const g = new THREE.ExtrudeGeometry(shape, {
+    depth: thickness,
+    bevelEnabled: true,
+    bevelThickness: 0.02,
+    bevelSize: 0.015,
+    bevelSegments: 1,
+  });
+  g.center();
+  // Xoay về mặt phẳng XZ để nghiêng theo mái
+  g.rotateX(-Math.PI / 2);
+  return g;
+}
+
+function createBraidedRidgeTube(length: number, phaseOffset: number): THREE.BufferGeometry {
+  const pts: THREE.Vector3[] = [];
+  const steps = 28;
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const x = -length / 2 + t * length;
+    const angle = t * Math.PI * 10 + phaseOffset;
+    const y = Math.sin(angle) * 0.045;
+    const z = Math.cos(angle) * 0.045;
+    pts.push(new THREE.Vector3(x, y, z));
+  }
+  const curve = new THREE.CatmullRomCurve3(pts);
+  return new THREE.TubeGeometry(curve, 36, 0.075, 7, false);
+}
+
+function createDrumBarrelLathe(): THREE.BufferGeometry {
+  const pts = [
+    new THREE.Vector2(0.0, -0.32),
+    new THREE.Vector2(0.27, -0.31),
+    new THREE.Vector2(0.35, -0.15),
+    new THREE.Vector2(0.38, 0.0),
+    new THREE.Vector2(0.35, 0.15),
+    new THREE.Vector2(0.27, 0.31),
+    new THREE.Vector2(0.0, 0.32),
+  ];
+  return new THREE.LatheGeometry(pts, 18);
+}
+
+function createTorchFlameLathe(): THREE.BufferGeometry {
+  const pts = [
+    new THREE.Vector2(0.0, 0.0),
+    new THREE.Vector2(0.075, 0.04),
+    new THREE.Vector2(0.085, 0.09),
+    new THREE.Vector2(0.04, 0.16),
+    new THREE.Vector2(0.0, 0.22),
+  ];
+  return new THREE.LatheGeometry(pts, 10);
+}
+
+function createStonePlinthLathe(): THREE.BufferGeometry {
+  const pts = [
+    new THREE.Vector2(0.0, 0.0),
+    new THREE.Vector2(0.2, 0.0),
+    new THREE.Vector2(0.18, 0.08),
+    new THREE.Vector2(0.13, 0.16),
+    new THREE.Vector2(0.0, 0.16),
+  ];
+  return new THREE.LatheGeometry(pts, 8);
 }
 
 function box(w: number, h: number, d: number, x: number, y: number, z: number): THREE.BufferGeometry {
@@ -371,33 +530,40 @@ function getBuildingParts(
 
   switch (type) {
     case 'main_hall': {
-      // === 1. NỀN ĐẤT NỆN 2 TẦNG + ĐÁ TẢNG GÓC + TAM CẤP ĐÁ & LỐI ĐÁ ===
-      push('earthDark', box(4.92, 0.2, 4.92, 0, 0.1, 0));
-      push('earth', box(4.62, 0.18, 4.62, 0, 0.29, 0));
+      // === 1. NỀN ĐẤT NỆN 2 TẦNG BO CẠNH (RoundedBoxGeometry) + ĐÁ HỘC + TAM CẤP ĐÁ ===
+      push('earthDark', rbox(4.94, 0.22, 4.94, 0.05, 0, 0.11, 0));
+      push('earth', rbox(4.64, 0.19, 4.64, 0.04, 0, 0.3, 0));
 
-      // Đá tảng thô chèn 4 góc nền đất
+      // Đá tảng đa diện tự nhiên chèn 4 góc nền đất
       for (const [sx, sz] of [[-2.35, -2.35], [2.35, -2.35], [-2.35, 2.35], [2.35, 2.35]]) {
         const rock = new THREE.DodecahedronGeometry(0.28, 0);
-        rock.scale(1.2, 0.85, 1.1);
+        rock.scale(1.25, 0.85, 1.1);
+        rock.rotateY(sx * 0.7 + sz);
         rock.translate(sx, 0.22, sz);
         push('stoneDark', rock);
+        const subRock = new THREE.DodecahedronGeometry(0.16, 0);
+        subRock.translate(sx * 0.9, 0.16, sz * 1.02);
+        push('stone', subRock);
       }
 
-      // Bậc tam cấp đá nhô ra ở cổng trước + lối lát đá phiến vào chân cầu thang
+      // Bậc tam cấp đá bo cạnh + lối lát đá phiến tự nhiên
       for (let st = 0; st < 3; st++) {
-        push('stone', box(1.05 - st * 0.06, 0.1, 0.26, 0, 0.08 + st * 0.11, 2.66 - st * 0.2));
+        push('stone', rbox(1.06 - st * 0.06, 0.11, 0.27, 0.025, 0, 0.08 + st * 0.11, 2.66 - st * 0.2));
       }
-      for (const [px, pz, pw, pd] of [
-        [-0.18, 2.08, 0.36, 0.24],
-        [0.2, 2.02, 0.32, 0.22],
-        [0.02, 1.78, 0.42, 0.22],
-        [-0.15, 1.54, 0.34, 0.2],
-        [0.18, 1.5, 0.3, 0.2],
-      ]) {
-        push('stone', box(pw, 0.05, pd, px, 0.4, pz));
+      for (const [px, pz, pw, pd, rot] of [
+        [-0.18, 2.08, 0.36, 0.24, 0.08],
+        [0.2, 2.02, 0.32, 0.22, -0.06],
+        [0.02, 1.78, 0.42, 0.22, 0.04],
+        [-0.15, 1.54, 0.34, 0.2, -0.1],
+        [0.18, 1.5, 0.3, 0.2, 0.09],
+      ] as const) {
+        const slab = rbox(pw, 0.055, pd, 0.015, 0, 0, 0);
+        slab.rotateY(rot);
+        slab.translate(px, 0.4, pz);
+        push('stone', slab);
       }
 
-      // === 2. HÀNG RÀO TRE VÓT NHỌN BAO QUANH 4 MẶT ===
+      // === 2. HÀNG RÀO TRE VÓT NHỌN + DÂY MÂY BỆN + ĐUỐC LỬA LATHE ===
       const addBambooRow = (x1: number, z1: number, x2: number, z2: number, count: number) => {
         for (let i = 0; i < count; i++) {
           const t = count === 1 ? 0.5 : i / (count - 1);
@@ -406,54 +572,63 @@ function getBuildingParts(
           const h = 0.44 + ((i % 3) * 0.03);
           push('bamboo', cyl(0.03, 0.036, h, 6, bx, 0.38 + h / 2, bz));
           push('bamboo', cone(0.032, 0.1, 6, bx, 0.38 + h + 0.05, bz));
+          if (i % 4 === 0) {
+            const bind = torus(0.042, 0.012, 5, 8);
+            bind.rotateX(Math.PI / 2);
+            bind.translate(bx, 0.68, bz);
+            push('bambooDry', bind);
+          }
         }
         const len = Math.hypot(x2 - x1, z2 - z1);
         const mx = (x1 + x2) / 2;
         const mz = (z1 + z2) / 2;
         const isHoriz = Math.abs(x2 - x1) >= Math.abs(z2 - z1);
         for (const ry of [0.5, 0.68]) {
-          push('bambooDry', box(isHoriz ? len + 0.06 : 0.05, 0.04, isHoriz ? 0.05 : len + 0.06, mx, ry, mz));
+          push('bambooDry', rbox(isHoriz ? len + 0.06 : 0.055, 0.042, isHoriz ? 0.055 : len + 0.06, 0.01, mx, ry, mz));
         }
       };
-      addBambooRow(-2.2, 2.22, -0.58, 2.22, 16); // Trước trái
-      addBambooRow(0.58, 2.22, 2.2, 2.22, 16);   // Trước phải
-      addBambooRow(-2.22, -2.2, -2.22, 2.2, 36); // Trái
-      addBambooRow(2.22, -2.2, 2.22, 2.2, 36);   // Phải
-      addBambooRow(-2.2, -2.22, 2.2, -2.22, 36); // Sau
+      addBambooRow(-2.2, 2.22, -0.58, 2.22, 16);
+      addBambooRow(0.58, 2.22, 2.2, 2.22, 16);
+      addBambooRow(-2.22, -2.2, -2.22, 2.2, 36);
+      addBambooRow(2.22, -2.2, 2.22, 2.2, 36);
+      addBambooRow(-2.2, -2.22, 2.2, -2.22, 36);
 
-      // 2 Cột đuốc gỗ cháy sáng hai bên cổng vào
+      // 2 Cột đuốc với bầu lửa giọt nước (LatheGeometry)
       for (const tx of [-0.52, 0.52]) {
-        push('woodDark', cyl(0.04, 0.05, 0.72, 6, tx, 0.72, 2.24));
-        push('ember', cone(0.085, 0.2, 7, tx, 1.16, 2.24));
+        push('woodDark', cyl(0.042, 0.052, 0.72, 7, tx, 0.72, 2.24));
+        push('iron', torus(0.065, 0.018, 6, 10).rotateX(Math.PI / 2).translate(tx, 1.07, 2.24));
+        const flame = createTorchFlameLathe();
+        flame.translate(tx, 1.08, 2.24);
+        push('ember', flame);
       }
 
-      // === 3. NHÀ SÀN GỖ LỚN + HIÊN + CẦU THANG + CỬA SỔ KHUNG TRE ===
+      // === 3. NHÀ SÀN GỖ LỚN (CHÂN ĐÁ TẢNG LATHE, VÁN BO CẠNH, CỬA SỔ TRE) ===
       for (const cx of [-1.52, -0.5, 0.5, 1.52]) {
         for (const cz of [-1.45, -0.35, 0.68]) {
-          push('stoneDark', cyl(0.15, 0.19, 0.16, 8, cx, 0.45, cz));
+          const plinth = createStonePlinthLathe();
+          plinth.translate(cx, 0.38, cz);
+          push('stoneDark', plinth);
           push('woodDark', cyl(0.085, 0.095, 0.68, 8, cx, 0.86, cz));
         }
       }
-      // Sàn gỗ + hiên trước rộng
-      push('woodDark', box(3.52, 0.1, 2.65, 0, 1.18, -0.4));
-      push('wood', box(3.62, 0.09, 2.75, 0, 1.26, -0.4));
-      // Lan can hiên gỗ (chừa lối cầu thang giữa)
-      push('woodDark', box(1.18, 0.06, 0.07, -1.18, 1.58, 0.94));
-      push('woodDark', box(1.18, 0.06, 0.07, 1.18, 1.58, 0.94));
+      push('woodDark', rbox(3.52, 0.11, 2.65, 0.025, 0, 1.18, -0.4));
+      push('wood', rbox(3.64, 0.095, 2.76, 0.025, 0, 1.26, -0.4));
+      push('woodDark', rbox(1.18, 0.06, 0.075, 0.015, -1.18, 1.58, 0.94));
+      push('woodDark', rbox(1.18, 0.06, 0.075, 0.015, 1.18, 1.58, 0.94));
       for (const rx of [-1.72, -1.35, -0.98, -0.62, 0.62, 0.98, 1.35, 1.72]) {
         push('wood', cyl(0.03, 0.03, 0.3, 6, rx, 1.44, 0.94));
       }
-      // Cầu thang gỗ 5 bậc + dầm nghiêng & tay vịn
+
       for (let s = 0; s < 5; s++) {
-        push('wood', box(0.86, 0.07, 0.18, 0, 0.46 + s * 0.16, 1.58 - s * 0.14));
+        push('wood', rbox(0.86, 0.07, 0.18, 0.015, 0, 0.46 + s * 0.16, 1.58 - s * 0.14));
       }
       for (const hx of [-0.46, 0.46]) {
-        const stringer = box(0.07, 0.09, 1.08, 0, 0, 0);
+        const stringer = rbox(0.07, 0.09, 1.08, 0.015, 0, 0, 0);
         stringer.rotateX(Math.PI / 4);
         stringer.translate(hx, 0.85, 1.28);
         push('woodDark', stringer);
 
-        const handrail = box(0.06, 0.06, 1.05, 0, 0, 0);
+        const handrail = rbox(0.06, 0.06, 1.05, 0.015, 0, 0, 0);
         handrail.rotateX(Math.PI / 4);
         handrail.translate(hx, 1.14, 1.28);
         push('woodDark', handrail);
@@ -462,123 +637,115 @@ function getBuildingParts(
         push('woodDark', cyl(0.035, 0.035, 0.34, 6, hx, 1.44, 0.94));
       }
 
-      // Thân nhà gỗ tối + cột ốp dọc
-      push('wood', box(3.15, 0.96, 1.78, 0, 1.78, -0.58));
+      // Thân nhà gỗ bo cạnh + Cửa chính + Cửa sổ khung tre
+      push('wood', rbox(3.15, 0.96, 1.78, 0.03, 0, 1.78, -0.58));
       for (const px of [-1.52, -0.52, 0.52, 1.52]) {
-        push('woodDark', box(0.11, 0.98, 0.1, px, 1.78, 0.32));
+        push('woodDark', rbox(0.11, 0.98, 0.1, 0.02, px, 1.78, 0.32));
       }
-      // Cửa chính 2 cánh gỗ lim + khóa đồng tròn
-      push('woodDark', box(0.78, 0.78, 0.09, 0, 1.68, 0.33));
-      push('gold', cyl(0.055, 0.055, 0.04, 10, -0.09, 1.68, 0.38));
-      push('gold', cyl(0.055, 0.055, 0.04, 10, 0.09, 1.68, 0.38));
+      push('woodDark', rbox(0.78, 0.78, 0.09, 0.02, 0, 1.68, 0.33));
+      // Vòng tay nắm cửa bằng TorusGeometry đồng vàng
+      push('gold', torus(0.048, 0.014, 6, 12).translate(-0.1, 1.68, 0.38));
+      push('gold', torus(0.048, 0.014, 6, 12).translate(0.1, 1.68, 0.38));
 
-      // Cửa sổ khung tre xanh (2 mặt tiền + 2 bên hông) kèm cánh liếp tre chống lên
       for (const wx of [-1.02, 1.02]) {
-        push('bamboo', box(0.58, 0.46, 0.07, wx, 1.82, 0.33));
+        push('bamboo', rbox(0.58, 0.46, 0.075, 0.015, wx, 1.82, 0.33));
         push('earthDark', box(0.46, 0.36, 0.08, wx, 1.82, 0.33));
         for (const bx of [-0.15, -0.05, 0.05, 0.15]) {
           push('bamboo', cyl(0.016, 0.016, 0.36, 5, wx + bx, 1.82, 0.36));
         }
-        const shutter = box(0.52, 0.04, 0.36, 0, 0, 0);
+        const shutter = rbox(0.52, 0.045, 0.36, 0.01, 0, 0, 0);
         shutter.rotateX(-0.55);
         shutter.translate(wx, 2.02, 0.52);
         push('thatch', shutter);
       }
       for (const sx of [-1.58, 1.58]) {
-        push('bamboo', box(0.07, 0.44, 0.66, sx, 1.82, -0.58));
+        push('bamboo', rbox(0.075, 0.44, 0.66, 0.015, sx, 1.82, -0.58));
         push('earthDark', box(0.08, 0.34, 0.54, sx, 1.82, -0.58));
         for (const bz of [-0.18, -0.06, 0.06, 0.18]) {
           push('bamboo', cyl(0.016, 0.016, 0.34, 5, sx + (sx > 0 ? 0.03 : -0.03), 1.82, -0.58 + bz));
         }
       }
 
-      // === 4. MÁI LÁ TRANH KIỂU CHỮ A (GABLE ROOF) XẾP LỚP DÀY + SÓNG NÓC BỆN RƠM + SỪNG NÓC ===
-      // Đầu hồi tam giác gỗ 2 bên trái/phải
+      // === 4. MÁI LÁ TRANH CHỮ A: ĐẦU HỒI EXTRUDE, BÓ TRANH RĂNG CƯA, SÓNG NÓC TUBE XOẮN, SỪNG NÓC CONG ===
       for (const gx of [-1.52, 1.52]) {
-        push('woodDark', box(0.1, 0.46, 1.45, gx, 2.48, -0.58));
-        push('woodDark', box(0.1, 0.42, 0.85, gx, 2.84, -0.58));
-        push('woodDark', box(0.1, 0.34, 0.36, gx, 3.16, -0.58));
+        const gable = extrudeGableTriangle(1.9, 1.08, 0.08);
+        gable.rotateY(Math.PI / 2);
+        gable.translate(gx, 2.78, -0.58);
+        push('woodDark', gable);
       }
 
-      // 4 tầng bó lá tranh xếp chồng theo 2 mái dốc trước & sau
-      const roofSlope = 0.62; // ~35 độ
+      const roofSlope = 0.62;
       for (let layer = 0; layer < 4; layer++) {
         const t = layer / 3;
         const yPos = 2.38 + t * 0.84;
         const zOff = 0.92 - t * 0.68;
-        const w = 3.72 - t * 0.16;
+        const w = 3.74 - t * 0.14;
         const matKey: MaterialKey = layer % 2 === 0 ? 'thatch' : 'thatchDark';
 
-        const frontPanel = box(w, 0.14, 0.58, 0, 0, 0);
-        frontPanel.rotateX(roofSlope);
-        frontPanel.translate(0, yPos, -0.58 + zOff);
-        push(matKey, frontPanel);
+        const frontSheet = extrudeSerratedThatchSheet(w, 0.56, 0.11);
+        frontSheet.rotateX(roofSlope);
+        frontSheet.translate(0, yPos, -0.58 + zOff);
+        push(matKey, frontSheet);
 
-        const backPanel = box(w, 0.14, 0.58, 0, 0, 0);
-        backPanel.rotateX(-roofSlope);
-        backPanel.translate(0, yPos, -0.58 - zOff);
-        push(matKey, backPanel);
+        const backSheet = extrudeSerratedThatchSheet(w, 0.56, 0.11);
+        backSheet.rotateY(Math.PI);
+        backSheet.rotateX(-roofSlope);
+        backSheet.translate(0, yPos, -0.58 - zOff);
+        push(matKey, backSheet);
       }
 
-      // Diềm bó lá tranh nhô ra lởm chởm ở mép mái trước/sau
-      for (let lx = -1.75; lx <= 1.75; lx += 0.25) {
-        const tuftF = box(0.18, 0.08, 0.24, 0, 0, 0);
-        tuftF.rotateX(roofSlope);
-        tuftF.translate(lx, 2.25, 0.52);
-        push('thatch', tuftF);
+      // Sống nóc bện rơm bằng 2 ống xoắn kép (TubeGeometry) + Sừng nóc cong (ExtrudeGeometry)
+      const braidA = createBraidedRidgeTube(3.3, 0);
+      braidA.translate(0, 3.36, -0.58);
+      const braidB = createBraidedRidgeTube(3.3, Math.PI);
+      braidB.translate(0, 3.36, -0.58);
+      push('thatchDark', braidA);
+      push('thatch', braidB);
 
-        const tuftB = box(0.18, 0.08, 0.24, 0, 0, 0);
-        tuftB.rotateX(-roofSlope);
-        tuftB.translate(lx, 2.25, -1.68);
-        push('thatch', tuftB);
-      }
-
-      // Sống nóc bện rơm dày (chuỗi đốt bện chéo) + Sừng nóc chữ X 2 đầu hồi
-      for (let rx = -1.55; rx <= 1.55; rx += 0.22) {
-        const braid = cyl(0.13, 0.13, 0.28, 8, 0, 0, 0);
-        braid.rotateZ(Math.PI / 2);
-        braid.rotateY(rx % 0.44 === 0 ? 0.35 : -0.35);
-        braid.translate(rx, 3.38, -0.58);
-        push('thatchDark', braid);
-      }
       for (const hx of [-1.62, 1.62]) {
-        const h1 = box(0.1, 0.72, 0.12, 0, 0, 0);
-        h1.rotateX(0.58);
-        h1.translate(hx, 3.55, -0.58);
-        const h2 = box(0.1, 0.72, 0.12, 0, 0, 0);
-        h2.rotateX(-0.58);
-        h2.translate(hx, 3.55, -0.58);
+        const h1 = extrudeCurvedHorn();
+        h1.rotateY(Math.PI / 2);
+        h1.rotateX(0.55);
+        h1.translate(hx, 3.56, -0.58);
+        const h2 = extrudeCurvedHorn();
+        h2.rotateY(-Math.PI / 2);
+        h2.rotateX(-0.55);
+        h2.translate(hx, 3.56, -0.58);
         push('woodDark', h1);
         push('woodDark', h2);
       }
 
-      // === 5. TRỐNG TRẬN ĐỎ TRÊN GIÁ CHỮ X + 2 DÙI TRỐNG (SÂN TRÁI) ===
+      // === 5. TRỐNG TRẬN ĐỎ BO CONG (LatheGeometry + Torus đồng vàng) ===
       for (const gz of [1.14, 1.48]) {
-        const l1 = box(0.07, 0.72, 0.07, 0, 0, 0);
+        const l1 = rbox(0.07, 0.72, 0.07, 0.015, 0, 0, 0);
         l1.rotateZ(0.55);
         l1.translate(-1.3, 0.64, gz);
-        const l2 = box(0.07, 0.72, 0.07, 0, 0, 0);
+        const l2 = rbox(0.07, 0.72, 0.07, 0.015, 0, 0, 0);
         l2.rotateZ(-0.55);
         l2.translate(-1.3, 0.64, gz);
         push('woodDark', l1);
         push('woodDark', l2);
       }
-      const drumCore = cyl(0.36, 0.36, 0.34, 14, 0, 0, 0);
-      drumCore.rotateZ(Math.PI / 2);
-      drumCore.rotateY(-0.35);
-      drumCore.translate(-1.3, 0.94, 1.31);
-      push(bannerMat, drumCore);
-      const drumShell = cyl(0.3, 0.3, 0.6, 14, 0, 0, 0);
-      drumShell.rotateZ(Math.PI / 2);
-      drumShell.rotateY(-0.35);
-      drumShell.translate(-1.3, 0.94, 1.31);
-      push(bannerMat, drumShell);
-      const drumSkin = cyl(0.28, 0.28, 0.63, 14, 0, 0, 0);
+      const barrel = createDrumBarrelLathe();
+      barrel.rotateZ(Math.PI / 2);
+      barrel.rotateY(-0.35);
+      barrel.translate(-1.3, 0.94, 1.31);
+      push(bannerMat, barrel);
+
+      // Mặt trống da trâu & 2 đai đồng Torus quanh tang trống
+      const drumSkin = cyl(0.275, 0.275, 0.64, 16, 0, 0, 0);
       drumSkin.rotateZ(Math.PI / 2);
       drumSkin.rotateY(-0.35);
       drumSkin.translate(-1.3, 0.94, 1.31);
       push('plaster', drumSkin);
-      // 2 dùi trống nằm dưới sân cạnh giá trống
+
+      for (const rimOff of [-0.26, 0.26]) {
+        const ring = torus(0.3, 0.022, 7, 16);
+        ring.rotateY(Math.PI / 2 - 0.35);
+        ring.translate(-1.3 + Math.cos(-0.35) * rimOff, 0.94, 1.31 - Math.sin(-0.35) * rimOff);
+        push('gold', ring);
+      }
+
       for (const dz of [1.66, 1.78]) {
         const stick = cyl(0.018, 0.018, 0.36, 6, 0, 0, 0);
         stick.rotateZ(Math.PI / 2);
@@ -587,14 +754,14 @@ function getBuildingParts(
         push(bannerMat, sphere(0.04, -1.24, 0.41, dz));
       }
 
-      // === 6. GIÁ BINH KHÍ CHỮ A (GIÁO + ĐẠI ĐAO + KHIÊN MÂY) ===
-      push('woodDark', box(1.12, 0.06, 0.08, 1.28, 0.88, 1.32));
-      push('woodDark', box(1.12, 0.06, 0.08, 1.28, 0.56, 1.32));
+      // === 6. GIÁ BINH KHÍ CHỮ A (GIÁO + ĐẠI ĐAO EXTRUDE + KHIÊN MÂY) ===
+      push('woodDark', rbox(1.12, 0.06, 0.08, 0.015, 1.28, 0.88, 1.32));
+      push('woodDark', rbox(1.12, 0.06, 0.08, 0.015, 1.28, 0.56, 1.32));
       for (const rx of [0.78, 1.78]) {
-        const legF = box(0.06, 0.66, 0.06, 0, 0, 0);
+        const legF = rbox(0.06, 0.66, 0.06, 0.01, 0, 0, 0);
         legF.rotateX(-0.22);
         legF.translate(rx, 0.68, 1.4);
-        const legB = box(0.06, 0.66, 0.06, 0, 0, 0);
+        const legB = rbox(0.06, 0.66, 0.06, 0.01, 0, 0, 0);
         legB.rotateX(0.22);
         legB.translate(rx, 0.68, 1.24);
         push('woodDark', legF);
@@ -602,21 +769,29 @@ function getBuildingParts(
       }
       for (const [wx, isHalberd] of [[0.92, false], [1.14, true], [1.36, true], [1.58, false]] as const) {
         push('wood', cyl(0.022, 0.022, 1.1, 6, wx, 0.92, 1.32));
-        push('iron', isHalberd ? box(0.06, 0.28, 0.14, wx, 1.54, 1.35) : cone(0.04, 0.22, 6, wx, 1.54, 1.32));
+        if (isHalberd) {
+          const blade = extrudeHalberdBlade();
+          blade.rotateY(Math.PI / 2);
+          blade.translate(wx, 1.58, 1.34);
+          push('iron', blade);
+        } else {
+          push('iron', cone(0.04, 0.22, 6, wx, 1.54, 1.32));
+        }
       }
-      // Khiên mây tròn dựa trước giá binh khí
-      const rattanShield = cyl(0.26, 0.26, 0.06, 14, 0, 0, 0);
+      const rattanShield = cyl(0.26, 0.26, 0.05, 16, 0, 0, 0);
       rattanShield.rotateX(Math.PI / 2 - 0.25);
       rattanShield.translate(1.48, 0.62, 1.52);
       push('bambooDry', rattanShield);
-      push('woodDark', sphere(0.06, 1.48, 0.62, 1.55));
+      push('woodDark', sphere(0.055, 1.48, 0.62, 1.55));
 
-      // === 7. CỘT CỜ KHỞI NGHĨA ("LÊ") CÓ THANH TREO NGANG ===
-      push('stoneDark', box(0.46, 0.16, 0.46, -1.85, 0.46, 1.65));
-      push('stone', box(0.32, 0.18, 0.32, -1.85, 0.62, 1.65));
+      // === 7. CỘT CỜ KHỞI NGHĨA ("LÊ") BỆ ĐÁ BO CẠNH + ĐỐT TRE ===
+      push('stoneDark', rbox(0.46, 0.16, 0.46, 0.03, -1.85, 0.46, 1.65));
+      push('stone', rbox(0.32, 0.18, 0.32, 0.03, -1.85, 0.62, 1.65));
       push('bamboo', cyl(0.05, 0.07, 2.75, 8, -1.85, 2.05, 1.65));
-      push('gold', sphere(0.09, -1.85, 3.46, 1.65));
-      push('bamboo', cyl(0.032, 0.032, 1.22, 6, 0, 0, 0));
+      for (const ny of [1.15, 1.75, 2.35, 2.95]) {
+        push('bambooDry', torus(0.062, 0.012, 5, 10).rotateX(Math.PI / 2).translate(-1.85, ny, 1.65));
+      }
+      push('gold', sphere(0.095, -1.85, 3.46, 1.65));
       const crossbar = cyl(0.028, 0.032, 1.28, 6, 0, 0, 0);
       crossbar.rotateZ(Math.PI / 2);
       crossbar.translate(-1.25, 3.28, 1.65);
@@ -900,9 +1075,16 @@ export function createBuildingGroup(
     group.add(mesh);
   }
 
-  // Gắn lá cờ lệnh khởi nghĩa đuôi nheo thêu chữ "Lê" (hoặc "明") trên thanh treo ngang
+  // Gắn lá cờ lệnh khởi nghĩa uốn lượn nhẹ trong gió thêu chữ "Lê" (hoặc "明")
   if (type === 'main_hall') {
-    const flagGeo = new THREE.PlaneGeometry(1.22, 0.84);
+    const flagGeo = new THREE.PlaneGeometry(1.22, 0.84, 12, 4);
+    const pos = flagGeo.getAttribute('position');
+    for (let i = 0; i < pos.count; i++) {
+      const fx = pos.getX(i);
+      const t = (fx + 0.61) / 1.22;
+      pos.setZ(i, Math.sin(t * Math.PI * 2.2) * 0.065 * t);
+    }
+    flagGeo.computeVertexNormals();
     const flagMat = getFlagBannerMaterial(isEnemy);
     const flagMesh = new THREE.Mesh(flagGeo, flagMat);
     flagMesh.position.set(-1.24, 2.86, 1.65);
