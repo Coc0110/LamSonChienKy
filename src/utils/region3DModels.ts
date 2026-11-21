@@ -11,6 +11,8 @@ export const DIORAMA_PALETTE = {
   earthDark: 0x755c3c,
   wood: 0x875935,
   woodDark: 0x52341d,
+  woodLight: 0xa27147,
+  woodWarm: 0x6e4225,
   bamboo: 0x859e48,
   bambooDry: 0xb8a363,
   plaster: 0xede0c8,
@@ -43,6 +45,8 @@ type MaterialKey =
   | 'earthDark'
   | 'wood'
   | 'woodDark'
+  | 'woodLight'
+  | 'woodWarm'
   | 'bamboo'
   | 'bambooDry'
   | 'plaster'
@@ -71,6 +75,44 @@ const cachedUnitPartGeometries = new Map<
   Array<{ matKey: 'body' | 'armor' | 'wood' | 'iron' | 'gold' | 'skin'; geo: THREE.BufferGeometry }>
 >();
 
+let woodGrainTexCache: Map<string, THREE.CanvasTexture> | null = null;
+function getWoodGrainTexture(baseHex: string, grainHex: string): THREE.CanvasTexture {
+  if (!woodGrainTexCache) woodGrainTexCache = new Map();
+  const key = `${baseHex}_${grainHex}`;
+  const hit = woodGrainTexCache.get(key);
+  if (hit) return hit;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    ctx.fillStyle = baseHex;
+    ctx.fillRect(0, 0, 128, 128);
+    ctx.strokeStyle = grainHex;
+    for (let i = 0; i < 32; i++) {
+      const x = (i * 4) + (i % 3);
+      ctx.lineWidth = (i % 3 === 0) ? 1.8 : 0.9;
+      ctx.globalAlpha = 0.25 + (i % 4) * 0.1;
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.bezierCurveTo(x + Math.sin(i) * 4, 42, x - Math.cos(i) * 4, 86, x, 128);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 0.18;
+    ctx.fillStyle = grainHex;
+    ctx.beginPath();
+    ctx.ellipse(64, 52, 6, 14, 0.1, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  woodGrainTexCache.set(key, tex);
+  return tex;
+}
+
 function getSharedMaterial(key: MaterialKey, transparent = false, opacity = 1): THREE.MeshStandardMaterial {
   const cacheKey = `${key}_${transparent ? 't' : 'o'}_${opacity}`;
   const hit = cachedMaterials.get(cacheKey);
@@ -91,10 +133,28 @@ function getSharedMaterial(key: MaterialKey, transparent = false, opacity = 1): 
       mat = new THREE.MeshStandardMaterial({ color: DIORAMA_PALETTE.earthDark, roughness: 0.96 });
       break;
     case 'wood':
-      mat = new THREE.MeshStandardMaterial({ color: DIORAMA_PALETTE.wood, roughness: 0.84 });
+      mat = new THREE.MeshStandardMaterial({
+        map: getWoodGrainTexture('#8c5d38', '#543318'),
+        roughness: 0.84,
+      });
       break;
     case 'woodDark':
-      mat = new THREE.MeshStandardMaterial({ color: DIORAMA_PALETTE.woodDark, roughness: 0.88 });
+      mat = new THREE.MeshStandardMaterial({
+        map: getWoodGrainTexture('#583720', '#2e1a0d'),
+        roughness: 0.88,
+      });
+      break;
+    case 'woodLight':
+      mat = new THREE.MeshStandardMaterial({
+        map: getWoodGrainTexture('#a9784c', '#6e4726'),
+        roughness: 0.82,
+      });
+      break;
+    case 'woodWarm':
+      mat = new THREE.MeshStandardMaterial({
+        map: getWoodGrainTexture('#724426', '#3d210f'),
+        roughness: 0.86,
+      });
       break;
     case 'bamboo':
       mat = new THREE.MeshStandardMaterial({ color: DIORAMA_PALETTE.bamboo, roughness: 0.72 });
@@ -384,48 +444,6 @@ function extrudeCurvedHorn(): THREE.BufferGeometry {
   return g;
 }
 
-function extrudeHalberdBlade(): THREE.BufferGeometry {
-  const shape = new THREE.Shape();
-  shape.moveTo(0, 0);
-  shape.lineTo(0.03, 0.32);
-  shape.quadraticCurveTo(0.14, 0.22, 0.11, 0.04);
-  shape.quadraticCurveTo(0.05, 0.07, 0, 0);
-  const g = new THREE.ExtrudeGeometry(shape, {
-    depth: 0.02,
-    bevelEnabled: true,
-    bevelThickness: 0.008,
-    bevelSize: 0.006,
-    bevelSegments: 1,
-  });
-  g.center();
-  return g;
-}
-
-function extrudeSerratedThatchSheet(width: number, slopeLen: number, thickness: number): THREE.BufferGeometry {
-  const teeth = 14;
-  const shape = new THREE.Shape();
-  shape.moveTo(-width / 2, slopeLen / 2);
-  shape.lineTo(width / 2, slopeLen / 2);
-  shape.lineTo(width / 2, -slopeLen / 2);
-  for (let i = teeth; i >= 0; i--) {
-    const x = -width / 2 + (width * i) / teeth;
-    const jag = i % 2 === 0 ? -0.055 : 0.035;
-    shape.lineTo(x, -slopeLen / 2 + jag);
-  }
-  shape.closePath();
-  const g = new THREE.ExtrudeGeometry(shape, {
-    depth: thickness,
-    bevelEnabled: true,
-    bevelThickness: 0.02,
-    bevelSize: 0.015,
-    bevelSegments: 1,
-  });
-  g.center();
-  // Xoay về mặt phẳng XZ để nghiêng theo mái
-  g.rotateX(-Math.PI / 2);
-  return g;
-}
-
 function createBraidedRidgeTube(length: number, phaseOffset: number): THREE.BufferGeometry {
   const pts: THREE.Vector3[] = [];
   const steps = 28;
@@ -474,6 +492,132 @@ function createStonePlinthLathe(): THREE.BufferGeometry {
     new THREE.Vector2(0.0, 0.16),
   ];
   return new THREE.LatheGeometry(pts, 8);
+}
+
+/**
+ * Tạo gò đất nện tự nhiên (mép gồ ghề uốn lượn không thẳng tắp hay bo tròn đều)
+ */
+function createOrganicEarthMound(width: number, depth: number, height: number, seed: number): THREE.BufferGeometry {
+  const shape = new THREE.Shape();
+  const hw = width / 2;
+  const hd = depth / 2;
+  const pts: Array<[number, number]> = [];
+  const segsPerEdge = 10;
+
+  const jitter = (i: number, amp: number) =>
+    Math.sin(i * 2.31 + seed) * amp + Math.cos(i * 4.17 + seed * 1.7) * (amp * 0.55);
+
+  // Cạnh trên (-hd)
+  for (let i = 0; i < segsPerEdge; i++) {
+    const t = i / segsPerEdge;
+    pts.push([-hw + width * t, -hd + jitter(i, 0.09)]);
+  }
+  // Cạnh phải (+hw)
+  for (let i = 0; i < segsPerEdge; i++) {
+    const t = i / segsPerEdge;
+    pts.push([hw + jitter(i + 20, 0.09), -hd + depth * t]);
+  }
+  // Cạnh dưới (+hd)
+  for (let i = 0; i < segsPerEdge; i++) {
+    const t = i / segsPerEdge;
+    pts.push([hw - width * t, hd + jitter(i + 40, 0.09)]);
+  }
+  // Cạnh trái (-hw)
+  for (let i = 0; i < segsPerEdge; i++) {
+    const t = i / segsPerEdge;
+    pts.push([-hw + jitter(i + 60, 0.09), hd - depth * t]);
+  }
+
+  shape.moveTo(pts[0][0], pts[0][1]);
+  for (let i = 1; i < pts.length; i++) {
+    shape.lineTo(pts[i][0], pts[i][1]);
+  }
+  shape.closePath();
+
+  const g = new THREE.ExtrudeGeometry(shape, {
+    depth: height,
+    bevelEnabled: true,
+    bevelThickness: 0.06,
+    bevelSize: 0.08,
+    bevelSegments: 2,
+  });
+  g.rotateX(-Math.PI / 2);
+  return g;
+}
+
+/**
+ * Tán tranh (bó lá tranh thuôn xòe có mép sợi lởm chởm)
+ */
+function createThatchBundle(width: number, length: number, thickness: number): THREE.BufferGeometry {
+  const shape = new THREE.Shape();
+  const hw = width / 2;
+  const hl = length / 2;
+  shape.moveTo(-hw * 0.72, hl);
+  shape.lineTo(hw * 0.72, hl);
+  shape.lineTo(hw, -hl);
+  // Mép dưới chia 4 răng sợi tranh nhọn không đều
+  shape.lineTo(hw * 0.55, -hl - 0.055);
+  shape.lineTo(hw * 0.2, -hl + 0.025);
+  shape.lineTo(-hw * 0.15, -hl - 0.06);
+  shape.lineTo(-hw * 0.55, -hl + 0.02);
+  shape.lineTo(-hw, -hl - 0.04);
+  shape.closePath();
+
+  const g = new THREE.ExtrudeGeometry(shape, {
+    depth: thickness,
+    bevelEnabled: true,
+    bevelThickness: 0.014,
+    bevelSize: 0.012,
+    bevelSegments: 1,
+  });
+  g.center();
+  g.rotateX(-Math.PI / 2);
+  return g;
+}
+
+/**
+ * Mũi giáo lá liễu sắc nhọn (ExtrudeGeometry)
+ */
+function extrudeSpearHead(): THREE.BufferGeometry {
+  const shape = new THREE.Shape();
+  shape.moveTo(0, 0);
+  shape.quadraticCurveTo(0.055, 0.08, 0.025, 0.16);
+  shape.lineTo(0, 0.28);
+  shape.lineTo(-0.025, 0.16);
+  shape.quadraticCurveTo(-0.055, 0.08, 0, 0);
+  const g = new THREE.ExtrudeGeometry(shape, {
+    depth: 0.016,
+    bevelEnabled: true,
+    bevelThickness: 0.006,
+    bevelSize: 0.005,
+    bevelSegments: 1,
+  });
+  g.center();
+  return g;
+}
+
+/**
+ * Lưỡi đại đao / kích có ngạnh móc phía sau
+ */
+function extrudeDetailedHalberd(): THREE.BufferGeometry {
+  const shape = new THREE.Shape();
+  shape.moveTo(0, -0.02);
+  shape.lineTo(0.02, 0.34);
+  shape.quadraticCurveTo(0.16, 0.24, 0.13, 0.05);
+  shape.quadraticCurveTo(0.06, 0.08, 0.02, 0.02);
+  // Ngạnh móc nhỏ phía lưng
+  shape.lineTo(-0.06, 0.12);
+  shape.lineTo(-0.01, 0.16);
+  shape.closePath();
+  const g = new THREE.ExtrudeGeometry(shape, {
+    depth: 0.018,
+    bevelEnabled: true,
+    bevelThickness: 0.006,
+    bevelSize: 0.005,
+    bevelSegments: 1,
+  });
+  g.center();
+  return g;
 }
 
 function box(w: number, h: number, d: number, x: number, y: number, z: number): THREE.BufferGeometry {
@@ -530,11 +674,37 @@ function getBuildingParts(
 
   switch (type) {
     case 'main_hall': {
-      // === 1. NỀN ĐẤT NỆN 2 TẦNG BO CẠNH (RoundedBoxGeometry) + ĐÁ HỘC + TAM CẤP ĐÁ ===
-      push('earthDark', rbox(4.94, 0.22, 4.94, 0.05, 0, 0.11, 0));
-      push('earth', rbox(4.64, 0.19, 4.64, 0.04, 0, 0.3, 0));
+      const addBambooPole = (
+        r: number,
+        h: number,
+        nodes: number,
+        bx: number,
+        byBase: number,
+        bz: number,
+        withTip = false
+      ) => {
+        push('bamboo', cyl(r * 0.9, r, h, 7, bx, byBase + h / 2, bz));
+        for (let n = 1; n <= nodes; n++) {
+          const ny = byBase + (h * n) / (nodes + 1);
+          const ring = torus(r * 1.16, r * 0.28, 5, 8);
+          ring.rotateX(Math.PI / 2);
+          ring.translate(bx, ny, bz);
+          push('bambooDry', ring);
+        }
+        if (withTip) {
+          push('bamboo', cone(r * 0.95, 0.11, 6, bx, byBase + h + 0.055, bz));
+        }
+      };
 
-      // Đá tảng đa diện tự nhiên chèn 4 góc nền đất
+      // === 1. NỀN ĐẤT TỰ NHIÊN 2 TẦNG (KHÔNG THẲNG TẮP / BO TRÒN) + ĐÁ HỘC + TAM CẤP ĐÁ ===
+      const moundBase = createOrganicEarthMound(4.82, 4.82, 0.16, 1.3);
+      moundBase.translate(0, 0.06, 0);
+      push('earthDark', moundBase);
+
+      const moundTop = createOrganicEarthMound(4.46, 4.46, 0.15, 4.7);
+      moundTop.translate(0, 0.24, 0);
+      push('earth', moundTop);
+
       for (const [sx, sz] of [[-2.35, -2.35], [2.35, -2.35], [-2.35, 2.35], [2.35, 2.35]]) {
         const rock = new THREE.DodecahedronGeometry(0.28, 0);
         rock.scale(1.25, 0.85, 1.1);
@@ -546,7 +716,6 @@ function getBuildingParts(
         push('stone', subRock);
       }
 
-      // Bậc tam cấp đá bo cạnh + lối lát đá phiến tự nhiên
       for (let st = 0; st < 3; st++) {
         push('stone', rbox(1.06 - st * 0.06, 0.11, 0.27, 0.025, 0, 0.08 + st * 0.11, 2.66 - st * 0.2));
       }
@@ -563,37 +732,32 @@ function getBuildingParts(
         push('stone', slab);
       }
 
-      // === 2. HÀNG RÀO TRE VÓT NHỌN + DÂY MÂY BỆN + ĐUỐC LỬA LATHE ===
+      // === 2. HÀNG RÀO TRE CÓ ĐỐT TRE RÕ RỆT + DÂY MÂY + ĐUỐC LỬA ===
       const addBambooRow = (x1: number, z1: number, x2: number, z2: number, count: number) => {
         for (let i = 0; i < count; i++) {
           const t = count === 1 ? 0.5 : i / (count - 1);
           const bx = x1 + (x2 - x1) * t;
           const bz = z1 + (z2 - z1) * t;
-          const h = 0.44 + ((i % 3) * 0.03);
-          push('bamboo', cyl(0.03, 0.036, h, 6, bx, 0.38 + h / 2, bz));
-          push('bamboo', cone(0.032, 0.1, 6, bx, 0.38 + h + 0.05, bz));
-          if (i % 4 === 0) {
-            const bind = torus(0.042, 0.012, 5, 8);
-            bind.rotateX(Math.PI / 2);
-            bind.translate(bx, 0.68, bz);
-            push('bambooDry', bind);
-          }
+          const h = 0.46 + (i % 3) * 0.035;
+          addBambooPole(0.033, h, 2, bx, 0.38, bz, true);
         }
         const len = Math.hypot(x2 - x1, z2 - z1);
         const mx = (x1 + x2) / 2;
         const mz = (z1 + z2) / 2;
         const isHoriz = Math.abs(x2 - x1) >= Math.abs(z2 - z1);
-        for (const ry of [0.5, 0.68]) {
-          push('bambooDry', rbox(isHoriz ? len + 0.06 : 0.055, 0.042, isHoriz ? 0.055 : len + 0.06, 0.01, mx, ry, mz));
+        for (const ry of [0.51, 0.7]) {
+          push('bambooDry', cyl(0.024, 0.024, len + 0.06, 6, 0, 0, 0)
+            .rotateZ(isHoriz ? Math.PI / 2 : 0)
+            .rotateX(isHoriz ? 0 : Math.PI / 2)
+            .translate(mx, ry, mz));
         }
       };
       addBambooRow(-2.2, 2.22, -0.58, 2.22, 16);
       addBambooRow(0.58, 2.22, 2.2, 2.22, 16);
-      addBambooRow(-2.22, -2.2, -2.22, 2.2, 36);
-      addBambooRow(2.22, -2.2, 2.22, 2.2, 36);
-      addBambooRow(-2.2, -2.22, 2.2, -2.22, 36);
+      addBambooRow(-2.22, -2.2, -2.22, 2.2, 34);
+      addBambooRow(2.22, -2.2, 2.22, 2.2, 34);
+      addBambooRow(-2.2, -2.22, 2.2, -2.22, 34);
 
-      // 2 Cột đuốc với bầu lửa giọt nước (LatheGeometry)
       for (const tx of [-0.52, 0.52]) {
         push('woodDark', cyl(0.042, 0.052, 0.72, 7, tx, 0.72, 2.24));
         push('iron', torus(0.065, 0.018, 6, 10).rotateX(Math.PI / 2).translate(tx, 1.07, 2.24));
@@ -602,7 +766,7 @@ function getBuildingParts(
         push('ember', flame);
       }
 
-      // === 3. NHÀ SÀN GỖ LỚN (CHÂN ĐÁ TẢNG LATHE, VÁN BO CẠNH, CỬA SỔ TRE) ===
+      // === 3. NHÀ SÀN GỖ: TƯỜNG GHÉP TỪ NHIỀU MIẾNG GỖ CÓ VÂN & MÀU SẮC KHÁC NHAU ===
       for (const cx of [-1.52, -0.5, 0.5, 1.52]) {
         for (const cz of [-1.45, -0.35, 0.68]) {
           const plinth = createStonePlinthLathe();
@@ -612,15 +776,21 @@ function getBuildingParts(
         }
       }
       push('woodDark', rbox(3.52, 0.11, 2.65, 0.025, 0, 1.18, -0.4));
-      push('wood', rbox(3.64, 0.095, 2.76, 0.025, 0, 1.26, -0.4));
+      // Sàn ghép từng thanh ván gỗ nhiều màu
+      const woodTones: MaterialKey[] = ['wood', 'woodLight', 'woodWarm', 'woodDark'];
+      for (let p = 0; p < 12; p++) {
+        const pz = -1.72 + p * 0.23;
+        push(woodTones[p % 3], rbox(3.62, 0.075, 0.21, 0.01, 0, 1.26, pz));
+      }
+
       push('woodDark', rbox(1.18, 0.06, 0.075, 0.015, -1.18, 1.58, 0.94));
       push('woodDark', rbox(1.18, 0.06, 0.075, 0.015, 1.18, 1.58, 0.94));
       for (const rx of [-1.72, -1.35, -0.98, -0.62, 0.62, 0.98, 1.35, 1.72]) {
-        push('wood', cyl(0.03, 0.03, 0.3, 6, rx, 1.44, 0.94));
+        push('woodWarm', cyl(0.03, 0.03, 0.3, 6, rx, 1.44, 0.94));
       }
 
       for (let s = 0; s < 5; s++) {
-        push('wood', rbox(0.86, 0.07, 0.18, 0.015, 0, 0.46 + s * 0.16, 1.58 - s * 0.14));
+        push(woodTones[s % 3], rbox(0.86, 0.07, 0.18, 0.015, 0, 0.46 + s * 0.16, 1.58 - s * 0.14));
       }
       for (const hx of [-0.46, 0.46]) {
         const stringer = rbox(0.07, 0.09, 1.08, 0.015, 0, 0, 0);
@@ -631,27 +801,65 @@ function getBuildingParts(
         const handrail = rbox(0.06, 0.06, 1.05, 0.015, 0, 0, 0);
         handrail.rotateX(Math.PI / 4);
         handrail.translate(hx, 1.14, 1.28);
-        push('woodDark', handrail);
+        push('woodWarm', handrail);
 
         push('woodDark', cyl(0.035, 0.035, 0.34, 6, hx, 0.66, 1.62));
         push('woodDark', cyl(0.035, 0.035, 0.34, 6, hx, 1.44, 0.94));
       }
 
-      // Thân nhà gỗ bo cạnh + Cửa chính + Cửa sổ khung tre
-      push('wood', rbox(3.15, 0.96, 1.78, 0.03, 0, 1.78, -0.58));
-      for (const px of [-1.52, -0.52, 0.52, 1.52]) {
+      // Tường gỗ ghép từng miếng ván dọc có vân gỗ & màu sắc khác nhau (mặt trước, sau, trái, phải)
+      const frontPlankCount = 18;
+      for (let i = 0; i < frontPlankCount; i++) {
+        const px = -1.5 + i * (3.0 / (frontPlankCount - 1));
+        const inDoor = Math.abs(px) < 0.36;
+        const inWin = Math.abs(Math.abs(px) - 1.02) < 0.24;
+        const tone = woodTones[(i * 3 + 1) % woodTones.length];
+        const pzOff = (i % 2 === 0 ? 0.012 : -0.012);
+        if (inDoor) {
+          push(tone, box(0.16, 0.22, 0.08, px, 2.16, 0.28 + pzOff));
+        } else if (inWin) {
+          push(tone, box(0.16, 0.32, 0.08, px, 1.46, 0.28 + pzOff));
+          push(tone, box(0.16, 0.22, 0.08, px, 2.16, 0.28 + pzOff));
+        } else {
+          push(tone, box(0.165, 0.96, 0.08, px, 1.78, 0.28 + pzOff));
+        }
+        // Tường sau
+        push(woodTones[(i + 2) % woodTones.length], box(0.165, 0.96, 0.08, px, 1.78, -1.44 + pzOff));
+      }
+
+      // Tường 2 bên hông ghép miếng gỗ ngang/dọc nhiều tông màu
+      const sidePlankCount = 10;
+      for (let i = 0; i < sidePlankCount; i++) {
+        const pz = -1.36 + i * (1.56 / (sidePlankCount - 1));
+        const inSideWin = Math.abs(pz + 0.58) < 0.26;
+        const pxOff = (i % 2 === 0 ? 0.012 : -0.012);
+        for (const sx of [-1.56, 1.56]) {
+          const tone = woodTones[(i + (sx > 0 ? 1 : 2)) % woodTones.length];
+          if (inSideWin) {
+            push(tone, box(0.08, 0.32, 0.16, sx + pxOff, 1.46, pz));
+            push(tone, box(0.08, 0.22, 0.16, sx + pxOff, 2.16, pz));
+          } else {
+            push(tone, box(0.08, 0.96, 0.165, sx + pxOff, 1.78, pz));
+          }
+        }
+      }
+
+      // Cột góc & dầm khung nhà gỗ tối
+      for (const px of [-1.54, -0.52, 0.52, 1.54]) {
         push('woodDark', rbox(0.11, 0.98, 0.1, 0.02, px, 1.78, 0.32));
       }
-      push('woodDark', rbox(0.78, 0.78, 0.09, 0.02, 0, 1.68, 0.33));
-      // Vòng tay nắm cửa bằng TorusGeometry đồng vàng
+      // Cửa chính 2 cánh gỗ ghép (trái/phải khác vân nhẹ) + vòng đồng Torus
+      push('woodWarm', rbox(0.37, 0.78, 0.08, 0.015, -0.2, 1.68, 0.32));
+      push('woodDark', rbox(0.37, 0.78, 0.08, 0.015, 0.2, 1.68, 0.32));
       push('gold', torus(0.048, 0.014, 6, 12).translate(-0.1, 1.68, 0.38));
       push('gold', torus(0.048, 0.014, 6, 12).translate(0.1, 1.68, 0.38));
 
+      // Cửa sổ khung tre có đốt tre + cánh liếp chống lên
       for (const wx of [-1.02, 1.02]) {
-        push('bamboo', rbox(0.58, 0.46, 0.075, 0.015, wx, 1.82, 0.33));
-        push('earthDark', box(0.46, 0.36, 0.08, wx, 1.82, 0.33));
+        push('bamboo', rbox(0.58, 0.46, 0.075, 0.015, wx, 1.82, 0.32));
+        push('earthDark', box(0.46, 0.36, 0.08, wx, 1.82, 0.32));
         for (const bx of [-0.15, -0.05, 0.05, 0.15]) {
-          push('bamboo', cyl(0.016, 0.016, 0.36, 5, wx + bx, 1.82, 0.36));
+          addBambooPole(0.016, 0.36, 2, wx + bx, 1.64, 0.355);
         }
         const shutter = rbox(0.52, 0.045, 0.36, 0.01, 0, 0, 0);
         shutter.rotateX(-0.55);
@@ -662,39 +870,66 @@ function getBuildingParts(
         push('bamboo', rbox(0.075, 0.44, 0.66, 0.015, sx, 1.82, -0.58));
         push('earthDark', box(0.08, 0.34, 0.54, sx, 1.82, -0.58));
         for (const bz of [-0.18, -0.06, 0.06, 0.18]) {
-          push('bamboo', cyl(0.016, 0.016, 0.34, 5, sx + (sx > 0 ? 0.03 : -0.03), 1.82, -0.58 + bz));
+          addBambooPole(0.016, 0.34, 2, sx + (sx > 0 ? 0.03 : -0.03), 1.65, -0.58 + bz);
         }
       }
 
-      // === 4. MÁI LÁ TRANH CHỮ A: ĐẦU HỒI EXTRUDE, BÓ TRANH RĂNG CƯA, SÓNG NÓC TUBE XOẮN, SỪNG NÓC CONG ===
+      // === 4. MÁI LÁ TRANH LỢP TỪ RẤT NHIỀU TÁN TRANH & SỢI TRANH ===
       for (const gx of [-1.52, 1.52]) {
         const gable = extrudeGableTriangle(1.9, 1.08, 0.08);
         gable.rotateY(Math.PI / 2);
         gable.translate(gx, 2.78, -0.58);
-        push('woodDark', gable);
+        push('woodWarm', gable);
       }
 
       const roofSlope = 0.62;
+      const thatchTones: MaterialKey[] = ['thatch', 'thatchDark', 'bambooDry'];
+      // Lợp từng tán tranh riêng lẻ (4 hàng x 11 tán mỗi mặt mái)
       for (let layer = 0; layer < 4; layer++) {
         const t = layer / 3;
-        const yPos = 2.38 + t * 0.84;
-        const zOff = 0.92 - t * 0.68;
-        const w = 3.74 - t * 0.14;
-        const matKey: MaterialKey = layer % 2 === 0 ? 'thatch' : 'thatchDark';
+        const yPos = 2.36 + t * 0.85;
+        const zOff = 0.94 - t * 0.68;
+        const cols = 11;
+        const totalW = 3.74 - t * 0.12;
+        const bundleW = totalW / cols + 0.05;
 
-        const frontSheet = extrudeSerratedThatchSheet(w, 0.56, 0.11);
-        frontSheet.rotateX(roofSlope);
-        frontSheet.translate(0, yPos, -0.58 + zOff);
-        push(matKey, frontSheet);
+        for (let c = 0; c < cols; c++) {
+          const bx = -totalW / 2 + (c + 0.5) * (totalW / cols);
+          const staggerY = ((c + layer) % 2 === 0 ? 0.015 : -0.01);
+          const tiltZ = Math.sin(c * 2.1 + layer) * 0.04;
+          const tone = thatchTones[(c + layer * 2) % 3];
 
-        const backSheet = extrudeSerratedThatchSheet(w, 0.56, 0.11);
-        backSheet.rotateY(Math.PI);
-        backSheet.rotateX(-roofSlope);
-        backSheet.translate(0, yPos, -0.58 - zOff);
-        push(matKey, backSheet);
+          const bundleF = createThatchBundle(bundleW, 0.56, 0.08);
+          bundleF.rotateZ(tiltZ);
+          bundleF.rotateX(roofSlope);
+          bundleF.translate(bx, yPos + staggerY, -0.58 + zOff);
+          push(tone, bundleF);
+
+          const bundleB = createThatchBundle(bundleW, 0.56, 0.08);
+          bundleB.rotateY(Math.PI);
+          bundleB.rotateZ(-tiltZ);
+          bundleB.rotateX(-roofSlope);
+          bundleB.translate(bx, yPos + staggerY, -0.58 - zOff);
+          push(tone, bundleB);
+
+          // Sợi tranh mảnh nhô ra ở mép mỗi tán tranh
+          for (const fiberOff of [-0.08, 0.07]) {
+            const fF = cyl(0.008, 0.014, 0.24, 4, 0, 0, 0);
+            fF.rotateX(roofSlope + Math.PI / 2 - 0.15);
+            fF.rotateZ(fiberOff * 2);
+            fF.translate(bx + fiberOff, yPos - 0.14, -0.58 + zOff + 0.24);
+            push('bambooDry', fF);
+
+            const fB = cyl(0.008, 0.014, 0.24, 4, 0, 0, 0);
+            fB.rotateX(-roofSlope - Math.PI / 2 + 0.15);
+            fB.rotateZ(-fiberOff * 2);
+            fB.translate(bx + fiberOff, yPos - 0.14, -0.58 - zOff - 0.24);
+            push('bambooDry', fB);
+          }
+        }
       }
 
-      // Sống nóc bện rơm bằng 2 ống xoắn kép (TubeGeometry) + Sừng nóc cong (ExtrudeGeometry)
+      // Sống nóc bện rơm TubeGeometry xoắn kép + Sừng nóc cong
       const braidA = createBraidedRidgeTube(3.3, 0);
       braidA.translate(0, 3.36, -0.58);
       const braidB = createBraidedRidgeTube(3.3, Math.PI);
@@ -732,7 +967,6 @@ function getBuildingParts(
       barrel.translate(-1.3, 0.94, 1.31);
       push(bannerMat, barrel);
 
-      // Mặt trống da trâu & 2 đai đồng Torus quanh tang trống
       const drumSkin = cyl(0.275, 0.275, 0.64, 16, 0, 0, 0);
       drumSkin.rotateZ(Math.PI / 2);
       drumSkin.rotateY(-0.35);
@@ -754,10 +988,10 @@ function getBuildingParts(
         push(bannerMat, sphere(0.04, -1.24, 0.41, dz));
       }
 
-      // === 6. GIÁ BINH KHÍ CHỮ A (GIÁO + ĐẠI ĐAO EXTRUDE + KHIÊN MÂY) ===
-      push('woodDark', rbox(1.12, 0.06, 0.08, 0.015, 1.28, 0.88, 1.32));
-      push('woodDark', rbox(1.12, 0.06, 0.08, 0.015, 1.28, 0.56, 1.32));
-      for (const rx of [0.78, 1.78]) {
+      // === 6. GIÁ BINH KHÍ CHI TIẾT: GIÁO LÁ LIỄU + ĐẠI ĐAO CÓ NGẠNH + KHÂU ĐỒNG + TUA ĐỎ ===
+      push('woodDark', rbox(1.16, 0.06, 0.08, 0.015, 1.28, 0.88, 1.32));
+      push('woodDark', rbox(1.16, 0.06, 0.08, 0.015, 1.28, 0.56, 1.32));
+      for (const rx of [0.76, 1.8]) {
         const legF = rbox(0.06, 0.66, 0.06, 0.01, 0, 0, 0);
         legF.rotateX(-0.22);
         legF.translate(rx, 0.68, 1.4);
@@ -767,15 +1001,21 @@ function getBuildingParts(
         push('woodDark', legF);
         push('woodDark', legB);
       }
-      for (const [wx, isHalberd] of [[0.92, false], [1.14, true], [1.36, true], [1.58, false]] as const) {
-        push('wood', cyl(0.022, 0.022, 1.1, 6, wx, 0.92, 1.32));
+      for (const [wx, isHalberd] of [[0.9, false], [1.14, true], [1.38, true], [1.62, false]] as const) {
+        // Cán gỗ thuôn + đốc kim loại + khâu đồng + tua đỏ
+        push('woodWarm', cyl(0.018, 0.025, 1.14, 7, wx, 0.94, 1.32));
+        push('iron', cone(0.024, 0.08, 6, wx, 0.35, 1.32).rotateX(Math.PI));
+        push('gold', cyl(0.028, 0.028, 0.05, 8, wx, 1.5, 1.32));
+        push(bannerMat, cone(0.045, 0.14, 7, wx, 1.43, 1.32));
         if (isHalberd) {
-          const blade = extrudeHalberdBlade();
+          const blade = extrudeDetailedHalberd();
           blade.rotateY(Math.PI / 2);
-          blade.translate(wx, 1.58, 1.34);
+          blade.translate(wx, 1.66, 1.34);
           push('iron', blade);
         } else {
-          push('iron', cone(0.04, 0.22, 6, wx, 1.54, 1.32));
+          const spearHead = extrudeSpearHead();
+          spearHead.translate(wx, 1.65, 1.32);
+          push('iron', spearHead);
         }
       }
       const rattanShield = cyl(0.26, 0.26, 0.05, 16, 0, 0, 0);
@@ -784,13 +1024,10 @@ function getBuildingParts(
       push('bambooDry', rattanShield);
       push('woodDark', sphere(0.055, 1.48, 0.62, 1.55));
 
-      // === 7. CỘT CỜ KHỞI NGHĨA ("LÊ") BỆ ĐÁ BO CẠNH + ĐỐT TRE ===
+      // === 7. CỘT CỜ KHỞI NGHĨA ("LÊ") CÓ ĐỐT TRE RÕ RỆT ===
       push('stoneDark', rbox(0.46, 0.16, 0.46, 0.03, -1.85, 0.46, 1.65));
       push('stone', rbox(0.32, 0.18, 0.32, 0.03, -1.85, 0.62, 1.65));
-      push('bamboo', cyl(0.05, 0.07, 2.75, 8, -1.85, 2.05, 1.65));
-      for (const ny of [1.15, 1.75, 2.35, 2.95]) {
-        push('bambooDry', torus(0.062, 0.012, 5, 10).rotateX(Math.PI / 2).translate(-1.85, ny, 1.65));
-      }
+      addBambooPole(0.062, 2.75, 6, -1.85, 0.68, 1.65);
       push('gold', sphere(0.095, -1.85, 3.46, 1.65));
       const crossbar = cyl(0.028, 0.032, 1.28, 6, 0, 0, 0);
       crossbar.rotateZ(Math.PI / 2);
