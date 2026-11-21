@@ -14,6 +14,7 @@ import {
   createVietnameseTree,
   type VietnameseTreeKind,
 } from '../../utils/region3DModels';
+import { onSoldierBaseLoaded, preloadSoldierBaseModel } from '../../utils/soldierRigLoader';
 
 interface PlacementPreviewConfig {
   spanCols: number;
@@ -500,6 +501,16 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
     syncBuildings();
     syncUnits();
 
+    void preloadSoldierBaseModel();
+    const unsubSoldierBase = onSoldierBaseLoaded(() => {
+      syncBuildings();
+      for (const [id, vis] of unitVisuals.entries()) {
+        unitsGroup.remove(vis.group);
+        unitVisuals.delete(id);
+      }
+      syncUnits();
+    });
+
     // Raycaster trên 1 mặt phẳng duy nhất (O(1) grid lookup)
     const raycaster = new THREE.Raycaster();
     const pointer = new THREE.Vector2();
@@ -641,6 +652,7 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
     rafId = requestAnimationFrame(animate);
 
     return () => {
+      unsubSoldierBase();
       cancelAnimationFrame(rafId);
       window.removeEventListener('resize', handleResize);
       domEl.removeEventListener('pointermove', handlePointerMove);

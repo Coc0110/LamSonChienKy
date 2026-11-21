@@ -2,6 +2,11 @@ import * as THREE from 'three';
 import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import type { BaseBuilding, BaseBuildingType, RegionCombatUnit } from '../types/region';
+import {
+  animateRiggedSoldierWalk,
+  createRiggedLeSoldier,
+  isSoldierBaseReady,
+} from './soldierRigLoader';
 
 export const DIORAMA_PALETTE = {
   ground: 0x679445,
@@ -2195,6 +2200,11 @@ export function createDecorProp(kind: 'woodpile' | 'drying_rack' | 'bamboo_fence
  * Nhân vật NPC mini (Nông dân, Thợ rèn, Lính gác đi tuần)
  */
 export function createNpcGroup(role: 'farmer' | 'smith' | 'guard'): THREE.Group {
+  if (isSoldierBaseReady()) {
+    const rigged = createRiggedLeSoldier(role, 'lam_son', role === 'guard' ? 0.44 : 0.46);
+    if (rigged) return rigged;
+  }
+
   if (role === 'guard') {
     const g = createUnitGroup('spearman', 'lam_son');
     g.scale.set(0.85, 0.85, 0.85);
@@ -2390,6 +2400,10 @@ export interface SoldierRig {
 }
 
 export function animateSoldierWalk(group: THREE.Group, phase: number, isMoving: boolean): void {
+  if (group.userData.skinnedRig) {
+    animateRiggedSoldierWalk(group, phase, isMoving);
+    return;
+  }
   const rig = group.userData.rig as SoldierRig | undefined;
   if (!rig) return;
 
@@ -2592,6 +2606,10 @@ export function createUnitGroup(
   faction: 'lam_son' | 'ming'
 ): THREE.Group {
   if (unitType === 'swordsman' || unitType === 'spearman' || unitType === 'archer') {
+    if (isSoldierBaseReady()) {
+      const rigged = createRiggedLeSoldier(unitType, faction, 0.52);
+      if (rigged) return rigged;
+    }
     return createArticulatedInfantryGroup(unitType, faction);
   }
 
