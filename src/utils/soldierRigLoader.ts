@@ -233,14 +233,57 @@ export function preloadSoldierBaseModel(): Promise<boolean> {
           (armorGltf) => {
             armorGltf.scene.updateMatrixWorld(true);
             const parts: CachedArmorPart[] = [];
-            const scaleArmor = 0.88;
 
             armorGltf.scene.traverse((obj) => {
               if (!(obj instanceof THREE.Mesh)) return;
               const partName = obj.parent?.name || obj.name;
               const g = obj.geometry.clone();
               g.applyMatrix4(obj.matrixWorld);
-              g.scale(scaleArmor, scaleArmor, scaleArmor);
+
+              const isHelmet =
+                partName === 'boridge_low' ||
+                partName === 'top_low' ||
+                partName === 'main_low' ||
+                partName === 'tridge_low';
+              const isTorsoArmor =
+                partName === 'Body_piece_low' ||
+                partName === 'chest_low' ||
+                partName === 'Neck_low' ||
+                partName === 'shoulder_strap_low' ||
+                partName === 'Shoulder3_low';
+              const isWaistSkirt =
+                partName === 'belt_low' ||
+                partName === 'Waist_cushion1_low' ||
+                partName === 'foohead_low' ||
+                partName === 'Side_skirt1_low' ||
+                partName === 'Side_skirt2_low' ||
+                partName === 'Side_skirt3_low';
+              const isLegBoot =
+                partName === 'leg_low' ||
+                partName === 'shoes_main1_low' ||
+                partName === 'sole_low' ||
+                partName === 'shoes_top_low';
+              const isArmPart = partName === 'Arm_low' || partName === 'hand1_low';
+
+              // Phóng kích thước từng nhóm giáp để bọc BÊN NGOÀI thân người stickman (tránh chìm vào trong)
+              if (isHelmet) {
+                g.scale(1.32, 0.92, 1.35);
+                g.translate(0, -0.07, 0.01);
+              } else if (isTorsoArmor) {
+                g.scale(1.44, 0.88, 1.48);
+                g.translate(0, -0.01, -0.005);
+              } else if (isWaistSkirt) {
+                g.scale(1.34, 0.88, 1.4);
+              } else if (isLegBoot) {
+                g.scale(1.16, 0.92, 1.26);
+                if (partName === 'leg_low') {
+                  g.translate(0, 0, 0.055);
+                }
+              } else if (isArmPart) {
+                g.scale(0.95, 1.12, 1.25);
+              } else {
+                g.scale(1.25, 0.9, 1.25);
+              }
 
               const pPos = g.getAttribute('position');
               const vCount = pPos.count;
@@ -255,7 +298,6 @@ export function preloadSoldierBaseModel(): Promise<boolean> {
                 sWgt[idx * 4 + 1] = w1 / sum;
               };
 
-              const isArmPart = partName === 'Arm_low' || partName === 'hand1_low';
               if (isArmPart) {
                 // Xoay tay giáp từ A-pose lên T-pose để trùng khớp xương cánh tay
                 const rotAngle = 0.72;
@@ -265,14 +307,13 @@ export function preloadSoldierBaseModel(): Promise<boolean> {
                   const vx = pPos.getX(i);
                   const vy = pPos.getY(i);
                   const isLeft = vx < 0;
-                  const pivX = isLeft ? -0.18 : 0.18;
-                  const pivY = 1.03;
+                  const pivX = isLeft ? -0.2 : 0.2;
+                  const pivY = 1.15;
                   const dx = vx - pivX;
                   const dy = vy - pivY;
-                  // Trái: xoay theo -rotAngle; Phải: xoay theo +rotAngle
                   const rx = isLeft ? dx * cosA + dy * sinA : dx * cosA - dy * sinA;
                   const ry = isLeft ? -dx * sinA + dy * cosA : dx * sinA + dy * cosA;
-                  pPos.setXY(i, pivX + rx + (isLeft ? -0.05 : 0.05), 1.19 + ry);
+                  pPos.setXY(i, pivX + rx + (isLeft ? -0.06 : 0.06), 1.19 + ry);
                 }
                 pPos.needsUpdate = true;
                 g.computeVertexNormals();
@@ -282,12 +323,7 @@ export function preloadSoldierBaseModel(): Promise<boolean> {
                 const vx = pPos.getX(i);
                 const vy = pPos.getY(i);
 
-                if (
-                  partName === 'boridge_low' ||
-                  partName === 'top_low' ||
-                  partName === 'main_low' ||
-                  partName === 'tridge_low'
-                ) {
+                if (isHelmet) {
                   assignW(i, 3, 1); // head
                 } else if (partName === 'Neck_low' || partName === 'shoulder_strap_low' || partName === 'chest_low') {
                   assignW(i, 2, 1); // chest
@@ -311,16 +347,11 @@ export function preloadSoldierBaseModel(): Promise<boolean> {
                   }
                 } else if (partName === 'Shoulder3_low') {
                   const upperArm = vx < 0 ? 4 : 6;
-                  const t = Math.max(0, Math.min(1, (Math.abs(vx) - 0.16) / 0.12));
+                  const t = Math.max(0, Math.min(1, (Math.abs(vx) - 0.2) / 0.16));
                   assignW(i, upperArm, t, 2, 1 - t);
                 } else if (isArmPart) {
                   assignW(i, vx < 0 ? 5 : 7, 1); // leftForearm / rightForearm
-                } else if (
-                  partName === 'leg_low' ||
-                  partName === 'shoes_main1_low' ||
-                  partName === 'sole_low' ||
-                  partName === 'shoes_top_low'
-                ) {
+                } else if (isLegBoot) {
                   assignW(i, vx < 0 ? 9 : 11, 1); // leftShin / rightShin
                 } else {
                   assignW(i, 0, 1);
@@ -330,8 +361,12 @@ export function preloadSoldierBaseModel(): Promise<boolean> {
               g.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(sIdx, 4));
               g.setAttribute('skinWeight', new THREE.Float32BufferAttribute(sWgt, 4));
 
-              const origMat = Array.isArray(obj.material) ? obj.material[0] : obj.material;
-              parts.push({ name: partName, geo: g, mat: origMat });
+              const rawMat = (Array.isArray(obj.material) ? obj.material[0] : obj.material) as THREE.MeshStandardMaterial;
+              // Giảm metalness nếu scene không có envMap để giáp không bị tối đen
+              const mat = rawMat.clone();
+              mat.metalness = Math.min(mat.metalness ?? 0.4, 0.35);
+              mat.roughness = Math.max(mat.roughness ?? 0.5, 0.45);
+              parts.push({ name: partName, geo: g, mat });
             });
 
             cachedArmorParts = parts;
