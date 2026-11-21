@@ -116,6 +116,40 @@ function getWoodGrainTexture(baseHex: string, grainHex: string): THREE.CanvasTex
   return tex;
 }
 
+let cachedBambooTex: THREE.CanvasTexture | null = null;
+function getBambooCulmTexture(): THREE.CanvasTexture {
+  if (cachedBambooTex) return cachedBambooTex;
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    ctx.fillStyle = '#73913b';
+    ctx.fillRect(0, 0, 128, 256);
+
+    // Thớ tre dọc tự nhiên
+    for (let i = 0; i < 40; i++) {
+      const x = i * 3.2;
+      ctx.fillStyle = i % 2 === 0 ? 'rgba(54, 78, 24, 0.22)' : 'rgba(155, 186, 84, 0.16)';
+      ctx.fillRect(x, 0, 1.5, 256);
+    }
+
+    // Các vệt mắt tre tự nhiên (vòng tối nhẹ + viền sáng mảnh, lặp theo đốt)
+    for (const ny of [42, 85, 128, 171, 214]) {
+      ctx.fillStyle = 'rgba(42, 58, 18, 0.55)';
+      ctx.fillRect(0, ny - 3, 128, 6);
+      ctx.fillStyle = 'rgba(182, 206, 120, 0.45)';
+      ctx.fillRect(0, ny + 2, 128, 2);
+    }
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  cachedBambooTex = tex;
+  return tex;
+}
+
 function getSharedMaterial(key: MaterialKey, transparent = false, opacity = 1): THREE.MeshStandardMaterial {
   const cacheKey = `${key}_${transparent ? 't' : 'o'}_${opacity}`;
   const hit = cachedMaterials.get(cacheKey);
@@ -160,8 +194,7 @@ function getSharedMaterial(key: MaterialKey, transparent = false, opacity = 1): 
       });
       break;
     case 'bamboo': {
-      const tex = getWoodGrainTexture('#789440', '#4f6926');
-      mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.68 });
+      mat = new THREE.MeshStandardMaterial({ map: getBambooCulmTexture(), roughness: 0.65 });
       break;
     }
     case 'bambooDry':
@@ -560,27 +593,78 @@ function createOrganicEarthMound(width: number, depth: number, height: number, s
 }
 
 /**
- * Thân tre đúc liền khối bằng LatheGeometry (thon dần lên ngọn, có gờ đốt tre tự nhiên, không vòng vàng rời)
+ * Thân tre đúc liền khối bằng LatheGeometry (thon dần lên ngọn, mắt tre nổi rõ tự nhiên)
  */
 function createBambooCulmLathe(radius: number, height: number, nodes: number): THREE.BufferGeometry {
   const pts: THREE.Vector2[] = [];
-  const steps = Math.max(8, (nodes + 1) * 5);
+  const steps = Math.max(12, (nodes + 1) * 7);
   for (let i = 0; i <= steps; i++) {
     const t = i / steps;
     const y = t * height;
-    const taper = 1 - t * 0.18;
-    // Tính khoảng cách tới đốt tre gần nhất để tạo gờ đốt tự nhiên
-    let nodeBump = 0;
+    const taper = 1 - t * 0.16;
+    let nodeOffset = 0;
     for (let n = 1; n <= nodes; n++) {
       const nt = n / (nodes + 1);
-      const d = Math.abs(t - nt);
-      if (d < 0.035) {
-        nodeBump = Math.max(nodeBump, (1 - d / 0.035) * radius * 0.16);
+      const d = t - nt;
+      if (Math.abs(d) < 0.04) {
+        // Rãnh thắt nhẹ ngay dưới mắt + gờ mắt tre nổi rõ
+        if (d < 0) {
+          nodeOffset = -radius * 0.08 * (1 + d / 0.04);
+        } else {
+          nodeOffset = radius * 0.28 * (1 - d / 0.04);
+        }
       }
     }
-    pts.push(new THREE.Vector2(Math.max(0.005, radius * taper + nodeBump), y));
+    pts.push(new THREE.Vector2(Math.max(0.006, radius * taper + nodeOffset), y));
   }
-  return new THREE.LatheGeometry(pts, 9);
+  return new THREE.LatheGeometry(pts, 10);
+}
+
+/**
+ * Đầu cọc tre vạt chéo rỗng ruột (không phải cọc gỗ đặc)
+ */
+function createSlicedHollowBambooTip(radius: number): {
+  outerGreen: THREE.BufferGeometry;
+  innerWall: THREE.BufferGeometry;
+  hollowCore: THREE.BufferGeometry;
+} {
+  const outerR = radius * 0.86;
+  const innerR = outerR * 0.62;
+  const cutH = outerR * 3.2;
+
+  // Vỏ tre ngoài vạt chéo 45 độ
+  const outerGreen = new THREE.CylinderGeometry(outerR, outerR, cutH, 10, 1, true);
+  const posOut = outerGreen.getAttribute('position');
+  for (let i = 0; i < posOut.count; i++) {
+    const y = posOut.getY(i);
+    if (y > 0) {
+      const z = posOut.getZ(i);
+      const slice = ((z + outerR) / (2 * outerR)) * cutH * 0.72;
+      posOut.setY(i, y - slice);
+    }
+  }
+  outerGreen.computeVertexNormals();
+  outerGreen.translate(0, cutH / 2, 0);
+
+  // Vách trong tre màu vàng ngà lộ ra khi vạt chéo
+  const innerWall = new THREE.CylinderGeometry(innerR, innerR, cutH * 0.96, 10, 1, true);
+  const posIn = innerWall.getAttribute('position');
+  for (let i = 0; i < posIn.count; i++) {
+    const y = posIn.getY(i);
+    if (y > 0) {
+      const z = posIn.getZ(i);
+      const slice = ((z + innerR) / (2 * innerR)) * cutH * 0.7;
+      posIn.setY(i, y - slice);
+    }
+  }
+  innerWall.computeVertexNormals();
+  innerWall.translate(0, cutH / 2, 0);
+
+  // Lõi rỗng tối màu bên trong ống tre
+  const hollowCore = new THREE.CylinderGeometry(innerR * 0.92, innerR * 0.92, cutH * 0.25, 8);
+  hollowCore.translate(0, cutH * 0.14, 0);
+
+  return { outerGreen, innerWall, hollowCore };
 }
 
 /**
@@ -754,7 +838,13 @@ function getBuildingParts(
         culm.translate(bx, byBase, bz);
         push('bamboo', culm);
         if (withTip) {
-          push('bamboo', cone(r * 0.82, 0.11, 6, bx, byBase + h + 0.05, bz));
+          const tip = createSlicedHollowBambooTip(r);
+          tip.outerGreen.translate(bx, byBase + h, bz);
+          tip.innerWall.translate(bx, byBase + h, bz);
+          tip.hollowCore.translate(bx, byBase + h, bz);
+          push('bamboo', tip.outerGreen);
+          push('bambooDry', tip.innerWall);
+          push('earthDark', tip.hollowCore);
         }
       };
 
@@ -1468,8 +1558,8 @@ const bambooLeafDoubleMatBright = new THREE.MeshStandardMaterial({
   side: THREE.DoubleSide,
 });
 const bambooCulmTexMat = new THREE.MeshStandardMaterial({
-  map: getWoodGrainTexture('#74913c', '#4c6623'),
-  roughness: 0.68,
+  map: getBambooCulmTexture(),
+  roughness: 0.64,
 });
 
 let cachedBambooLeafSprayGeo: THREE.BufferGeometry | null = null;
