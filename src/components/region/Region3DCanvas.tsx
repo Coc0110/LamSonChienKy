@@ -418,9 +418,7 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
             woodpile.position.set(cx - 1.05, 0.14, cz + 0.9);
             buildingsGroup.add(woodpile);
           } else if (b.type === 'barracks') {
-            const rack = createDecorProp('drying_rack');
-            rack.position.set(cx - 1.0, 0.1, cz + 0.9);
-            buildingsGroup.add(rack);
+            // Đạo cụ luyện binh đã được dựng chi tiết trực tiếp trong model 5x5 của trại
           } else if (b.type === 'main_hall') {
             const jar = createDecorProp('rain_jar');
             jar.position.set(cx + 2.0, 0.05, cz + 1.8);

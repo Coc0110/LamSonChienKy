@@ -1820,19 +1820,180 @@ function getBuildingParts(
     }
 
     case 'barracks': {
-      push('earthDark', box(2.8, 0.1, 2.8, 0, 0.05, 0));
-      push('wood', box(1.9, 0.72, 1.05, 0, 0.46, -0.58));
-      push('thatch', cone(1.5, 0.6, 4, 0, 1.12, -0.58, Math.PI / 4));
-      // Bia bắn cung & giá vũ khí
-      push('woodDark', cyl(0.05, 0.06, 0.7, 6, -0.78, 0.42, 0.72));
-      push('targetWhite', cyl(0.26, 0.26, 0.08, 12, -0.78, 0.64, 0.72));
-      push(bannerMat, cyl(0.14, 0.14, 0.1, 12, -0.78, 0.64, 0.72));
-      push('woodDark', box(0.85, 0.08, 0.12, 0.65, 0.52, 0.72));
-      for (const ox of [0.4, 0.65, 0.9]) {
-        push('iron', cyl(0.025, 0.025, 0.78, 6, ox, 0.45, 0.72));
+      // === 5x5 TRẠI LUYỆN BINH: BÃI ĐẤT TRỐNG RỘNG RÃI VỚI ĐẦY ĐỦ ĐẠO CỤ TẬP TRẬN ===
+      // 1. Nền bãi đất nện 5x5 + mảng đất sẫm/cát tự nhiên + vòng tròn đấu võ ở giữa sân
+      push('earthDark', rbox(4.84, 0.06, 4.84, 0.03, 0, 0.03, 0));
+      push('earth', rbox(4.62, 0.04, 4.62, 0.02, 0, 0.05, 0));
+      for (const [px, pz, pw, pd, mat] of [
+        [0.35, 0.25, 1.9, 1.7, 'thatch'],
+        [-1.35, 0.8, 1.2, 1.1, 'earthDark'],
+        [1.15, -1.2, 1.6, 1.2, 'earthDark'],
+        [-0.2, 1.55, 1.4, 0.9, 'thatch'],
+      ] as const) {
+        push(mat, rbox(pw, 0.025, pd, 0.01, px, 0.065, pz));
       }
-      push('woodDark', cyl(0.035, 0.04, 1.2, 6, 1.05, 0.68, -0.95));
-      push(bannerMat, box(0.42, 0.26, 0.04, 1.26, 1.12, -0.95));
+      // Vòng tròn sân đấu võ ở trung tâm bãi đất
+      const arenaRing = torus(0.92, 0.04, 6, 20);
+      arenaRing.rotateX(Math.PI / 2);
+      arenaRing.translate(0.15, 0.075, 0.25);
+      push('earthDark', arenaRing);
+
+      // Đá tảng chèn 4 góc bãi tập
+      for (const [sx, sz] of [[-2.32, -2.32], [2.32, -2.32], [-2.32, 2.32], [2.32, 2.32]]) {
+        push('stone', rbox(0.28, 0.14, 0.28, 0.04, sx, 0.08, sz));
+      }
+
+      // 2. Hàng rào tre & cọc gỗ thấp bao quanh bãi tập (chừa lối vào rộng ở mặt trước z = +2.32)
+      const addFenceSegment = (x0: number, z0: number, x1: number, z1: number) => {
+        const dx = x1 - x0;
+        const dz = z1 - z0;
+        const len = Math.hypot(dx, dz);
+        const steps = Math.max(2, Math.round(len / 0.55));
+        const ang = Math.atan2(dx, dz);
+        for (let i = 0; i <= steps; i++) {
+          const t = i / steps;
+          const px = x0 + dx * t;
+          const pz = z0 + dz * t;
+          push('woodDark', cyl(0.045, 0.055, 0.54, 6, px, 0.28, pz));
+          push('bambooDry', cone(0.045, 0.1, 6, px, 0.58, pz));
+        }
+        for (const ry of [0.22, 0.42]) {
+          const rail = rbox(0.04, 0.045, len, 0.01, 0, 0, 0);
+          rail.rotateY(ang);
+          rail.translate((x0 + x1) / 2, ry, (z0 + z1) / 2);
+          push('bambooDry', rail);
+        }
+      };
+      addFenceSegment(-2.25, -2.3, 2.25, -2.3); // Mặt sau
+      addFenceSegment(-2.3, -2.25, -2.3, 2.25); // Cạnh trái
+      addFenceSegment(2.3, -2.25, 2.3, 2.25);   // Cạnh phải
+      addFenceSegment(-2.25, 2.3, -0.95, 2.3);  // Mặt trước trái
+      addFenceSegment(0.95, 2.3, 2.25, 2.3);    // Mặt trước phải
+
+      // Hai trụ cổng gỗ cao & đèn lồng ở lối vào bãi tập
+      for (const gx of [-0.92, 0.92]) {
+        push('woodDark', cyl(0.075, 0.09, 1.32, 7, gx, 0.68, 2.3));
+        push('gold', cyl(0.085, 0.085, 0.06, 8, gx, 1.32, 2.3));
+        push('woodDark', rbox(0.28, 0.05, 0.06, 0.01, gx + (gx < 0 ? 0.14 : -0.14), 1.22, 2.3));
+        push(bannerMat, cyl(0.07, 0.07, 0.16, 8, gx + (gx < 0 ? 0.24 : -0.24), 1.1, 2.3));
+      }
+
+      // 3. Sạp trống trận & mái che chỉ huy nhỏ ở góc sau-trái (giữ phần lớn sân trống)
+      push('wood', rbox(1.55, 0.12, 1.25, 0.02, -1.42, 0.12, -1.48));
+      for (const [px, pz] of [[-2.08, -2.0], [-0.76, -2.0], [-2.08, -0.96], [-0.76, -0.96]]) {
+        push('woodDark', cyl(0.045, 0.055, 1.15, 6, px, 0.72, pz));
+      }
+      push('thatch', cone(1.12, 0.52, 4, -1.42, 1.52, -1.48, Math.PI / 4));
+      // Trống trận trên giá chữ X
+      push('woodDark', rbox(0.06, 0.45, 0.06, 0.01, -1.42, 0.36, -1.42).rotateZ(0.42));
+      push('woodDark', rbox(0.06, 0.45, 0.06, 0.01, -1.42, 0.36, -1.42).rotateZ(-0.42));
+      const warDrum = cyl(0.22, 0.22, 0.38, 12, 0, 0, 0);
+      warDrum.rotateX(Math.PI / 2);
+      warDrum.translate(-1.42, 0.56, -1.42);
+      push(bannerMat, warDrum);
+      for (const dz of [-1.59, -1.25]) {
+        const dFace = cyl(0.2, 0.2, 0.03, 12, 0, 0, 0);
+        dFace.rotateX(Math.PI / 2);
+        dFace.translate(-1.42, 0.56, dz);
+        push('targetWhite', dFace);
+      }
+      // Cột cờ hiệu Lam Sơn cạnh sạp chỉ huy
+      push('woodDark', cyl(0.04, 0.05, 1.95, 7, -0.52, 1.0, -1.95));
+      push('gold', sphere(0.055, -0.52, 2.0, -1.95));
+      push(bannerMat, rbox(0.68, 0.38, 0.03, 0.005, -0.18, 1.72, -1.95));
+
+      // 4. Trường bắn cung 3 bia rơm ở góc sau-phải (có mũi tên găm trên bia)
+      for (const tx of [0.55, 1.18, 1.8]) {
+        // Chân kiềng gỗ chữ A
+        const postL = cyl(0.03, 0.035, 0.78, 6, 0, 0, 0);
+        postL.rotateZ(0.22);
+        postL.translate(tx - 0.14, 0.4, -1.78);
+        const postR = cyl(0.03, 0.035, 0.78, 6, 0, 0, 0);
+        postR.rotateZ(-0.22);
+        postR.translate(tx + 0.14, 0.4, -1.78);
+        const postB = cyl(0.03, 0.035, 0.82, 6, 0, 0, 0);
+        postB.rotateX(0.32);
+        postB.translate(tx, 0.38, -1.92);
+        push('woodDark', postL);
+        push('woodDark', postR);
+        push('woodDark', postB);
+
+        // Mặt bia rơm tròn có tâm đỏ vàng
+        const strawDisc = cyl(0.26, 0.26, 0.09, 14, 0, 0, 0);
+        strawDisc.rotateX(Math.PI / 2 - 0.15);
+        strawDisc.translate(tx, 0.62, -1.75);
+        push('bambooDry', strawDisc);
+        const whiteRing = cyl(0.2, 0.2, 0.105, 12, 0, 0, 0);
+        whiteRing.rotateX(Math.PI / 2 - 0.15);
+        whiteRing.translate(tx, 0.62, -1.74);
+        push('targetWhite', whiteRing);
+        const bullseye = cyl(0.09, 0.09, 0.12, 10, 0, 0, 0);
+        bullseye.rotateX(Math.PI / 2 - 0.15);
+        bullseye.translate(tx, 0.62, -1.73);
+        push(bannerMat, bullseye);
+
+        // Mũi tên găm vào bia
+        const arrow = cyl(0.012, 0.012, 0.36, 5, 0, 0, 0);
+        arrow.rotateX(Math.PI / 2 - 0.28);
+        arrow.translate(tx + 0.04, 0.64, -1.58);
+        push('woodWarm', arrow);
+      }
+
+      // 5. Hai giá binh khí & khiên mây dọc cạnh trái sân tập
+      for (const rz of [0.1, 1.15]) {
+        push('woodDark', rbox(0.1, 0.06, 0.82, 0.01, -1.92, 0.52, rz));
+        push('woodDark', rbox(0.1, 0.06, 0.82, 0.01, -1.92, 0.88, rz));
+        for (const pz of [rz - 0.34, rz + 0.34]) {
+          push('woodDark', cyl(0.032, 0.04, 0.96, 6, -1.92, 0.5, pz));
+        }
+        for (const [wz, isHalberd] of [[rz - 0.22, false], [rz, true], [rz + 0.22, false]] as const) {
+          push('woodWarm', cyl(0.016, 0.022, 1.05, 6, -1.92, 0.65, wz));
+          push('gold', cyl(0.025, 0.025, 0.04, 7, -1.92, 1.16, wz));
+          push(bannerMat, cone(0.038, 0.11, 6, -1.92, 1.1, wz));
+          if (isHalberd) {
+            const blade = extrudeDetailedHalberd();
+            blade.translate(-1.92, 1.28, wz);
+            push('steel', blade);
+          } else {
+            const head = extrudeSpearHead();
+            head.translate(-1.92, 1.28, wz);
+            push('steel', head);
+          }
+        }
+        // Khiên tròn tựa bên giá binh khí
+        const shield = cyl(0.24, 0.24, 0.045, 12, 0, 0, 0);
+        shield.rotateZ(Math.PI / 2 - 0.25);
+        shield.translate(-1.74, 0.28, rz);
+        push('woodWarm', shield);
+        const boss = sphere(0.055, -1.69, 0.28, rz);
+        push('gold', boss);
+      }
+
+      // 6. Ba hình nhân rơm tập kiếm/giáo ở cạnh phải bãi tập
+      for (const [dx, dz] of [[1.75, -0.35], [1.75, 0.45], [1.75, 1.25]]) {
+        push('woodDark', cyl(0.04, 0.05, 0.95, 6, dx, 0.5, dz));
+        push('bambooDry', cyl(0.14, 0.15, 0.46, 8, dx, 0.68, dz)); // Thân rơm
+        push('bambooDry', sphere(0.11, dx, 1.0, dz));               // Đầu rơm
+        push('wood', rbox(0.06, 0.06, 0.54, 0.01, dx, 0.78, dz));   // Tay gỗ ngang
+      }
+
+      // 7. Cọc Mai Hoa Thung (cọc gỗ nhảy cao thấp) & Tạ đá tập thể lực ở phía trước sân
+      for (const [cx, cz, ch] of [
+        [-1.0, 1.55, 0.28],
+        [-0.7, 1.72, 0.42],
+        [-0.4, 1.5, 0.54],
+        [-0.1, 1.74, 0.36],
+      ]) {
+        push('woodDark', cyl(0.085, 0.095, ch, 8, cx, 0.06 + ch / 2, cz));
+      }
+      // Tạ đá có tay cầm gỗ
+      for (const [wx, wz] of [[0.85, 1.55], [1.22, 1.62]]) {
+        push('stone', rbox(0.24, 0.16, 0.24, 0.03, wx, 0.14, wz));
+        push('woodDark', cyl(0.024, 0.024, 0.28, 6, wx, 0.26, wz).rotateZ(Math.PI / 2));
+      }
+      // Chum nước giải khát bên cổng vào
+      push('ceramic', cyl(0.16, 0.12, 0.34, 10, -0.62, 0.22, 2.02));
+      push('water', cyl(0.12, 0.12, 0.02, 10, -0.62, 0.38, 2.02));
       break;
     }
 
