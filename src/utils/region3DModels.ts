@@ -1399,21 +1399,22 @@ function createSlicedHollowBambooTip(radius: number): {
   innerWall: THREE.BufferGeometry;
   hollowCore: THREE.BufferGeometry;
 } {
-  const outerR = radius * 0.98;
-  const innerR = outerR * 0.62;
+  const outerR = radius;
+  const innerR = outerR * 0.64;
   const cutH = outerR * 3.1;
   const segs = 12;
 
-  const sliceAtZ = (z: number, r: number) => ((z + r) / (2 * r)) * cutH * 0.72;
+  // Mặt phẳng cắt chéo thống nhất cho cả vỏ ngoài và ruột trong (cùng độ dốc, không lệch)
+  const sliceAtZ = (z: number) => ((z + outerR) / (2 * outerR)) * cutH * 0.72;
 
-  // Vỏ tre ngoài vạt chéo 45 độ (khớp khít bán kính thân tre)
+  // Vỏ tre ngoài vạt chéo 45 độ (khớp khít 100% bán kính thân tre)
   const outerGreen = new THREE.CylinderGeometry(outerR, outerR, cutH, segs, 1, true);
   const posOut = outerGreen.getAttribute('position');
   for (let i = 0; i < posOut.count; i++) {
     const y = posOut.getY(i);
     if (y > 0) {
       const z = posOut.getZ(i);
-      posOut.setY(i, y - sliceAtZ(z, outerR));
+      posOut.setY(i, y - sliceAtZ(z));
     }
   }
   outerGreen.computeVertexNormals();
@@ -1439,18 +1440,18 @@ function createSlicedHollowBambooTip(radius: number): {
     const ix1 = innerR * s1;
     const iz1 = innerR * c1;
 
-    const oy0 = cutH - sliceAtZ(oz0, outerR);
-    const oy1 = cutH - sliceAtZ(oz1, outerR);
-    const iy0 = cutH - sliceAtZ(iz0, outerR);
-    const iy1 = cutH - sliceAtZ(iz1, outerR);
+    const oy0 = cutH - sliceAtZ(oz0);
+    const oy1 = cutH - sliceAtZ(oz1);
+    const iy0 = cutH - sliceAtZ(iz0);
+    const iy1 = cutH - sliceAtZ(iz1);
 
-    // 1. Mặt cắt chéo nối liền mép vỏ ngoài (ox,oy,oz) với mép ruột trong (ix,iy,iz)
-    innerPos.push(ox0, oy0, oz0, ix0, iy0, iz0, ix1, iy1, iz1);
-    innerPos.push(ox0, oy0, oz0, ix1, iy1, iz1, ox1, oy1, oz1);
+    // 1. Mặt cắt chéo hướng lên trên (+Y), nối kín từ mép vỏ ngoài tới mép ruột trong
+    innerPos.push(ox0, oy0, oz0, ix1, iy1, iz1, ix0, iy0, iz0);
+    innerPos.push(ox0, oy0, oz0, ox1, oy1, oz1, ix1, iy1, iz1);
 
-    // 2. Mặt trong ống tre (hướng pháp tuyến vào tâm để nhìn từ trên xuống không bị ẩn)
-    innerPos.push(ix0, yBot, iz0, ix1, iy1, iz1, ix0, iy0, iz0);
-    innerPos.push(ix0, yBot, iz0, ix1, yBot, iz1, ix1, iy1, iz1);
+    // 2. Mặt trong ống tre (pháp tuyến hướng vào tâm ống để nhìn thấy khi soi từ trên xuống)
+    innerPos.push(ix0, yBot, iz0, ix0, iy0, iz0, ix1, iy1, iz1);
+    innerPos.push(ix0, yBot, iz0, ix1, iy1, iz1, ix1, yBot, iz1);
   }
   const innerWall = new THREE.BufferGeometry();
   innerWall.setAttribute('position', new THREE.Float32BufferAttribute(innerPos, 3));
@@ -2698,20 +2699,14 @@ function getBuildingParts(
         const tip = createSlicedHollowBambooTip(r);
         // Trong createSlicedHollowBambooTip, cạnh cao nhất nằm ở -Z => xoay +PI quanh Y để quay về (inwardX, inwardZ)
         const yaw = Math.atan2(inwardX, inwardZ) + Math.PI + yawJitter;
-        const tipX = x + Math.sin(leanZ) * h * 0.5;
-        const tipZ = z + Math.sin(leanX) * h * 0.5;
-        tip.outerGreen.rotateY(yaw);
-        tip.outerGreen.rotateX(leanX);
-        tip.outerGreen.rotateZ(leanZ);
-        tip.outerGreen.translate(tipX, y + h - 0.01, tipZ);
-        tip.innerWall.rotateY(yaw);
-        tip.innerWall.rotateX(leanX);
-        tip.innerWall.rotateZ(leanZ);
-        tip.innerWall.translate(tipX, y + h - 0.01, tipZ);
-        tip.hollowCore.rotateY(yaw);
-        tip.hollowCore.rotateX(leanX);
-        tip.hollowCore.rotateZ(leanZ);
-        tip.hollowCore.translate(tipX, y + h - 0.01, tipZ);
+        for (const part of [tip.outerGreen, tip.innerWall, tip.hollowCore]) {
+          part.rotateY(yaw);
+          // Đặt lên đỉnh thân tre ở hệ tọa độ thẳng đứng TRƯỚC khi nghiêng cùng góc leanX/leanZ để khớp 100%
+          part.translate(0, h - 0.005, 0);
+          part.rotateX(leanX);
+          part.rotateZ(leanZ);
+          part.translate(x, y, z);
+        }
 
         push('bamboo', tip.outerGreen);
         push('bambooDry', tip.innerWall);
