@@ -333,6 +333,7 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
       pathIdx?: number;
       pauseUntil?: number;
       walkPhase?: number;
+      stuckTime?: number;
     }> = [];
     let patrolSquad: PatrolSquadState | null = null;
     let buildingAABBs: BuildingAABB[] = [];
@@ -615,20 +616,45 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
 
           const squadSlots = [
             { r: 0, b: 0 },
-            { r: -0.72, b: -0.85 },
-            { r: 0.72, b: -0.85 },
-            { r: -0.5, b: -1.7 },
-            { r: 0.5, b: -1.7 },
+            { r: -0.28, b: 0.85 },
+            { r: 0.28, b: 0.85 },
+            { r: -0.28, b: 1.7 },
+            { r: 0.28, b: 1.7 },
           ];
+          const samplePath = (distAlong: number) => {
+            const dWrapped = ((distAlong % totalLength) + totalLength) % totalLength;
+            let rem = dWrapped;
+            let idx = 0;
+            while (idx < segLengths.length - 1 && rem > segLengths[idx]) {
+              rem -= segLengths[idx];
+              idx++;
+            }
+            const a = waypoints[idx];
+            const b = waypoints[(idx + 1) % waypoints.length];
+            const segLen = segLengths[idx];
+            const frac = rem / segLen;
+            const dirX = (b.x - a.x) / segLen;
+            const dirZ = (b.z - a.z) / segLen;
+            return {
+              x: a.x + (b.x - a.x) * frac,
+              z: a.z + (b.z - a.z) * frac,
+              dirX,
+              dirZ,
+            };
+          };
           const members = squadSlots.map((slot, idx) => {
             const m = createNpcGroup('guard');
-            m.position.set(waypoints[0].x + slot.r * 0.4, 0.02, waypoints[0].z);
+            const p0 = samplePath(totalLength - slot.b);
+            const rightX = -p0.dirZ;
+            const rightZ = p0.dirX;
+            m.position.set(p0.x + rightX * slot.r, 0.02, p0.z + rightZ * slot.r);
+            m.rotation.y = Math.atan2(p0.dirX, p0.dirZ);
             npcsGroup.add(m);
             return {
               mesh: m,
               offsetRight: slot.r,
               offsetBack: slot.b,
-              walkPhase: idx * 0.45,
+              walkPhase: idx * 0.35,
             };
           });
 
@@ -874,88 +900,116 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
         }
       };
 
-      const movingSoldiers: THREE.Group[] = [];
+      const squadSoldiers: THREE.Group[] = [];
 
-      // Đội tuần tra 5 binh lính đi theo đội hình trên đường đất quanh làng
+      // Đội tuần tra 5 binh lính bám sát đường đi BFS theo hàng đôi gọn gàng (không vỡ đội hình, không đâm tường)
       if (patrolSquad && patrolSquad.waypoints.length >= 2) {
         patrolSquad.distance = (patrolSquad.distance + dt * 0.62) % patrolSquad.totalLength;
-        let rem = patrolSquad.distance;
-        let segIdx = 0;
-        while (segIdx < patrolSquad.segLengths.length - 1 && rem > patrolSquad.segLengths[segIdx]) {
-          rem -= patrolSquad.segLengths[segIdx];
-          segIdx++;
-        }
-        const a = patrolSquad.waypoints[segIdx];
-        const b = patrolSquad.waypoints[(segIdx + 1) % patrolSquad.waypoints.length];
-        const segLen = patrolSquad.segLengths[segIdx];
-        const frac = rem / segLen;
-        const leadX = a.x + (b.x - a.x) * frac;
-        const leadZ = a.z + (b.z - a.z) * frac;
-        const dirX = (b.x - a.x) / segLen;
-        const dirZ = (b.z - a.z) / segLen;
-        const rightX = -dirZ;
-        const rightZ = dirX;
-
         for (const member of patrolSquad.members) {
-          const slotX = leadX + rightX * member.offsetRight + dirX * member.offsetBack;
-          const slotZ = leadZ + rightZ * member.offsetRight + dirZ * member.offsetBack;
-          const dx = slotX - member.mesh.position.x;
-          const dz = slotZ - member.mesh.position.z;
-          const distToSlot = Math.hypot(dx, dz);
-          const maxStep = dt * 0.75;
-          const step = Math.min(distToSlot, maxStep);
-          if (step > 0.0001 && distToSlot > 0.0001) {
-            member.mesh.position.x += (dx / distToSlot) * step;
-            member.mesh.position.z += (dz / distToSlot) * step;
-            member.mesh.rotation.y = Math.atan2(dx, dz);
+          const prevX = member.mesh.position.x;
+          const prevZ = member.mesh.position.z;
+          const dMember =
+            (((patrolSquad.distance - member.offsetBack) % patrolSquad.totalLength) + patrolSquad.totalLength) %
+            patrolSquad.totalLength;
+          let rem = dMember;
+          let segIdx = 0;
+          while (segIdx < patrolSquad.segLengths.length - 1 && rem > patrolSquad.segLengths[segIdx]) {
+            rem -= patrolSquad.segLengths[segIdx];
+            segIdx++;
           }
-          pushOutOfBuildings(member.mesh.position, 0.36);
-          movingSoldiers.push(member.mesh);
+          const a = patrolSquad.waypoints[segIdx];
+          const b = patrolSquad.waypoints[(segIdx + 1) % patrolSquad.waypoints.length];
+          const segLen = patrolSquad.segLengths[segIdx];
+          const frac = rem / segLen;
+          const dirX = (b.x - a.x) / segLen;
+          const dirZ = (b.z - a.z) / segLen;
+          const rightX = -dirZ;
+          const rightZ = dirX;
+          const targetX = a.x + (b.x - a.x) * frac + rightX * member.offsetRight;
+          const targetZ = a.z + (b.z - a.z) * frac + rightZ * member.offsetRight;
+
+          // Làm mượt chuyển hướng ở góc cua để chân vẫn bước tự nhiên
+          const dx = targetX - prevX;
+          const dz = targetZ - prevZ;
+          const dist = Math.hypot(dx, dz);
+          const step = Math.min(dist, dt * 0.78);
+          if (step > 0.0001 && dist > 0.0001) {
+            member.mesh.position.x = prevX + (dx / dist) * step;
+            member.mesh.position.z = prevZ + (dz / dist) * step;
+            member.mesh.rotation.y = Math.atan2(dirX, dirZ);
+          }
+          pushOutOfBuildings(member.mesh.position, 0.28);
+          const actualDs = Math.hypot(member.mesh.position.x - prevX, member.mesh.position.z - prevZ);
           const scale = Math.max(0.3, member.mesh.scale.x);
-          member.walkPhase += step / (0.68 * scale);
-          animateSoldierWalk(member.mesh, member.walkPhase, step > 0.0001);
+          member.walkPhase += actualDs / (0.68 * scale);
+          animateSoldierWalk(member.mesh, member.walkPhase, actualDs > 0.0003);
+          squadSoldiers.push(member.mesh);
         }
       }
 
+      const wanderers: Array<{ npc: (typeof animatedNpcs)[number]; prevX: number; prevZ: number }> = [];
       for (const npc of animatedNpcs) {
         if (npc.role === 'soldier_unarmed') {
+          const prevX = npc.mesh.position.x;
+          const prevZ = npc.mesh.position.z;
           if (now < (npc.pauseUntil ?? 0)) {
             animateSoldierWalk(npc.mesh, npc.walkPhase ?? 0, false);
-            movingSoldiers.push(npc.mesh);
+            wanderers.push({ npc, prevX, prevZ });
             continue;
           }
           const path = npc.path ?? [];
-          let idx = npc.pathIdx ?? 0;
+          const idx = npc.pathIdx ?? 0;
           if (idx >= path.length) {
             npc.pauseUntil = now + 1800 + ((npc.phase * 700) % 1800);
             if (walkableSpots.length > 0) {
               const pickIdx = Math.floor((now * 0.017 + npc.phase * 5.3) % walkableSpots.length);
               const goal = walkableSpots[pickIdx];
-              npc.path = findWorldPath(npc.mesh.position.x, npc.mesh.position.z, goal.x, goal.z);
+              npc.path = findWorldPath(prevX, prevZ, goal.x, goal.z);
               npc.pathIdx = 0;
+              npc.stuckTime = 0;
             }
             animateSoldierWalk(npc.mesh, npc.walkPhase ?? 0, false);
-            movingSoldiers.push(npc.mesh);
+            wanderers.push({ npc, prevX, prevZ });
             continue;
           }
           const wp = path[idx];
-          const dx = wp.x - npc.mesh.position.x;
-          const dz = wp.z - npc.mesh.position.z;
+          let dx = wp.x - prevX;
+          let dz = wp.z - prevZ;
           const dist = Math.hypot(dx, dz);
-          if (dist < 0.12) {
+          if (dist < 0.16) {
             npc.pathIdx = idx + 1;
-            animateSoldierWalk(npc.mesh, npc.walkPhase ?? 0, true);
           } else {
-            const step = Math.min(dist, dt * 0.52);
-            npc.mesh.position.x += (dx / dist) * step;
-            npc.mesh.position.z += (dz / dist) * step;
-            npc.mesh.rotation.y = Math.atan2(dx, dz);
-            pushOutOfBuildings(npc.mesh.position, 0.36);
-            const scale = Math.max(0.3, npc.mesh.scale.x);
-            npc.walkPhase = (npc.walkPhase ?? 0) + step / (0.68 * scale);
-            animateSoldierWalk(npc.mesh, npc.walkPhase, true);
+            // Lái né sang ngang nếu phía trước có binh lính khác để không đâm đầu dậm chân tại chỗ
+            let steerX = dx / dist;
+            let steerZ = dz / dist;
+            const others = [...squadSoldiers, ...wanderers.map((w) => w.npc.mesh)];
+            for (const other of others) {
+              if (other === npc.mesh) continue;
+              const ox = other.position.x - prevX;
+              const oz = other.position.z - prevZ;
+              const od = Math.hypot(ox, oz);
+              if (od > 0.01 && od < 0.9) {
+                const dot = (ox / od) * steerX + (oz / od) * steerZ;
+                if (dot > 0.1) {
+                  // Né vuông góc về phía trống
+                  const cross = steerX * oz - steerZ * ox;
+                  const side = cross >= 0 ? -1 : 1;
+                  const avoid = ((0.9 - od) / 0.9) * 1.1;
+                  steerX += -steerZ * side * avoid;
+                  steerZ += steerX * side * avoid;
+                }
+              }
+            }
+            const sLen = Math.max(0.001, Math.hypot(steerX, steerZ));
+            steerX /= sLen;
+            steerZ /= sLen;
+            const step = Math.min(dist, dt * 0.54);
+            npc.mesh.position.x = prevX + steerX * step;
+            npc.mesh.position.z = prevZ + steerZ * step;
+            npc.mesh.rotation.y = Math.atan2(steerX, steerZ);
+            pushOutOfBuildings(npc.mesh.position, 0.32);
           }
-          movingSoldiers.push(npc.mesh);
+          wanderers.push({ npc, prevX, prevZ });
         } else if (npc.role === 'smith') {
           npc.mesh.rotation.x = Math.sin(t * 3.5 + npc.phase) * 0.25;
         } else {
@@ -964,26 +1018,60 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
         }
       }
 
-      // Đẩy tách các binh lính để không bao giờ đi xuyên qua nhau
-      const minSep = 0.58;
-      for (let i = 0; i < movingSoldiers.length; i++) {
-        for (let j = i + 1; j < movingSoldiers.length; j++) {
-          const a = movingSoldiers[i].position;
-          const b = movingSoldiers[j].position;
+      // Đẩy tách lính đi dạo khỏi nhau & khỏi đội tuần tra (đội tuần tra giữ nguyên đội hình)
+      const minSep = 0.56;
+      for (let i = 0; i < wanderers.length; i++) {
+        const w = wanderers[i];
+        const a = w.npc.mesh.position;
+        for (const sMesh of squadSoldiers) {
+          const b = sMesh.position;
+          const dx = a.x - b.x;
+          const dz = a.z - b.z;
+          const dSq = dx * dx + dz * dz;
+          if (dSq < minSep * minSep) {
+            const d = Math.max(0.001, Math.sqrt(dSq));
+            a.x += (dx / d) * (minSep - d);
+            a.z += (dz / d) * (minSep - d);
+            pushOutOfBuildings(a, 0.32);
+          }
+        }
+        for (let j = i + 1; j < wanderers.length; j++) {
+          const b = wanderers[j].npc.mesh.position;
           const dx = b.x - a.x;
           const dz = b.z - a.z;
           const dSq = dx * dx + dz * dz;
           if (dSq < minSep * minSep) {
             const d = Math.max(0.001, Math.sqrt(dSq));
             const push = (minSep - d) * 0.5;
-            const nx = dx / d;
-            const nz = dz / d;
-            a.x -= nx * push;
-            a.z -= nz * push;
-            b.x += nx * push;
-            b.z += nz * push;
-            pushOutOfBuildings(a, 0.36);
-            pushOutOfBuildings(b, 0.36);
+            a.x -= (dx / d) * push;
+            a.z -= (dz / d) * push;
+            b.x += (dx / d) * push;
+            b.z += (dz / d) * push;
+            pushOutOfBuildings(a, 0.32);
+            pushOutOfBuildings(b, 0.32);
+          }
+        }
+      }
+
+      // Chỉ tiến pha bước chân theo quãng đường thực tế di chuyển (không bao giờ dậm chân tại chỗ)
+      for (const w of wanderers) {
+        const { npc, prevX, prevZ } = w;
+        if (now < (npc.pauseUntil ?? 0)) continue;
+        const actualDs = Math.hypot(npc.mesh.position.x - prevX, npc.mesh.position.z - prevZ);
+        const scale = Math.max(0.3, npc.mesh.scale.x);
+        if (actualDs > 0.0005) {
+          npc.walkPhase = (npc.walkPhase ?? 0) + actualDs / (0.68 * scale);
+          npc.stuckTime = 0;
+          animateSoldierWalk(npc.mesh, npc.walkPhase, true);
+        } else {
+          npc.stuckTime = (npc.stuckTime ?? 0) + dt;
+          animateSoldierWalk(npc.mesh, npc.walkPhase ?? 0, false);
+          if (npc.stuckTime > 0.7 && walkableSpots.length > 0) {
+            const pickIdx = Math.floor((now * 0.023 + npc.phase * 7.1) % walkableSpots.length);
+            const goal = walkableSpots[pickIdx];
+            npc.path = findWorldPath(npc.mesh.position.x, npc.mesh.position.z, goal.x, goal.z);
+            npc.pathIdx = 0;
+            npc.stuckTime = 0;
           }
         }
       }
