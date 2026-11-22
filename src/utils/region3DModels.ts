@@ -611,70 +611,109 @@ function fbm2D(x: number, y: number): number {
   return val;
 }
 
-function buildRoadSegments(
-  buildings: BaseBuilding[]
-): Array<{ mx: number; mz: number; cx: number; cz: number; bx: number; bz: number; idx: number }> {
+function buildRoadGrid(gridSize: number, buildings: BaseBuilding[]): Uint8Array {
+  const solid = new Uint8Array(gridSize * gridSize);
+  const road = new Uint8Array(gridSize * gridSize);
+
+  for (const b of buildings) {
+    if (b.status === 'destroyed' || b.type === 'spike_trap' || b.type === 'gate') continue;
+    for (let r = b.row; r < b.row + b.spanRows; r++) {
+      for (let c = b.col; c < b.col + b.spanCols; c++) {
+        if (r >= 0 && r < gridSize && c >= 0 && c < gridSize) {
+          solid[r * gridSize + c] = 1;
+        }
+      }
+    }
+  }
+
+  const isFree = (c: number, r: number) =>
+    c >= 0 && c < gridSize && r >= 0 && r < gridSize && solid[r * gridSize + c] === 0;
+
+  const nearestFree = (col: number, row: number): { c: number; r: number } | null => {
+    const sc = Math.max(0, Math.min(gridSize - 1, Math.round(col)));
+    const sr = Math.max(0, Math.min(gridSize - 1, Math.round(row)));
+    if (isFree(sc, sr)) return { c: sc, r: sr };
+    for (let rad = 1; rad <= 5; rad++) {
+      for (let dr = -rad; dr <= rad; dr++) {
+        for (let dc = -rad; dc <= rad; dc++) {
+          if (Math.abs(dr) !== rad && Math.abs(dc) !== rad) continue;
+          if (isFree(sc + dc, sr + dr)) return { c: sc + dc, r: sr + dr };
+        }
+      }
+    }
+    return null;
+  };
+
   const mainHall = buildings.find((b) => b.type === 'main_hall' && b.status !== 'destroyed');
-  if (!mainHall) return [];
-  const mx = mainHall.col + mainHall.spanCols / 2;
-  const mz = mainHall.row + mainHall.spanRows / 2;
-  const segs: Array<{ mx: number; mz: number; cx: number; cz: number; bx: number; bz: number; idx: number }> = [];
-  let idx = 0;
+  if (!mainHall) return road;
+
+  const hub = nearestFree(mainHall.col + Math.floor(mainHall.spanCols / 2), mainHall.row + mainHall.spanRows);
+  if (!hub) return road;
+  road[hub.r * gridSize + hub.c] = 1;
+
+  // Nối cửa từng công trình về sân trước Nhà Chính bằng BFS 4 hướng theo ô lưới (không cắt xuyên công trình)
+  const dirs = [
+    [1, 0],
+    [-1, 0],
+    [0, 1],
+    [0, -1],
+  ];
+  const total = gridSize * gridSize;
+
   for (const b of buildings) {
     if (b.id === mainHall.id || b.type === 'wall' || b.type === 'spike_trap' || b.status === 'destroyed') {
       continue;
     }
-    const bx = b.col + b.spanCols / 2;
-    const bz = b.row + b.spanRows / 2;
-    segs.push({
-      mx,
-      mz,
-      cx: bx + (mx - bx) * 0.22,
-      cz: mz + (bz - mz) * 0.22,
-      bx,
-      bz,
-      idx: idx++,
-    });
-  }
-  return segs;
-}
+    const target =
+      b.type === 'gate'
+        ? nearestFree(b.col + Math.floor(b.spanCols / 2), b.row)
+        : nearestFree(b.col + Math.floor(b.spanCols / 2), b.row + b.spanRows);
+    if (!target) continue;
 
-function minDistToRoads(
-  gx: number,
-  gz: number,
-  roadSamples: Array<{ x: number; z: number }>
-): number {
-  let minSq = 9999;
-  for (let i = 0; i < roadSamples.length; i++) {
-    const dx = gx - roadSamples[i].x;
-    const dz = gz - roadSamples[i].z;
-    const dSq = dx * dx + dz * dz;
-    if (dSq < minSq) minSq = dSq;
-  }
-  return Math.sqrt(minSq);
-}
+    const startIdx = hub.r * gridSize + hub.c;
+    const goalIdx = target.r * gridSize + target.c;
+    const parent = new Int32Array(total).fill(-1);
+    const visited = new Uint8Array(total);
+    const queue: number[] = [startIdx];
+    visited[startIdx] = 1;
 
-function sampleRoadPoints(buildings: BaseBuilding[]): Array<{ x: number; z: number }> {
-  const segs = buildRoadSegments(buildings);
-  const pts: Array<{ x: number; z: number }> = [];
-  for (const seg of segs) {
-    const dist = Math.hypot(seg.bx - seg.mx, seg.bz - seg.mz);
-    const steps = Math.max(18, Math.round(dist * 3.5));
-    for (let s = 0; s <= steps; s++) {
-      const t = s / steps;
-      const omt = 1 - t;
-      const wave = Math.sin(t * Math.PI * 5 + seg.idx * 2.1) * 0.08 * Math.sin(t * Math.PI);
-      const x = omt * omt * seg.mx + 2 * omt * t * seg.cx + t * t * seg.bx + wave;
-      const z = omt * omt * seg.mz + 2 * omt * t * seg.cz + t * t * seg.bz - wave * 0.7;
-      pts.push({ x, z });
+    let head = 0;
+    let found = false;
+    while (head < queue.length) {
+      const cur = queue[head++];
+      if (cur === goalIdx) {
+        found = true;
+        break;
+      }
+      const cr = Math.floor(cur / gridSize);
+      const cc = cur % gridSize;
+      for (const [dc, dr] of dirs) {
+        const nc = cc + dc;
+        const nr = cr + dr;
+        if (!isFree(nc, nr)) continue;
+        const nIdx = nr * gridSize + nc;
+        if (visited[nIdx]) continue;
+        visited[nIdx] = 1;
+        parent[nIdx] = cur;
+        queue.push(nIdx);
+      }
+    }
+
+    if (found) {
+      let cur = goalIdx;
+      while (cur !== -1) {
+        road[cur] = 1;
+        cur = parent[cur];
+      }
     }
   }
-  return pts;
+
+  return road;
 }
 
 /**
- * Tạo texture đồng cỏ tự nhiên bằng nhiễu fBm đa tầng (không vẽ nét hoạt hình hay chấm tròn giả)
- * kết hợp lối mòn đất nện hòa biên hữu cơ.
+ * Tạo texture đồng cỏ tự nhiên bằng nhiễu fBm đa tầng, đường đất theo từng ô lưới hữu cơ
+ * và vùng chuyển tiếp mềm mại giữa thảm cỏ với ụ đất nền công trình.
  */
 export function createDetailedGroundTexture(
   gridSize: number,
@@ -689,67 +728,111 @@ export function createDetailedGroundTexture(
 
   const img = ctx.createImageData(size, size);
   const data = img.data;
-  const roadPts = sampleRoadPoints(buildings);
+  const roadGrid = buildRoadGrid(gridSize, buildings);
 
-  // Vùng chân công trình để loang nhẹ đất dưới nền
+  // Vùng chân công trình để hòa biên tự nhiên từ thảm cỏ lên ụ đất
   const bFootprints = buildings
     .filter((b) => b.type !== 'wall' && b.type !== 'spike_trap' && b.status !== 'destroyed')
     .map((b) => ({
       cx: b.col + b.spanCols / 2,
       cz: b.row + b.spanRows / 2,
-      rx: b.spanCols * 0.52,
-      rz: b.spanRows * 0.52,
+      rx: b.spanCols * 0.5,
+      rz: b.spanRows * 0.5,
     }));
 
-  // 1. Tính màu từng pixel bằng nhiễu fBm đa tầng (sắc cỏ rêu/ô-liu/nắng ấm tự nhiên)
   for (let py = 0; py < size; py++) {
     const wz = (py / size) * gridSize;
+    const cellR = Math.min(gridSize - 1, Math.floor(wz));
     for (let px = 0; px < size; px++) {
       const wx = (px / size) * gridSize;
+      const cellC = Math.min(gridSize - 1, Math.floor(wx));
 
       const macro = fbm2D(wx * 0.24 + 3.1, wz * 0.24 + 7.4);
       const med = fbm2D(wx * 0.95 + 17.3, wz * 0.95 - 9.1);
-      const fine = valueNoise2D(wx * 5.2 + 41.2, wz * 5.2 + 23.7);
-      const fiber = valueNoise2D(wx * 13.5, wz * 5.5 + 11.1);
+      const fine = valueNoise2D(wx * 5.4 + 41.2, wz * 5.4 + 23.7);
+      const fiber = valueNoise2D(wx * 14.0, wz * 6.0 + 11.1);
 
-      // Pha trộn 3 sắc cỏ đồng quê thực tế (râm rêu -> xanh mướt -> nắng ô-liu)
-      let r = 72 + macro * 44 + (med - 0.5) * 26;
-      let g = 100 + macro * 46 + (med - 0.5) * 24;
+      // 1. Màu đồng cỏ tự nhiên nhiều sắc độ (râm rêu -> xanh đồng -> nắng ô-liu)
+      let r = 72 + macro * 42 + (med - 0.5) * 26;
+      let g = 100 + macro * 44 + (med - 0.5) * 24;
       let b = 44 + macro * 20 + (med - 0.5) * 14;
 
-      // Pha nhẹ sắc cỏ khô / đất mùn ở các mảng thấp để mặt cỏ có chiều sâu
       const dryMask = Math.max(0, (med - 0.58) * 2.2) * (1 - macro * 0.5);
       r = r * (1 - dryMask * 0.35) + 124 * (dryMask * 0.35);
       g = g * (1 - dryMask * 0.35) + 112 * (dryMask * 0.35);
       b = b * (1 - dryMask * 0.35) + 64 * (dryMask * 0.35);
 
-      // Hạt sợi cỏ mịn mức pixel
       const grain = (fine - 0.5) * 18 + (fiber - 0.5) * 14;
       r += grain * 0.95;
       g += grain * 1.1;
       b += grain * 0.55;
 
-      // Vết đất nhẹ dưới chân công trình
-      let dirtBlend = 0;
-      for (let bi = 0; bi < bFootprints.length; bi++) {
-        const bf = bFootprints[bi];
-        const nx = (wx - bf.cx) / bf.rx;
-        const nz = (wz - bf.cz) / bf.rz;
-        const dBox = Math.max(Math.abs(nx), Math.abs(nz));
-        if (dBox < 1.16) {
-          const edgeNoise = (med - 0.5) * 0.14;
-          const k = Math.max(0, Math.min(1, (1.12 + edgeNoise - dBox) / 0.24));
-          if (k * 0.55 > dirtBlend) dirtBlend = k * 0.55;
+      // 2. Đường đất theo các ô lưới (khoảng cách hữu cơ tới ô đường gần nhất trong vùng 3x3)
+      let minRoadDist = 9;
+      for (let dr = -1; dr <= 1; dr++) {
+        const nr = cellR + dr;
+        if (nr < 0 || nr >= gridSize) continue;
+        for (let dc = -1; dc <= 1; dc++) {
+          const nc = cellC + dc;
+          if (nc < 0 || nc >= gridSize) continue;
+          if (roadGrid[nr * gridSize + nc] === 0) continue;
+          // Khoảng cách từ điểm (wx, wz) tới hình vuông ô đường [nc, nc+1] x [nr, nr+1] (thu gọn lõi 0.34)
+          const dx = Math.max(0, Math.abs(wx - (nc + 0.5)) - 0.24);
+          const dz = Math.max(0, Math.abs(wz - (nr + 0.5)) - 0.24);
+          const d = Math.hypot(dx, dz);
+          if (d < minRoadDist) minRoadDist = d;
         }
       }
 
-      if (dirtBlend > 0.001) {
-        const dr = 114 + (fine - 0.5) * 22;
-        const dg = 90 + (fine - 0.5) * 18;
-        const db = 58 + (fine - 0.5) * 14;
-        r = r + (dr - r) * dirtBlend;
-        g = g + (dg - g) * dirtBlend;
-        b = b + (db - b) * dirtBlend;
+      if (minRoadDist < 0.42) {
+        const edgeWarp = (med - 0.5) * 0.16 + (fine - 0.5) * 0.06;
+        const dEff = minRoadDist + edgeWarp;
+        const roadAlpha = Math.max(0, Math.min(1, (0.32 - dEff) / 0.18));
+        if (roadAlpha > 0.001) {
+          // Lõi đường đất nện sáng hơn ở giữa, sẫm ẩm ở rìa + hạt sỏi li ti
+          const centerBright = Math.max(0, 1 - dEff * 3.2);
+          const pebble = fine > 0.84 ? 16 : fine < 0.14 ? -14 : 0;
+          const rr = 118 + centerBright * 34 + (fine - 0.5) * 20 + pebble;
+          const rg = 95 + centerBright * 28 + (fine - 0.5) * 16 + pebble * 0.85;
+          const rb = 63 + centerBright * 20 + (fine - 0.5) * 12 + pebble * 0.65;
+          r = r + (rr - r) * roadAlpha;
+          g = g + (rg - g) * roadAlpha;
+          b = b + (rb - b) * roadAlpha;
+        }
+      }
+
+      // 3. Chỗ giao nhau tự nhiên giữa thảm cỏ và chân ụ đất nền công trình (bóng AO nhẹ + đất tơi loang hữu cơ)
+      let moundDirt = 0;
+      let moundAO = 0;
+      for (let bi = 0; bi < bFootprints.length; bi++) {
+        const bf = bFootprints[bi];
+        const dx = Math.max(0, Math.abs(wx - bf.cx) - bf.rx * 0.94);
+        const dz = Math.max(0, Math.abs(wz - bf.cz) - bf.rz * 0.94);
+        const dEdge = Math.hypot(dx, dz);
+        if (dEdge < 0.52) {
+          const edgeNoise = (med - 0.5) * 0.18 + (fine - 0.5) * 0.07;
+          const dW = dEdge + edgeNoise;
+          // Đất tơi loang mềm từ chân ụ đất ra thảm cỏ
+          const kDirt = Math.max(0, Math.min(1, (0.3 - dW) / 0.26));
+          if (kDirt > moundDirt) moundDirt = kDirt;
+          // Bóng đổ tiếp xúc (ambient occlusion) sát chân gò để ụ đất ăn sâu xuống đất
+          const kAO = Math.max(0, Math.min(1, (0.36 - dEdge) / 0.36)) * 0.22;
+          if (kAO > moundAO) moundAO = kAO;
+        }
+      }
+
+      if (moundDirt > 0.001) {
+        const dr = 104 + (fine - 0.5) * 22 + (med - 0.5) * 16;
+        const dg = 83 + (fine - 0.5) * 18 + (med - 0.5) * 12;
+        const db = 54 + (fine - 0.5) * 14 + (med - 0.5) * 8;
+        r = r + (dr - r) * moundDirt * 0.85;
+        g = g + (dg - g) * moundDirt * 0.85;
+        b = b + (db - b) * moundDirt * 0.85;
+      }
+      if (moundAO > 0.001) {
+        r *= 1 - moundAO;
+        g *= 1 - moundAO;
+        b *= 1 - moundAO;
       }
 
       const idx = (py * size + px) * 4;
@@ -760,38 +843,6 @@ export function createDetailedGroundTexture(
     }
   }
   ctx.putImageData(img, 0, 0);
-
-  // 2. Vẽ lối mòn đất nện hữu cơ dọc theo roadPts (biên mờ loang vào cỏ + vệt mòn giữa đường)
-  const scale = size / gridSize;
-  const drawNaturalDirtStamp = (x: number, y: number, r: number, color: string, alpha: number) => {
-    const grad = ctx.createRadialGradient(x, y, r * 0.12, x, y, r);
-    grad.addColorStop(0, color);
-    grad.addColorStop(0.58, color);
-    grad.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.save();
-    ctx.globalAlpha = alpha;
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-  };
-
-  for (let i = 0; i < roadPts.length; i++) {
-    const p = roadPts[i];
-    const px = p.x * scale;
-    const pz = p.z * scale;
-    const wJit = 0.86 + Math.sin(i * 1.37) * 0.16;
-    drawNaturalDirtStamp(px, pz, scale * 0.54 * wJit, '#5b472d', 0.24);
-    drawNaturalDirtStamp(px, pz, scale * 0.36 * wJit, '#836744', 0.34);
-    drawNaturalDirtStamp(
-      px + Math.sin(i * 0.8) * 1.8,
-      pz + Math.cos(i * 0.8) * 1.8,
-      scale * 0.2 * wJit,
-      '#a4885f',
-      0.26
-    );
-  }
 
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
@@ -849,194 +900,6 @@ export function getMeadowBumpTexture(): THREE.CanvasTexture {
   tex.repeat.set(18, 18);
   cachedMeadowNormalTex = tex;
   return tex;
-}
-
-const grassWindUniform = { value: 0 };
-export function updateMeadowGrassWind(timeSec: number): void {
-  grassWindUniform.value = timeSec;
-}
-
-let cachedGrassTuftGeo: THREE.BufferGeometry | null = null;
-let cachedGrassTuftMat: THREE.MeshStandardMaterial | null = null;
-
-function getGrassTuftGeometry(): THREE.BufferGeometry {
-  if (cachedGrassTuftGeo) return cachedGrassTuftGeo;
-  const positions: number[] = [];
-  const normals: number[] = [];
-  const colors: number[] = [];
-
-  // 4 lá cỏ mảnh uốn cong tự nhiên trong 1 khóm, chuyển màu từ gốc tối lên ngọn sáng nắng
-  const blades = [
-    { ang: 0.1, h: 0.15, w: 0.022, bend: 0.055, ox: 0.01, oz: 0.0 },
-    { ang: 1.75, h: 0.125, w: 0.02, bend: 0.048, ox: -0.015, oz: 0.012 },
-    { ang: 3.35, h: 0.14, w: 0.021, bend: 0.052, ox: 0.008, oz: -0.016 },
-    { ang: 4.95, h: 0.11, w: 0.018, bend: 0.042, ox: -0.012, oz: -0.01 },
-  ];
-
-  const pushTri = (
-    a: [number, number, number],
-    b: [number, number, number],
-    c: [number, number, number],
-    ca: [number, number, number],
-    cb: [number, number, number],
-    cc: [number, number, number]
-  ) => {
-    positions.push(...a, ...b, ...c);
-    // Pháp tuyến hướng lên nhẹ để bắt nắng đồng đều như cỏ thật
-    normals.push(0, 0.92, 0.38, 0, 0.92, 0.38, 0, 0.92, 0.38);
-    colors.push(...ca, ...cb, ...cc);
-  };
-
-  const cRoot: [number, number, number] = [0.44, 0.54, 0.36];
-  const cMid: [number, number, number] = [0.78, 0.88, 0.66];
-  const cTip: [number, number, number] = [1.0, 1.0, 0.86];
-
-  for (const bl of blades) {
-    const cs = Math.cos(bl.ang);
-    const sn = Math.sin(bl.ang);
-    const rx = -sn;
-    const rz = cs;
-
-    const pt = (yFrac: number, side: number): [number, number, number] => {
-      const wNow = bl.w * (1 - yFrac * 0.85) * side;
-      const fwd = bl.bend * yFrac * yFrac;
-      return [
-        bl.ox + cs * fwd + rx * wNow,
-        bl.h * yFrac,
-        bl.oz + sn * fwd + rz * wNow,
-      ];
-    };
-
-    const p0L = pt(0, -1);
-    const p0R = pt(0, 1);
-    const p1L = pt(0.55, -1);
-    const p1R = pt(0.55, 1);
-    const pTip = pt(1.0, 0);
-
-    pushTri(p0L, p0R, p1R, cRoot, cRoot, cMid);
-    pushTri(p0L, p1R, p1L, cRoot, cMid, cMid);
-    pushTri(p1L, p1R, pTip, cMid, cMid, cTip);
-  }
-
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  g.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
-  g.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-  cachedGrassTuftGeo = g;
-  return g;
-}
-
-function getGrassTuftMaterial(): THREE.MeshStandardMaterial {
-  if (cachedGrassTuftMat) return cachedGrassTuftMat;
-  const mat = new THREE.MeshStandardMaterial({
-    color: 0xffffff,
-    vertexColors: true,
-    roughness: 0.9,
-    metalness: 0,
-    side: THREE.DoubleSide,
-  });
-  mat.onBeforeCompile = (shader) => {
-    shader.uniforms.uWindTime = grassWindUniform;
-    shader.vertexShader = shader.vertexShader.replace(
-      '#include <common>',
-      '#include <common>\nuniform float uWindTime;'
-    );
-    shader.vertexShader = shader.vertexShader.replace(
-      '#include <begin_vertex>',
-      `#include <begin_vertex>
-      float windWave = sin(uWindTime * 1.7 + instanceMatrix[3].x * 0.65 + instanceMatrix[3].z * 0.45);
-      transformed.x += windWave * 0.28 * position.y;
-      transformed.z += cos(uWindTime * 1.3 + instanceMatrix[3].z * 0.6) * 0.16 * position.y;`
-    );
-  };
-  cachedGrassTuftMat = mat;
-  return mat;
-}
-
-/**
- * Tạo thảm cỏ 3D dày đặc, đung đưa nhẹ trong gió bằng 1 InstancedMesh duy nhất (1 draw call)
- * Tự động né công trình & lối mòn đất nện, pha màu đồng bộ với mặt đất fBm bên dưới.
- */
-export function createMeadowGrassTuftsGroup(gridSize: number, buildings: BaseBuilding[]): THREE.Group {
-  const group = new THREE.Group();
-  const half = gridSize / 2;
-  const roadPts = sampleRoadPoints(buildings);
-
-  const isBlocked = (gx: number, gz: number) => {
-    const colX = gx + half;
-    const rowZ = gz + half;
-    for (const b of buildings) {
-      if (b.status === 'destroyed') continue;
-      if (
-        colX >= b.col - 0.32 &&
-        colX <= b.col + b.spanCols + 0.32 &&
-        rowZ >= b.row - 0.32 &&
-        rowZ <= b.row + b.spanRows + 0.32
-      ) {
-        return true;
-      }
-    }
-    if (roadPts.length > 0 && minDistToRoads(colX, rowZ, roadPts) < 0.62) {
-      return true;
-    }
-    return false;
-  };
-
-  // Rải tối đa ~4.800 khóm cỏ 3D tự nhiên theo mật độ fBm
-  const candidates: Array<{ x: number; z: number; sx: number; sy: number; rot: number; color: THREE.Color }> = [];
-  const step = 0.42;
-  const dummyColor = new THREE.Color();
-
-  for (let gz = -half + 0.4; gz <= half - 0.4; gz += step) {
-    for (let gx = -half + 0.4; gx <= half - 0.4; gx += step) {
-      const seedX = gx * 7.3 + gz * 3.1;
-      const seedZ = gx * 4.7 - gz * 8.9;
-      const jx = gx + (hash2D(seedX, seedZ) - 0.5) * step * 0.92;
-      const jz = gz + (hash2D(seedZ + 11, seedX - 7) - 0.5) * step * 0.92;
-      if (isBlocked(jx, jz)) continue;
-
-      const wx = jx + half;
-      const wz = jz + half;
-      const density = fbm2D(wx * 0.45 + 9.2, wz * 0.45 - 4.8);
-      if (density < 0.34 && hash2D(wx * 13, wz * 17) > 0.35) continue;
-
-      const macro = fbm2D(wx * 0.24 + 3.1, wz * 0.24 + 7.4);
-      const med = fbm2D(wx * 0.95 + 17.3, wz * 0.95 - 9.1);
-      const r = (74 + macro * 44 + (med - 0.5) * 24) / 255;
-      const g = (102 + macro * 46 + (med - 0.5) * 22) / 255;
-      const b = (44 + macro * 20 + (med - 0.5) * 12) / 255;
-      dummyColor.setRGB(r, g, b);
-
-      candidates.push({
-        x: jx,
-        z: jz,
-        sx: 0.78 + hash2D(wx * 5.1, wz * 9.3) * 0.62,
-        sy: 0.65 + density * 0.7 + hash2D(wx * 11.7, wz * 3.9) * 0.35,
-        rot: hash2D(wx * 19.3, wz * 23.1) * Math.PI * 2,
-        color: dummyColor.clone(),
-      });
-    }
-  }
-
-  if (candidates.length === 0) return group;
-
-  const inst = new THREE.InstancedMesh(getGrassTuftGeometry(), getGrassTuftMaterial(), candidates.length);
-  inst.receiveShadow = true;
-  inst.castShadow = false;
-  const dummy = new THREE.Object3D();
-  for (let i = 0; i < candidates.length; i++) {
-    const c = candidates[i];
-    dummy.position.set(c.x, 0, c.z);
-    dummy.rotation.set(0, c.rot, 0);
-    dummy.scale.set(c.sx, c.sy, c.sx);
-    dummy.updateMatrix();
-    inst.setMatrixAt(i, dummy.matrix);
-    inst.setColorAt(i, c.color);
-  }
-  inst.instanceMatrix.needsUpdate = true;
-  if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
-  group.add(inst);
-  return group;
 }
 
 function safeMerge(parts: THREE.BufferGeometry[]): THREE.BufferGeometry {
@@ -1181,21 +1044,22 @@ function createOrganicEarthMound(width: number, depth: number, height: number, s
     const rz = Math.abs(z) / hd;
     const edge = Math.max(rx, rz);
 
-    // Dốc thoải tự nhiên thu hẹp nhẹ về phía mặt trên
-    const slopeShrink = 1 - ty * 0.055 * Math.max(0, edge - 0.65) * 2.8;
+    // Chân ụ đất loe rộng thoải nhẹ xuống mặt cỏ, mặt trên thu hẹp êm tạo sườn dốc tự nhiên
+    const baseFlare = 1 + (1 - ty) * 0.08 * Math.max(0, edge - 0.55) * 2.2;
+    const topShrink = 1 - ty * 0.065 * Math.max(0, edge - 0.6) * 2.5;
     const ang = Math.atan2(z, x);
-    const rimWave = (Math.sin(ang * 5 + seed) * 0.055 + Math.cos(ang * 9 - seed * 1.4) * 0.03) * edge;
+    const rimWave = (Math.sin(ang * 5 + seed) * 0.065 + Math.cos(ang * 9 - seed * 1.4) * 0.035) * edge;
 
-    x = x * slopeShrink + Math.cos(ang) * rimWave;
-    z = z * slopeShrink + Math.sin(ang) * rimWave;
+    x = x * baseFlare * topShrink + Math.cos(ang) * rimWave;
+    z = z * baseFlare * topShrink + Math.sin(ang) * rimWave;
 
-    // Mặt trên lồi lõm nhẹ tự nhiên (tránh phẳng lì)
+    // Mặt trên lồi lõm nhẹ tự nhiên và vuốt dốc êm xuống mặt cỏ ở viền ngoài
     if (y > hh * 0.45) {
       const undulate =
-        Math.sin(x * 2.3 + seed) * Math.cos(z * 2.1 - seed * 0.7) * 0.016 +
-        Math.sin((x + z) * 4.5 + seed * 1.3) * 0.007;
-      // Bo thoải nhẹ ở sát mép gò đất
-      const edgeDrop = edge > 0.86 ? -((edge - 0.86) / 0.14) * height * 0.22 : 0;
+        Math.sin(x * 2.3 + seed) * Math.cos(z * 2.1 - seed * 0.7) * 0.014 +
+        Math.sin((x + z) * 4.5 + seed * 1.3) * 0.006;
+      const edgeT = Math.max(0, (edge - 0.76) / 0.24);
+      const edgeDrop = -(edgeT * edgeT) * height * 0.58;
       y = hh + undulate + edgeDrop;
     }
 

@@ -8,13 +8,11 @@ import {
   createBuildingGroup,
   createDecorProp,
   createDetailedGroundTexture,
-  createMeadowGrassTuftsGroup,
   createNaturalBoulder,
   createNpcGroup,
   createUnitGroup,
   createVietnameseTree,
   getMeadowBumpTexture,
-  updateMeadowGrassWind,
   type VietnameseTreeKind,
 } from '../../utils/region3DModels';
 import { onSoldierBaseLoaded, preloadSoldierBaseModel } from '../../utils/soldierRigLoader';
@@ -375,7 +373,6 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
       }
       groundMat.map = nextTex;
       groundMat.needsUpdate = true;
-      buildingsGroup.add(createMeadowGrassTuftsGroup(gridSize, currentLayout.buildings));
 
       // Xây map ô tường/cổng để tự động nối liền tường rào
       const wallOccupied = new Set<string>();
@@ -872,7 +869,6 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
       controls.update();
 
       const t = now * 0.002;
-      updateMeadowGrassWind(t);
       for (const flag of animatedFlags) {
         const pos = flag.geometry.getAttribute('position');
         const fw = (flag.geometry.userData.flagWidth as number | undefined) ?? 1.22;
