@@ -1821,7 +1821,7 @@ function getBuildingParts(
 
     case 'barracks': {
       // === 5x5 TRẠI LUYỆN BINH: BÃI ĐẤT TRỐNG RỘNG RÃI VỚI ĐẦY ĐỦ ĐẠO CỤ TẬP TRẬN ===
-      // 1. Nền bãi đất nện 5x5 + mảng đất sẫm/cát tự nhiên + vòng tròn đấu võ ở giữa sân
+      // 1. Nền bãi đất nện 5x5 + mảng đất sẫm/cát tự nhiên (không vẽ vòng tròn giữa sân)
       push('earthDark', rbox(4.84, 0.06, 4.84, 0.03, 0, 0.03, 0));
       push('earth', rbox(4.62, 0.04, 4.62, 0.02, 0, 0.05, 0));
       for (const [px, pz, pw, pd, mat] of [
@@ -1832,19 +1832,14 @@ function getBuildingParts(
       ] as const) {
         push(mat, rbox(pw, 0.025, pd, 0.01, px, 0.065, pz));
       }
-      // Vòng tròn sân đấu võ ở trung tâm bãi đất
-      const arenaRing = torus(0.92, 0.04, 6, 20);
-      arenaRing.rotateX(Math.PI / 2);
-      arenaRing.translate(0.15, 0.075, 0.25);
-      push('earthDark', arenaRing);
 
       // Đá tảng chèn 4 góc bãi tập
       for (const [sx, sz] of [[-2.32, -2.32], [2.32, -2.32], [-2.32, 2.32], [2.32, 2.32]]) {
         push('stone', rbox(0.28, 0.14, 0.28, 0.04, sx, 0.08, sz));
       }
 
-      // 2. Hàng rào tre & cọc gỗ thấp bao quanh bãi tập (chừa lối vào rộng ở mặt trước z = +2.32)
-      const addFenceSegment = (x0: number, z0: number, x1: number, z1: number) => {
+      // 2. Hàng rào tre thưa bao quanh bãi tập (chừa lối vào rộng ở mặt trước z = +2.3)
+      const addBambooFenceSegment = (x0: number, z0: number, x1: number, z1: number) => {
         const dx = x1 - x0;
         const dz = z1 - z0;
         const len = Math.hypot(dx, dz);
@@ -1854,92 +1849,160 @@ function getBuildingParts(
           const t = i / steps;
           const px = x0 + dx * t;
           const pz = z0 + dz * t;
-          push('woodDark', cyl(0.045, 0.055, 0.54, 6, px, 0.28, pz));
-          push('bambooDry', cone(0.045, 0.1, 6, px, 0.58, pz));
+          addBambooPole(0.036, 0.56, 3, px, 0.06, pz, true);
         }
-        for (const ry of [0.22, 0.42]) {
-          const rail = rbox(0.04, 0.045, len, 0.01, 0, 0, 0);
+        for (const ry of [0.22, 0.44]) {
+          const rail = rbox(0.036, 0.038, len, 0.01, 0, 0, 0);
           rail.rotateY(ang);
           rail.translate((x0 + x1) / 2, ry, (z0 + z1) / 2);
           push('bambooDry', rail);
         }
       };
-      addFenceSegment(-2.25, -2.3, 2.25, -2.3); // Mặt sau
-      addFenceSegment(-2.3, -2.25, -2.3, 2.25); // Cạnh trái
-      addFenceSegment(2.3, -2.25, 2.3, 2.25);   // Cạnh phải
-      addFenceSegment(-2.25, 2.3, -0.95, 2.3);  // Mặt trước trái
-      addFenceSegment(0.95, 2.3, 2.25, 2.3);    // Mặt trước phải
+      addBambooFenceSegment(-2.25, -2.3, 2.25, -2.3); // Mặt sau
+      addBambooFenceSegment(-2.3, -2.25, -2.3, 2.25); // Cạnh trái
+      addBambooFenceSegment(2.3, -2.25, 2.3, 2.25);   // Cạnh phải
+      addBambooFenceSegment(-2.25, 2.3, -0.95, 2.3);  // Mặt trước trái
+      addBambooFenceSegment(0.95, 2.3, 2.25, 2.3);    // Mặt trước phải
 
-      // Hai trụ cổng gỗ cao & đèn lồng ở lối vào bãi tập
+      // Hai cột đèn lồng thời xưa chi tiết ở lối vào bãi tập (giống nhà chính)
       for (const gx of [-0.92, 0.92]) {
-        push('woodDark', cyl(0.075, 0.09, 1.32, 7, gx, 0.68, 2.3));
-        push('gold', cyl(0.085, 0.085, 0.06, 8, gx, 1.32, 2.3));
-        push('woodDark', rbox(0.28, 0.05, 0.06, 0.01, gx + (gx < 0 ? 0.14 : -0.14), 1.22, 2.3));
-        push(bannerMat, cyl(0.07, 0.07, 0.16, 8, gx + (gx < 0 ? 0.24 : -0.24), 1.1, 2.3));
+        const gz = 2.3;
+        const base = createStonePlinthLathe();
+        base.scale(0.62, 0.75, 0.62);
+        base.translate(gx, 0.08, gz);
+        push('stoneDark', base);
+
+        push('woodDark', cyl(0.044, 0.056, 0.92, 8, gx, 0.58, gz));
+        push('gold', torus(0.052, 0.012, 6, 10).rotateX(Math.PI / 2).translate(gx, 0.42, gz));
+        push('gold', torus(0.048, 0.012, 6, 10).rotateX(Math.PI / 2).translate(gx, 0.9, gz));
+
+        // Đĩa đỡ lồng đèn sắt & 4 thanh lồng sắt
+        push('iron', cyl(0.11, 0.07, 0.05, 8, gx, 1.04, gz));
+        for (const [ox, oz] of [[-0.08, -0.08], [0.08, -0.08], [-0.08, 0.08], [0.08, 0.08]]) {
+          push('iron', cyl(0.01, 0.01, 0.24, 5, gx + ox, 1.16, gz + oz));
+        }
+        // Than hồng & ngọn lửa bên trong lồng đèn
+        push('charcoal', cyl(0.06, 0.06, 0.03, 8, gx, 1.07, gz));
+        const flame = createTorchFlameLathe();
+        flame.scale(0.88, 0.92, 0.88);
+        flame.translate(gx, 1.07, gz);
+        push('ember', flame);
+        // Mái che nhỏ trên đỉnh cột đèn
+        push('woodDark', cone(0.16, 0.1, 4, gx, 1.32, gz, Math.PI / 4));
+        push('gold', sphere(0.028, gx, 1.38, gz));
       }
 
-      // 3. Sạp trống trận & mái che chỉ huy nhỏ ở góc sau-trái (giữ phần lớn sân trống)
-      push('wood', rbox(1.55, 0.12, 1.25, 0.02, -1.42, 0.12, -1.48));
-      for (const [px, pz] of [[-2.08, -2.0], [-0.76, -2.0], [-2.08, -0.96], [-0.76, -0.96]]) {
-        push('woodDark', cyl(0.045, 0.055, 1.15, 6, px, 0.72, pz));
+      // 3. Bệ trống trận (không mái che, dùng model trống giống nhà chính nhưng thu nhỏ 0.78x) + Cột cờ tre
+      push('woodDark', rbox(1.18, 0.1, 0.96, 0.02, -1.45, 0.11, -1.48));
+      const drumScale = 0.78;
+      for (const gz of [-1.62, -1.34]) {
+        const l1 = rbox(0.055, 0.56, 0.055, 0.012, 0, 0, 0);
+        l1.rotateZ(0.55);
+        l1.translate(-1.45, 0.41, gz);
+        const l2 = rbox(0.055, 0.56, 0.055, 0.012, 0, 0, 0);
+        l2.rotateZ(-0.55);
+        l2.translate(-1.45, 0.41, gz);
+        push('woodDark', l1);
+        push('woodDark', l2);
       }
-      push('thatch', cone(1.12, 0.52, 4, -1.42, 1.52, -1.48, Math.PI / 4));
-      // Trống trận trên giá chữ X
-      push('woodDark', rbox(0.06, 0.45, 0.06, 0.01, -1.42, 0.36, -1.42).rotateZ(0.42));
-      push('woodDark', rbox(0.06, 0.45, 0.06, 0.01, -1.42, 0.36, -1.42).rotateZ(-0.42));
-      const warDrum = cyl(0.22, 0.22, 0.38, 12, 0, 0, 0);
-      warDrum.rotateX(Math.PI / 2);
-      warDrum.translate(-1.42, 0.56, -1.42);
-      push(bannerMat, warDrum);
-      for (const dz of [-1.59, -1.25]) {
-        const dFace = cyl(0.2, 0.2, 0.03, 12, 0, 0, 0);
-        dFace.rotateX(Math.PI / 2);
-        dFace.translate(-1.42, 0.56, dz);
-        push('targetWhite', dFace);
-      }
-      // Cột cờ hiệu Lam Sơn cạnh sạp chỉ huy
-      push('woodDark', cyl(0.04, 0.05, 1.95, 7, -0.52, 1.0, -1.95));
-      push('gold', sphere(0.055, -0.52, 2.0, -1.95));
-      push(bannerMat, rbox(0.68, 0.38, 0.03, 0.005, -0.18, 1.72, -1.95));
+      const bBarrel = createDrumBarrelLathe();
+      bBarrel.scale(drumScale, drumScale, drumScale);
+      bBarrel.rotateZ(Math.PI / 2);
+      bBarrel.rotateY(-0.35);
+      bBarrel.translate(-1.45, 0.64, -1.48);
+      push(bannerMat, bBarrel);
 
-      // 4. Trường bắn cung 3 bia rơm ở góc sau-phải (có mũi tên găm trên bia)
-      for (const tx of [0.55, 1.18, 1.8]) {
-        // Chân kiềng gỗ chữ A
-        const postL = cyl(0.03, 0.035, 0.78, 6, 0, 0, 0);
+      const bDrumSkin = cyl(0.275 * drumScale, 0.275 * drumScale, 0.64 * drumScale, 16, 0, 0, 0);
+      bDrumSkin.rotateZ(Math.PI / 2);
+      bDrumSkin.rotateY(-0.35);
+      bDrumSkin.translate(-1.45, 0.64, -1.48);
+      push('plaster', bDrumSkin);
+
+      for (const rimOff of [-0.26 * drumScale, 0.26 * drumScale]) {
+        const ring = torus(0.3 * drumScale, 0.018, 7, 16);
+        ring.rotateY(Math.PI / 2 - 0.35);
+        ring.translate(-1.45 + Math.cos(-0.35) * rimOff, 0.64, -1.48 - Math.sin(-0.35) * rimOff);
+        push('gold', ring);
+      }
+      for (const dz of [-1.18, -1.08]) {
+        const stick = cyl(0.014, 0.014, 0.28, 6, 0, 0, 0);
+        stick.rotateZ(Math.PI / 2);
+        stick.translate(-1.26, 0.18, dz);
+        push('wood', stick);
+        push(bannerMat, sphere(0.032, -1.41, 0.19, dz));
+      }
+
+      // Cột cờ bằng tre có đốt tre + chóp đồng (lá cờ phấp phới gắn ở createBuildingGroup)
+      addBambooPole(0.044, 2.25, 5, -0.78, 0.06, -1.85, false);
+      push('gold', sphere(0.048, -0.78, 2.33, -1.85));
+
+      // 4. Trường bắn cung 3 bia rơm chi tiết ở góc sau-phải (vành rơm bện xoắn + nhiều vòng tâm + nhiều mũi tên có lông vũ)
+      for (const [tIdx, tx] of ([0.55, 1.18, 1.8] as const).entries()) {
+        // Chân kiềng gỗ chữ A + thanh giằng ngang + dây buộc
+        const postL = cyl(0.03, 0.035, 0.84, 6, 0, 0, 0);
         postL.rotateZ(0.22);
-        postL.translate(tx - 0.14, 0.4, -1.78);
-        const postR = cyl(0.03, 0.035, 0.78, 6, 0, 0, 0);
+        postL.translate(tx - 0.15, 0.42, -1.78);
+        const postR = cyl(0.03, 0.035, 0.84, 6, 0, 0, 0);
         postR.rotateZ(-0.22);
-        postR.translate(tx + 0.14, 0.4, -1.78);
-        const postB = cyl(0.03, 0.035, 0.82, 6, 0, 0, 0);
+        postR.translate(tx + 0.15, 0.42, -1.78);
+        const postB = cyl(0.03, 0.035, 0.88, 6, 0, 0, 0);
         postB.rotateX(0.32);
-        postB.translate(tx, 0.38, -1.92);
+        postB.translate(tx, 0.4, -1.94);
         push('woodDark', postL);
         push('woodDark', postR);
         push('woodDark', postB);
+        push('wood', rbox(0.42, 0.035, 0.035, 0.008, tx, 0.28, -1.78));
+        push('bambooDry', torus(0.055, 0.015, 5, 10).translate(tx, 0.84, -1.8));
 
-        // Mặt bia rơm tròn có tâm đỏ vàng
-        const strawDisc = cyl(0.26, 0.26, 0.09, 14, 0, 0, 0);
-        strawDisc.rotateX(Math.PI / 2 - 0.15);
-        strawDisc.translate(tx, 0.62, -1.75);
-        push('bambooDry', strawDisc);
-        const whiteRing = cyl(0.2, 0.2, 0.105, 12, 0, 0, 0);
-        whiteRing.rotateX(Math.PI / 2 - 0.15);
-        whiteRing.translate(tx, 0.62, -1.74);
-        push('targetWhite', whiteRing);
-        const bullseye = cyl(0.09, 0.09, 0.12, 10, 0, 0, 0);
-        bullseye.rotateX(Math.PI / 2 - 0.15);
-        bullseye.translate(tx, 0.62, -1.73);
-        push(bannerMat, bullseye);
+        // Đế rơm cuộn tròn nhiều vòng
+        for (const [rCoil, cMat] of [
+          [0.26, 'thatchWarm'],
+          [0.21, 'bambooDry'],
+          [0.16, 'thatch'],
+        ] as const) {
+          const coil = torus(rCoil, 0.034, 7, 16);
+          coil.rotateX(-0.15);
+          coil.translate(tx, 0.62, -1.76);
+          push(cMat, coil);
+        }
+        const strawBack = cyl(0.27, 0.27, 0.08, 16, 0, 0, 0);
+        strawBack.rotateX(Math.PI / 2 - 0.15);
+        strawBack.translate(tx, 0.62, -1.78);
+        push('bambooDry', strawBack);
 
-        // Mũi tên găm vào bia
-        const arrow = cyl(0.012, 0.012, 0.36, 5, 0, 0, 0);
-        arrow.rotateX(Math.PI / 2 - 0.28);
-        arrow.translate(tx + 0.04, 0.64, -1.58);
-        push('woodWarm', arrow);
+        // Các vòng bia đồng tâm: Trắng -> Xanh sẫm -> Đỏ -> Tâm vàng
+        for (const [rad, depth, rMat] of [
+          [0.21, 0.09, 'targetWhite'],
+          [0.145, 0.1, 'woodDark'],
+          [0.095, 0.11, bannerMat],
+          [0.042, 0.12, 'gold'],
+        ] as const) {
+          const disc = cyl(rad, rad, depth, 14, 0, 0, 0);
+          disc.rotateX(Math.PI / 2 - 0.15);
+          disc.translate(tx, 0.62, -1.75);
+          push(rMat, disc);
+        }
+
+        // 2-3 mũi tên có mũi thép và lông đuôi găm trên bia
+        const arrowOffsets =
+          tIdx % 2 === 0
+            ? [[-0.03, 0.04, 0.08], [0.05, -0.02, -0.1]]
+            : [[0.01, 0.01, 0.04], [-0.07, -0.04, 0.12], [0.06, 0.06, -0.06]];
+        for (const [ax, ay, yaw] of arrowOffsets) {
+          const arrow = cyl(0.01, 0.01, 0.38, 5, 0, 0, 0);
+          arrow.rotateX(Math.PI / 2 - 0.24);
+          arrow.rotateY(yaw);
+          arrow.translate(tx + ax, 0.62 + ay, -1.56);
+          push('woodWarm', arrow);
+          const fletch = rbox(0.036, 0.008, 0.06, 0.002, 0, 0, 0);
+          fletch.rotateX(-0.24);
+          fletch.rotateY(yaw);
+          fletch.translate(tx + ax + Math.sin(yaw) * 0.14, 0.66 + ay, -1.4);
+          push('targetWhite', fletch);
+        }
       }
 
-      // 5. Hai giá binh khí & khiên mây dọc cạnh trái sân tập
+      // 5. Hai giá binh khí & khiên mây dựa vào giá dọc cạnh trái sân tập
       for (const rz of [0.1, 1.15]) {
         push('woodDark', rbox(0.1, 0.06, 0.82, 0.01, -1.92, 0.52, rz));
         push('woodDark', rbox(0.1, 0.06, 0.82, 0.01, -1.92, 0.88, rz));
@@ -1960,21 +2023,63 @@ function getBuildingParts(
             push('steel', head);
           }
         }
-        // Khiên tròn tựa bên giá binh khí
-        const shield = cyl(0.24, 0.24, 0.045, 12, 0, 0, 0);
-        shield.rotateZ(Math.PI / 2 - 0.25);
-        shield.translate(-1.74, 0.28, rz);
+        // Khiên tròn nghiêng dựa hẳn vào thanh ngang của giá binh khí (chân trên đất -1.68, đỉnh tựa giá -1.87)
+        const shield = cyl(0.24, 0.24, 0.042, 14, 0, 0, 0);
+        shield.rotateZ(-Math.PI / 2 + 0.38);
+        shield.translate(-1.78, 0.28, rz);
         push('woodWarm', shield);
-        const boss = sphere(0.055, -1.69, 0.28, rz);
-        push('gold', boss);
+        const shieldRim = torus(0.24, 0.016, 6, 14);
+        shieldRim.rotateY(Math.PI / 2);
+        shieldRim.rotateZ(0.38);
+        shieldRim.translate(-1.78, 0.28, rz);
+        push('woodDark', shieldRim);
+        push('gold', sphere(0.048, -1.75, 0.29, rz));
       }
 
-      // 6. Ba hình nhân rơm tập kiếm/giáo ở cạnh phải bãi tập
-      for (const [dx, dz] of [[1.75, -0.35], [1.75, 0.45], [1.75, 1.25]]) {
-        push('woodDark', cyl(0.04, 0.05, 0.95, 6, dx, 0.5, dz));
-        push('bambooDry', cyl(0.14, 0.15, 0.46, 8, dx, 0.68, dz)); // Thân rơm
-        push('bambooDry', sphere(0.11, dx, 1.0, dz));               // Đầu rơm
-        push('wood', rbox(0.06, 0.06, 0.54, 0.01, dx, 0.78, dz));   // Tay gỗ ngang
+      // 6. Ba hình nhân rơm chi tiết đến từng sợi rơm ở cạnh phải bãi tập
+      const strawDummyMats: MaterialKey[] = ['thatch', 'thatchWarm', 'thatchSoft'];
+      for (const [dIdx, [dx, dz]] of ([[1.75, -0.35], [1.75, 0.45], [1.75, 1.25]] as const).entries()) {
+        // Cọc gỗ & thanh vai ngang
+        push('woodDark', cyl(0.036, 0.045, 0.98, 6, dx, 0.5, dz));
+        push('wood', rbox(0.05, 0.05, 0.56, 0.01, dx, 0.78, dz));
+
+        // Bó từng sợi rơm xếp vòng tròn quanh thân (14 sợi thân + 10 sợi đầu + sợi rơm quấn tay)
+        for (let s = 0; s < 14; s++) {
+          const ang = (s / 14) * Math.PI * 2;
+          const sr = 0.095 + (s % 2) * 0.015;
+          const sx = dx + Math.cos(ang) * sr;
+          const sz = dz + Math.sin(ang) * sr;
+          const stalk = cyl(0.012, 0.022, 0.48, 5, 0, 0, 0);
+          stalk.rotateZ(-Math.cos(ang) * 0.14);
+          stalk.rotateX(Math.sin(ang) * 0.14);
+          stalk.translate(sx, 0.62, sz);
+          push(strawDummyMats[(s + dIdx) % 3], stalk);
+        }
+        // Dây thừng siết eo & cổ
+        push('woodWarm', torus(0.115, 0.016, 6, 12).rotateX(Math.PI / 2).translate(dx, 0.56, dz));
+        push('woodWarm', torus(0.088, 0.015, 6, 12).rotateX(Math.PI / 2).translate(dx, 0.87, dz));
+
+        // Bó rơm ở hai cánh tay ngang
+        for (const side of [-1, 1]) {
+          for (let a = 0; a < 5; a++) {
+            const aa = (a / 5) * Math.PI * 2;
+            const armStraw = cyl(0.012, 0.016, 0.24, 5, 0, 0, 0);
+            armStraw.rotateX(Math.PI / 2);
+            armStraw.translate(dx + Math.cos(aa) * 0.035, 0.78 + Math.sin(aa) * 0.035, dz + side * 0.18);
+            push(strawDummyMats[(a + dIdx) % 3], armStraw);
+          }
+        }
+
+        // Đầu bó rơm có chỏm sợi rơm tua tủa phía trên
+        for (let h = 0; h < 10; h++) {
+          const ang = (h / 10) * Math.PI * 2;
+          const hStalk = cyl(0.01, 0.024, 0.26, 5, 0, 0, 0);
+          hStalk.rotateZ(-Math.cos(ang) * 0.18);
+          hStalk.rotateX(Math.sin(ang) * 0.18);
+          hStalk.translate(dx + Math.cos(ang) * 0.045, 0.99, dz + Math.sin(ang) * 0.045);
+          push(strawDummyMats[(h + dIdx) % 3], hStalk);
+        }
+        push('woodWarm', torus(0.075, 0.014, 5, 10).rotateX(Math.PI / 2).translate(dx, 1.07, dz));
       }
 
       // 7. Cọc Mai Hoa Thung (cọc gỗ nhảy cao thấp) & Tạ đá tập thể lực ở phía trước sân
@@ -1986,14 +2091,25 @@ function getBuildingParts(
       ]) {
         push('woodDark', cyl(0.085, 0.095, ch, 8, cx, 0.06 + ch / 2, cz));
       }
-      // Tạ đá có tay cầm gỗ
       for (const [wx, wz] of [[0.85, 1.55], [1.22, 1.62]]) {
         push('stone', rbox(0.24, 0.16, 0.24, 0.03, wx, 0.14, wz));
         push('woodDark', cyl(0.024, 0.024, 0.28, 6, wx, 0.26, wz).rotateZ(Math.PI / 2));
       }
-      // Chum nước giải khát bên cổng vào
-      push('ceramic', cyl(0.16, 0.12, 0.34, 10, -0.62, 0.22, 2.02));
-      push('water', cyl(0.12, 0.12, 0.02, 10, -0.62, 0.38, 2.02));
+
+      // 8. Thùng nước ghép từ nhiều mảnh gỗ + đai sắt bên cổng vào (mặt nước sóng sánh gắn ở createBuildingGroup)
+      push('stoneDark', cyl(0.23, 0.25, 0.05, 10, -0.58, 0.08, 1.98));
+      const staveCount = 14;
+      for (let i = 0; i < staveCount; i++) {
+        const ang = (i / staveCount) * Math.PI * 2;
+        const stave = rbox(0.082, 0.42, 0.028, 0.006, 0, 0, 0);
+        stave.rotateY(-ang + Math.PI / 2);
+        stave.translate(-0.58 + Math.cos(ang) * 0.2, 0.31, 1.98 + Math.sin(ang) * 0.2);
+        push(i % 2 === 0 ? 'wood' : 'woodWarm', stave);
+      }
+      push('iron', torus(0.218, 0.012, 6, 16).rotateX(Math.PI / 2).translate(-0.58, 0.18, 1.98));
+      push('iron', torus(0.218, 0.012, 6, 16).rotateX(Math.PI / 2).translate(-0.58, 0.43, 1.98));
+      // Gáo múc nước đặt trên miệng thùng
+      push('woodWarm', cyl(0.012, 0.012, 0.34, 5, -0.58, 0.53, 1.98).rotateZ(Math.PI / 2).rotateY(0.4));
       break;
     }
 
@@ -2133,21 +2249,36 @@ export function createBuildingGroup(
   }
 
   // Gắn lá cờ lệnh khởi nghĩa uốn lượn nhẹ trong gió thêu chữ "Lê" (hoặc "明")
-  if (type === 'main_hall') {
-    const flagGeo = new THREE.PlaneGeometry(1.22, 0.84, 12, 4);
+  if (type === 'main_hall' || type === 'barracks') {
+    const isBarracks = type === 'barracks';
+    const w = isBarracks ? 0.92 : 1.22;
+    const h = isBarracks ? 0.62 : 0.84;
+    const flagGeo = new THREE.PlaneGeometry(w, h, 12, 4);
     const pos = flagGeo.getAttribute('position');
     for (let i = 0; i < pos.count; i++) {
       const fx = pos.getX(i);
-      const t = (fx + 0.61) / 1.22;
+      const t = (fx + w / 2) / w;
       pos.setZ(i, Math.sin(t * Math.PI * 2.2) * 0.065 * t);
     }
     flagGeo.computeVertexNormals();
+    flagGeo.userData.flagWidth = w;
     const flagMat = getFlagBannerMaterial(isEnemy);
     const flagMesh = new THREE.Mesh(flagGeo, flagMat);
     flagMesh.name = 'animated_flag';
-    flagMesh.position.set(-1.24, 2.86, 1.65);
+    flagMesh.position.set(isBarracks ? -0.32 : -1.24, isBarracks ? 1.96 : 2.86, isBarracks ? -1.85 : 1.65);
     flagMesh.castShadow = true;
     group.add(flagMesh);
+  }
+
+  // Mặt nước sóng sánh trong thùng gỗ ở trại luyện binh
+  if (type === 'barracks') {
+    const waterGeo = new THREE.CircleGeometry(0.188, 16);
+    const waterMat = getSharedMaterial('water', isConstructing, opacity);
+    const waterMesh = new THREE.Mesh(waterGeo, waterMat);
+    waterMesh.rotation.x = -Math.PI / 2;
+    waterMesh.position.set(-0.58, 0.46, 1.98);
+    waterMesh.name = 'animated_water';
+    group.add(waterMesh);
   }
 
   return group;

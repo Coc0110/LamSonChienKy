@@ -340,6 +340,7 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
     let walkableSpots: Array<{ x: number; z: number }> = [];
     let findWorldPath: (sx: number, sz: number, gx: number, gz: number) => Array<{ x: number; z: number }> = () => [];
     const animatedFlags: THREE.Mesh[] = [];
+    const animatedWaters: THREE.Mesh[] = [];
 
     const syncBuildings = () => {
       while (buildingsGroup.children.length > 0) {
@@ -353,6 +354,7 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
       buildingAABBs = [];
       walkableSpots = [];
       animatedFlags.length = 0;
+      animatedWaters.length = 0;
 
       const currentLayout = layoutRef.current;
       const enemy = isEnemyRef.current;
@@ -398,6 +400,8 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
         group.traverse((obj) => {
           if (obj instanceof THREE.Mesh && obj.name === 'animated_flag') {
             animatedFlags.push(obj);
+          } else if (obj instanceof THREE.Mesh && obj.name === 'animated_water') {
+            animatedWaters.push(obj);
           }
         });
         buildingsGroup.add(group);
@@ -861,11 +865,23 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
       const t = now * 0.002;
       for (const flag of animatedFlags) {
         const pos = flag.geometry.getAttribute('position');
+        const fw = (flag.geometry.userData.flagWidth as number | undefined) ?? 1.22;
+        const halfFw = fw / 2;
         for (let i = 0; i < pos.count; i++) {
           const fx = pos.getX(i);
           const fy = pos.getY(i);
-          const u = (fx + 0.61) / 1.22;
+          const u = (fx + halfFw) / fw;
           pos.setZ(i, Math.sin(u * 6.2 - t * 2.4 + fy * 1.6) * 0.085 * u);
+        }
+        pos.needsUpdate = true;
+      }
+      for (const water of animatedWaters) {
+        const pos = water.geometry.getAttribute('position');
+        for (let i = 0; i < pos.count; i++) {
+          const wx = pos.getX(i);
+          const wy = pos.getY(i);
+          const r = Math.hypot(wx, wy);
+          pos.setZ(i, Math.sin(r * 28 - t * 3.2) * 0.009);
         }
         pos.needsUpdate = true;
       }
