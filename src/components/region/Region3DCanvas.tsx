@@ -13,6 +13,7 @@ import {
   createNpcGroup,
   createUnitGroup,
   createVietnameseTree,
+  getMeadowBumpTexture,
   type VietnameseTreeKind,
 } from '../../utils/region3DModels';
 import { onSoldierBaseLoaded, preloadSoldierBaseModel } from '../../utils/soldierRigLoader';
@@ -192,7 +193,12 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
     const groundGeo = new THREE.PlaneGeometry(gridSize, gridSize);
     groundGeo.rotateX(-Math.PI / 2);
     const groundTex = createDetailedGroundTexture(gridSize, layoutRef.current.buildings);
-    const groundMat = new THREE.MeshStandardMaterial({ map: groundTex, roughness: 0.94 });
+    const groundMat = new THREE.MeshStandardMaterial({
+      map: groundTex,
+      bumpMap: getMeadowBumpTexture(),
+      bumpScale: 0.015,
+      roughness: 0.95,
+    });
     const groundPlane = new THREE.Mesh(groundGeo, groundMat);
     groundPlane.receiveShadow = true;
     scene.add(groundPlane);

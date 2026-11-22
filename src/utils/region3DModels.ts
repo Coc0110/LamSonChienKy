@@ -583,32 +583,31 @@ export function createDetailedGroundTexture(
   gridSize: number,
   buildings: BaseBuilding[]
 ): THREE.CanvasTexture {
-  const size = 1536;
+  const size = 2048;
   const canvas = document.createElement('canvas');
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext('2d');
   if (!ctx) return new THREE.CanvasTexture(canvas);
 
-  // 1. Nền cỏ xanh mướt nhiều sắc độ chuyển mượt
-  ctx.fillStyle = '#5f8b3e';
+  // 1. Nền đồng cỏ tự nhiên chuyển sắc đa tầng (cỏ nắng ấm, cỏ xanh mướt, cỏ râm mát, cỏ úa nhẹ)
+  ctx.fillStyle = '#5c873c';
   ctx.fillRect(0, 0, size, size);
 
-  // Các vạt cỏ nắng/râm tự nhiên (radial gradient mềm, không tạo viền tròn cứng)
-  for (let i = 0; i < 420; i++) {
+  const patchColors = [
+    'rgba(124, 170, 72, 0.24)',
+    'rgba(70, 110, 42, 0.24)',
+    'rgba(142, 176, 82, 0.16)',
+    'rgba(104, 134, 58, 0.18)',
+  ];
+  for (let i = 0; i < 620; i++) {
     const rx = (((Math.sin(i * 12.9898) * 43758.5453) % 1) + 1) % 1;
     const ry = (((Math.sin(i * 78.233) * 43758.5453) % 1) + 1) % 1;
-    const rad = 22 + (i % 46);
+    const rad = 28 + (i % 64);
     const cx = rx * size;
     const cy = ry * size;
-    const grad = ctx.createRadialGradient(cx, cy, 2, cx, cy, rad);
-    const c =
-      i % 3 === 0
-        ? 'rgba(122, 168, 70, 0.32)'
-        : i % 3 === 1
-          ? 'rgba(68, 108, 40, 0.28)'
-          : 'rgba(146, 184, 88, 0.22)';
-    grad.addColorStop(0, c);
+    const grad = ctx.createRadialGradient(cx, cy, 4, cx, cy, rad);
+    grad.addColorStop(0, patchColors[i % patchColors.length]);
     grad.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = grad;
     ctx.beginPath();
@@ -616,33 +615,60 @@ export function createDetailedGroundTexture(
     ctx.fill();
   }
 
-  // 2. Hàng nghìn ngọn cỏ cong nhỏ đan xen + cỏ ba lá & hoa dại li ti trên mặt thảm cỏ
+  // 2. Các khóm cỏ mọc tự nhiên theo cụm (gốc râm + 5-7 ngọn cỏ mảnh uốn cong tỏa ra)
   ctx.lineCap = 'round';
-  const bladeColors = ['#3d6522', '#4c792c', '#74a348', '#8cb55d'];
-  for (let i = 0; i < 4200; i++) {
-    const rx = (((Math.sin(i * 31.415) * 29831.73) % 1) + 1) % 1;
-    const ry = (((Math.sin(i * 67.891) * 29831.73) % 1) + 1) % 1;
-    const bx = rx * size;
-    const by = ry * size;
-    const h = 4 + (i % 5);
-    const lean = ((i % 7) - 3) * 1.1;
-    ctx.strokeStyle = bladeColors[i % 4];
-    ctx.lineWidth = 1.2 + (i % 2) * 0.4;
+  const bladeColors = ['#3b6320', '#4b782b', '#6d9d42', '#86b256', '#9ab863'];
+  for (let t = 0; t < 1800; t++) {
+    const rx = (((Math.sin(t * 31.415) * 29831.73) % 1) + 1) % 1;
+    const ry = (((Math.sin(t * 67.891) * 29831.73) % 1) + 1) % 1;
+    const tx = rx * size;
+    const ty = ry * size;
+
+    // Bóng gốc khóm cỏ
+    ctx.fillStyle = 'rgba(38, 62, 18, 0.22)';
     ctx.beginPath();
-    ctx.moveTo(bx, by);
-    ctx.quadraticCurveTo(bx + lean * 0.5, by - h * 0.6, bx + lean, by - h);
-    ctx.stroke();
-  }
-  for (let i = 0; i < 750; i++) {
-    const rx = (((Math.sin(i * 45.164) * 19283.123) % 1) + 1) % 1;
-    const ry = (((Math.sin(i * 91.732) * 19283.123) % 1) + 1) % 1;
-    ctx.fillStyle = i % 9 === 0 ? '#facc15' : i % 15 === 0 ? '#fef3c7' : '#3a5f21';
-    ctx.beginPath();
-    ctx.arc(rx * size, ry * size, i % 9 === 0 ? 2.2 : 1.6, 0, Math.PI * 2);
+    ctx.ellipse(tx, ty + 0.8, 3.8, 1.9, 0, 0, Math.PI * 2);
     ctx.fill();
+
+    const blades = 5 + (t % 3);
+    for (let b = 0; b < blades; b++) {
+      const seed = t * 17 + b * 5.3;
+      const spread = (b - (blades - 1) / 2) * 1.45 + Math.sin(seed) * 0.6;
+      const h = 4.5 + ((t + b * 3) % 6) * 0.95;
+      ctx.strokeStyle = bladeColors[(t + b) % bladeColors.length];
+      ctx.lineWidth = 0.9 + ((t + b) % 2) * 0.45;
+      ctx.beginPath();
+      ctx.moveTo(tx + spread * 0.35, ty);
+      ctx.quadraticCurveTo(tx + spread * 0.6, ty - h * 0.58, tx + spread * 1.25, ty - h);
+      ctx.stroke();
+    }
   }
 
-  // 3. Vẽ vùng giao nhau tự nhiên giữa thảm cỏ và chân ụ đất nền công trình + đường mòn
+  // 3. Cỏ ba lá & hoa dại li ti tự nhiên trên đồng cỏ
+  for (let i = 0; i < 650; i++) {
+    const rx = (((Math.sin(i * 45.164) * 19283.123) % 1) + 1) % 1;
+    const ry = (((Math.sin(i * 91.732) * 19283.123) % 1) + 1) % 1;
+    const fx = rx * size;
+    const fy = ry * size;
+    if (i % 12 === 0) {
+      ctx.fillStyle = '#fde047';
+      ctx.beginPath();
+      ctx.arc(fx, fy, 1.9, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (i % 19 === 0) {
+      ctx.fillStyle = '#fef9c3';
+      ctx.beginPath();
+      ctx.arc(fx, fy, 1.7, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.fillStyle = 'rgba(56, 94, 30, 0.45)';
+      ctx.beginPath();
+      ctx.arc(fx, fy, 1.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // 4. Nền đất loang mềm dưới chân công trình & lối mòn đất nện nối các công trình
   const scale = size / gridSize;
   const drawNaturalDirtStamp = (x: number, y: number, r: number, color: string, alpha: number) => {
     const grad = ctx.createRadialGradient(x, y, r * 0.15, x, y, r);
@@ -658,41 +684,12 @@ export function createDetailedGroundTexture(
     ctx.restore();
   };
 
-  for (const [bIdx, b] of buildings.entries()) {
+  for (const b of buildings) {
     if (b.type === 'wall' || b.type === 'spike_trap' || b.status === 'destroyed') continue;
     const bx = (b.col + b.spanCols / 2) * scale;
     const bz = (b.row + b.spanRows / 2) * scale;
-    const hw = (b.spanCols * scale) * 0.5;
-    const hd = (b.spanRows * scale) * 0.5;
-
-    // Viền chuyển tiếp quanh chu vi chân ụ đất: bóng cỏ ẩm đậm -> đất loang -> cụm cỏ bò lên chân đất
-    const perimSteps = Math.max(28, Math.round((b.spanCols + b.spanRows) * 7));
-    for (let p = 0; p < perimSteps; p++) {
-      const ang = (p / perimSteps) * Math.PI * 2;
-      const ca = Math.cos(ang);
-      const sa = Math.sin(ang);
-      // Điểm bám dọc theo biên hình chữ nhật bo góc của ụ đất
-      const maxC = Math.max(Math.abs(ca), Math.abs(sa), 0.001);
-      const ex = bx + (ca / maxC) * hw * 0.96 + Math.sin(p * 2.3 + bIdx) * scale * 0.08;
-      const ez = bz + (sa / maxC) * hd * 0.96 + Math.cos(p * 1.9 + bIdx) * scale * 0.08;
-
-      drawNaturalDirtStamp(ex, ez, scale * 0.44, '#3e5c22', 0.25); // Cỏ ẩm sát chân gò
-      drawNaturalDirtStamp(ex, ez, scale * 0.34, '#6b5335', 0.36); // Đất tơi chân dốc
-      if (p % 2 === 0) {
-        drawNaturalDirtStamp(ex - ca * scale * 0.12, ez - sa * scale * 0.12, scale * 0.24, '#8c6f48', 0.4);
-      }
-      // Ngọn cỏ mọc đan xen ngay vạch giao nhau
-      ctx.strokeStyle = p % 2 === 0 ? '#497529' : '#6fa043';
-      ctx.lineWidth = 1.6;
-      for (let k = -1; k <= 1; k++) {
-        const kx = ex + k * 3.5;
-        const kz = ez + (k % 2) * 2.5;
-        ctx.beginPath();
-        ctx.moveTo(kx, kz);
-        ctx.quadraticCurveTo(kx - ca * 4, kz - sa * 4 - 4, kx - ca * 7, kz - sa * 6 - 7);
-        ctx.stroke();
-      }
-    }
+    const rad = Math.max(b.spanCols * scale, b.spanRows * scale) * 0.54;
+    drawNaturalDirtStamp(bx, bz, rad * 1.06, '#6b5335', 0.32);
   }
 
   const mainHall = buildings.find((b) => b.type === 'main_hall' && b.status !== 'destroyed');
@@ -755,8 +752,43 @@ export function createDetailedGroundTexture(
   return tex;
 }
 
+let cachedMeadowBumpTex: THREE.CanvasTexture | null = null;
+export function getMeadowBumpTexture(): THREE.CanvasTexture {
+  if (cachedMeadowBumpTex) return cachedMeadowBumpTex;
+  const size = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    ctx.fillStyle = '#787878';
+    ctx.fillRect(0, 0, size, size);
+    ctx.lineCap = 'round';
+    for (let i = 0; i < 1600; i++) {
+      const rx = (((Math.sin(i * 41.23) * 29381.5) % 1) + 1) % 1;
+      const ry = (((Math.sin(i * 83.67) * 29381.5) % 1) + 1) % 1;
+      const bx = rx * size;
+      const by = ry * size;
+      const lean = ((i % 5) - 2) * 1.1;
+      const h = 3 + (i % 4);
+      ctx.strokeStyle = i % 2 === 0 ? 'rgba(255,255,255,0.28)' : 'rgba(20,20,20,0.22)';
+      ctx.lineWidth = 1.1;
+      ctx.beginPath();
+      ctx.moveTo(bx, by);
+      ctx.lineTo(bx + lean, by - h);
+      ctx.stroke();
+    }
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(14, 14);
+  cachedMeadowBumpTex = tex;
+  return tex;
+}
+
 /**
- * Tạo lớp cụm ngọn cỏ 3D gộp (merged mesh - chỉ 2 draw calls) rải trên thảm cỏ ngoài công trình & lối đi
+ * Tạo lớp cụm ngọn cỏ 3D mảnh tự nhiên (merged mesh - chỉ 2 draw calls) rải trên thảm cỏ ngoài công trình
  */
 export function createMeadowGrassTuftsGroup(gridSize: number, buildings: BaseBuilding[]): THREE.Group {
   const group = new THREE.Group();
@@ -767,32 +799,33 @@ export function createMeadowGrassTuftsGroup(gridSize: number, buildings: BaseBui
   const isInsideBuilding = (x: number, z: number) => {
     for (const b of buildings) {
       if (b.status === 'destroyed') continue;
-      const minX = b.col - half - 0.35;
-      const maxX = b.col + b.spanCols - half + 0.35;
-      const minZ = b.row - half - 0.35;
-      const maxZ = b.row + b.spanRows - half + 0.35;
+      const minX = b.col - half - 0.55;
+      const maxX = b.col + b.spanCols - half + 0.55;
+      const minZ = b.row - half - 0.55;
+      const maxZ = b.row + b.spanRows - half + 0.55;
       if (x >= minX && x <= maxX && z >= minZ && z <= maxZ) return true;
     }
     return false;
   };
 
-  for (let i = 0; i < 240; i++) {
+  for (let i = 0; i < 200; i++) {
     const rx = (((Math.sin(i * 19.73) * 43758.5453) % 1) + 1) % 1;
     const rz = (((Math.sin(i * 63.29) * 43758.5453) % 1) + 1) % 1;
     const gx = (rx - 0.5) * (gridSize - 1.5);
     const gz = (rz - 0.5) * (gridSize - 1.5);
     if (isInsideBuilding(gx, gz)) continue;
 
-    for (let b = 0; b < 3; b++) {
-      const ang = (i * 2.1 + b * 2.09) % (Math.PI * 2);
-      const dist = b === 0 ? 0 : 0.055;
+    const bladeCount = 5;
+    for (let b = 0; b < bladeCount; b++) {
+      const ang = (i * 2.1 + b * ((Math.PI * 2) / bladeCount)) % (Math.PI * 2);
+      const dist = b === 0 ? 0 : 0.042;
       const bx = gx + Math.cos(ang) * dist;
       const bz = gz + Math.sin(ang) * dist;
-      const bh = 0.075 + ((i + b) % 3) * 0.03;
-      const blade = cone(0.024, bh, 4, 0, 0, 0);
-      blade.rotateX(Math.sin(ang) * 0.28);
-      blade.rotateZ(Math.cos(ang) * 0.28);
-      blade.translate(bx, bh * 0.45, bz);
+      const bh = 0.055 + ((i + b) % 4) * 0.018;
+      const blade = cone(0.012, bh, 3, 0, 0, 0);
+      blade.rotateX(Math.sin(ang) * 0.34);
+      blade.rotateZ(Math.cos(ang) * 0.34);
+      blade.translate(bx, bh * 0.42, bz);
       if ((i + b) % 2 === 0) lushBlades.push(blade);
       else youngBlades.push(blade);
     }
@@ -1420,78 +1453,6 @@ function getBuildingParts(
     else buckets.set(m, [g]);
   };
 
-  // Chi tiết chỗ giao nhau từ thảm cỏ bò lên sườn ụ đất nền (vạt cỏ lan, cụm ngọn cỏ 3D, mô đất & sỏi nhỏ)
-  const addMoundGrassTransition = (
-    w: number,
-    d: number,
-    h: number,
-    seed: number,
-    frontGapHalf = 0
-  ) => {
-    const hw = w * 0.49;
-    const hd = d * 0.49;
-    const perim = 2 * (w + d);
-    const count = Math.max(12, Math.round(perim * 2.4));
-
-    for (let i = 0; i < count; i++) {
-      const s = seed * 37.1 + i * 19.3;
-      const t = i / count;
-      const ang = t * Math.PI * 2;
-      const ca = Math.cos(ang);
-      const sa = Math.sin(ang);
-      const maxC = Math.max(Math.abs(ca), Math.abs(sa), 0.001);
-      let px = (ca / maxC) * hw;
-      let pz = (sa / maxC) * hd;
-
-      // Chừa lối cổng/bậc thang phía trước (+Z) nếu có
-      if (frontGapHalf > 0 && pz > hd * 0.75 && Math.abs(px) < frontGapHalf) {
-        continue;
-      }
-
-      const jit = (Math.sin(s) * 0.5 + Math.cos(s * 1.7) * 0.5) * 0.09;
-      px += ca * jit;
-      pz += sa * jit;
-
-      // 1. Vạt cỏ mỏng bò thoai thoải từ mặt đất lên sườn ụ đất
-      const turfW = 0.24 + (i % 3) * 0.07;
-      const turfD = 0.18 + ((i + 1) % 3) * 0.06;
-      const turfH = Math.min(0.06, h * 0.48);
-      const turf = createOrganicEarthMound(turfW, turfD, turfH, s);
-      turf.rotateY(ang + 0.3);
-      // Nghiêng nhẹ theo sườn dốc ụ đất
-      turf.rotateX(-sa * 0.22);
-      turf.rotateZ(ca * 0.22);
-      turf.translate(px, 0.004, pz);
-      push(i % 2 === 0 ? 'riceLush' : 'riceYoung', turf);
-
-      // 2. Cụm 3 ngọn cỏ 3D mọc đan xen ngay mép giao nhau
-      for (let b = 0; b < 3; b++) {
-        const bs = s + b * 7.1;
-        const bAng = ang + (b - 1) * 0.9;
-        const bDist = 0.04 + (b % 2) * 0.04;
-        const bx = px + Math.cos(bAng) * bDist;
-        const bz = pz + Math.sin(bAng) * bDist;
-        const bh = 0.08 + ((i + b) % 3) * 0.035;
-        const blade = cone(0.022, bh, 4, 0, 0, 0);
-        blade.rotateX(Math.sin(bs) * 0.32);
-        blade.rotateZ(Math.cos(bs) * 0.32);
-        blade.translate(bx, bh * 0.45 + 0.015, bz);
-        push((i + b) % 2 === 0 ? 'riceLush' : 'riceYoung', blade);
-      }
-
-      // 3. Mô đất nhỏ & viên sỏi lấm tấm xen giữa bụi cỏ chân gò
-      if (i % 3 === 0) {
-        const clod = createOrganicEarthMound(0.16, 0.14, 0.045, s + 3.3);
-        clod.translate(px + ca * 0.05, 0.005, pz + sa * 0.05);
-        push(i % 6 === 0 ? 'earth' : 'earthDark', clod);
-      } else if (i % 4 === 1) {
-        const pebble = sphere(0.032 + (i % 2) * 0.012, px + ca * 0.04, 0.022, pz + sa * 0.04);
-        pebble.scale(1.2, 0.65, 1.0);
-        push('stoneDark', pebble);
-      }
-    }
-  };
-
   switch (type) {
     case 'main_hall': {
       const addBambooPole = (
@@ -1631,7 +1592,6 @@ function getBuildingParts(
       const moundTop = createOrganicEarthMound(4.48, 4.48, 0.16, 4.7);
       moundTop.translate(0, 0.21, 0);
       push('earth', moundTop);
-      addMoundGrassTransition(4.92, 4.92, 0.14, 4.7, 0.72);
 
       // Bậc tam cấp trước ghép từ các phiến đá đa giác méo khít nhau
       for (let st = 0; st < 3; st++) {
@@ -2062,7 +2022,6 @@ function getBuildingParts(
     case 'farm': {
       // 5x5 Ruộng bậc thang / ruộng nước thấp trũng + luống lúa non + chòi canh + lu nước + cuốc cào
       push('earthDark', createOrganicEarthMound(4.82, 4.82, 0.14, 1.3));
-      addMoundGrassTransition(4.82, 4.82, 0.14, 1.3);
       push('water', box(4.45, 0.08, 4.45, 0, 0.13, 0));
       // Bờ ruộng chia ô
       push('earth', createOrganicEarthMound(4.55, 0.22, 0.14, 2.7).translate(0, 0.09, -0.1));
@@ -2098,7 +2057,6 @@ function getBuildingParts(
     case 'forge': {
       // 3x3 Nhà nhỏ mái tranh, vách hở thoát nhiệt, bếp lò đỏ lửa, ống khói đất nện, đe sắt, búa, giá vũ khí, than củi
       push('earthDark', createOrganicEarthMound(2.82, 2.82, 0.14, 6.2));
-      addMoundGrassTransition(2.82, 2.82, 0.14, 6.2);
       // 4 cột gỗ vách hở
       for (const [cx, cz] of [[-1.0, -1.0], [0.55, -1.0], [-1.0, 0.65], [0.55, 0.65]]) {
         push('woodDark', cyl(0.06, 0.07, 1.0, 6, cx, 0.64, cz));
@@ -2129,7 +2087,6 @@ function getBuildingParts(
     case 'food_storage': {
       // 3x3 Kho lương sàn cao chống ẩm, vách gỗ kín mít, mái tranh, thang gỗ nhỏ, bao tải gai xung quanh
       push('earthDark', createOrganicEarthMound(2.78, 2.78, 0.12, 8.4));
-      addMoundGrassTransition(2.78, 2.78, 0.12, 8.4, 0.35);
       // Cột chống ẩm
       for (const [cx, cz] of [[-0.85, -0.85], [0.85, -0.85], [-0.85, 0.85], [0.85, 0.85]]) {
         push('woodDark', cyl(0.08, 0.09, 0.42, 6, cx, 0.32, cz));
@@ -2160,7 +2117,6 @@ function getBuildingParts(
     case 'armory': {
       // 3x3 Kho Bạc & Quân Nhu kiên cố nhất: tường đá dày, cửa gỗ lim gia cố sắt, có lính canh ở cửa
       push('stoneDark', box(2.8, 0.2, 2.8, 0, 0.1, 0));
-      addMoundGrassTransition(2.82, 2.82, 0.14, 10.1, 0.45);
       push('stone', box(2.15, 1.05 + tier * 0.08, 2.05, 0, 0.72 + tier * 0.04, 0));
       push('stoneDark', box(2.28, 0.2, 2.18, 0, 1.32 + tier * 0.08, 0));
       // Cửa gỗ lim gia cố đai sắt
@@ -2180,7 +2136,6 @@ function getBuildingParts(
 
     case 'house': {
       push('earthDark', createOrganicEarthMound(1.74, 1.74, 0.1, 11.2));
-      addMoundGrassTransition(1.74, 1.74, 0.1, 11.2, 0.25);
       push('wood', box(1.15, 0.56, 1.05, 0, 0.38, 0));
       push('woodDark', box(0.32, 0.42, 0.08, 0, 0.31, 0.53));
       push('thatch', cone(1.02, 0.55, 4, 0, 0.94, 0, Math.PI / 4));
@@ -2193,7 +2148,6 @@ function getBuildingParts(
       // 1. Nền bãi đất nện hữu cơ 5x5 dốc thoải tự nhiên ở viền & lồi lõm vi mô trên mặt sân
       push('earthDark', createOrganicEarthMound(4.86, 4.86, 0.055, 14.3));
       push('earth', createOrganicEarthMound(4.64, 4.64, 0.068, 19.7));
-      addMoundGrassTransition(4.86, 4.86, 0.065, 14.3, 0.95);
 
       // Đá tảng chèn 4 góc bãi tập
       for (const [sx, sz] of [[-2.32, -2.32], [2.32, -2.32], [-2.32, 2.32], [2.32, 2.32]]) {
@@ -2587,7 +2541,6 @@ function getBuildingParts(
       // 2x2 Tháp gỗ cao 4 cột trụ vững chắc, sàn đứng có mái che, thang tre thả xuống, 2 lính gác trên sàn
       const h = 1.65 + tier * 0.16;
       push('earthDark', createOrganicEarthMound(1.76, 1.76, 0.14, 29.4));
-      addMoundGrassTransition(1.76, 1.76, 0.14, 29.4, 0.25);
       // 4 cột trụ gỗ vững chắc
       for (const [cx, cz] of [[-0.58, -0.58], [0.58, -0.58], [-0.58, 0.58], [0.58, 0.58]]) {
         push('woodDark', cyl(0.07, 0.09, h, 8, cx, 0.14 + h / 2, cz));
