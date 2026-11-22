@@ -14,6 +14,7 @@ import {
   createUnitGroup,
   createVietnameseTree,
   getMeadowBumpTexture,
+  updateMeadowGrassWind,
   type VietnameseTreeKind,
 } from '../../utils/region3DModels';
 import { onSoldierBaseLoaded, preloadSoldierBaseModel } from '../../utils/soldierRigLoader';
@@ -195,19 +196,19 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
     const groundTex = createDetailedGroundTexture(gridSize, layoutRef.current.buildings);
     const groundMat = new THREE.MeshStandardMaterial({
       map: groundTex,
-      bumpMap: getMeadowBumpTexture(),
-      bumpScale: 0.015,
-      roughness: 0.95,
+      normalMap: getMeadowBumpTexture(),
+      normalScale: new THREE.Vector2(0.55, 0.55),
+      roughness: 0.96,
     });
     const groundPlane = new THREE.Mesh(groundGeo, groundMat);
     groundPlane.receiveShadow = true;
     scene.add(groundPlane);
 
-    // Lưới kẻ mờ
-    const gridHelper = new THREE.GridHelper(gridSize, gridSize, 0x4b6a37, 0x567840);
-    gridHelper.position.y = 0.015;
+    // Lưới kẻ siêu mờ để không phá vỡ cảm giác thảm cỏ tự nhiên
+    const gridHelper = new THREE.GridHelper(gridSize, gridSize, 0x3b5428, 0x456330);
+    gridHelper.position.y = 0.012;
     (gridHelper.material as THREE.Material).transparent = true;
-    (gridHelper.material as THREE.Material).opacity = 0.28;
+    (gridHelper.material as THREE.Material).opacity = 0.07;
     scene.add(gridHelper);
 
     const envGroup = new THREE.Group();
@@ -871,6 +872,7 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
       controls.update();
 
       const t = now * 0.002;
+      updateMeadowGrassWind(t);
       for (const flag of animatedFlags) {
         const pos = flag.geometry.getAttribute('position');
         const fw = (flag.geometry.userData.flagWidth as number | undefined) ?? 1.22;
