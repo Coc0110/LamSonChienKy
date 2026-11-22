@@ -766,12 +766,12 @@ export function createDetailedGroundTexture(
   const roadGrid = buildRoadGrid(gridSize, buildings);
   const { macro: macroLUT, med: medLUT, fine: fineLUT } = getGroundNoiseLUTs();
 
-  // Tính sẵn trường khoảng cách đường đất bằng 2-pass Chamfer O(N) (< 2ms)
+  // Tính sẵn trường khoảng cách đường đất bằng 2-pass Chamfer O(N) (< 2ms), nối liền các ô đường kề nhau
   const totalPx = size * size;
   const roadDist = new Float32Array(totalPx);
   roadDist.fill(999);
   const pxPerCell = size / gridSize;
-  const halfCore = 0.24 * pxPerCell;
+  const halfCore = 0.22 * pxPerCell;
   for (let py = 0; py < size; py++) {
     const wz = (py / size) * gridSize;
     const r = Math.min(gridSize - 1, Math.floor(wz));
@@ -779,9 +779,19 @@ export function createDetailedGroundTexture(
       const wx = (px / size) * gridSize;
       const c = Math.min(gridSize - 1, Math.floor(wx));
       if (roadGrid[r * gridSize + c] === 1) {
-        const dx = Math.abs(px - (c + 0.5) * pxPerCell);
-        const dz = Math.abs(py - (r + 0.5) * pxPerCell);
-        if (dx <= halfCore && dz <= halfCore) {
+        const dx = px - (c + 0.5) * pxPerCell;
+        const dz = py - (r + 0.5) * pxPerCell;
+        const adx = Math.abs(dx);
+        const adz = Math.abs(dz);
+        const hasN = r > 0 && roadGrid[(r - 1) * gridSize + c] === 1;
+        const hasS = r < gridSize - 1 && roadGrid[(r + 1) * gridSize + c] === 1;
+        const hasW = c > 0 && roadGrid[r * gridSize + (c - 1)] === 1;
+        const hasE = c < gridSize - 1 && roadGrid[r * gridSize + (c + 1)] === 1;
+        if (
+          (adx <= halfCore && adz <= halfCore) ||
+          (adx <= halfCore && ((dz < 0 && hasN) || (dz > 0 && hasS))) ||
+          (adz <= halfCore && ((dx < 0 && hasW) || (dx > 0 && hasE)))
+        ) {
           roadDist[py * size + px] = 0;
         }
       }
@@ -882,11 +892,11 @@ export function createDetailedGroundTexture(
       g += grain * 1.1;
       b += grain * 0.55;
 
-      // 2. Đường đất theo ô lưới
+      // 2. Đường đất theo ô lưới nối liền mạch
       const rDistCells = roadDist[pIdx] * invPxPerCell;
-      if (rDistCells < 0.44) {
-        const dEff = rDistCells + (med - 0.5) * 0.16 + (fine - 0.5) * 0.06;
-        const roadAlpha = Math.max(0, Math.min(1, (0.32 - dEff) / 0.18));
+      if (rDistCells < 0.36) {
+        const dEff = rDistCells + (med - 0.5) * 0.1 + (fine - 0.5) * 0.04;
+        const roadAlpha = Math.max(0, Math.min(1, (0.24 - dEff) / 0.14));
         if (roadAlpha > 0.001) {
           const centerBright = Math.max(0, 1 - dEff * 3.2);
           const pebble = fine > 0.84 ? 16 : fine < 0.14 ? -14 : 0;
@@ -2616,42 +2626,69 @@ function getBuildingParts(
     }
 
     case 'wall': {
-      // 1x1 Tường rào gỗ lim / tre già vót nhọn, bện dây mây, tự động kết nối liền mạch (wallMask: N=1, S=2, E=4, W=8)
-      const stakeMat: MaterialKey = tier >= 3 ? 'woodDark' : 'bamboo';
-      const stakeH = 0.78 + tier * 0.08;
-      // Mô đất chân cọc
-      push('earthDark', createOrganicEarthMound(0.95, 0.95, 0.14, 21.5 + wallMask));
-      // Cụm cọc tre/gỗ vót nhọn ở tâm
-      for (const [sx, sz] of [[-0.22, 0], [0, 0], [0.22, 0], [0, -0.22], [0, 0.22]]) {
-        push(stakeMat, cyl(0.08, 0.09, stakeH, 6, sx, stakeH / 2 + 0.08, sz));
-        push(stakeMat, cone(0.08, 0.2, 6, sx, stakeH + 0.18, sz));
-      }
-      // Dây mây bện ngang
-      push('bambooDry', box(0.65, 0.07, 0.24, 0, stakeH * 0.65, 0));
+      // 1x1 Lũy tre làng chuẩn mẫu cây tre (đốt tre, mặt cắt rỗng, thanh giằng tre ngang) nối liền mạch theo wallMask
+      const poleH = 0.84 + tier * 0.07;
+      push('earthDark', createOrganicEarthMound(0.95, 0.95, 0.12, 21.5 + wallMask));
 
-      // Kết nối sang Bắc (row - 1 => z < 0)
-      if (wallMask & 1) {
-        push(stakeMat, cyl(0.08, 0.09, stakeH, 6, 0, stakeH / 2 + 0.08, -0.4));
-        push(stakeMat, cone(0.08, 0.2, 6, 0, stakeH + 0.18, -0.4));
-        push('bambooDry', box(0.22, 0.08, 0.5, 0, stakeH * 0.65, -0.25));
-      }
-      // Kết nối sang Nam (row + 1 => z > 0)
-      if (wallMask & 2) {
-        push(stakeMat, cyl(0.08, 0.09, stakeH, 6, 0, stakeH / 2 + 0.08, 0.4));
-        push(stakeMat, cone(0.08, 0.2, 6, 0, stakeH + 0.18, 0.4));
-        push('bambooDry', box(0.22, 0.08, 0.5, 0, stakeH * 0.65, 0.25));
-      }
-      // Kết nối sang Đông (col + 1 => x > 0)
-      if (wallMask & 4) {
-        push(stakeMat, cyl(0.08, 0.09, stakeH, 6, 0.4, stakeH / 2 + 0.08, 0));
-        push(stakeMat, cone(0.08, 0.2, 6, 0.4, stakeH + 0.18, 0));
-        push('bambooDry', box(0.5, 0.08, 0.22, 0.25, stakeH * 0.65, 0));
-      }
-      // Kết nối sang Tây (col - 1 => x < 0)
-      if (wallMask & 8) {
-        push(stakeMat, cyl(0.08, 0.09, stakeH, 6, -0.4, stakeH / 2 + 0.08, 0));
-        push(stakeMat, cone(0.08, 0.2, 6, -0.4, stakeH + 0.18, 0));
-        push('bambooDry', box(0.5, 0.08, 0.22, -0.25, stakeH * 0.65, 0));
+      const addWallBamboo = (r: number, h: number, joints: number, x: number, y: number, z: number) => {
+        push('bamboo', cyl(r, r * 1.04, h, 8, x, y + h / 2, z));
+        for (let s = 1; s <= joints; s++) {
+          const ny = y + (s / (joints + 1)) * h;
+          push('bambooDry', torus(r * 1.05, r * 0.24, 5, 10).rotateX(Math.PI / 2).translate(x, ny, z));
+        }
+        push('earthDark', cyl(r * 0.64, r * 0.64, 0.014, 7, x, y + h + 0.005, z));
+      };
+
+      // Hàng tre ở tâm (kèm biến thiên chiều cao nhẹ tự nhiên)
+      addWallBamboo(0.045, poleH, 4, 0, 0.1, 0);
+      if (wallMask === 0) {
+        for (const [bx, bz, bh] of [[-0.16, 0, 0.96], [0.16, 0, 0.98], [0, -0.16, 0.95], [0, 0.16, 0.97]]) {
+          addWallBamboo(0.042, poleH * bh, 4, bx, 0.1, bz);
+        }
+        for (const ry of [0.38, 0.68]) {
+          push('bambooDry', cyl(0.025, 0.025, 0.52, 6, 0, 0, 0).rotateZ(Math.PI / 2).translate(0, ry, 0));
+        }
+      } else {
+        // Kết nối sang Bắc (row - 1 => z < 0)
+        if (wallMask & 1) {
+          for (const [idx, pz] of ([-0.14, -0.28, -0.42] as const).entries()) {
+            const h = poleH * (0.95 + (idx % 2) * 0.06);
+            addWallBamboo(0.043, h, 4, 0, 0.1, pz);
+          }
+          for (const ry of [0.38, 0.68]) {
+            push('bambooDry', cyl(0.024, 0.024, 0.52, 6, 0, 0, 0).rotateX(Math.PI / 2).translate(0, ry, -0.25));
+          }
+        }
+        // Kết nối sang Nam (row + 1 => z > 0)
+        if (wallMask & 2) {
+          for (const [idx, pz] of ([0.14, 0.28, 0.42] as const).entries()) {
+            const h = poleH * (0.96 + (idx % 2) * 0.05);
+            addWallBamboo(0.043, h, 4, 0, 0.1, pz);
+          }
+          for (const ry of [0.38, 0.68]) {
+            push('bambooDry', cyl(0.024, 0.024, 0.52, 6, 0, 0, 0).rotateX(Math.PI / 2).translate(0, ry, 0.25));
+          }
+        }
+        // Kết nối sang Đông (col + 1 => x > 0)
+        if (wallMask & 4) {
+          for (const [idx, px] of ([0.14, 0.28, 0.42] as const).entries()) {
+            const h = poleH * (0.95 + (idx % 2) * 0.06);
+            addWallBamboo(0.043, h, 4, px, 0.1, 0);
+          }
+          for (const ry of [0.38, 0.68]) {
+            push('bambooDry', cyl(0.024, 0.024, 0.52, 6, 0, 0, 0).rotateZ(Math.PI / 2).translate(0.25, ry, 0));
+          }
+        }
+        // Kết nối sang Tây (col - 1 => x < 0)
+        if (wallMask & 8) {
+          for (const [idx, px] of ([-0.14, -0.28, -0.42] as const).entries()) {
+            const h = poleH * (0.96 + (idx % 2) * 0.05);
+            addWallBamboo(0.043, h, 4, px, 0.1, 0);
+          }
+          for (const ry of [0.38, 0.68]) {
+            push('bambooDry', cyl(0.024, 0.024, 0.52, 6, 0, 0, 0).rotateZ(Math.PI / 2).translate(-0.25, ry, 0));
+          }
+        }
       }
       break;
     }
