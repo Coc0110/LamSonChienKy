@@ -188,12 +188,11 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
       }
     }
 
-    // Mặt cỏ chi tiết kèm lối mòn đất nện (plane raycast duy nhất)
+    // Mặt cỏ chi tiết kèm lối mòn đất nện (plane raycast duy nhất - map được nạp 1 lần trong syncBuildings)
     const groundGeo = new THREE.PlaneGeometry(gridSize, gridSize);
     groundGeo.rotateX(-Math.PI / 2);
-    const groundTex = createDetailedGroundTexture(gridSize, layoutRef.current.buildings);
     const groundMat = new THREE.MeshStandardMaterial({
-      map: groundTex,
+      color: 0xffffff,
       normalMap: getMeadowBumpTexture(),
       normalScale: new THREE.Vector2(0.55, 0.55),
       roughness: 0.96,
@@ -366,13 +365,12 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
       const enemy = isEnemyRef.current;
       const selId = selectedBuildingIdRef.current;
 
-      // Cập nhật lối mòn đất nện trên texture mặt cỏ
+      // Cập nhật lối mòn đất nện trên texture mặt cỏ (chỉ vẽ lại khi bố cục công trình thực sự đổi)
       const nextTex = createDetailedGroundTexture(gridSize, currentLayout.buildings);
-      if (groundMat.map && groundMat.map !== nextTex) {
-        groundMat.map.dispose();
+      if (groundMat.map !== nextTex) {
+        groundMat.map = nextTex;
+        groundMat.needsUpdate = true;
       }
-      groundMat.map = nextTex;
-      groundMat.needsUpdate = true;
 
       // Xây map ô tường/cổng để tự động nối liền tường rào
       const wallOccupied = new Set<string>();
