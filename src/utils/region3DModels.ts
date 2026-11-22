@@ -2626,68 +2626,122 @@ function getBuildingParts(
     }
 
     case 'wall': {
-      // 1x1 Lũy tre làng chuẩn mẫu cây tre (đốt tre, mặt cắt rỗng, thanh giằng tre ngang) nối liền mạch theo wallMask
-      const poleH = 0.84 + tier * 0.07;
-      push('earthDark', createOrganicEarthMound(0.95, 0.95, 0.12, 21.5 + wallMask));
+      // 1x1 Lũy tre 2 lớp xếp so le dày dặn, vót nhọn vát chéo quay đỉnh cao vào giữa 2 hàng, ụ đất nối liền mạch
+      const poleH = 0.88 + tier * 0.07;
+      const rPole = 0.062;
+      const rowOff = 0.095;
 
-      const addWallBamboo = (r: number, h: number, joints: number, x: number, y: number, z: number) => {
-        push('bamboo', cyl(r, r * 1.04, h, 8, x, y + h / 2, z));
-        for (let s = 1; s <= joints; s++) {
-          const ny = y + (s / (joints + 1)) * h;
-          push('bambooDry', torus(r * 1.05, r * 0.24, 5, 10).rotateX(Math.PI / 2).translate(x, ny, z));
+      // Ụ đất chân tường nối liền mạch theo các hướng wallMask
+      push('earthDark', createOrganicEarthMound(0.76, 0.76, 0.14, 21.5 + wallMask));
+      if (wallMask & 1) {
+        push('earthDark', createOrganicEarthMound(0.72, 0.64, 0.135, 22.1).translate(0, 0, -0.26));
+      }
+      if (wallMask & 2) {
+        push('earthDark', createOrganicEarthMound(0.72, 0.64, 0.135, 22.7).translate(0, 0, 0.26));
+      }
+      if (wallMask & 4) {
+        push('earthDark', createOrganicEarthMound(0.64, 0.72, 0.135, 23.3).translate(0.26, 0, 0));
+      }
+      if (wallMask & 8) {
+        push('earthDark', createOrganicEarthMound(0.64, 0.72, 0.135, 23.9).translate(-0.26, 0, 0));
+      }
+
+      // Hàm dựng cây tre chuẩn mẫu có đốt tre + đầu vót vát chéo nhọn (inwardX, inwardZ hướng vào giữa 2 hàng)
+      const addBeveledBamboo = (
+        r: number,
+        h: number,
+        joints: number,
+        x: number,
+        y: number,
+        z: number,
+        inwardX: number,
+        inwardZ: number
+      ) => {
+        const g = new THREE.CylinderGeometry(r, r * 1.04, h, 8, 1);
+        const pos = g.getAttribute('position');
+        for (let i = 0; i < pos.count; i++) {
+          const py = pos.getY(i);
+          if (py > h * 0.25) {
+            const px = pos.getX(i);
+            const pz = pos.getZ(i);
+            const dot = px * inwardX + pz * inwardZ;
+            pos.setY(i, py + dot * 1.55);
+          }
         }
-        push('earthDark', cyl(r * 0.64, r * 0.64, 0.014, 7, x, y + h + 0.005, z));
+        pos.needsUpdate = true;
+        g.computeVertexNormals();
+        g.translate(x, y + h / 2, z);
+        push('bamboo', g);
+
+        for (let s = 1; s <= joints; s++) {
+          const ny = y + (s / (joints + 1)) * h * 0.92;
+          push('bambooDry', torus(r * 1.06, r * 0.22, 5, 10).rotateX(Math.PI / 2).translate(x, ny, z));
+        }
+
+        // Lõi rỗng vát chéo ở mặt cắt đỉnh tre
+        const cap = new THREE.CylinderGeometry(r * 0.62, r * 0.62, 0.014, 7);
+        const cPos = cap.getAttribute('position');
+        for (let i = 0; i < cPos.count; i++) {
+          const px = cPos.getX(i);
+          const pz = cPos.getZ(i);
+          cPos.setY(i, cPos.getY(i) + (px * inwardX + pz * inwardZ) * 1.55);
+        }
+        cPos.needsUpdate = true;
+        cap.computeVertexNormals();
+        cap.translate(x, y + h + 0.002, z);
+        push('earthDark', cap);
       };
 
-      // Hàng tre ở tâm (kèm biến thiên chiều cao nhẹ tự nhiên)
-      addWallBamboo(0.045, poleH, 4, 0, 0.1, 0);
+      const addStaggeredWallSpan = (axis: 'x' | 'z', start: number, end: number) => {
+        const len = Math.abs(end - start);
+        const dir = end >= start ? 1 : -1;
+        const step = 0.16;
+        const count = Math.max(2, Math.round(len / step));
+        for (let rowSide of [-1, 1] as const) {
+          const perp = rowSide * rowOff;
+          // Xếp so le giữa 2 hàng để khít vào nhau
+          const stagger = rowSide === 1 ? step * 0.5 : 0;
+          for (let i = 0; i < count; i++) {
+            const along = start + dir * (i * step + stagger);
+            if (dir > 0 ? along > end + 0.02 : along < end - 0.02) continue;
+            const h = poleH * (0.94 + ((i + (rowSide > 0 ? 1 : 0)) % 3) * 0.05);
+            if (axis === 'x') {
+              addBeveledBamboo(rPole, h, 4, along, 0.09, perp, 0, -rowSide);
+            } else {
+              addBeveledBamboo(rPole, h, 4, perp, 0.09, along, -rowSide, 0);
+            }
+          }
+          // 2 thanh giằng tre ngang buộc ngoài mỗi hàng
+          const railPerp = rowSide * (rowOff + rPole * 0.95);
+          const mid = (start + end) / 2;
+          for (const ry of [0.38, 0.68]) {
+            if (axis === 'x') {
+              push('bambooDry', cyl(0.024, 0.024, len + 0.06, 6, 0, 0, 0).rotateZ(Math.PI / 2).translate(mid, ry, railPerp));
+            } else {
+              push('bambooDry', cyl(0.024, 0.024, len + 0.06, 6, 0, 0, 0).rotateX(Math.PI / 2).translate(railPerp, ry, mid));
+            }
+          }
+        }
+      };
+
       if (wallMask === 0) {
-        for (const [bx, bz, bh] of [[-0.16, 0, 0.96], [0.16, 0, 0.98], [0, -0.16, 0.95], [0, 0.16, 0.97]]) {
-          addWallBamboo(0.042, poleH * bh, 4, bx, 0.1, bz);
-        }
-        for (const ry of [0.38, 0.68]) {
-          push('bambooDry', cyl(0.025, 0.025, 0.52, 6, 0, 0, 0).rotateZ(Math.PI / 2).translate(0, ry, 0));
-        }
+        addStaggeredWallSpan('x', -0.34, 0.34);
       } else {
-        // Kết nối sang Bắc (row - 1 => z < 0)
-        if (wallMask & 1) {
-          for (const [idx, pz] of ([-0.14, -0.28, -0.42] as const).entries()) {
-            const h = poleH * (0.95 + (idx % 2) * 0.06);
-            addWallBamboo(0.043, h, 4, 0, 0.1, pz);
-          }
-          for (const ry of [0.38, 0.68]) {
-            push('bambooDry', cyl(0.024, 0.024, 0.52, 6, 0, 0, 0).rotateX(Math.PI / 2).translate(0, ry, -0.25));
-          }
+        const hasN = (wallMask & 1) !== 0;
+        const hasS = (wallMask & 2) !== 0;
+        const hasE = (wallMask & 4) !== 0;
+        const hasW = (wallMask & 8) !== 0;
+        if (hasE && hasW) {
+          addStaggeredWallSpan('x', -0.46, 0.46);
+        } else {
+          if (hasW) addStaggeredWallSpan('x', -0.46, 0.04);
+          if (hasE) addStaggeredWallSpan('x', -0.04, 0.46);
         }
-        // Kết nối sang Nam (row + 1 => z > 0)
-        if (wallMask & 2) {
-          for (const [idx, pz] of ([0.14, 0.28, 0.42] as const).entries()) {
-            const h = poleH * (0.96 + (idx % 2) * 0.05);
-            addWallBamboo(0.043, h, 4, 0, 0.1, pz);
-          }
-          for (const ry of [0.38, 0.68]) {
-            push('bambooDry', cyl(0.024, 0.024, 0.52, 6, 0, 0, 0).rotateX(Math.PI / 2).translate(0, ry, 0.25));
-          }
-        }
-        // Kết nối sang Đông (col + 1 => x > 0)
-        if (wallMask & 4) {
-          for (const [idx, px] of ([0.14, 0.28, 0.42] as const).entries()) {
-            const h = poleH * (0.95 + (idx % 2) * 0.06);
-            addWallBamboo(0.043, h, 4, px, 0.1, 0);
-          }
-          for (const ry of [0.38, 0.68]) {
-            push('bambooDry', cyl(0.024, 0.024, 0.52, 6, 0, 0, 0).rotateZ(Math.PI / 2).translate(0.25, ry, 0));
-          }
-        }
-        // Kết nối sang Tây (col - 1 => x < 0)
-        if (wallMask & 8) {
-          for (const [idx, px] of ([-0.14, -0.28, -0.42] as const).entries()) {
-            const h = poleH * (0.96 + (idx % 2) * 0.05);
-            addWallBamboo(0.043, h, 4, px, 0.1, 0);
-          }
-          for (const ry of [0.38, 0.68]) {
-            push('bambooDry', cyl(0.024, 0.024, 0.52, 6, 0, 0, 0).rotateZ(Math.PI / 2).translate(-0.25, ry, 0));
-          }
+        if (hasN && hasS) {
+          addStaggeredWallSpan('z', -0.46, 0.46);
+        } else {
+          if (hasN) addStaggeredWallSpan('z', -0.46, 0.04);
+          if (hasS) addStaggeredWallSpan('z', -0.04, 0.46);
         }
       }
       break;
