@@ -1399,40 +1399,65 @@ function createSlicedHollowBambooTip(radius: number): {
   innerWall: THREE.BufferGeometry;
   hollowCore: THREE.BufferGeometry;
 } {
-  const outerR = radius * 0.86;
+  const outerR = radius * 0.98;
   const innerR = outerR * 0.62;
-  const cutH = outerR * 3.2;
+  const cutH = outerR * 3.1;
+  const segs = 12;
 
-  // Vỏ tre ngoài vạt chéo 45 độ
-  const outerGreen = new THREE.CylinderGeometry(outerR, outerR, cutH, 10, 1, true);
+  const sliceAtZ = (z: number, r: number) => ((z + r) / (2 * r)) * cutH * 0.72;
+
+  // Vỏ tre ngoài vạt chéo 45 độ (khớp khít bán kính thân tre)
+  const outerGreen = new THREE.CylinderGeometry(outerR, outerR, cutH, segs, 1, true);
   const posOut = outerGreen.getAttribute('position');
   for (let i = 0; i < posOut.count; i++) {
     const y = posOut.getY(i);
     if (y > 0) {
       const z = posOut.getZ(i);
-      const slice = ((z + outerR) / (2 * outerR)) * cutH * 0.72;
-      posOut.setY(i, y - slice);
+      posOut.setY(i, y - sliceAtZ(z, outerR));
     }
   }
   outerGreen.computeVertexNormals();
   outerGreen.translate(0, cutH / 2, 0);
 
-  // Vách trong tre màu vàng ngà lộ ra khi vạt chéo
-  const innerWall = new THREE.CylinderGeometry(innerR, innerR, cutH * 0.96, 10, 1, true);
-  const posIn = innerWall.getAttribute('position');
-  for (let i = 0; i < posIn.count; i++) {
-    const y = posIn.getY(i);
-    if (y > 0) {
-      const z = posIn.getZ(i);
-      const slice = ((z + innerR) / (2 * innerR)) * cutH * 0.7;
-      posIn.setY(i, y - slice);
-    }
+  // Vách trong tre màu vàng ngà lộ ra khi vạt chéo + mặt cắt vành nối liền vỏ ngoài và ruột trong
+  const innerPos: number[] = [];
+  const yBot = 0;
+  for (let i = 0; i < segs; i++) {
+    const a0 = (i / segs) * Math.PI * 2;
+    const a1 = ((i + 1) / segs) * Math.PI * 2;
+    const c0 = Math.cos(a0);
+    const s0 = Math.sin(a0);
+    const c1 = Math.cos(a1);
+    const s1 = Math.sin(a1);
+
+    const ox0 = outerR * s0;
+    const oz0 = outerR * c0;
+    const ox1 = outerR * s1;
+    const oz1 = outerR * c1;
+    const ix0 = innerR * s0;
+    const iz0 = innerR * c0;
+    const ix1 = innerR * s1;
+    const iz1 = innerR * c1;
+
+    const oy0 = cutH - sliceAtZ(oz0, outerR);
+    const oy1 = cutH - sliceAtZ(oz1, outerR);
+    const iy0 = cutH - sliceAtZ(iz0, outerR);
+    const iy1 = cutH - sliceAtZ(iz1, outerR);
+
+    // 1. Mặt cắt chéo nối liền mép vỏ ngoài (ox,oy,oz) với mép ruột trong (ix,iy,iz)
+    innerPos.push(ox0, oy0, oz0, ix0, iy0, iz0, ix1, iy1, iz1);
+    innerPos.push(ox0, oy0, oz0, ix1, iy1, iz1, ox1, oy1, oz1);
+
+    // 2. Mặt trong ống tre (hướng pháp tuyến vào tâm để nhìn từ trên xuống không bị ẩn)
+    innerPos.push(ix0, yBot, iz0, ix1, iy1, iz1, ix0, iy0, iz0);
+    innerPos.push(ix0, yBot, iz0, ix1, yBot, iz1, ix1, iy1, iz1);
   }
+  const innerWall = new THREE.BufferGeometry();
+  innerWall.setAttribute('position', new THREE.Float32BufferAttribute(innerPos, 3));
   innerWall.computeVertexNormals();
-  innerWall.translate(0, cutH / 2, 0);
 
   // Lõi rỗng tối màu bên trong ống tre
-  const hollowCore = new THREE.CylinderGeometry(innerR * 0.92, innerR * 0.92, cutH * 0.25, 8);
+  const hollowCore = new THREE.CylinderGeometry(innerR * 0.94, innerR * 0.94, cutH * 0.28, 8);
   hollowCore.translate(0, cutH * 0.14, 0);
 
   return { outerGreen, innerWall, hollowCore };
@@ -2696,15 +2721,16 @@ function getBuildingParts(
       const addStaggeredWallSpan = (axis: 'x' | 'z', start: number, end: number) => {
         const len = Math.abs(end - start);
         const dir = end >= start ? 1 : -1;
-        const step = 0.145;
+        // Dùng bước chia đều 1.0 / 7 = 0.14286 để cây cuối ô N nối khít cây đầu ô N+1 không bao giờ hở khe
+        const step = 1 / 7;
         const count = Math.max(2, Math.round(len / step));
         for (const rowSide of [-1, 1] as const) {
           const perp = rowSide * rowOff;
           // Xếp so le nửa bước để cây hàng đối diện lọt khít vào kẽ giữa 2 cây hàng này
           const stagger = rowSide === 1 ? step * 0.5 : 0;
           for (let i = 0; i < count; i++) {
-            const along = start + dir * (i * step + stagger);
-            if (dir > 0 ? along > end + 0.02 : along < end - 0.02) continue;
+            const along = start + dir * ((i + 0.5) * step + stagger);
+            if (dir > 0 ? along > end + 0.04 : along < end - 0.04) continue;
             const seed = variant * 131 + i * 37 + (rowSide > 0 ? 19 : 7) + (axis === 'x' ? 3 : 53);
             const h = poleH * (0.85 + hash01(seed) * 0.26);
             const r = rPole * (0.9 + hash01(seed + 1) * 0.2);
@@ -2716,37 +2742,37 @@ function getBuildingParts(
               addBeveledBamboo(r, h, joints, perp, 0.09, along + alongJit, -rowSide, 0, seed);
             }
           }
-          // 2 thanh giằng tre ngang buộc sát ngoài mỗi hàng
+          // 2 thanh giằng tre ngang buộc sát ngoài mỗi hàng (dài phủ trọn biên ô 1.02 để không hở mối nối)
           const railPerp = rowSide * (rowOff + rPole * 0.92);
           const mid = (start + end) / 2;
           for (const ry of [0.38, 0.68]) {
             if (axis === 'x') {
-              push('bambooDry', cyl(0.024, 0.024, len + 0.06, 6, 0, 0, 0).rotateZ(Math.PI / 2).translate(mid, ry, railPerp));
+              push('bambooDry', cyl(0.024, 0.024, len + 0.1, 6, 0, 0, 0).rotateZ(Math.PI / 2).translate(mid, ry, railPerp));
             } else {
-              push('bambooDry', cyl(0.024, 0.024, len + 0.06, 6, 0, 0, 0).rotateX(Math.PI / 2).translate(railPerp, ry, mid));
+              push('bambooDry', cyl(0.024, 0.024, len + 0.1, 6, 0, 0, 0).rotateX(Math.PI / 2).translate(railPerp, ry, mid));
             }
           }
         }
       };
 
       if (wallMask === 0) {
-        addStaggeredWallSpan('x', -0.34, 0.34);
+        addStaggeredWallSpan('x', -0.36, 0.36);
       } else {
         const hasN = (wallMask & 1) !== 0;
         const hasS = (wallMask & 2) !== 0;
         const hasE = (wallMask & 4) !== 0;
         const hasW = (wallMask & 8) !== 0;
         if (hasE && hasW) {
-          addStaggeredWallSpan('x', -0.46, 0.46);
+          addStaggeredWallSpan('x', -0.5, 0.5);
         } else {
-          if (hasW) addStaggeredWallSpan('x', -0.46, 0.04);
-          if (hasE) addStaggeredWallSpan('x', -0.04, 0.46);
+          if (hasW) addStaggeredWallSpan('x', -0.5, 0.06);
+          if (hasE) addStaggeredWallSpan('x', -0.06, 0.5);
         }
         if (hasN && hasS) {
-          addStaggeredWallSpan('z', -0.46, 0.46);
+          addStaggeredWallSpan('z', -0.5, 0.5);
         } else {
-          if (hasN) addStaggeredWallSpan('z', -0.46, 0.04);
-          if (hasS) addStaggeredWallSpan('z', -0.04, 0.46);
+          if (hasN) addStaggeredWallSpan('z', -0.5, 0.06);
+          if (hasS) addStaggeredWallSpan('z', -0.06, 0.5);
         }
       }
       break;
