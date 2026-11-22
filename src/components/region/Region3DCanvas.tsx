@@ -303,13 +303,31 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
     const npcsGroup = new THREE.Group();
     scene.add(npcsGroup);
 
+    interface PatrolSquadState {
+      waypoints: Array<{ x: number; z: number }>;
+      segLengths: number[];
+      totalLength: number;
+      distance: number;
+      members: Array<{
+        mesh: THREE.Group;
+        offsetRight: number;
+        offsetBack: number;
+        walkPhase: number;
+      }>;
+    }
+
     const animatedNpcs: Array<{
       mesh: THREE.Group;
-      role: 'farmer' | 'smith' | 'guard';
+      role: 'farmer' | 'smith' | 'soldier_unarmed';
       baseX: number;
       baseZ: number;
       phase: number;
+      targetX?: number;
+      targetZ?: number;
+      pauseUntil?: number;
+      walkPhase?: number;
     }> = [];
+    let patrolSquad: PatrolSquadState | null = null;
     const animatedFlags: THREE.Mesh[] = [];
 
     const syncBuildings = () => {
@@ -320,6 +338,7 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
         npcsGroup.remove(npcsGroup.children[0]);
       }
       animatedNpcs.length = 0;
+      patrolSquad = null;
       animatedFlags.length = 0;
 
       const currentLayout = layoutRef.current;
@@ -390,10 +409,6 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
             rack.position.set(cx - 1.0, 0.1, cz + 0.9);
             buildingsGroup.add(rack);
           } else if (b.type === 'main_hall') {
-            const guard = createNpcGroup('guard');
-            guard.position.set(cx, 0.02, cz + 2.75);
-            npcsGroup.add(guard);
-            animatedNpcs.push({ mesh: guard, role: 'guard', baseX: cx, baseZ: cz + 2.75, phase: 0 });
             const jar = createDecorProp('rain_jar');
             jar.position.set(cx + 2.0, 0.05, cz + 1.8);
             buildingsGroup.add(jar);
@@ -425,6 +440,99 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
           selectionRing.scale.set(radius, radius, 1);
           selectionRing.position.set(cx, 0.05, cz);
           selectionRing.visible = true;
+        }
+      }
+
+      // Tạo lộ trình tuần tra trên đường đất quanh làng & đội tuần tra 5 người + lính đi dạo không cầm giáo
+      const mainHall = currentLayout.buildings.find((b) => b.type === 'main_hall' && b.status !== 'destroyed');
+      if (mainHall) {
+        const mx = mainHall.col + mainHall.spanCols / 2 - half;
+        const mz = mainHall.row + mainHall.spanRows / 2 - half;
+        const frontZ = mz + mainHall.spanRows / 2 + 0.85;
+        const rawWaypoints: Array<{ x: number; z: number }> = [{ x: mx, z: frontZ }];
+
+        for (const b of currentLayout.buildings) {
+          if (b.id === mainHall.id || b.type === 'wall' || b.type === 'spike_trap' || b.status === 'destroyed') {
+            continue;
+          }
+          const bx = b.col + b.spanCols / 2 - half;
+          const bz = b.row + b.spanRows / 2 - half;
+          const roadZ = mz + (bz >= mz ? 0.5 : -0.5);
+          const stopZ = bz + (bz >= mz ? -b.spanRows / 2 - 0.7 : b.spanRows / 2 + 0.7);
+          rawWaypoints.push({ x: bx, z: roadZ }, { x: bx, z: stopZ }, { x: bx, z: roadZ });
+        }
+
+        if (rawWaypoints.length < 3) {
+          rawWaypoints.push(
+            { x: mx + 3.1, z: frontZ },
+            { x: mx + 3.1, z: mz - mainHall.spanRows / 2 - 0.9 },
+            { x: mx - 3.1, z: mz - mainHall.spanRows / 2 - 0.9 },
+            { x: mx - 3.1, z: frontZ }
+          );
+        }
+
+        const waypoints: Array<{ x: number; z: number }> = [];
+        for (const wp of rawWaypoints) {
+          const prev = waypoints[waypoints.length - 1];
+          if (!prev || Math.hypot(wp.x - prev.x, wp.z - prev.z) > 0.45) {
+            waypoints.push(wp);
+          }
+        }
+
+        if (waypoints.length >= 2) {
+          const segLengths: number[] = [];
+          let totalLength = 0;
+          for (let i = 0; i < waypoints.length; i++) {
+            const a = waypoints[i];
+            const b = waypoints[(i + 1) % waypoints.length];
+            const len = Math.max(0.1, Math.hypot(b.x - a.x, b.z - a.z));
+            segLengths.push(len);
+            totalLength += len;
+          }
+
+          const squadSlots = [
+            { r: 0, b: 0 },
+            { r: -0.62, b: -0.75 },
+            { r: 0.62, b: -0.75 },
+            { r: -0.45, b: -1.5 },
+            { r: 0.45, b: -1.5 },
+          ];
+          const members = squadSlots.map((slot, idx) => {
+            const m = createNpcGroup('guard');
+            m.position.set(waypoints[0].x + slot.r, 0.02, waypoints[0].z + slot.b);
+            npcsGroup.add(m);
+            return {
+              mesh: m,
+              offsetRight: slot.r,
+              offsetBack: slot.b,
+              walkPhase: idx * 0.45,
+            };
+          });
+
+          patrolSquad = { waypoints, segLengths, totalLength, distance: 0, members };
+        }
+
+        // Thêm 3 binh lính đi lang thang quanh làng (không cầm giáo)
+        const wanderCount = 3;
+        for (let i = 0; i < wanderCount; i++) {
+          const startWp = rawWaypoints[(i * 2) % rawWaypoints.length] || { x: mx, z: frontZ };
+          const sx = startWp.x + (i - 1) * 0.7;
+          const sz = startWp.z + 0.35;
+          const stroller = createNpcGroup('soldier_unarmed');
+          stroller.position.set(sx, 0.02, sz);
+          npcsGroup.add(stroller);
+          const nextWp = rawWaypoints[(i * 2 + 1) % rawWaypoints.length] || { x: mx + 1.5, z: frontZ };
+          animatedNpcs.push({
+            mesh: stroller,
+            role: 'soldier_unarmed',
+            baseX: sx,
+            baseZ: sz,
+            phase: i * 1.7,
+            targetX: nextWp.x,
+            targetZ: nextWp.z,
+            pauseUntil: 0,
+            walkPhase: i * 0.5,
+          });
         }
       }
 
@@ -598,8 +706,11 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
     window.addEventListener('resize', handleResize);
 
     let rafId = 0;
+    let lastTime = performance.now();
     const animate = (now: number) => {
       rafId = requestAnimationFrame(animate);
+      const dt = Math.min(0.05, Math.max(0.001, (now - lastTime) / 1000));
+      lastTime = now;
       controls.update();
 
       const t = now * 0.002;
@@ -614,21 +725,73 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
         pos.needsUpdate = true;
       }
 
-      for (const npc of animatedNpcs) {
-        if (npc.role === 'guard') {
-          const prevX = npc.mesh.position.x;
-          const nextX = npc.baseX + Math.sin(t * 0.28 + npc.phase) * 1.4;
-          const ds = Math.abs(nextX - prevX);
-          const dir = nextX >= prevX ? 1 : -1;
-          npc.mesh.position.x = nextX;
-          if (ds > 0.0001) {
-            npc.mesh.rotation.y = dir >= 0 ? Math.PI / 2 : -Math.PI / 2;
+      // Đội tuần tra 5 binh lính đi theo đội hình trên đường đất quanh làng
+      if (patrolSquad && patrolSquad.waypoints.length >= 2) {
+        patrolSquad.distance = (patrolSquad.distance + dt * 0.62) % patrolSquad.totalLength;
+        let rem = patrolSquad.distance;
+        let segIdx = 0;
+        while (segIdx < patrolSquad.segLengths.length - 1 && rem > patrolSquad.segLengths[segIdx]) {
+          rem -= patrolSquad.segLengths[segIdx];
+          segIdx++;
+        }
+        const a = patrolSquad.waypoints[segIdx];
+        const b = patrolSquad.waypoints[(segIdx + 1) % patrolSquad.waypoints.length];
+        const segLen = patrolSquad.segLengths[segIdx];
+        const frac = rem / segLen;
+        const leadX = a.x + (b.x - a.x) * frac;
+        const leadZ = a.z + (b.z - a.z) * frac;
+        const dirX = (b.x - a.x) / segLen;
+        const dirZ = (b.z - a.z) / segLen;
+        const rightX = -dirZ;
+        const rightZ = dirX;
+
+        for (const member of patrolSquad.members) {
+          const slotX = leadX + rightX * member.offsetRight + dirX * member.offsetBack;
+          const slotZ = leadZ + rightZ * member.offsetRight + dirZ * member.offsetBack;
+          const dx = slotX - member.mesh.position.x;
+          const dz = slotZ - member.mesh.position.z;
+          const distToSlot = Math.hypot(dx, dz);
+          const maxStep = dt * 0.75;
+          const step = Math.min(distToSlot, maxStep);
+          if (step > 0.0001 && distToSlot > 0.0001) {
+            member.mesh.position.x += (dx / distToSlot) * step;
+            member.mesh.position.z += (dz / distToSlot) * step;
+            member.mesh.rotation.y = Math.atan2(dx, dz);
           }
-          // Đồng bộ 1:1 tốc độ bàn chân chạm đất với quãng đường di chuyển ds (không lướt)
-          const walkPhase = (npc.mesh.userData.walkPhase as number | undefined) ?? 0;
-          const nextPhase = walkPhase + ds / (0.4836 * Math.max(0.3, npc.mesh.scale.x));
-          npc.mesh.userData.walkPhase = nextPhase;
-          animateSoldierWalk(npc.mesh, nextPhase, ds > 0.0001);
+          const scale = Math.max(0.3, member.mesh.scale.x);
+          member.walkPhase += step / (0.68 * scale);
+          animateSoldierWalk(member.mesh, member.walkPhase, step > 0.0001);
+        }
+      }
+
+      for (const npc of animatedNpcs) {
+        if (npc.role === 'soldier_unarmed') {
+          const tx = npc.targetX ?? npc.baseX;
+          const tz = npc.targetZ ?? npc.baseZ;
+          const dx = tx - npc.mesh.position.x;
+          const dz = tz - npc.mesh.position.z;
+          const dist = Math.hypot(dx, dz);
+          if (now < (npc.pauseUntil ?? 0)) {
+            animateSoldierWalk(npc.mesh, npc.walkPhase ?? 0, false);
+          } else if (dist < 0.08) {
+            npc.pauseUntil = now + 1800 + ((npc.phase * 700) % 1800);
+            const patrolWps = patrolSquad?.waypoints;
+            if (patrolWps && patrolWps.length > 0) {
+              const pickIdx = Math.floor((now * 0.013 + npc.phase * 3.7) % patrolWps.length);
+              const wp = patrolWps[pickIdx];
+              npc.targetX = wp.x + Math.sin(now * 0.001 + npc.phase) * 0.75;
+              npc.targetZ = wp.z + Math.cos(now * 0.001 + npc.phase) * 0.75;
+            }
+            animateSoldierWalk(npc.mesh, npc.walkPhase ?? 0, false);
+          } else {
+            const step = Math.min(dist, dt * 0.52);
+            npc.mesh.position.x += (dx / dist) * step;
+            npc.mesh.position.z += (dz / dist) * step;
+            npc.mesh.rotation.y = Math.atan2(dx, dz);
+            const scale = Math.max(0.3, npc.mesh.scale.x);
+            npc.walkPhase = (npc.walkPhase ?? 0) + step / (0.68 * scale);
+            animateSoldierWalk(npc.mesh, npc.walkPhase, true);
+          }
         } else if (npc.role === 'smith') {
           npc.mesh.rotation.x = Math.sin(t * 3.5 + npc.phase) * 0.25;
         } else {
@@ -647,7 +810,7 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
         const ds = Math.hypot(nextX - prevX, nextZ - prevZ);
         const moving = vis.isMoving || ds > 0.002;
         if (ds > 0.0001) {
-          vis.phase += ds / (0.4836 * Math.max(0.3, vis.group.scale.x));
+          vis.phase += ds / (0.68 * Math.max(0.3, vis.group.scale.x));
         }
         animateSoldierWalk(vis.group, vis.phase, moving);
       }

@@ -2199,13 +2199,14 @@ export function createDecorProp(kind: 'woodpile' | 'drying_rack' | 'bamboo_fence
 /**
  * Nhân vật NPC mini (Nông dân, Thợ rèn, Lính gác đi tuần)
  */
-export function createNpcGroup(role: 'farmer' | 'smith' | 'guard'): THREE.Group {
+export function createNpcGroup(role: 'farmer' | 'smith' | 'guard' | 'soldier_unarmed'): THREE.Group {
   if (isSoldierBaseReady()) {
-    const rigged = createRiggedLeSoldier(role, 'lam_son', role === 'guard' ? 0.44 : 0.46);
+    const scale = role === 'guard' || role === 'soldier_unarmed' ? 0.44 : 0.46;
+    const rigged = createRiggedLeSoldier(role, 'lam_son', scale);
     if (rigged) return rigged;
   }
 
-  if (role === 'guard') {
+  if (role === 'guard' || role === 'soldier_unarmed') {
     const g = createUnitGroup('spearman', 'lam_son');
     g.scale.set(0.85, 0.85, 0.85);
     return g;

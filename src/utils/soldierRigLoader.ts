@@ -9,6 +9,7 @@ export type HumanSoldierRole =
   | 'cavalry_rider'
   | 'elephant_rider'
   | 'guard'
+  | 'soldier_unarmed'
   | 'farmer'
   | 'smith';
 
@@ -691,24 +692,49 @@ export function animateRiggedSoldierWalk(
     return;
   }
 
-  const s = Math.sin(phase);
-  const c = Math.cos(phase);
-  rig.leftThigh.rotation.x = s * 0.62;
-  rig.rightThigh.rotation.x = -s * 0.62;
-  rig.leftShin.rotation.x = Math.max(0, -s) * 0.65;
-  rig.rightShin.rotation.x = Math.max(0, s) * 0.65;
+  const strideAngle = ((phase % 2) + 2) % 2;
+  const isLeftStance = strideAngle < 1;
+  const u = strideAngle % 1; // 0..1 trong một bước chân
 
-  rig.leftUpperArm.rotation.x = -s * 0.42;
-  rig.leftForearm.rotation.y = Math.max(0, s) * 0.35;
-  if (hasSpear) {
-    rig.rightUpperArm.rotation.set(-0.25 + s * 0.08, 0, -0.95);
-    rig.rightForearm.rotation.set(0, -1.15 + s * 0.06, 0);
+  // Chiều dài chân = 0.78, nửa bước = 0.34 => mỗi bước dài 0.68 đơn vị local
+  // Chân trụ lùi tuyến tính từ +0.34 về -0.34 khớp 1:1 với quãng đường tiến của nhân vật (bàn chân khóa chặt trên đất)
+  const zStance = 0.34 * (1 - 2 * u);
+  const sm = u * u * (3 - 2 * u);
+  const zSwing = -0.34 + 0.68 * sm;
+
+  const stanceThigh = -Math.asin(Math.max(-0.95, Math.min(0.95, zStance / 0.78)));
+  const stanceShin = 0.04;
+  const swingLift = Math.sin(u * Math.PI);
+  const swingThigh = -Math.asin(Math.max(-0.95, Math.min(0.95, zSwing / 0.78))) - swingLift * 0.28;
+  const swingShin = swingLift * 0.95;
+
+  if (isLeftStance) {
+    rig.leftThigh.rotation.x = stanceThigh;
+    rig.leftShin.rotation.x = stanceShin;
+    rig.rightThigh.rotation.x = swingThigh;
+    rig.rightShin.rotation.x = swingShin;
   } else {
-    rig.rightUpperArm.rotation.x = s * 0.25 - 0.18;
-    rig.rightForearm.rotation.y = -Math.max(0, -s) * 0.25;
+    rig.rightThigh.rotation.x = stanceThigh;
+    rig.rightShin.rotation.x = stanceShin;
+    rig.leftThigh.rotation.x = swingThigh;
+    rig.leftShin.rotation.x = swingShin;
   }
 
-  rig.hips.position.y = 0.78 + Math.abs(c) * 0.04;
-  rig.spine.rotation.y = s * 0.08;
-  rig.head.rotation.y = -s * 0.05;
+  // Giữ bàn chân trụ chạm đúng mặt đất y = 0 bằng cách hạ nhẹ hông ở đầu/cuối bước
+  rig.hips.position.y = Math.sqrt(Math.max(0.3, 0.78 * 0.78 - zStance * zStance));
+
+  // Đánh tay ngược nhịp chân bước
+  const armSwing = (isLeftStance ? -1 : 1) * Math.sin((u - 0.5) * Math.PI);
+  rig.leftUpperArm.rotation.x = armSwing * 0.36;
+  rig.leftForearm.rotation.y = Math.max(0, -armSwing) * 0.3;
+  if (hasSpear) {
+    rig.rightUpperArm.rotation.set(-0.25 + armSwing * 0.06, 0, -0.95);
+    rig.rightForearm.rotation.set(0, -1.15 + armSwing * 0.05, 0);
+  } else {
+    rig.rightUpperArm.rotation.x = -armSwing * 0.36;
+    rig.rightForearm.rotation.y = -Math.max(0, armSwing) * 0.3;
+  }
+
+  rig.spine.rotation.y = armSwing * 0.07;
+  rig.head.rotation.y = -armSwing * 0.04;
 }
