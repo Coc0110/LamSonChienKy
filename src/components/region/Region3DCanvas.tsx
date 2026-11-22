@@ -303,6 +303,13 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
     const npcsGroup = new THREE.Group();
     scene.add(npcsGroup);
 
+    interface BuildingAABB {
+      minX: number;
+      maxX: number;
+      minZ: number;
+      maxZ: number;
+    }
+
     interface PatrolSquadState {
       waypoints: Array<{ x: number; z: number }>;
       segLengths: number[];
@@ -322,12 +329,15 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
       baseX: number;
       baseZ: number;
       phase: number;
-      targetX?: number;
-      targetZ?: number;
+      path?: Array<{ x: number; z: number }>;
+      pathIdx?: number;
       pauseUntil?: number;
       walkPhase?: number;
     }> = [];
     let patrolSquad: PatrolSquadState | null = null;
+    let buildingAABBs: BuildingAABB[] = [];
+    let walkableSpots: Array<{ x: number; z: number }> = [];
+    let findWorldPath: (sx: number, sz: number, gx: number, gz: number) => Array<{ x: number; z: number }> = () => [];
     const animatedFlags: THREE.Mesh[] = [];
 
     const syncBuildings = () => {
@@ -339,6 +349,8 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
       }
       animatedNpcs.length = 0;
       patrolSquad = null;
+      buildingAABBs = [];
+      walkableSpots = [];
       animatedFlags.length = 0;
 
       const currentLayout = layoutRef.current;
@@ -443,41 +455,152 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
         }
       }
 
-      // Tạo lộ trình tuần tra trên đường đất quanh làng & đội tuần tra 5 người + lính đi dạo không cầm giáo
+      // Xây lưới ô vật cản & AABB công trình để binh lính đi vòng tránh công trình
+      const solidGrid: boolean[][] = Array.from({ length: gridSize }, () => Array(gridSize).fill(false));
+      for (const t of blockedTilesRef.current) {
+        if (t.col >= 0 && t.col < gridSize && t.row >= 0 && t.row < gridSize) {
+          solidGrid[t.row][t.col] = true;
+        }
+      }
+      for (const b of currentLayout.buildings) {
+        if (b.status === 'destroyed' || b.type === 'spike_trap') continue;
+        buildingAABBs.push({
+          minX: b.col - half,
+          maxX: b.col + b.spanCols - half,
+          minZ: b.row - half,
+          maxZ: b.row + b.spanRows - half,
+        });
+        for (let r = b.row; r < b.row + b.spanRows; r++) {
+          for (let c = b.col; c < b.col + b.spanCols; c++) {
+            if (r >= 0 && r < gridSize && c >= 0 && c < gridSize) {
+              solidGrid[r][c] = true;
+            }
+          }
+        }
+      }
+
+      const isCellFree = (c: number, r: number) =>
+        c >= 1 && c < gridSize - 1 && r >= 1 && r < gridSize - 1 && !solidGrid[r][c];
+
+      const nearestFreeCell = (col: number, row: number): { c: number; r: number } | null => {
+        const sc = Math.max(1, Math.min(gridSize - 2, Math.round(col)));
+        const sr = Math.max(1, Math.min(gridSize - 2, Math.round(row)));
+        if (isCellFree(sc, sr)) return { c: sc, r: sr };
+        for (let rad = 1; rad <= 6; rad++) {
+          for (let dr = -rad; dr <= rad; dr++) {
+            for (let dc = -rad; dc <= rad; dc++) {
+              if (Math.abs(dr) !== rad && Math.abs(dc) !== rad) continue;
+              if (isCellFree(sc + dc, sr + dr)) return { c: sc + dc, r: sr + dr };
+            }
+          }
+        }
+        return null;
+      };
+
+      findWorldPath = (sx: number, sz: number, gx: number, gz: number) => {
+        const start = nearestFreeCell(sx + half - 0.5, sz + half - 0.5);
+        const goal = nearestFreeCell(gx + half - 0.5, gz + half - 0.5);
+        if (!start || !goal) return [];
+        if (start.c === goal.c && start.r === goal.r) {
+          return [{ x: goal.c + 0.5 - half, z: goal.r + 0.5 - half }];
+        }
+
+        const total = gridSize * gridSize;
+        const parent = new Int32Array(total).fill(-1);
+        const visited = new Uint8Array(total);
+        const queue: number[] = [];
+        const startIdx = start.r * gridSize + start.c;
+        const goalIdx = goal.r * gridSize + goal.c;
+        visited[startIdx] = 1;
+        queue.push(startIdx);
+
+        const dirs = [
+          [1, 0],
+          [-1, 0],
+          [0, 1],
+          [0, -1],
+          [1, 1],
+          [1, -1],
+          [-1, 1],
+          [-1, -1],
+        ];
+        let head = 0;
+        let found = false;
+        while (head < queue.length) {
+          const cur = queue[head++];
+          if (cur === goalIdx) {
+            found = true;
+            break;
+          }
+          const cr = Math.floor(cur / gridSize);
+          const cc = cur % gridSize;
+          for (const [dc, dr] of dirs) {
+            const nc = cc + dc;
+            const nr = cr + dr;
+            if (!isCellFree(nc, nr)) continue;
+            if (dc !== 0 && dr !== 0 && (!isCellFree(cc + dc, cr) || !isCellFree(cc, cr + dr))) continue;
+            const nIdx = nr * gridSize + nc;
+            if (visited[nIdx]) continue;
+            visited[nIdx] = 1;
+            parent[nIdx] = cur;
+            queue.push(nIdx);
+          }
+        }
+        if (!found) return [];
+
+        const pts: Array<{ x: number; z: number }> = [];
+        let cur = goalIdx;
+        while (cur !== -1 && cur !== startIdx) {
+          const cr = Math.floor(cur / gridSize);
+          const cc = cur % gridSize;
+          pts.push({ x: cc + 0.5 - half, z: cr + 0.5 - half });
+          cur = parent[cur];
+        }
+        pts.reverse();
+        return pts;
+      };
+
+      // Tạo lộ trình tuần tra trên đường đất quanh làng (tránh hoàn toàn công trình)
       const mainHall = currentLayout.buildings.find((b) => b.type === 'main_hall' && b.status !== 'destroyed');
       if (mainHall) {
-        const mx = mainHall.col + mainHall.spanCols / 2 - half;
-        const mz = mainHall.row + mainHall.spanRows / 2 - half;
-        const frontZ = mz + mainHall.spanRows / 2 + 0.85;
-        const rawWaypoints: Array<{ x: number; z: number }> = [{ x: mx, z: frontZ }];
+        const anchors: Array<{ x: number; z: number }> = [];
+        const mhFront = nearestFreeCell(mainHall.col + mainHall.spanCols / 2, mainHall.row + mainHall.spanRows + 0.5);
+        if (mhFront) anchors.push({ x: mhFront.c + 0.5 - half, z: mhFront.r + 0.5 - half });
 
         for (const b of currentLayout.buildings) {
           if (b.id === mainHall.id || b.type === 'wall' || b.type === 'spike_trap' || b.status === 'destroyed') {
             continue;
           }
-          const bx = b.col + b.spanCols / 2 - half;
-          const bz = b.row + b.spanRows / 2 - half;
-          const roadZ = mz + (bz >= mz ? 0.5 : -0.5);
-          const stopZ = bz + (bz >= mz ? -b.spanRows / 2 - 0.7 : b.spanRows / 2 + 0.7);
-          rawWaypoints.push({ x: bx, z: roadZ }, { x: bx, z: stopZ }, { x: bx, z: roadZ });
+          const near = nearestFreeCell(b.col + b.spanCols / 2, b.row + b.spanRows + 0.5);
+          if (near) anchors.push({ x: near.c + 0.5 - half, z: near.r + 0.5 - half });
         }
 
-        if (rawWaypoints.length < 3) {
-          rawWaypoints.push(
-            { x: mx + 3.1, z: frontZ },
-            { x: mx + 3.1, z: mz - mainHall.spanRows / 2 - 0.9 },
-            { x: mx - 3.1, z: mz - mainHall.spanRows / 2 - 0.9 },
-            { x: mx - 3.1, z: frontZ }
-          );
+        if (anchors.length < 2) {
+          const corners = [
+            [mainHall.col + mainHall.spanCols + 1, mainHall.row + mainHall.spanRows + 1],
+            [mainHall.col + mainHall.spanCols + 1, mainHall.row - 2],
+            [mainHall.col - 2, mainHall.row - 2],
+            [mainHall.col - 2, mainHall.row + mainHall.spanRows + 1],
+          ];
+          for (const [cc, rr] of corners) {
+            const p = nearestFreeCell(cc, rr);
+            if (p) anchors.push({ x: p.c + 0.5 - half, z: p.r + 0.5 - half });
+          }
         }
 
         const waypoints: Array<{ x: number; z: number }> = [];
-        for (const wp of rawWaypoints) {
-          const prev = waypoints[waypoints.length - 1];
-          if (!prev || Math.hypot(wp.x - prev.x, wp.z - prev.z) > 0.45) {
-            waypoints.push(wp);
+        for (let i = 0; i < anchors.length; i++) {
+          const from = anchors[i];
+          const to = anchors[(i + 1) % anchors.length];
+          const seg = findWorldPath(from.x, from.z, to.x, to.z);
+          for (const pt of seg) {
+            const prev = waypoints[waypoints.length - 1];
+            if (!prev || Math.hypot(pt.x - prev.x, pt.z - prev.z) > 0.2) {
+              waypoints.push(pt);
+            }
           }
         }
+        walkableSpots = waypoints.length > 0 ? waypoints : anchors;
 
         if (waypoints.length >= 2) {
           const segLengths: number[] = [];
@@ -492,14 +615,14 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
 
           const squadSlots = [
             { r: 0, b: 0 },
-            { r: -0.62, b: -0.75 },
-            { r: 0.62, b: -0.75 },
-            { r: -0.45, b: -1.5 },
-            { r: 0.45, b: -1.5 },
+            { r: -0.72, b: -0.85 },
+            { r: 0.72, b: -0.85 },
+            { r: -0.5, b: -1.7 },
+            { r: 0.5, b: -1.7 },
           ];
           const members = squadSlots.map((slot, idx) => {
             const m = createNpcGroup('guard');
-            m.position.set(waypoints[0].x + slot.r, 0.02, waypoints[0].z + slot.b);
+            m.position.set(waypoints[0].x + slot.r * 0.4, 0.02, waypoints[0].z);
             npcsGroup.add(m);
             return {
               mesh: m,
@@ -512,24 +635,22 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
           patrolSquad = { waypoints, segLengths, totalLength, distance: 0, members };
         }
 
-        // Thêm 3 binh lính đi lang thang quanh làng (không cầm giáo)
+        // Thêm 3 binh lính đi lang thang quanh làng (không cầm giáo, tìm đường tránh công trình)
         const wanderCount = 3;
         for (let i = 0; i < wanderCount; i++) {
-          const startWp = rawWaypoints[(i * 2) % rawWaypoints.length] || { x: mx, z: frontZ };
-          const sx = startWp.x + (i - 1) * 0.7;
-          const sz = startWp.z + 0.35;
+          const startWp = walkableSpots[(i * 3) % walkableSpots.length] || { x: 0, z: 0 };
+          const goalWp = walkableSpots[(i * 3 + 5) % walkableSpots.length] || startWp;
           const stroller = createNpcGroup('soldier_unarmed');
-          stroller.position.set(sx, 0.02, sz);
+          stroller.position.set(startWp.x, 0.02, startWp.z);
           npcsGroup.add(stroller);
-          const nextWp = rawWaypoints[(i * 2 + 1) % rawWaypoints.length] || { x: mx + 1.5, z: frontZ };
           animatedNpcs.push({
             mesh: stroller,
             role: 'soldier_unarmed',
-            baseX: sx,
-            baseZ: sz,
+            baseX: startWp.x,
+            baseZ: startWp.z,
             phase: i * 1.7,
-            targetX: nextWp.x,
-            targetZ: nextWp.z,
+            path: findWorldPath(startWp.x, startWp.z, goalWp.x, goalWp.z),
+            pathIdx: 0,
             pauseUntil: 0,
             walkPhase: i * 0.5,
           });
@@ -725,6 +846,36 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
         pos.needsUpdate = true;
       }
 
+      const pushOutOfBuildings = (pos: THREE.Vector3, radius: number) => {
+        for (const box of buildingAABBs) {
+          const nearX = Math.max(box.minX, Math.min(box.maxX, pos.x));
+          const nearZ = Math.max(box.minZ, Math.min(box.maxZ, pos.z));
+          const dx = pos.x - nearX;
+          const dz = pos.z - nearZ;
+          const dSq = dx * dx + dz * dz;
+          if (dSq < radius * radius) {
+            if (dSq > 1e-6) {
+              const d = Math.sqrt(dSq);
+              pos.x = nearX + (dx / d) * radius;
+              pos.z = nearZ + (dz / d) * radius;
+            } else {
+              // Bên trong AABB: đẩy ra cạnh gần nhất
+              const dL = Math.abs(pos.x - box.minX);
+              const dR = Math.abs(box.maxX - pos.x);
+              const dT = Math.abs(pos.z - box.minZ);
+              const dB = Math.abs(box.maxZ - pos.z);
+              const m = Math.min(dL, dR, dT, dB);
+              if (m === dL) pos.x = box.minX - radius;
+              else if (m === dR) pos.x = box.maxX + radius;
+              else if (m === dT) pos.z = box.minZ - radius;
+              else pos.z = box.maxZ + radius;
+            }
+          }
+        }
+      };
+
+      const movingSoldiers: THREE.Group[] = [];
+
       // Đội tuần tra 5 binh lính đi theo đội hình trên đường đất quanh làng
       if (patrolSquad && patrolSquad.waypoints.length >= 2) {
         patrolSquad.distance = (patrolSquad.distance + dt * 0.62) % patrolSquad.totalLength;
@@ -758,6 +909,8 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
             member.mesh.position.z += (dz / distToSlot) * step;
             member.mesh.rotation.y = Math.atan2(dx, dz);
           }
+          pushOutOfBuildings(member.mesh.position, 0.36);
+          movingSoldiers.push(member.mesh);
           const scale = Math.max(0.3, member.mesh.scale.x);
           member.walkPhase += step / (0.68 * scale);
           animateSoldierWalk(member.mesh, member.walkPhase, step > 0.0001);
@@ -766,37 +919,72 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
 
       for (const npc of animatedNpcs) {
         if (npc.role === 'soldier_unarmed') {
-          const tx = npc.targetX ?? npc.baseX;
-          const tz = npc.targetZ ?? npc.baseZ;
-          const dx = tx - npc.mesh.position.x;
-          const dz = tz - npc.mesh.position.z;
-          const dist = Math.hypot(dx, dz);
           if (now < (npc.pauseUntil ?? 0)) {
             animateSoldierWalk(npc.mesh, npc.walkPhase ?? 0, false);
-          } else if (dist < 0.08) {
+            movingSoldiers.push(npc.mesh);
+            continue;
+          }
+          const path = npc.path ?? [];
+          let idx = npc.pathIdx ?? 0;
+          if (idx >= path.length) {
             npc.pauseUntil = now + 1800 + ((npc.phase * 700) % 1800);
-            const patrolWps = patrolSquad?.waypoints;
-            if (patrolWps && patrolWps.length > 0) {
-              const pickIdx = Math.floor((now * 0.013 + npc.phase * 3.7) % patrolWps.length);
-              const wp = patrolWps[pickIdx];
-              npc.targetX = wp.x + Math.sin(now * 0.001 + npc.phase) * 0.75;
-              npc.targetZ = wp.z + Math.cos(now * 0.001 + npc.phase) * 0.75;
+            if (walkableSpots.length > 0) {
+              const pickIdx = Math.floor((now * 0.017 + npc.phase * 5.3) % walkableSpots.length);
+              const goal = walkableSpots[pickIdx];
+              npc.path = findWorldPath(npc.mesh.position.x, npc.mesh.position.z, goal.x, goal.z);
+              npc.pathIdx = 0;
             }
             animateSoldierWalk(npc.mesh, npc.walkPhase ?? 0, false);
+            movingSoldiers.push(npc.mesh);
+            continue;
+          }
+          const wp = path[idx];
+          const dx = wp.x - npc.mesh.position.x;
+          const dz = wp.z - npc.mesh.position.z;
+          const dist = Math.hypot(dx, dz);
+          if (dist < 0.12) {
+            npc.pathIdx = idx + 1;
+            animateSoldierWalk(npc.mesh, npc.walkPhase ?? 0, true);
           } else {
             const step = Math.min(dist, dt * 0.52);
             npc.mesh.position.x += (dx / dist) * step;
             npc.mesh.position.z += (dz / dist) * step;
             npc.mesh.rotation.y = Math.atan2(dx, dz);
+            pushOutOfBuildings(npc.mesh.position, 0.36);
             const scale = Math.max(0.3, npc.mesh.scale.x);
             npc.walkPhase = (npc.walkPhase ?? 0) + step / (0.68 * scale);
             animateSoldierWalk(npc.mesh, npc.walkPhase, true);
           }
+          movingSoldiers.push(npc.mesh);
         } else if (npc.role === 'smith') {
           npc.mesh.rotation.x = Math.sin(t * 3.5 + npc.phase) * 0.25;
         } else {
           npc.mesh.position.x = npc.baseX + Math.sin(t * 0.4 + npc.phase) * 0.45;
           npc.mesh.rotation.x = Math.abs(Math.sin(t * 1.8 + npc.phase)) * 0.22;
+        }
+      }
+
+      // Đẩy tách các binh lính để không bao giờ đi xuyên qua nhau
+      const minSep = 0.58;
+      for (let i = 0; i < movingSoldiers.length; i++) {
+        for (let j = i + 1; j < movingSoldiers.length; j++) {
+          const a = movingSoldiers[i].position;
+          const b = movingSoldiers[j].position;
+          const dx = b.x - a.x;
+          const dz = b.z - a.z;
+          const dSq = dx * dx + dz * dz;
+          if (dSq < minSep * minSep) {
+            const d = Math.max(0.001, Math.sqrt(dSq));
+            const push = (minSep - d) * 0.5;
+            const nx = dx / d;
+            const nz = dz / d;
+            a.x -= nx * push;
+            a.z -= nz * push;
+            b.x += nx * push;
+            b.z += nz * push;
+            pushOutOfBuildings(a, 0.36);
+            pushOutOfBuildings(b, 0.36);
+          }
         }
       }
 
