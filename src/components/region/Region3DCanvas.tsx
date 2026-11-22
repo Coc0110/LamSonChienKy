@@ -397,7 +397,8 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
         }
 
         const isConstructing = b.status === 'building' || b.status === 'upgrading';
-        const group = createBuildingGroup(b.type, b.level, enemy, isConstructing, wallMask);
+        const variant = b.type === 'wall' ? (b.col * 73 + b.row * 139) % 6 : 0;
+        const group = createBuildingGroup(b.type, b.level, enemy, isConstructing, wallMask, variant);
         const cx = b.col + b.spanCols / 2 - half;
         const cz = b.row + b.spanRows / 2 - half;
         group.position.set(cx, 0, cz);

@@ -1579,10 +1579,12 @@ function getBuildingParts(
   type: BaseBuildingType,
   level: number,
   isEnemy: boolean,
-  wallMask = 0
+  wallMask = 0,
+  variant = 0
 ): Array<{ matKey: MaterialKey; geo: THREE.BufferGeometry }> {
   const tier = Math.min(5, Math.max(1, level));
-  const key = `${type}_${tier}_${isEnemy ? 'e' : 'p'}_m${wallMask}`;
+  const vKey = type === 'wall' ? `_v${variant}` : '';
+  const key = `${type}_${tier}_${isEnemy ? 'e' : 'p'}_m${wallMask}${vKey}`;
   const hit = cachedPartGeometries.get(key);
   if (hit) return hit;
 
@@ -2626,10 +2628,10 @@ function getBuildingParts(
     }
 
     case 'wall': {
-      // 1x1 Lũy tre 2 lớp xếp so le dày dặn, vót nhọn vát chéo quay đỉnh cao vào giữa 2 hàng, ụ đất nối liền mạch
+      // 1x1 Lũy tre 2 lớp dựa sát khít vào kẽ nhau, thân tre biến thiên ngẫu nhiên tự nhiên, vót vát chéo quay đỉnh cao vào giữa 2 hàng
       const poleH = 0.88 + tier * 0.07;
       const rPole = 0.062;
-      const rowOff = 0.095;
+      const rowOff = 0.05; // Hai hàng dựa sát khít: cây hàng đối diện lọt vào kẽ giữa 2 cây hàng bên này
 
       // Ụ đất chân tường nối liền mạch theo các hướng wallMask
       push('earthDark', createOrganicEarthMound(0.76, 0.76, 0.14, 21.5 + wallMask));
@@ -2646,7 +2648,7 @@ function getBuildingParts(
         push('earthDark', createOrganicEarthMound(0.64, 0.72, 0.135, 23.9).translate(-0.26, 0, 0));
       }
 
-      // Hàm dựng cây tre chuẩn mẫu (createBambooCulmGeo + createSlicedHollowBambooTip quay đỉnh cao vào giữa 2 hàng)
+      // Hàm dựng cây tre chuẩn mẫu ngẫu nhiên nhẹ chiều cao, độ dày, độ nghiêng và góc vát
       const addBeveledBamboo = (
         r: number,
         h: number,
@@ -2655,21 +2657,36 @@ function getBuildingParts(
         y: number,
         z: number,
         inwardX: number,
-        inwardZ: number
+        inwardZ: number,
+        seed: number
       ) => {
+        const leanX = (hash01(seed + 2) - 0.5) * 0.055;
+        const leanZ = (hash01(seed + 3) - 0.5) * 0.055;
+        const yawJitter = (hash01(seed + 4) - 0.5) * 0.42;
+
         const culm = createBambooCulmLathe(r, h, joints);
+        culm.rotateX(leanX);
+        culm.rotateZ(leanZ);
         culm.translate(x, y, z);
         push('bamboo', culm);
 
         const tip = createSlicedHollowBambooTip(r);
         // Trong createSlicedHollowBambooTip, cạnh cao nhất nằm ở -Z => xoay +PI quanh Y để quay về (inwardX, inwardZ)
-        const yaw = Math.atan2(inwardX, inwardZ) + Math.PI;
+        const yaw = Math.atan2(inwardX, inwardZ) + Math.PI + yawJitter;
+        const tipX = x + Math.sin(leanZ) * h * 0.5;
+        const tipZ = z + Math.sin(leanX) * h * 0.5;
         tip.outerGreen.rotateY(yaw);
-        tip.outerGreen.translate(x, y + h - 0.01, z);
+        tip.outerGreen.rotateX(leanX);
+        tip.outerGreen.rotateZ(leanZ);
+        tip.outerGreen.translate(tipX, y + h - 0.01, tipZ);
         tip.innerWall.rotateY(yaw);
-        tip.innerWall.translate(x, y + h - 0.01, z);
+        tip.innerWall.rotateX(leanX);
+        tip.innerWall.rotateZ(leanZ);
+        tip.innerWall.translate(tipX, y + h - 0.01, tipZ);
         tip.hollowCore.rotateY(yaw);
-        tip.hollowCore.translate(x, y + h - 0.01, z);
+        tip.hollowCore.rotateX(leanX);
+        tip.hollowCore.rotateZ(leanZ);
+        tip.hollowCore.translate(tipX, y + h - 0.01, tipZ);
 
         push('bamboo', tip.outerGreen);
         push('bambooDry', tip.innerWall);
@@ -2679,24 +2696,28 @@ function getBuildingParts(
       const addStaggeredWallSpan = (axis: 'x' | 'z', start: number, end: number) => {
         const len = Math.abs(end - start);
         const dir = end >= start ? 1 : -1;
-        const step = 0.16;
+        const step = 0.145;
         const count = Math.max(2, Math.round(len / step));
-        for (let rowSide of [-1, 1] as const) {
+        for (const rowSide of [-1, 1] as const) {
           const perp = rowSide * rowOff;
-          // Xếp so le giữa 2 hàng để khít vào nhau
+          // Xếp so le nửa bước để cây hàng đối diện lọt khít vào kẽ giữa 2 cây hàng này
           const stagger = rowSide === 1 ? step * 0.5 : 0;
           for (let i = 0; i < count; i++) {
             const along = start + dir * (i * step + stagger);
             if (dir > 0 ? along > end + 0.02 : along < end - 0.02) continue;
-            const h = poleH * (0.94 + ((i + (rowSide > 0 ? 1 : 0)) % 3) * 0.05);
+            const seed = variant * 131 + i * 37 + (rowSide > 0 ? 19 : 7) + (axis === 'x' ? 3 : 53);
+            const h = poleH * (0.85 + hash01(seed) * 0.26);
+            const r = rPole * (0.9 + hash01(seed + 1) * 0.2);
+            const joints = 3 + Math.floor(hash01(seed + 5) * 2);
+            const alongJit = (hash01(seed + 6) - 0.5) * 0.014;
             if (axis === 'x') {
-              addBeveledBamboo(rPole, h, 4, along, 0.09, perp, 0, -rowSide);
+              addBeveledBamboo(r, h, joints, along + alongJit, 0.09, perp, 0, -rowSide, seed);
             } else {
-              addBeveledBamboo(rPole, h, 4, perp, 0.09, along, -rowSide, 0);
+              addBeveledBamboo(r, h, joints, perp, 0.09, along + alongJit, -rowSide, 0, seed);
             }
           }
-          // 2 thanh giằng tre ngang buộc ngoài mỗi hàng
-          const railPerp = rowSide * (rowOff + rPole * 0.95);
+          // 2 thanh giằng tre ngang buộc sát ngoài mỗi hàng
+          const railPerp = rowSide * (rowOff + rPole * 0.92);
           const mid = (start + end) / 2;
           for (const ry of [0.38, 0.68]) {
             if (axis === 'x') {
@@ -2811,9 +2832,10 @@ export function createBuildingGroup(
   level: number,
   isEnemy: boolean,
   isConstructing = false,
-  wallMask = 0
+  wallMask = 0,
+  variant = 0
 ): THREE.Group {
-  const parts = getBuildingParts(type, level, isEnemy, wallMask);
+  const parts = getBuildingParts(type, level, isEnemy, wallMask, variant);
   const group = new THREE.Group();
   const opacity = isConstructing ? 0.62 : 1;
 
