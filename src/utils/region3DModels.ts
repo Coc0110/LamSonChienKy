@@ -2646,7 +2646,7 @@ function getBuildingParts(
         push('earthDark', createOrganicEarthMound(0.64, 0.72, 0.135, 23.9).translate(-0.26, 0, 0));
       }
 
-      // Hàm dựng cây tre chuẩn mẫu có đốt tre + đầu vót vát chéo nhọn (inwardX, inwardZ hướng vào giữa 2 hàng)
+      // Hàm dựng cây tre chuẩn mẫu (createBambooCulmGeo + createSlicedHollowBambooTip quay đỉnh cao vào giữa 2 hàng)
       const addBeveledBamboo = (
         r: number,
         h: number,
@@ -2657,39 +2657,23 @@ function getBuildingParts(
         inwardX: number,
         inwardZ: number
       ) => {
-        const g = new THREE.CylinderGeometry(r, r * 1.04, h, 8, 1);
-        const pos = g.getAttribute('position');
-        for (let i = 0; i < pos.count; i++) {
-          const py = pos.getY(i);
-          if (py > h * 0.25) {
-            const px = pos.getX(i);
-            const pz = pos.getZ(i);
-            const dot = px * inwardX + pz * inwardZ;
-            pos.setY(i, py + dot * 1.55);
-          }
-        }
-        pos.needsUpdate = true;
-        g.computeVertexNormals();
-        g.translate(x, y + h / 2, z);
-        push('bamboo', g);
+        const culm = createBambooCulmLathe(r, h, joints);
+        culm.translate(x, y, z);
+        push('bamboo', culm);
 
-        for (let s = 1; s <= joints; s++) {
-          const ny = y + (s / (joints + 1)) * h * 0.92;
-          push('bambooDry', torus(r * 1.06, r * 0.22, 5, 10).rotateX(Math.PI / 2).translate(x, ny, z));
-        }
+        const tip = createSlicedHollowBambooTip(r);
+        // Trong createSlicedHollowBambooTip, cạnh cao nhất nằm ở -Z => xoay +PI quanh Y để quay về (inwardX, inwardZ)
+        const yaw = Math.atan2(inwardX, inwardZ) + Math.PI;
+        tip.outerGreen.rotateY(yaw);
+        tip.outerGreen.translate(x, y + h - 0.01, z);
+        tip.innerWall.rotateY(yaw);
+        tip.innerWall.translate(x, y + h - 0.01, z);
+        tip.hollowCore.rotateY(yaw);
+        tip.hollowCore.translate(x, y + h - 0.01, z);
 
-        // Lõi rỗng vát chéo ở mặt cắt đỉnh tre
-        const cap = new THREE.CylinderGeometry(r * 0.62, r * 0.62, 0.014, 7);
-        const cPos = cap.getAttribute('position');
-        for (let i = 0; i < cPos.count; i++) {
-          const px = cPos.getX(i);
-          const pz = cPos.getZ(i);
-          cPos.setY(i, cPos.getY(i) + (px * inwardX + pz * inwardZ) * 1.55);
-        }
-        cPos.needsUpdate = true;
-        cap.computeVertexNormals();
-        cap.translate(x, y + h + 0.002, z);
-        push('earthDark', cap);
+        push('bamboo', tip.outerGreen);
+        push('bambooDry', tip.innerWall);
+        push('earthDark', tip.hollowCore);
       };
 
       const addStaggeredWallSpan = (axis: 'x' | 'z', start: number, end: number) => {
