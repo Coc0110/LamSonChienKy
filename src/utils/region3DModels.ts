@@ -125,6 +125,124 @@ function getWoodGrainTexture(baseHex: string, grainHex: string): THREE.CanvasTex
 }
 
 const stoneTexCache = new Map<string, THREE.CanvasTexture>();
+const earthTexCache = new Map<string, THREE.CanvasTexture>();
+let cachedEarthBumpTex: THREE.CanvasTexture | null = null;
+
+function getNaturalEarthTexture(baseHex: string, darkHex: string, lightHex: string): THREE.CanvasTexture {
+  const key = `${baseHex}_${darkHex}_${lightHex}`;
+  const hit = earthTexCache.get(key);
+  if (hit) return hit;
+
+  const size = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    ctx.fillStyle = baseHex;
+    ctx.fillRect(0, 0, size, size);
+
+    // 1. Mảng đất ẩm / khô loang tự nhiên (seamless wrapping)
+    for (let i = 0; i < 140; i++) {
+      const rx = ((Math.sin(i * 19.31) * 43758.54) % 1 + 1) % 1;
+      const ry = ((Math.sin(i * 73.17) * 43758.54) % 1 + 1) % 1;
+      const rad = 14 + (i % 26);
+      const cx = rx * size;
+      const cy = ry * size;
+      const color = i % 2 === 0 ? darkHex : lightHex;
+      for (const ox of [-size, 0, size]) {
+        for (const oy of [-size, 0, size]) {
+          if (cx + ox + rad < 0 || cx + ox - rad > size || cy + oy + rad < 0 || cy + oy - rad > size) continue;
+          const grad = ctx.createRadialGradient(cx + ox, cy + oy, 1, cx + ox, cy + oy, rad);
+          grad.addColorStop(0, color);
+          grad.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.globalAlpha = 0.16 + (i % 3) * 0.05;
+          ctx.fillStyle = grad;
+          ctx.beginPath();
+          ctx.arc(cx + ox, cy + oy, rad, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+
+    // 2. Hạt đất mịn & cát sỏi li ti (micro-grain, không dùng chấm tròn to)
+    for (let i = 0; i < 2200; i++) {
+      const rx = ((Math.sin(i * 37.91) * 19283.71) % 1 + 1) % 1;
+      const ry = ((Math.sin(i * 89.43) * 19283.71) % 1 + 1) % 1;
+      const w = 1 + (i % 2);
+      const h = 1 + ((i >> 1) % 2);
+      ctx.globalAlpha = 0.18 + (i % 4) * 0.07;
+      ctx.fillStyle = i % 3 === 0 ? darkHex : i % 3 === 1 ? lightHex : '#5c462c';
+      ctx.fillRect(rx * size, ry * size, w, h);
+    }
+
+    // 3. Các vết nứt chân chim / rễ cỏ khô siêu mảnh trên mặt đất nện
+    ctx.strokeStyle = darkHex;
+    ctx.lineWidth = 0.8;
+    for (let i = 0; i < 45; i++) {
+      const x0 = (((Math.sin(i * 51.7) * 43758.5) % 1 + 1) % 1) * size;
+      const y0 = (((Math.sin(i * 97.3) * 43758.5) % 1 + 1) % 1) * size;
+      const ang = (i * 2.399) % (Math.PI * 2);
+      const len = 6 + (i % 10);
+      ctx.globalAlpha = 0.22;
+      ctx.beginPath();
+      ctx.moveTo(x0, y0);
+      ctx.quadraticCurveTo(
+        x0 + Math.cos(ang + 0.4) * len * 0.5,
+        y0 + Math.sin(ang + 0.4) * len * 0.5,
+        x0 + Math.cos(ang) * len,
+        y0 + Math.sin(ang) * len
+      );
+      ctx.stroke();
+    }
+
+    // 4. Vài viên sỏi nhỏ lấm tấm có bóng đổ nhẹ
+    for (let i = 0; i < 85; i++) {
+      const px = (((Math.sin(i * 113.1) * 31415.9) % 1 + 1) % 1) * size;
+      const py = (((Math.sin(i * 157.7) * 31415.9) % 1 + 1) % 1) * size;
+      const pr = 1.2 + (i % 3) * 0.6;
+      ctx.globalAlpha = 0.35;
+      ctx.fillStyle = '#3f2e1b';
+      ctx.fillRect(px + 0.6, py + 0.6, pr, pr * 0.8);
+      ctx.fillStyle = i % 2 === 0 ? '#b89f7d' : '#8a7962';
+      ctx.fillRect(px, py, pr, pr * 0.8);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.anisotropy = 4;
+  earthTexCache.set(key, tex);
+  return tex;
+}
+
+function getEarthBumpTexture(): THREE.CanvasTexture {
+  if (cachedEarthBumpTex) return cachedEarthBumpTex;
+  const size = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    ctx.fillStyle = '#808080';
+    ctx.fillRect(0, 0, size, size);
+    for (let i = 0; i < 2600; i++) {
+      const rx = ((Math.sin(i * 41.23) * 29381.5) % 1 + 1) % 1;
+      const ry = ((Math.sin(i * 83.67) * 29381.5) % 1 + 1) % 1;
+      const sz = 1 + (i % 3);
+      ctx.fillStyle = i % 2 === 0 ? 'rgba(255,255,255,0.24)' : 'rgba(0,0,0,0.24)';
+      ctx.fillRect(rx * size, ry * size, sz, sz);
+    }
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  cachedEarthBumpTex = tex;
+  return tex;
+}
 function getStoneTexture(baseHex: string, speckHex: string): THREE.CanvasTexture {
   const key = `${baseHex}_${speckHex}`;
   const hit = stoneTexCache.get(key);
@@ -228,14 +346,18 @@ function getSharedMaterial(key: MaterialKey, transparent = false, opacity = 1): 
       break;
     case 'earth':
       mat = new THREE.MeshStandardMaterial({
-        map: getStoneTexture('#9b7e56', '#745937'),
-        roughness: 0.95,
+        map: getNaturalEarthTexture('#947750', '#6d5333', '#b3956b'),
+        bumpMap: getEarthBumpTexture(),
+        bumpScale: 0.018,
+        roughness: 0.96,
       });
       break;
     case 'earthDark':
       mat = new THREE.MeshStandardMaterial({
-        map: getStoneTexture('#755c3c', '#523e26'),
-        roughness: 0.96,
+        map: getNaturalEarthTexture('#73593a', '#4f3b24', '#8e714c'),
+        bumpMap: getEarthBumpTexture(),
+        bumpScale: 0.02,
+        roughness: 0.97,
       });
       break;
     case 'wood':
@@ -491,40 +613,84 @@ export function createDetailedGroundTexture(
     ctx.fillRect(rx * size, ry * size, i % 11 === 0 ? 3 : 2, i % 11 === 0 ? 3 : 4);
   }
 
-  // Vẽ lối mòn đất nện nối Nhà Chính tới các công trình khác & cổng
+  // Vẽ nền đất loang tự nhiên dưới chân mỗi công trình & đường mòn đất nện uốn lượn mềm mại
   const scale = size / gridSize;
+  const drawNaturalDirtStamp = (x: number, y: number, r: number, color: string, alpha: number) => {
+    const grad = ctx.createRadialGradient(x, y, r * 0.15, x, y, r);
+    grad.addColorStop(0, color);
+    grad.addColorStop(0.65, color);
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  };
+
+  for (const b of buildings) {
+    if (b.type === 'wall' || b.type === 'spike_trap' || b.status === 'destroyed') continue;
+    const bx = (b.col + b.spanCols / 2) * scale;
+    const bz = (b.row + b.spanRows / 2) * scale;
+    const rx = (b.spanCols * scale) * 0.56;
+    const rz = (b.spanRows * scale) * 0.56;
+    const rad = Math.max(rx, rz);
+    drawNaturalDirtStamp(bx, bz, rad * 1.12, '#695236', 0.42);
+    drawNaturalDirtStamp(bx, bz, rad * 0.92, '#8a6d47', 0.48);
+  }
+
   const mainHall = buildings.find((b) => b.type === 'main_hall' && b.status !== 'destroyed');
   if (mainHall) {
     const mx = (mainHall.col + mainHall.spanCols / 2) * scale;
     const mz = (mainHall.row + mainHall.spanRows / 2) * scale;
 
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-
-    for (const b of buildings) {
+    for (const [bIdx, b] of buildings.entries()) {
       if (b.id === mainHall.id || b.type === 'wall' || b.type === 'spike_trap' || b.status === 'destroyed') {
         continue;
       }
       const bx = (b.col + b.spanCols / 2) * scale;
       const bz = (b.row + b.spanRows / 2) * scale;
 
-      // Viền đất tối nhẹ
-      ctx.strokeStyle = 'rgba(116, 91, 58, 0.55)';
-      ctx.lineWidth = scale * 0.95;
-      ctx.beginPath();
-      ctx.moveTo(mx, mz);
-      ctx.lineTo(bx, mz);
-      ctx.lineTo(bx, bz);
-      ctx.stroke();
+      // Bo cong nhẹ góc cua đường mòn thay vì gấp khúc vuông 90 độ cứng nhắc
+      const ctrlX = bx + (mx - bx) * 0.22;
+      const ctrlZ = mz + (bz - mz) * 0.22;
+      const dist = Math.hypot(bx - mx, bz - mz);
+      const steps = Math.max(24, Math.round(dist / 4));
 
-      // Lõi đường đất nện sáng
-      ctx.strokeStyle = 'rgba(168, 139, 96, 0.72)';
-      ctx.lineWidth = scale * 0.62;
-      ctx.beginPath();
-      ctx.moveTo(mx, mz);
-      ctx.lineTo(bx, mz);
-      ctx.lineTo(bx, bz);
-      ctx.stroke();
+      for (let s = 0; s <= steps; s++) {
+        const t = s / steps;
+        const omt = 1 - t;
+        let px = omt * omt * mx + 2 * omt * t * ctrlX + t * t * bx;
+        let pz = omt * omt * mz + 2 * omt * t * ctrlZ + t * t * bz;
+        // Độ uốn lượn vi mô dọc theo lối mòn
+        const wave = Math.sin(t * Math.PI * 5 + bIdx * 2.1) * scale * 0.08 * Math.sin(t * Math.PI);
+        px += wave;
+        pz -= wave * 0.7;
+
+        const wJit = 0.88 + Math.sin(s * 1.7 + bIdx) * 0.16;
+        // Lớp viền cỏ dẫm nát & đất ẩm ngoài cùng
+        drawNaturalDirtStamp(px, pz, scale * 0.56 * wJit, '#5e492e', 0.22);
+        // Lõi đất nện
+        drawNaturalDirtStamp(px, pz, scale * 0.38 * wJit, '#876b46', 0.32);
+        // Vệt mòn chân bước sáng màu ở giữa đường
+        drawNaturalDirtStamp(
+          px + Math.sin(s * 0.9) * 2,
+          pz + Math.cos(s * 0.9) * 2,
+          scale * 0.22 * wJit,
+          '#a68960',
+          0.26
+        );
+
+        // Sỏi nhỏ & bụi cỏ ven lối mòn
+        if (s % 2 === 0) {
+          const side = (s % 4 === 0 ? 1 : -1) * scale * (0.28 + ((s * 13) % 10) * 0.02);
+          ctx.fillStyle = s % 6 === 0 ? 'rgba(92, 128, 52, 0.55)' : 'rgba(72, 54, 34, 0.45)';
+          ctx.beginPath();
+          ctx.arc(px + side, pz - side * 0.6, 1.5 + (s % 3), 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
     }
   }
 
@@ -1124,6 +1290,20 @@ function getBuildingParts(
   const bannerMat: MaterialKey = isEnemy ? 'bannerMing' : 'bannerLS';
   const buckets = new Map<MaterialKey, THREE.BufferGeometry[]>();
   const push = (m: MaterialKey, g: THREE.BufferGeometry) => {
+    if (m === 'earth' || m === 'earthDark') {
+      const pos = g.getAttribute('position');
+      if (pos) {
+        const uvs = new Float32Array(pos.count * 2);
+        for (let i = 0; i < pos.count; i++) {
+          const px = pos.getX(i);
+          const py = pos.getY(i);
+          const pz = pos.getZ(i);
+          uvs[i * 2] = (px + py * 0.45) * 0.72;
+          uvs[i * 2 + 1] = (pz + py * 0.45) * 0.72;
+        }
+        g.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+      }
+    }
     const arr = buckets.get(m);
     if (arr) arr.push(g);
     else buckets.set(m, [g]);
@@ -1697,21 +1877,21 @@ function getBuildingParts(
 
     case 'farm': {
       // 5x5 Ruộng bậc thang / ruộng nước thấp trũng + luống lúa non + chòi canh + lu nước + cuốc cào
-      push('earthDark', box(4.8, 0.14, 4.8, 0, 0.07, 0));
+      push('earthDark', createOrganicEarthMound(4.82, 4.82, 0.14, 1.3));
       push('water', box(4.45, 0.08, 4.45, 0, 0.13, 0));
       // Bờ ruộng chia ô
-      push('earth', box(4.55, 0.14, 0.18, 0, 0.16, -0.1));
-      push('earth', box(0.18, 0.14, 4.55, 0.45, 0.16, 0));
+      push('earth', createOrganicEarthMound(4.55, 0.22, 0.14, 2.7).translate(0, 0.09, -0.1));
+      push('earth', createOrganicEarthMound(0.22, 4.55, 0.14, 3.9).translate(0.45, 0.09, 0));
       // Luống lúa non xanh tốt
       for (let r = 0; r < 5; r++) {
         const z = -1.65 + r * 0.82;
         if (Math.abs(z + 0.1) < 0.25) continue;
-        push('earth', box(2.3, 0.1, 0.36, 1.05, 0.16, z));
+        push('earth', createOrganicEarthMound(2.3, 0.36, 0.1, 5.1 + r).translate(1.05, 0.11, z));
         push(r % 2 === 0 ? 'riceYoung' : 'riceLush', box(2.15, 0.16 + tier * 0.02, 0.26, 1.05, 0.26, z));
       }
       for (let r = 0; r < 3; r++) {
         const z = 0.45 + r * 0.72;
-        push('earth', box(1.85, 0.1, 0.34, -1.15, 0.16, z));
+        push('earth', createOrganicEarthMound(1.85, 0.34, 0.1, 9.3 + r).translate(-1.15, 0.11, z));
         push('riceYoung', box(1.72, 0.16, 0.24, -1.15, 0.26, z));
       }
       // Chòi canh điền nhỏ ở góc (-1.45, -1.45)
@@ -1732,7 +1912,7 @@ function getBuildingParts(
 
     case 'forge': {
       // 3x3 Nhà nhỏ mái tranh, vách hở thoát nhiệt, bếp lò đỏ lửa, ống khói đất nện, đe sắt, búa, giá vũ khí, than củi
-      push('earthDark', box(2.8, 0.14, 2.8, 0, 0.07, 0));
+      push('earthDark', createOrganicEarthMound(2.82, 2.82, 0.14, 6.2));
       // 4 cột gỗ vách hở
       for (const [cx, cz] of [[-1.0, -1.0], [0.55, -1.0], [-1.0, 0.65], [0.55, 0.65]]) {
         push('woodDark', cyl(0.06, 0.07, 1.0, 6, cx, 0.64, cz));
@@ -1740,7 +1920,7 @@ function getBuildingParts(
       // Mái tranh thoáng
       push('thatch', cone(1.5, 0.72, 4, -0.22, 1.45, -0.18, Math.PI / 4));
       // Bếp lò đất nện & ống khói + lửa đỏ rực
-      push('earth', box(0.75, 0.65, 0.75, -0.5, 0.45, -0.45));
+      push('earth', rbox(0.75, 0.65, 0.75, 0.06, -0.5, 0.45, -0.45));
       push('earthDark', cyl(0.2, 0.3, 1.15 + tier * 0.08, 8, -0.5, 1.05, -0.45));
       push('ember', box(0.42, 0.32, 0.22, -0.5, 0.35, -0.05));
       // Đe sắt & búa tạ bên ngoài
@@ -1762,7 +1942,7 @@ function getBuildingParts(
 
     case 'food_storage': {
       // 3x3 Kho lương sàn cao chống ẩm, vách gỗ kín mít, mái tranh, thang gỗ nhỏ, bao tải gai xung quanh
-      push('earthDark', box(2.75, 0.12, 2.75, 0, 0.06, 0));
+      push('earthDark', createOrganicEarthMound(2.78, 2.78, 0.12, 8.4));
       // Cột chống ẩm
       for (const [cx, cz] of [[-0.85, -0.85], [0.85, -0.85], [-0.85, 0.85], [0.85, 0.85]]) {
         push('woodDark', cyl(0.08, 0.09, 0.42, 6, cx, 0.32, cz));
@@ -1811,7 +1991,7 @@ function getBuildingParts(
     }
 
     case 'house': {
-      push('earthDark', box(1.7, 0.1, 1.7, 0, 0.05, 0));
+      push('earthDark', createOrganicEarthMound(1.74, 1.74, 0.1, 11.2));
       push('wood', box(1.15, 0.56, 1.05, 0, 0.38, 0));
       push('woodDark', box(0.32, 0.42, 0.08, 0, 0.31, 0.53));
       push('thatch', cone(1.02, 0.55, 4, 0, 0.94, 0, Math.PI / 4));
@@ -1821,9 +2001,9 @@ function getBuildingParts(
 
     case 'barracks': {
       // === 5x5 TRẠI LUYỆN BINH: BÃI ĐẤT TRỐNG RỘNG RÃI VỚI ĐẦY ĐỦ ĐẠO CỤ TẬP TRẬN ===
-      // 1. Nền bãi đất nện 5x5 phẳng sạch tự nhiên (bỏ các mảng chữ nhật vàng/nâu gây rối)
-      push('earthDark', rbox(4.84, 0.06, 4.84, 0.03, 0, 0.03, 0));
-      push('earth', rbox(4.64, 0.04, 4.64, 0.02, 0, 0.05, 0));
+      // 1. Nền bãi đất nện hữu cơ 5x5 dốc thoải tự nhiên ở viền & lồi lõm vi mô trên mặt sân
+      push('earthDark', createOrganicEarthMound(4.86, 4.86, 0.055, 14.3));
+      push('earth', createOrganicEarthMound(4.64, 4.64, 0.068, 19.7));
 
       // Đá tảng chèn 4 góc bãi tập
       for (const [sx, sz] of [[-2.32, -2.32], [2.32, -2.32], [-2.32, 2.32], [2.32, 2.32]]) {
@@ -2155,7 +2335,7 @@ function getBuildingParts(
       const stakeMat: MaterialKey = tier >= 3 ? 'woodDark' : 'bamboo';
       const stakeH = 0.78 + tier * 0.08;
       // Mô đất chân cọc
-      push('earthDark', box(0.95, 0.14, 0.95, 0, 0.07, 0));
+      push('earthDark', createOrganicEarthMound(0.95, 0.95, 0.14, 21.5 + wallMask));
       // Cụm cọc tre/gỗ vót nhọn ở tâm
       for (const [sx, sz] of [[-0.22, 0], [0, 0], [0.22, 0], [0, -0.22], [0, 0.22]]) {
         push(stakeMat, cyl(0.08, 0.09, stakeH, 6, sx, stakeH / 2 + 0.08, sz));
@@ -2193,7 +2373,7 @@ function getBuildingParts(
 
     case 'gate': {
       // 3x1 Cổng Thành: Vọng lâu gỗ nhỏ có mái che ở trên, cánh cổng gỗ dày có then cài lớn
-      push('earthDark', box(2.9, 0.14, 0.95, 0, 0.07, 0));
+      push('earthDark', createOrganicEarthMound(2.9, 0.95, 0.14, 25.1));
       // 2 trụ cổng gỗ lim lớn hai bên
       push('woodDark', box(0.55, 1.35, 0.8, -1.15, 0.72, 0));
       push('woodDark', box(0.55, 1.35, 0.8, 1.15, 0.72, 0));
@@ -2216,7 +2396,7 @@ function getBuildingParts(
     case 'watchtower': {
       // 2x2 Tháp gỗ cao 4 cột trụ vững chắc, sàn đứng có mái che, thang tre thả xuống, 2 lính gác trên sàn
       const h = 1.65 + tier * 0.16;
-      push('earthDark', box(1.75, 0.14, 1.75, 0, 0.07, 0));
+      push('earthDark', createOrganicEarthMound(1.76, 1.76, 0.14, 29.4));
       // 4 cột trụ gỗ vững chắc
       for (const [cx, cz] of [[-0.58, -0.58], [0.58, -0.58], [-0.58, 0.58], [0.58, 0.58]]) {
         push('woodDark', cyl(0.07, 0.09, h, 8, cx, 0.14 + h / 2, cz));
@@ -2249,7 +2429,7 @@ function getBuildingParts(
     }
 
     case 'spike_trap': {
-      push('earthDark', box(0.88, 0.07, 0.88, 0, 0.035, 0));
+      push('earthDark', createOrganicEarthMound(0.88, 0.88, 0.07, 33.8));
       for (const [ox, oz] of [[-0.24, -0.24], [0.24, -0.24], [-0.24, 0.24], [0.24, 0.24], [0, 0]]) {
         push('bamboo', cone(0.08, 0.34 + tier * 0.04, 6, ox, 0.22, oz));
         push('iron', cone(0.05, 0.15, 6, ox, 0.42, oz));
