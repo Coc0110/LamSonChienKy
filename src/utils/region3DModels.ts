@@ -1839,6 +1839,16 @@ function getBuildingParts(
       }
 
       // 2. Hàng rào tre thưa bao quanh bãi tập (chừa lối vào rộng ở mặt trước z = +2.3)
+      const addBambooPost = (r: number, h: number, segs: number, x: number, y: number, z: number, hollowTop = false) => {
+        push('bamboo', cyl(r, r * 1.04, h, 8, x, y + h / 2, z));
+        for (let s = 1; s <= segs; s++) {
+          const ny = y + (s / (segs + 1)) * h;
+          push('bambooDry', torus(r * 1.05, r * 0.24, 5, 10).rotateX(Math.PI / 2).translate(x, ny, z));
+        }
+        if (hollowTop) {
+          push('earthDark', cyl(r * 0.65, r * 0.65, 0.014, 7, x, y + h + 0.005, z));
+        }
+      };
       const addBambooFenceSegment = (x0: number, z0: number, x1: number, z1: number) => {
         const dx = x1 - x0;
         const dz = z1 - z0;
@@ -1849,7 +1859,7 @@ function getBuildingParts(
           const t = i / steps;
           const px = x0 + dx * t;
           const pz = z0 + dz * t;
-          addBambooPole(0.036, 0.56, 3, px, 0.06, pz, true);
+          addBambooPost(0.036, 0.56, 3, px, 0.06, pz, true);
         }
         for (const ry of [0.22, 0.44]) {
           const rail = rbox(0.036, 0.038, len, 0.01, 0, 0, 0);
@@ -1933,7 +1943,7 @@ function getBuildingParts(
       }
 
       // Cột cờ bằng tre có đốt tre + chóp đồng (lá cờ phấp phới gắn ở createBuildingGroup)
-      addBambooPole(0.044, 2.25, 5, -0.78, 0.06, -1.85, false);
+      addBambooPost(0.044, 2.25, 5, -0.78, 0.06, -1.85, false);
       push('gold', sphere(0.048, -0.78, 2.33, -1.85));
 
       // 4. Trường bắn cung 3 bia rơm chi tiết ở góc sau-phải (vành rơm bện xoắn + nhiều vòng tâm + nhiều mũi tên có lông vũ)
