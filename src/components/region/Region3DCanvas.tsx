@@ -8,6 +8,7 @@ import {
   createBuildingGroup,
   createDecorProp,
   createDetailedGroundTexture,
+  createMeadowGrassTuftsGroup,
   createNaturalBoulder,
   createNpcGroup,
   createUnitGroup,
@@ -367,6 +368,7 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
       }
       groundMat.map = nextTex;
       groundMat.needsUpdate = true;
+      buildingsGroup.add(createMeadowGrassTuftsGroup(gridSize, currentLayout.buildings));
 
       // Xây map ô tường/cổng để tự động nối liền tường rào
       const wallOccupied = new Set<string>();
