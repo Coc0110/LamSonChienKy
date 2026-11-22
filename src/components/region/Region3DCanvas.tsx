@@ -457,7 +457,7 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
 
       // Xây lưới ô vật cản & AABB công trình để binh lính đi vòng tránh công trình
       const solidGrid: boolean[][] = Array.from({ length: gridSize }, () => Array(gridSize).fill(false));
-      for (const t of blockedTilesRef.current) {
+      for (const t of blockedTiles) {
         if (t.col >= 0 && t.col < gridSize && t.row >= 0 && t.row < gridSize) {
           solidGrid[t.row][t.col] = true;
         }
