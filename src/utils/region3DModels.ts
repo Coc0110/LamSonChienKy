@@ -1821,24 +1821,16 @@ function getBuildingParts(
 
     case 'barracks': {
       // === 5x5 TRẠI LUYỆN BINH: BÃI ĐẤT TRỐNG RỘNG RÃI VỚI ĐẦY ĐỦ ĐẠO CỤ TẬP TRẬN ===
-      // 1. Nền bãi đất nện 5x5 + mảng đất sẫm/cát tự nhiên (không vẽ vòng tròn giữa sân)
+      // 1. Nền bãi đất nện 5x5 phẳng sạch tự nhiên (bỏ các mảng chữ nhật vàng/nâu gây rối)
       push('earthDark', rbox(4.84, 0.06, 4.84, 0.03, 0, 0.03, 0));
-      push('earth', rbox(4.62, 0.04, 4.62, 0.02, 0, 0.05, 0));
-      for (const [px, pz, pw, pd, mat] of [
-        [0.35, 0.25, 1.9, 1.7, 'thatch'],
-        [-1.35, 0.8, 1.2, 1.1, 'earthDark'],
-        [1.15, -1.2, 1.6, 1.2, 'earthDark'],
-        [-0.2, 1.55, 1.4, 0.9, 'thatch'],
-      ] as const) {
-        push(mat, rbox(pw, 0.025, pd, 0.01, px, 0.065, pz));
-      }
+      push('earth', rbox(4.64, 0.04, 4.64, 0.02, 0, 0.05, 0));
 
       // Đá tảng chèn 4 góc bãi tập
       for (const [sx, sz] of [[-2.32, -2.32], [2.32, -2.32], [-2.32, 2.32], [2.32, 2.32]]) {
         push('stone', rbox(0.28, 0.14, 0.28, 0.04, sx, 0.08, sz));
       }
 
-      // 2. Hàng rào tre thưa bao quanh bãi tập (chừa lối vào rộng ở mặt trước z = +2.3)
+      // 2. Hàng rào tre thưa bao quanh bãi tập (đặt cọc góc 1 lần duy nhất để không bị double)
       const addBambooPost = (r: number, h: number, segs: number, x: number, y: number, z: number, hollowTop = false) => {
         push('bamboo', cyl(r, r * 1.04, h, 8, x, y + h / 2, z));
         for (let s = 1; s <= segs; s++) {
@@ -1849,17 +1841,26 @@ function getBuildingParts(
           push('earthDark', cyl(r * 0.65, r * 0.65, 0.014, 7, x, y + h + 0.005, z));
         }
       };
+      // 4 cọc tre góc & 2 cọc đầu hàng rào cạnh cổng
+      for (const [cx, cz] of [
+        [-2.3, -2.3],
+        [2.3, -2.3],
+        [-2.3, 2.3],
+        [2.3, 2.3],
+        [-1.05, 2.3],
+        [1.05, 2.3],
+      ]) {
+        addBambooPost(0.038, 0.58, 3, cx, 0.06, cz, true);
+      }
       const addBambooFenceSegment = (x0: number, z0: number, x1: number, z1: number) => {
         const dx = x1 - x0;
         const dz = z1 - z0;
         const len = Math.hypot(dx, dz);
-        const steps = Math.max(2, Math.round(len / 0.55));
+        const steps = Math.max(2, Math.round(len / 0.58));
         const ang = Math.atan2(dx, dz);
-        for (let i = 0; i <= steps; i++) {
+        for (let i = 1; i < steps; i++) {
           const t = i / steps;
-          const px = x0 + dx * t;
-          const pz = z0 + dz * t;
-          addBambooPost(0.036, 0.56, 3, px, 0.06, pz, true);
+          addBambooPost(0.036, 0.56, 3, x0 + dx * t, 0.06, z0 + dz * t, true);
         }
         for (const ry of [0.22, 0.44]) {
           const rail = rbox(0.036, 0.038, len, 0.01, 0, 0, 0);
@@ -1868,11 +1869,11 @@ function getBuildingParts(
           push('bambooDry', rail);
         }
       };
-      addBambooFenceSegment(-2.25, -2.3, 2.25, -2.3); // Mặt sau
-      addBambooFenceSegment(-2.3, -2.25, -2.3, 2.25); // Cạnh trái
-      addBambooFenceSegment(2.3, -2.25, 2.3, 2.25);   // Cạnh phải
-      addBambooFenceSegment(-2.25, 2.3, -0.95, 2.3);  // Mặt trước trái
-      addBambooFenceSegment(0.95, 2.3, 2.25, 2.3);    // Mặt trước phải
+      addBambooFenceSegment(-2.3, -2.3, 2.3, -2.3);   // Mặt sau
+      addBambooFenceSegment(-2.3, -2.3, -2.3, 2.3);   // Cạnh trái
+      addBambooFenceSegment(2.3, -2.3, 2.3, 2.3);     // Cạnh phải
+      addBambooFenceSegment(-2.3, 2.3, -1.05, 2.3);   // Mặt trước trái
+      addBambooFenceSegment(1.05, 2.3, 2.3, 2.3);     // Mặt trước phải
 
       // Hai cột đèn lồng thời xưa chi tiết ở lối vào bãi tập (giống nhà chính)
       for (const gx of [-0.92, 0.92]) {
@@ -2046,80 +2047,85 @@ function getBuildingParts(
         push('gold', sphere(0.048, -1.75, 0.29, rz));
       }
 
-      // 6. Ba hình nhân rơm chi tiết đến từng sợi rơm ở cạnh phải bãi tập
-      const strawDummyMats: MaterialKey[] = ['thatch', 'thatchWarm', 'thatchSoft'];
+      // 6. Ba hình nhân rơm đầy đặn, chi tiết đến từng sợi rơm ở cạnh phải bãi tập
+      const strawDummyMats: MaterialKey[] = ['thatch', 'thatchWarm', 'thatchSoft', 'bambooDry'];
       for (const [dIdx, [dx, dz]] of ([[1.75, -0.35], [1.75, 0.45], [1.75, 1.25]] as const).entries()) {
         // Cọc gỗ & thanh vai ngang
-        push('woodDark', cyl(0.036, 0.045, 0.98, 6, dx, 0.5, dz));
-        push('wood', rbox(0.05, 0.05, 0.56, 0.01, dx, 0.78, dz));
+        push('woodDark', cyl(0.036, 0.045, 1.02, 6, dx, 0.51, dz));
+        push('wood', rbox(0.05, 0.05, 0.58, 0.01, dx, 0.8, dz));
 
-        // Bó từng sợi rơm xếp vòng tròn quanh thân (14 sợi thân + 10 sợi đầu + sợi rơm quấn tay)
-        for (let s = 0; s < 14; s++) {
-          const ang = (s / 14) * Math.PI * 2;
-          const sr = 0.095 + (s % 2) * 0.015;
+        // Lõi rơm bện dày bên trong (không bị hở xuyên thấu vào cọc gỗ)
+        push('thatchWarm', cyl(0.095, 0.135, 0.5, 10, dx, 0.62, dz));
+        push('thatch', sphere(0.095, dx, 1.0, dz));
+
+        // 28 sợi rơm dày dặn xếp xen kẽ ôm quanh thân và loe nhẹ xuống tà dưới
+        for (let s = 0; s < 28; s++) {
+          const ang = (s / 28) * Math.PI * 2;
+          const sr = 0.105 + (s % 3) * 0.012;
           const sx = dx + Math.cos(ang) * sr;
           const sz = dz + Math.sin(ang) * sr;
-          const stalk = cyl(0.012, 0.022, 0.48, 5, 0, 0, 0);
-          stalk.rotateZ(-Math.cos(ang) * 0.14);
-          stalk.rotateX(Math.sin(ang) * 0.14);
+          const stalk = cyl(0.01, 0.02, 0.52, 5, 0, 0, 0);
+          stalk.rotateZ(-Math.cos(ang) * 0.16);
+          stalk.rotateX(Math.sin(ang) * 0.16);
           stalk.translate(sx, 0.62, sz);
-          push(strawDummyMats[(s + dIdx) % 3], stalk);
+          push(strawDummyMats[(s + dIdx) % 4], stalk);
         }
-        // Dây thừng siết eo & cổ
-        push('woodWarm', torus(0.115, 0.016, 6, 12).rotateX(Math.PI / 2).translate(dx, 0.56, dz));
-        push('woodWarm', torus(0.088, 0.015, 6, 12).rotateX(Math.PI / 2).translate(dx, 0.87, dz));
+        // Dây thừng siết eo, ngực & cổ
+        push('woodDark', torus(0.125, 0.016, 6, 14).rotateX(Math.PI / 2).translate(dx, 0.54, dz));
+        push('woodDark', torus(0.118, 0.015, 6, 14).rotateX(Math.PI / 2).translate(dx, 0.71, dz));
+        push('woodDark', torus(0.09, 0.015, 6, 12).rotateX(Math.PI / 2).translate(dx, 0.88, dz));
 
-        // Bó rơm ở hai cánh tay ngang
+        // Bó rơm đầy đặn ở hai cánh tay ngang + dây buộc cổ tay
         for (const side of [-1, 1]) {
-          for (let a = 0; a < 5; a++) {
-            const aa = (a / 5) * Math.PI * 2;
-            const armStraw = cyl(0.012, 0.016, 0.24, 5, 0, 0, 0);
+          for (let a = 0; a < 9; a++) {
+            const aa = (a / 9) * Math.PI * 2;
+            const rr = a === 0 ? 0 : 0.032;
+            const armStraw = cyl(0.012, 0.016, 0.25, 5, 0, 0, 0);
             armStraw.rotateX(Math.PI / 2);
-            armStraw.translate(dx + Math.cos(aa) * 0.035, 0.78 + Math.sin(aa) * 0.035, dz + side * 0.18);
-            push(strawDummyMats[(a + dIdx) % 3], armStraw);
+            armStraw.translate(dx + Math.cos(aa) * rr, 0.8 + Math.sin(aa) * rr, dz + side * 0.19);
+            push(strawDummyMats[(a + dIdx) % 4], armStraw);
           }
+          push('woodDark', torus(0.044, 0.011, 5, 10).rotateY(Math.PI / 2).translate(dx, 0.8, dz + side * 0.27));
         }
 
-        // Đầu bó rơm có chỏm sợi rơm tua tủa phía trên
-        for (let h = 0; h < 10; h++) {
-          const ang = (h / 10) * Math.PI * 2;
-          const hStalk = cyl(0.01, 0.024, 0.26, 5, 0, 0, 0);
-          hStalk.rotateZ(-Math.cos(ang) * 0.18);
-          hStalk.rotateX(Math.sin(ang) * 0.18);
-          hStalk.translate(dx + Math.cos(ang) * 0.045, 0.99, dz + Math.sin(ang) * 0.045);
-          push(strawDummyMats[(h + dIdx) % 3], hStalk);
+        // Đầu bó rơm dày 16 sợi + chỏm tua tủa trên đỉnh đầu
+        for (let h = 0; h < 16; h++) {
+          const ang = (h / 16) * Math.PI * 2;
+          const hStalk = cyl(0.009, 0.021, 0.27, 5, 0, 0, 0);
+          hStalk.rotateZ(-Math.cos(ang) * 0.2);
+          hStalk.rotateX(Math.sin(ang) * 0.2);
+          hStalk.translate(dx + Math.cos(ang) * 0.068, 1.0, dz + Math.sin(ang) * 0.068);
+          push(strawDummyMats[(h + dIdx) % 4], hStalk);
         }
-        push('woodWarm', torus(0.075, 0.014, 5, 10).rotateX(Math.PI / 2).translate(dx, 1.07, dz));
+        push('woodDark', torus(0.082, 0.014, 5, 12).rotateX(Math.PI / 2).translate(dx, 1.09, dz));
       }
 
-      // 7. Cọc Mai Hoa Thung (cọc gỗ nhảy cao thấp) & Tạ đá tập thể lực ở phía trước sân
-      for (const [cx, cz, ch] of [
-        [-1.0, 1.55, 0.28],
-        [-0.7, 1.72, 0.42],
-        [-0.4, 1.5, 0.54],
-        [-0.1, 1.74, 0.36],
-      ]) {
-        push('woodDark', cyl(0.085, 0.095, ch, 8, cx, 0.06 + ch / 2, cz));
-      }
-      for (const [wx, wz] of [[0.85, 1.55], [1.22, 1.62]]) {
+      // 7. Tạ đá tập thể lực đặt gọn bên phải lối vào (giữ lối cổng vào thông thoáng hoàn toàn)
+      for (const [wx, wz] of [[1.35, 1.72], [1.72, 1.78]]) {
         push('stone', rbox(0.24, 0.16, 0.24, 0.03, wx, 0.14, wz));
-        push('woodDark', cyl(0.024, 0.024, 0.28, 6, wx, 0.26, wz).rotateZ(Math.PI / 2));
+        const bar = cyl(0.022, 0.022, 0.28, 6, 0, 0, 0);
+        bar.rotateZ(Math.PI / 2);
+        bar.translate(wx, 0.25, wz);
+        push('woodDark', bar);
       }
 
-      // 8. Thùng nước ghép từ nhiều mảnh gỗ + đai sắt bên cổng vào (mặt nước sóng sánh gắn ở createBuildingGroup)
-      push('stoneDark', cyl(0.23, 0.25, 0.05, 10, -0.58, 0.08, 1.98));
+      // 8. Thùng nước ghép từ 14 mảnh gỗ + đai sắt + gáo múc nước đặt gọn bên trái sân
+      push('stoneDark', cyl(0.23, 0.25, 0.05, 10, -1.42, 0.08, 1.88));
       const staveCount = 14;
       for (let i = 0; i < staveCount; i++) {
         const ang = (i / staveCount) * Math.PI * 2;
         const stave = rbox(0.082, 0.42, 0.028, 0.006, 0, 0, 0);
         stave.rotateY(-ang + Math.PI / 2);
-        stave.translate(-0.58 + Math.cos(ang) * 0.2, 0.31, 1.98 + Math.sin(ang) * 0.2);
+        stave.translate(-1.42 + Math.cos(ang) * 0.2, 0.31, 1.88 + Math.sin(ang) * 0.2);
         push(i % 2 === 0 ? 'wood' : 'woodWarm', stave);
       }
-      push('iron', torus(0.218, 0.012, 6, 16).rotateX(Math.PI / 2).translate(-0.58, 0.18, 1.98));
-      push('iron', torus(0.218, 0.012, 6, 16).rotateX(Math.PI / 2).translate(-0.58, 0.43, 1.98));
-      // Gáo múc nước đặt trên miệng thùng
-      push('woodWarm', cyl(0.012, 0.012, 0.34, 5, -0.58, 0.53, 1.98).rotateZ(Math.PI / 2).rotateY(0.4));
+      push('iron', torus(0.218, 0.012, 6, 16).rotateX(Math.PI / 2).translate(-1.42, 0.18, 1.88));
+      push('iron', torus(0.218, 0.012, 6, 16).rotateX(Math.PI / 2).translate(-1.42, 0.43, 1.88));
+      const ladle = cyl(0.012, 0.012, 0.34, 5, 0, 0, 0);
+      ladle.rotateZ(Math.PI / 2);
+      ladle.rotateY(0.4);
+      ladle.translate(-1.42, 0.53, 1.88);
+      push('woodWarm', ladle);
       break;
     }
 
@@ -2286,7 +2292,7 @@ export function createBuildingGroup(
     const waterMat = getSharedMaterial('water', isConstructing, opacity);
     const waterMesh = new THREE.Mesh(waterGeo, waterMat);
     waterMesh.rotation.x = -Math.PI / 2;
-    waterMesh.position.set(-0.58, 0.46, 1.98);
+    waterMesh.position.set(-1.42, 0.46, 1.88);
     waterMesh.name = 'animated_water';
     group.add(waterMesh);
   }
