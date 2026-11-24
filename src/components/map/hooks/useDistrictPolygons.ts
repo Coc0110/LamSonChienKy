@@ -9,6 +9,32 @@ import { notify } from '../../../store/dialogStore';
 
 export const DISTRICT_STORAGE_KEY = 'lam_son_district_polygons_custom_v3';
 
+const SHARED_VERTEX_TOL = 0.25;
+
+interface SharedVertexRef {
+  districtId: string;
+  vertexIndex: number;
+}
+
+const findSharedVertices = (
+  districts: DistrictInfo[],
+  sourceDistrictId: string,
+  pt: [number, number]
+): SharedVertexRef[] => {
+  const matches: SharedVertexRef[] = [];
+  for (const d of districts) {
+    if (d.id === sourceDistrictId) continue;
+    const len = d.polygon.length;
+    for (let j = 0; j < len - 1; j++) {
+      const v = d.polygon[j];
+      if (Math.hypot(v[0] - pt[0], v[1] - pt[1]) <= SHARED_VERTEX_TOL) {
+        matches.push({ districtId: d.id, vertexIndex: j });
+      }
+    }
+  }
+  return matches;
+};
+
 interface UseDistrictPolygonsProps {
   mapInstance: L.Map | null;
   districtsList: DistrictInfo[];
@@ -46,16 +72,45 @@ export const useDistrictPolygons = ({
 }: UseDistrictPolygonsProps) => {
   const marchDrawMode = useUIStore(state => state.marchDrawMode);
 
-  // Cập nhật tọa độ polygon cho huyện
-  const updateDistrictPolygonVertex = useCallback((districtId: string, vertexIndex: number, newX: number, newY: number) => {
+  // Cập nhật tọa độ polygon cho huyện (đồng bộ luôn các đỉnh chung của huyện lân cận)
+  const updateDistrictPolygonVertex = useCallback((
+    districtId: string,
+    vertexIndex: number,
+    newX: number,
+    newY: number,
+    sharedTargets: SharedVertexRef[] = []
+  ) => {
     setDistrictsList(prev => {
+      const sharedMap = new Map<string, number[]>();
+      for (const s of sharedTargets) {
+        const list = sharedMap.get(s.districtId) || [];
+        list.push(s.vertexIndex);
+        sharedMap.set(s.districtId, list);
+      }
+
       const next = prev.map(d => {
-        if (d.id !== districtId) return d;
-        const newPoly = [...d.polygon];
-        newPoly[vertexIndex] = [newX, newY];
-        if (vertexIndex === 0) newPoly[newPoly.length - 1] = [newX, newY];
-        if (vertexIndex === newPoly.length - 1) newPoly[0] = [newX, newY];
-        return { ...d, polygon: newPoly };
+        if (d.id === districtId) {
+          const newPoly = [...d.polygon];
+          newPoly[vertexIndex] = [newX, newY];
+          if (vertexIndex === 0) newPoly[newPoly.length - 1] = [newX, newY];
+          if (vertexIndex === newPoly.length - 1) newPoly[0] = [newX, newY];
+          return { ...d, polygon: newPoly };
+        }
+
+        const matchedIndices = sharedMap.get(d.id);
+        if (matchedIndices && matchedIndices.length > 0) {
+          const newPoly = [...d.polygon];
+          for (const sIdx of matchedIndices) {
+            if (sIdx >= 0 && sIdx < newPoly.length) {
+              newPoly[sIdx] = [newX, newY];
+              if (sIdx === 0) newPoly[newPoly.length - 1] = [newX, newY];
+              if (sIdx === newPoly.length - 1) newPoly[0] = [newX, newY];
+            }
+          }
+          return { ...d, polygon: newPoly };
+        }
+
+        return d;
       });
       try {
         localStorage.setItem(DISTRICT_STORAGE_KEY, JSON.stringify(next));
@@ -66,46 +121,65 @@ export const useDistrictPolygons = ({
     });
   }, [setDistrictsList]);
 
-  // Thêm đỉnh mới khi nhấp chuột lên đoạn đường viền ranh giới (bẻ gãy đường kẻ)
+  // Thêm đỉnh mới khi nhấp chuột lên đoạn đường viền ranh giới (bẻ gãy đường kẻ cả 2 huyện giáp ranh)
   const insertDistrictPolygonVertex = useCallback((districtId: string, clickX: number, clickY: number) => {
     setDistrictsList(prev => {
+      const source = prev.find(d => d.id === districtId);
+      if (!source || source.polygon.length < 2) return prev;
+
+      const poly = source.polygon;
+      let bestSegIdx = 0;
+      let minDistance = Infinity;
+      let bestProjectedPt: [number, number] = [clickX, clickY];
+
+      for (let i = 0; i < poly.length - 1; i++) {
+        const a = poly[i];
+        const b = poly[i + 1];
+
+        const abX = b[0] - a[0];
+        const abY = b[1] - a[1];
+        const lenSq = abX * abX + abY * abY;
+
+        let t = lenSq === 0 ? 0 : ((clickX - a[0]) * abX + (clickY - a[1]) * abY) / lenSq;
+        t = Math.max(0, Math.min(1, t));
+
+        const projX = a[0] + t * abX;
+        const projY = a[1] + t * abY;
+        const dist = Math.hypot(clickX - projX, clickY - projY);
+
+        if (dist < minDistance) {
+          minDistance = dist;
+          bestSegIdx = i;
+          bestProjectedPt = [
+            Math.round(projX * 1000) / 1000,
+            Math.round(projY * 1000) / 1000,
+          ];
+        }
+      }
+
+      const segA = poly[bestSegIdx];
+      const segB = poly[bestSegIdx + 1];
+      const near = (p1: [number, number], p2: [number, number]) =>
+        Math.hypot(p1[0] - p2[0], p1[1] - p2[1]) <= SHARED_VERTEX_TOL;
+
       const next = prev.map(d => {
-        if (d.id !== districtId) return d;
-        const poly = d.polygon;
-        if (poly.length < 2) return d;
-
-        let bestSegIdx = 0;
-        let minDistance = Infinity;
-        let bestProjectedPt: [number, number] = [clickX, clickY];
-
-        for (let i = 0; i < poly.length - 1; i++) {
-          const a = poly[i];
-          const b = poly[i + 1];
-
-          const abX = b[0] - a[0];
-          const abY = b[1] - a[1];
-          const lenSq = abX * abX + abY * abY;
-
-          let t = lenSq === 0 ? 0 : ((clickX - a[0]) * abX + (clickY - a[1]) * abY) / lenSq;
-          t = Math.max(0, Math.min(1, t));
-
-          const projX = a[0] + t * abX;
-          const projY = a[1] + t * abY;
-          const dist = Math.hypot(clickX - projX, clickY - projY);
-
-          if (dist < minDistance) {
-            minDistance = dist;
-            bestSegIdx = i;
-            bestProjectedPt = [
-              Math.round(projX * 1000) / 1000,
-              Math.round(projY * 1000) / 1000,
-            ];
-          }
+        if (d.id === districtId) {
+          const newPoly = [...d.polygon];
+          newPoly.splice(bestSegIdx + 1, 0, bestProjectedPt);
+          return { ...d, polygon: newPoly };
         }
 
-        const newPoly = [...poly];
-        newPoly.splice(bestSegIdx + 1, 0, bestProjectedPt);
-        return { ...d, polygon: newPoly };
+        const op = d.polygon;
+        for (let j = 0; j < op.length - 1; j++) {
+          const p1 = op[j];
+          const p2 = op[j + 1];
+          if ((near(p1, segA) && near(p2, segB)) || (near(p1, segB) && near(p2, segA))) {
+            const newPoly = [...op];
+            newPoly.splice(j + 1, 0, bestProjectedPt);
+            return { ...d, polygon: newPoly };
+          }
+        }
+        return d;
       });
 
       try {
@@ -117,27 +191,47 @@ export const useDistrictPolygons = ({
     });
   }, [setDistrictsList]);
 
-  // Xóa / Gộp đỉnh khi kéo chồng 2 nút lên nhau
+  // Xóa / Gộp đỉnh khi kéo chồng 2 nút lên nhau (gộp luôn đỉnh trùng ở huyện lân cận)
   const deleteDistrictPolygonVertex = useCallback((districtId: string, vertexIndex: number) => {
     setDistrictsList(prev => {
+      const source = prev.find(d => d.id === districtId);
+      if (!source) return prev;
+      if (source.polygon.length <= 4) {
+        notify.warning('Không thể gộp: Đa giác cần có tối thiểu 3 đỉnh!');
+        return prev;
+      }
+      const targetPt = source.polygon[vertexIndex];
+
       const next = prev.map(d => {
-        if (d.id !== districtId) return d;
-        if (d.polygon.length <= 4) {
-          notify.warning('Không thể gộp: Đa giác cần có tối thiểu 3 đỉnh!');
-          return d;
+        if (d.id === districtId) {
+          const newPoly = [...d.polygon];
+          const lastIdx = newPoly.length - 1;
+          if (vertexIndex === 0 || vertexIndex === lastIdx) {
+            newPoly.splice(0, 1);
+            newPoly[newPoly.length - 1] = [...newPoly[0]];
+          } else {
+            newPoly.splice(vertexIndex, 1);
+          }
+          return { ...d, polygon: newPoly };
         }
 
-        const newPoly = [...d.polygon];
-        const lastIdx = newPoly.length - 1;
-
-        if (vertexIndex === 0 || vertexIndex === lastIdx) {
-          newPoly.splice(0, 1);
-          newPoly[newPoly.length - 1] = [...newPoly[0]];
-        } else {
-          newPoly.splice(vertexIndex, 1);
+        if (targetPt && d.polygon.length > 4) {
+          const matchIdx = d.polygon.findIndex(
+            (v, idx) => idx < d.polygon.length - 1 && Math.hypot(v[0] - targetPt[0], v[1] - targetPt[1]) <= SHARED_VERTEX_TOL
+          );
+          if (matchIdx !== -1) {
+            const newPoly = [...d.polygon];
+            const lastIdx = newPoly.length - 1;
+            if (matchIdx === 0 || matchIdx === lastIdx) {
+              newPoly.splice(0, 1);
+              newPoly[newPoly.length - 1] = [...newPoly[0]];
+            } else {
+              newPoly.splice(matchIdx, 1);
+            }
+            return { ...d, polygon: newPoly };
+          }
         }
-
-        return { ...d, polygon: newPoly };
+        return d;
       });
 
       try {
@@ -312,10 +406,13 @@ export const useDistrictPolygons = ({
 
       let snapTargetIdx: number | null = null;
       let isMergingState = false;
+      let snapAdjacentPt: [number, number] | null = null;
+      const sharedNeighbors = findSharedVertices(districtsList, currentDistrict.id, pt);
 
       handleMarker.on('drag', (e) => {
-        const newPos = e.target.getLatLng();
+        let newPos = e.target.getLatLng();
         snapTargetIdx = null;
+        snapAdjacentPt = null;
 
         if (mapInstance) {
           const pCurrent = mapInstance.latLngToContainerPoint(newPos);
@@ -329,6 +426,27 @@ export const useDistrictPolygons = ({
             if (pixelDist <= 16) {
               snapTargetIdx = j;
               break;
+            }
+          }
+
+          // Nếu đỉnh chưa dính với huyện lân cận nào, tự hút dính vào đỉnh của huyện lân cận trong 10px
+          if (snapTargetIdx === null && sharedNeighbors.length === 0) {
+            let bestAdjDist = 10;
+            for (const otherDist of districtsList) {
+              if (otherDist.id === currentDistrict.id) continue;
+              for (let k = 0; k < otherDist.polygon.length - 1; k++) {
+                const adjPt = otherDist.polygon[k];
+                const pAdj = mapInstance.latLngToContainerPoint(percentToLatLng(adjPt[0], adjPt[1]));
+                const dPx = Math.hypot(pCurrent.x - pAdj.x, pCurrent.y - pAdj.y);
+                if (dPx <= bestAdjDist) {
+                  bestAdjDist = dPx;
+                  snapAdjacentPt = adjPt;
+                }
+              }
+            }
+            if (snapAdjacentPt) {
+              newPos = percentToLatLng(snapAdjacentPt[0], snapAdjacentPt[1]);
+              e.target.setLatLng(newPos);
             }
           }
         }
@@ -375,6 +493,19 @@ export const useDistrictPolygons = ({
             visualLine.setLatLngs(lineLatLngs);
           }
         }
+
+        // Cập nhật trực tiếp các polygon huyện lân cận có đỉnh chung
+        for (const sn of sharedNeighbors) {
+          const adjPoly = polygonsMapRef.current.get(sn.districtId);
+          if (adjPoly) {
+            const adjLatLngs = adjPoly.getLatLngs()[0] as L.LatLng[];
+            if (adjLatLngs && adjLatLngs[sn.vertexIndex]) {
+              adjLatLngs[sn.vertexIndex] = newPos;
+              if (sn.vertexIndex === 0) adjLatLngs[adjLatLngs.length - 1] = newPos;
+              adjPoly.setLatLngs([adjLatLngs]);
+            }
+          }
+        }
       });
 
       handleMarker.on('dragend', (e) => {
@@ -382,11 +513,16 @@ export const useDistrictPolygons = ({
           setTimeout(() => {
             deleteDistrictPolygonVertex(currentDistrict.id, idx);
           }, 0);
+        } else if (snapAdjacentPt) {
+          const [sx, sy] = snapAdjacentPt;
+          setTimeout(() => {
+            updateDistrictPolygonVertex(currentDistrict.id, idx, sx, sy, sharedNeighbors);
+          }, 0);
         } else {
           const newPos = e.target.getLatLng();
           const { x, y } = latLngToPercent(newPos);
           setTimeout(() => {
-            updateDistrictPolygonVertex(currentDistrict.id, idx, x, y);
+            updateDistrictPolygonVertex(currentDistrict.id, idx, x, y, sharedNeighbors);
           }, 0);
         }
       });
