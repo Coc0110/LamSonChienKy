@@ -89,7 +89,7 @@ export const CityPopulationModal: React.FC<CityPopulationModalProps> = ({
     formationTroops;
 
   return (
-    <div className="fixed inset-x-3 bottom-3 md:inset-auto md:absolute md:top-[82px] md:left-[98px] z-40 md:w-[480px] max-h-[85vh] flex flex-col pointer-events-auto transition-all duration-300 select-none filter drop-shadow-[0_18px_30px_rgba(0,0,0,0.7)] drop-shadow-[0_3px_8px_rgba(0,0,0,0.45)]">
+    <div className="fixed inset-x-3 bottom-3 md:inset-auto md:absolute md:top-[82px] md:left-[98px] z-[2400] md:w-[480px] max-h-[85vh] flex flex-col pointer-events-auto transition-all duration-300 select-none filter drop-shadow-[0_18px_30px_rgba(0,0,0,0.7)] drop-shadow-[0_3px_8px_rgba(0,0,0,0.45)]">
       <img
         src="/parchment_torn_panel.png"
         alt="Sớ Thao Luyện"

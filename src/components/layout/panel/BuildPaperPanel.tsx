@@ -51,7 +51,7 @@ export const BuildPaperPanel: React.FC<BuildPaperPanelProps> = React.memo(({
 
   return (
     <div 
-      className={`fixed inset-x-3 bottom-3 md:inset-auto md:absolute md:top-[82px] ${panelLeftClass} z-40 md:w-56 max-h-[78vh] flex flex-col pointer-events-auto transition-all duration-200 select-none filter drop-shadow-[0_18px_30px_rgba(0,0,0,0.7)] drop-shadow-[0_3px_8px_rgba(0,0,0,0.45)]`}
+      className={`fixed inset-x-3 bottom-3 md:inset-auto md:absolute md:top-[82px] ${panelLeftClass} z-[2400] md:w-56 max-h-[78vh] flex flex-col pointer-events-auto transition-all duration-200 select-none filter drop-shadow-[0_18px_30px_rgba(0,0,0,0.7)] drop-shadow-[0_3px_8px_rgba(0,0,0,0.45)]`}
     >
       {/* Nền giấy sứt mẻ tự nhiên */}
       <img

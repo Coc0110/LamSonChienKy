@@ -26,6 +26,36 @@ interface UseCloudFogLayerProps {
 
 let cachedCloudTileData: Uint8ClampedArray | null = null;
 let cachedCloudTilePromise: Promise<Uint8ClampedArray> | null = null;
+let cachedLandMaskData: Uint8ClampedArray | null = null;
+let cachedLandMaskPromise: Promise<Uint8ClampedArray> | null = null;
+
+function loadLandMaskPixels(): Promise<Uint8ClampedArray> {
+  if (cachedLandMaskData) return Promise.resolve(cachedLandMaskData);
+  if (cachedLandMaskPromise) return cachedLandMaskPromise;
+
+  cachedLandMaskPromise = new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const c = document.createElement('canvas');
+      c.width = 512;
+      c.height = 1024;
+      const ctx = c.getContext('2d');
+      if (!ctx) {
+        reject(new Error('No 2d context'));
+        return;
+      }
+      ctx.drawImage(img, 0, 0, 512, 1024);
+      const data = ctx.getImageData(0, 0, 512, 1024).data;
+      cachedLandMaskData = data;
+      resolve(data);
+    };
+    img.onerror = reject;
+    img.src = '/land_mask.png';
+  });
+
+  return cachedLandMaskPromise;
+}
 
 function loadCloudTilePixels(): Promise<Uint8ClampedArray> {
   if (cachedCloudTileData) return Promise.resolve(cachedCloudTileData);
@@ -131,6 +161,26 @@ export function useCloudFogLayer({
       img.setAttribute('preserveAspectRatio', 'none');
       pat.appendChild(img);
       defs.appendChild(pat);
+      const mask = document.createElementNS(svgNS, 'mask');
+      mask.setAttribute('id', 'lam-son-land-only-mask');
+      const outerLandBg = document.createElementNS(svgNS, 'rect');
+      outerLandBg.setAttribute('x', String(OUTER_MIN));
+      outerLandBg.setAttribute('y', String(OUTER_MIN));
+      outerLandBg.setAttribute('width', String(OUTER_SPAN));
+      outerLandBg.setAttribute('height', String(OUTER_SPAN));
+      outerLandBg.setAttribute('fill', 'white');
+      mask.appendChild(outerLandBg);
+
+      const landMaskImg = document.createElementNS(svgNS, 'image');
+      landMaskImg.setAttribute('href', '/land_mask.png');
+      landMaskImg.setAttribute('x', '0');
+      landMaskImg.setAttribute('y', '0');
+      landMaskImg.setAttribute('width', '100');
+      landMaskImg.setAttribute('height', '100');
+      landMaskImg.setAttribute('preserveAspectRatio', 'none');
+      mask.appendChild(landMaskImg);
+      defs.appendChild(mask);
+
       svgEl.appendChild(defs);
 
       const path = document.createElementNS(svgNS, 'path');
@@ -148,6 +198,7 @@ export function useCloudFogLayer({
       path.setAttribute('d', dStr);
       path.setAttribute('fill-rule', 'evenodd');
       path.setAttribute('fill', 'url(#lam-son-seamless-cloud-pat)');
+      path.setAttribute('mask', 'url(#lam-son-land-only-mask)');
       svgEl.appendChild(path);
 
       const outerBounds = L.latLngBounds(
@@ -190,7 +241,7 @@ export function useCloudFogLayer({
     const cw = gx1 - gx0;
     const ch = gy1 - gy0;
 
-    loadCloudTilePixels().then(tileData => {
+    Promise.all([loadCloudTilePixels(), loadLandMaskPixels()]).then(([tileData, landMaskData]) => {
       if (cancelled) return;
 
       // 1. Base binary mask (white = 255 unexplored, black = 0 revealed + slight outward margin so district interior stays crystal clear)
@@ -263,13 +314,27 @@ export function useCloudFogLayer({
           const i = rowOff + x;
           const p4 = i * 4;
 
+          // Biển không che mây: nhân với land_mask (512 x 1024)
+          const pctX = (gx0 + x) / PX_PER_PCT_X;
+          const pctY = (gy0 + y) / PX_PER_PCT_Y;
+          let landFactor = 1.0;
+          if (pctX >= 0 && pctX <= 100 && pctY >= 0 && pctY <= 100) {
+            const lx = Math.min(511, Math.max(0, Math.floor((pctX / 100) * 511)));
+            const ly = Math.min(1023, Math.max(0, Math.floor((pctY / 100) * 1023)));
+            landFactor = landMaskData[(ly * 512 + lx) * 4] / 255.0;
+          }
+          if (landFactor <= 0.01) {
+            finalAlphaBuf[i] = 0;
+            continue;
+          }
+
           const d = (0.20 * b1[p4] + 0.45 * b2[p4] + 0.35 * b3[p4]) / 255.0;
           if (d <= 0.02) {
             finalAlphaBuf[i] = 0;
             continue;
           }
           if (d >= 0.992) {
-            finalAlphaBuf[i] = 1;
+            finalAlphaBuf[i] = landFactor;
             mistFloorBuf[i] = 1;
             continue;
           }
@@ -301,7 +366,7 @@ export function useCloudFogLayer({
           hz = (hz < 0 ? 0 : hz > 1 ? 1 : hz) * 0.48 * cn;
 
           const fa = Math.max(mf, pa, hz);
-          finalAlphaBuf[i] = fa > 1 ? 1 : fa;
+          finalAlphaBuf[i] = (fa > 1 ? 1 : fa) * landFactor;
           mistFloorBuf[i] = mf;
           puffAlphaBuf[i] = pa;
         }

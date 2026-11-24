@@ -102,6 +102,16 @@ export const Region3DOverlay: React.FC = () => {
 
     setSelectedBuildingId(building ? building.id : null);
     setIsMovingBuilding(false);
+
+    if (building && activeRegion3D.mode === 'base_build') {
+      if (building.type === 'barracks') {
+        setActiveModal('training');
+      } else if (building.type === 'forge') {
+        setActiveModal('forges');
+      } else if (building.type === 'farm') {
+        setActiveModal('farms');
+      }
+    }
   };
 
   const handleUpgrade = (buildingId: string) => {
@@ -161,7 +171,6 @@ export const Region3DOverlay: React.FC = () => {
         }}
         onDemolishBuilding={handleDemolish}
         onOpenBarracks={() => {
-          handleZoomOut();
           setActiveModal('army');
         }}
         onClearSelection={() => {
