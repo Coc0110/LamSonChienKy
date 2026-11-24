@@ -63,7 +63,7 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
   const wallCount = layout.buildings.filter((b) => b.type === 'wall' && b.status !== 'destroyed').length;
 
   return (
-    <div className="pointer-events-none fixed inset-0 z-40 flex flex-col justify-between p-4">
+    <div className="pointer-events-none fixed inset-0 z-40 flex flex-col justify-between pt-[76px] pb-4 pl-[104px] pr-4">
       {/* Top Bar */}
       <div className="flex items-start justify-between gap-4">
         <div className="pointer-events-auto flex items-center gap-3 rounded-xl border border-amber-900/40 bg-[#f6ecd9]/95 px-4 py-2.5 shadow-md text-stone-900">
