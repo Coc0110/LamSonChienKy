@@ -182,6 +182,8 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
     scene.add(moonOrbGroup);
 
     const initStore = useGameStore.getState();
+    let lastCanhHour = initStore.canhHour;
+    let elapsedInCanhMs = 0;
     let smoothCanhHour = initStore.timeMode === 'day' ? 6 : initStore.canhHour;
     const skyColorNight = new THREE.Color(0x131c33);
     const skyColorDawn = new THREE.Color(0xe8a87c);
@@ -1111,13 +1113,21 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
         animateSoldierWalk(vis.group, vis.phase, moving);
       }
 
-      // Cập nhật Mặt trời, Mặt trăng & màu sắc bầu trời/ánh sáng theo thời gian đang chạy
-      const { canhHour, timeMode } = useGameStore.getState();
-      const targetHour = timeMode === 'day' ? 6 : canhHour;
+      // Cập nhật Mặt trời, Mặt trăng & màu sắc bầu trời/ánh sáng mượt mà liên tục theo thời gian đang chạy
+      const { canhHour, timeMode, isPaused, isWarMode } = useGameStore.getState();
+      const isHourRunning = (timeMode === 'hour' || isWarMode) && !isPaused;
+      if (canhHour !== lastCanhHour) {
+        lastCanhHour = canhHour;
+        elapsedInCanhMs = 0;
+      } else if (isHourRunning) {
+        elapsedInCanhMs = Math.min(4995, elapsedInCanhMs + dt * 1000);
+      }
+      const targetHour =
+        timeMode === 'day' && !isWarMode ? 6 : (canhHour + elapsedInCanhMs / 5000) % 12;
       let hourDiff = targetHour - smoothCanhHour;
       if (hourDiff > 6) hourDiff -= 12;
       if (hourDiff < -6) hourDiff += 12;
-      smoothCanhHour = ((smoothCanhHour + hourDiff * 0.08) % 12 + 12) % 12;
+      smoothCanhHour = ((smoothCanhHour + hourDiff * Math.min(1, dt * 6)) % 12 + 12) % 12;
 
       const sunAngle = ((smoothCanhHour - 3) / 6) * Math.PI;
       const sunX = Math.cos(sunAngle) * 460;

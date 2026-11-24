@@ -107,7 +107,7 @@ function App() {
   }, [hasActiveMarching, timeMode, setTimeMode]);
 
   // Vòng lặp thời gian:
-  // - Chế độ Giờ: Mỗi 1000ms trôi qua 1 Canh Giờ (1/12 ngày)
+  // - Chế độ Giờ: Mỗi 5000ms trôi qua 1 Canh Giờ (12 canh = 60 giây = 1 phút/ngày)
   // - Chế độ Ngày: Mỗi 1000ms trôi qua 1 Ngày
   useEffect(() => {
     if (isPaused) return;
@@ -115,7 +115,7 @@ function App() {
     if (timeMode === 'hour' || isWarMode) {
       const intervalId = setInterval(() => {
         tickCanh();
-      }, 1000);
+      }, 5000);
       return () => clearInterval(intervalId);
     } else {
       const intervalId = setInterval(() => { 
@@ -136,9 +136,9 @@ function App() {
     if (isNightTime) return; // Tạm dừng bước chân hành quân khi đêm xuống để hạ trại nghỉ ngơi (3 canh: Tý, Sửu, Dần)
 
     const stepMs = 50; // Tần số 20 FPS cho bước di chuyển mượt mà
-    // Nếu ở Chế độ Giờ: 1 giây thực = 1 canh giờ = 1/12 ngày
+    // Nếu ở Chế độ Giờ: 5 giây thực = 1 canh giờ => 60 giây = 1 ngày
     // Nếu ở Chế độ Ngày: 1 giây thực = 1 ngày
-    const dayFractionPerSec = isHourMode ? (1 / 12) : 1;
+    const dayFractionPerSec = isHourMode ? (1 / 60) : 1;
     const deltaDays = (stepMs / 1000) * dayFractionPerSec;
 
     const armyInterval = setInterval(() => {
