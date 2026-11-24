@@ -347,50 +347,10 @@ export const WorldMap: React.FC = React.memo(() => {
       }
     };
 
-    const fullMapBounds = L.latLngBounds(
-      percentToLatLng(0, 100),
-      percentToLatLng(100, 0)
-    );
-
-    const riversOverlay = L.imageOverlay('/map_rivers.svg', fullMapBounds, {
-      opacity: 0.95,
-      interactive: false,
-      zIndex: 15,
-    }).addTo(map);
-
-    const bordersOverlay = L.imageOverlay('/map_borders.svg', fullMapBounds, {
-      opacity: 0.9,
-      interactive: false,
-      zIndex: 20,
-    }).addTo(map);
-
-    const thanhHoaBounds = L.latLngBounds(
-      percentToLatLng(36.0, 65.0),
-      percentToLatLng(70.0, 38.0)
-    );
-
-    const cutoutOverlay = L.imageOverlay('/thanh_hoa_parchment.png', thanhHoaBounds, {
-      opacity: 1.0,
-      interactive: false,
-      zIndex: 25,
-    }).addTo(map);
-
-    const sheetOverlay = L.imageOverlay('/thanh_hoa_parchment_full.jpg', thanhHoaBounds, {
-      opacity: 0,
-      interactive: false,
-      zIndex: 24,
-    }).addTo(map);
-
-    parchmentCutoutRef.current = cutoutOverlay;
-    parchmentSheetRef.current = sheetOverlay;
-
     const initTimer = setTimeout(() => {
       if (isDisposed) return;
       map.invalidateSize();
       updateView(true);
-      [riversOverlay, bordersOverlay, sheetOverlay, cutoutOverlay].forEach(o => {
-        if (!(o as any)._map) (o as any)._layerAdd({ target: map });
-      });
     }, 50);
 
     const handleResize = () => {

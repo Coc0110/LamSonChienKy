@@ -1,8 +1,8 @@
 import L from 'leaflet';
 
-// Tọa độ hệ chuẩn Leaflet CRS.Simple tại Zoom 0:
-export const MAP_COORD_W = 560;
-export const MAP_COORD_H = 736;
+// Tọa độ hệ chuẩn Leaflet CRS.Simple tại Zoom 0 (bản đồ 8192x16384 tỉ lệ 1:2, maxNativeZoom 4):
+export const MAP_COORD_W = 512;
+export const MAP_COORD_H = 1024;
 export const TILE_SIZE = 512;
 
 // Chuyển đổi tọa độ phần trăm % (0..100) sang Leaflet CRS.Simple [lat, lng]
