@@ -5,6 +5,7 @@ import type { DistrictInfo, ParchmentMode } from '../../../types/map';
 import { percentToLatLng, latLngToPercent } from '../../../utils/mapGeo';
 import districtData from '../../../data/districtPolygons.json';
 import { useUIStore } from '../../../store/uiStore';
+import { useGameStore } from '../../../store/gameStore';
 import { notify } from '../../../store/dialogStore';
 
 export const DISTRICT_STORAGE_KEY = 'lam_son_district_polygons_custom_v6';
@@ -316,6 +317,16 @@ export const useDistrictPolygons = ({
         if (useUIStore.getState().placementMode || useUIStore.getState().baseRelocateMode) {
           handlePlacementAtRef.current(e.latlng);
           return;
+        }
+        if (!useUIStore.getState().isEditMode) {
+          const gs = useGameStore.getState();
+          const city = gs.cities.find(c => c.id === district.id);
+          const isRevealed =
+            district.id === 'lam_son' ||
+            city?.faction === 'lam_son' ||
+            Boolean(city?.hasBase) ||
+            Boolean(gs.scoutedRegionIds[district.id]);
+          if (!isRevealed) return;
         }
         selectDistrict(district.id);
       });

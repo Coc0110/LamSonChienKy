@@ -1,10 +1,10 @@
 import React from 'react';
-import { Store, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import { useGameStore } from '../../../store/gameStore';
 import { useUIStore } from '../../../store/uiStore';
 import districtData from '../../../data/districtPolygons.json';
 import { pointInPolygon } from '../../../utils/mapGeo';
-import { hasDistrictMarket } from '../../../utils/marketUtils';
+
 import type { DistrictInfo } from '../../../types/map';
 
 interface DistrictDetailPanelProps {
@@ -74,9 +74,10 @@ const DISTRICT_LORE: Record<string, { desc: string; terrain: string; produce: st
 
 export const DistrictDetailPanel: React.FC<DistrictDetailPanelProps> = ({ districtId, onClose }) => {
   const cities = useGameStore(state => state.cities);
-  const selectBase = useUIStore(state => state.selectBase);
+  const selectCity = useUIStore(state => state.selectCity);
+  const setActiveRegion3D = useUIStore(state => state.setActiveRegion3D);
   const setBaseRelocateMode = useUIStore(state => state.setBaseRelocateMode);
-  const openDistrictMarket = useUIStore(state => state.openDistrictMarket);
+
 
   // Lấy dữ liệu huyện từ districtPolygons
   const defaultDistricts: DistrictInfo[] = (districtData as any).districts || [];
@@ -177,18 +178,6 @@ export const DistrictDetailPanel: React.FC<DistrictDetailPanelProps> = ({ distri
             <span className="font-serif text-[#3d2714]">{lore.terrain}</span>
           </div>
 
-          {hasDistrictMarket(district.id) && (
-          <div className="pt-1.5">
-            <button
-              type="button"
-              onClick={() => openDistrictMarket(district.id)}
-              className="px-3 py-1.5 rounded bg-[#8c2d19] hover:bg-[#6e1e0d] text-[#fff3db] font-serif font-bold text-xs inline-flex items-center gap-1.5 shadow transition cursor-pointer active:scale-95"
-            >
-              <Store size={14} />
-              <span>Mở Chợ {district.name}</span>
-            </button>
-          </div>
-          )}
         </div>
 
         {/* 3. CĂN CỨ & ĐỒN TRẠI QUÂN SỰ TRÊN ĐỊA BÀN */}
@@ -246,7 +235,13 @@ export const DistrictDetailPanel: React.FC<DistrictDetailPanelProps> = ({ distri
                     </div>
 
                     <button
-                      onClick={() => selectBase(b.id)}
+                      onClick={() => {
+                        selectCity(null);
+                        setActiveRegion3D({
+                          cityId: b.id,
+                          mode: isLamSon || b.hasBase ? 'base_build' : 'scout_view',
+                        });
+                      }}
                       className="relative group px-3.5 py-1.5 min-w-[105px] h-[32px] flex items-center justify-center transition-transform hover:scale-105 active:scale-95 cursor-pointer shrink-0"
                       title="Mở bảng chỉ huy căn cứ này"
                     >

@@ -956,9 +956,16 @@ export const WorldMap: React.FC = React.memo(() => {
       }).addTo(shadowLayer);
     };
 
+    const hideDuringZoom = () => {
+      shadowLayer.clearLayers();
+      pane.style.display = 'none';
+    };
+
     updateCutout();
+    map.on('zoomstart', hideDuringZoom);
     map.on('zoomend viewreset', updateCutout);
     return () => {
+      map.off('zoomstart', hideDuringZoom);
       map.off('zoomend viewreset', updateCutout);
     };
   }, [hoveredDistrictId, showDistricts, isZoomedOutOverview, isEditMode, cities, scoutedRegionIds]);

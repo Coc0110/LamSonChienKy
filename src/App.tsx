@@ -65,6 +65,7 @@ function App() {
   const selectedStructureModal = useUIStore(state => state.selectedStructureModal);
   const activeForgeModalStructureId = useUIStore(state => state.activeForgeModalStructureId);
   const isMilitaryBookOpen = useUIStore(state => state.isMilitaryBookOpen);
+  const activeRegion3D = useUIStore(state => state.activeRegion3D);
 
   // Tự động ngưng thời gian khi mở các chế độ toàn màn hình không xem bản đồ
   // (xây dựng ô lưới, di dời căn cứ, xem danh tướng toàn màn hình, sa bàn 32x32)
@@ -153,7 +154,7 @@ function App() {
       <TopBar />
       <TimelineWheelScrubber />
       <LeftPanel />
-      <LeftCommandDock />
+      {activeRegion3D && <LeftCommandDock />}
       <ArmyOverviewPanel />
       <Suspense fallback={null}>
         <GeneralsModal />

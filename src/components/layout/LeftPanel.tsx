@@ -4,7 +4,6 @@ import { useUIStore } from '../../store/uiStore';
 import { CityPopulationModal } from './panel/CityPopulationModal';
 import { DistrictDetailPanel } from './panel/DistrictDetailPanel';
 import { BuildPaperPanel } from './panel/BuildPaperPanel';
-import { BaseDetailContent } from './panel/BaseDetailContent';
 
 export const LeftPanel: React.FC = React.memo(() => {
   const selectedCityId = useUIStore(state => state.selectedCityId);
@@ -23,16 +22,11 @@ export const LeftPanel: React.FC = React.memo(() => {
 
   const selectedCity = useMemo(() => cities.find(c => c.id === selectedCityId), [cities, selectedCityId]);
   const unlockedGenerals = useMemo(() => generals.filter(g => g.unlocked), [generals]);
-  const stationedGenerals = useMemo(
-    () => unlockedGenerals.filter(g => g.locationId === selectedCityId),
-    [unlockedGenerals, selectedCityId]
-  );
 
   const lamSonBases = useMemo(
     () => cities.filter(c => c.faction === 'lam_son' && (c.hasBase || c.type === 'camp')),
     [cities]
   );
-  const lamSonBasesCount = lamSonBases.length;
   const activeLamSonBase = useMemo(
     () => (selectedCity && selectedCity.faction === 'lam_son') ? selectedCity : (lamSonBases[0] || cities.find(c => c.faction === 'lam_son')),
     [selectedCity, lamSonBases, cities]
@@ -52,10 +46,10 @@ export const LeftPanel: React.FC = React.memo(() => {
 
   return (
     <>
-      {/* THÔNG TIN CHI TIẾT BẢN DOANH & ĐỊA HẠT ĐANG CHỌN */}
-      {selectedCityId && !activeModal && !isBuildPaperOpen && (
+      {/* THÔNG TIN CHI TIẾT ĐỊA HẠT ĐANG CHỌN (Không hiển thị bảng thông tin căn cứ bên ngoài) */}
+      {selectedCityId && selectionType === 'district' && !activeModal && !isBuildPaperOpen && (
         <div 
-          className="fixed inset-x-3 bottom-3 md:inset-auto md:absolute md:top-24 md:left-[98px] z-30 md:w-[410px] max-h-[82vh] flex flex-col pointer-events-auto transition-all duration-300 select-none filter drop-shadow-[0_18px_30px_rgba(0,0,0,0.7)] drop-shadow-[0_3px_8px_rgba(0,0,0,0.45)]"
+          className="fixed inset-x-3 bottom-3 md:inset-auto md:absolute md:top-24 md:left-4 z-30 md:w-[410px] max-h-[82vh] flex flex-col pointer-events-auto transition-all duration-300 select-none filter drop-shadow-[0_18px_30px_rgba(0,0,0,0.7)] drop-shadow-[0_3px_8px_rgba(0,0,0,0.45)]"
         >
           <img
             src="/parchment_torn_panel.png"
@@ -64,15 +58,7 @@ export const LeftPanel: React.FC = React.memo(() => {
             draggable={false}
           />
 
-          {selectionType === 'district' ? (
-            <DistrictDetailPanel districtId={selectedCityId} onClose={() => selectCity(null)} />
-          ) : selectedCity ? (
-            <BaseDetailContent
-              selectedCity={selectedCity}
-              stationedGenerals={stationedGenerals}
-              lamSonBasesCount={lamSonBasesCount}
-            />
-          ) : null}
+          <DistrictDetailPanel districtId={selectedCityId} onClose={() => selectCity(null)} />
         </div>
       )}
 
