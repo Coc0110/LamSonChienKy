@@ -47,10 +47,12 @@ export const WorldMap: React.FC = React.memo(() => {
   const controlRadiusLayerRef = useRef<L.LayerGroup | null>(null);
   const parchmentCutoutRef = useRef<L.ImageOverlay | null>(null);
   const parchmentSheetRef = useRef<L.ImageOverlay | null>(null);
+  const bordersOverlayRef = useRef<L.ImageOverlay | null>(null);
   const polygonsMapRef = useRef<Map<string, L.Polygon>>(new Map());
 
   const [parchmentMode, setParchmentMode] = useState<ParchmentMode>('cutout');
   const [showDistricts, setShowDistricts] = useState<boolean>(true);
+  const [showCountryBorders, setShowCountryBorders] = useState<boolean>(true);
   const [hoveredDistrictId, setHoveredDistrictId] = useState<string | null>(null);
   const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
   const [isTransformAllMode, setIsTransformAllMode] = useState<boolean>(false);
@@ -62,6 +64,25 @@ export const WorldMap: React.FC = React.memo(() => {
   const transformBaseRef = useRef<DistrictInfo[] | null>(null);
   const transformPivotRef = useRef<[number, number]>([50, 50]);
   const districtsListRef = useRef<DistrictInfo[]>([]);
+
+  const BORDERS_BOUNDS_STORAGE_KEY = 'lam_son_borders_bounds_v1';
+  const DEFAULT_BORDERS_BOUNDS = { xMin: 0, yMin: 16.626, xMax: 100, yMax: 82.34 };
+  const [bordersBounds, setBordersBounds] = useState<{ xMin: number; yMin: number; xMax: number; yMax: number }>(() => {
+    try {
+      const saved = localStorage.getItem(BORDERS_BOUNDS_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (typeof parsed.xMin === 'number' && typeof parsed.yMin === 'number' && typeof parsed.xMax === 'number' && typeof parsed.yMax === 'number') {
+          return parsed;
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return (districtData as any).bordersBounds || DEFAULT_BORDERS_BOUNDS;
+  });
+  const bordersBaseRef = useRef<{ xMin: number; yMin: number; xMax: number; yMax: number } | null>(null);
+  const bordersBoundsRef = useRef(bordersBounds);
 
   // Danh sách polygon các huyện (hỗ trợ lưu chỉnh sửa vào localStorage)
   const [districtsList, setDistrictsList] = useState<DistrictInfo[]>(() => {
@@ -356,10 +377,26 @@ export const WorldMap: React.FC = React.memo(() => {
       }
     };
 
+    const initBorders = bordersBoundsRef.current;
+    const bordersOverlay = L.imageOverlay(
+      '/map_borders.svg',
+      L.latLngBounds(
+        percentToLatLng(initBorders.xMin, initBorders.yMax),
+        percentToLatLng(initBorders.xMax, initBorders.yMin)
+      ),
+      {
+        opacity: 0.9,
+        interactive: false,
+        zIndex: 20,
+      }
+    ).addTo(map);
+    bordersOverlayRef.current = bordersOverlay;
+
     const initTimer = setTimeout(() => {
       if (isDisposed) return;
       map.invalidateSize();
       updateView(true);
+      if (!(bordersOverlay as any)._map) (bordersOverlay as any)._layerAdd({ target: map });
     }, 50);
 
     const handleResize = () => {
@@ -540,6 +577,22 @@ export const WorldMap: React.FC = React.memo(() => {
     } catch {
       // ignore
     }
+
+    const baseBorders = bordersBaseRef.current;
+    if (baseBorders) {
+      const nextBorders = {
+        xMin: round3(pivotX + (baseBorders.xMin - pivotX) * scale + offsetX),
+        yMin: round3(pivotY + (baseBorders.yMin - pivotY) * scale + offsetY),
+        xMax: round3(pivotX + (baseBorders.xMax - pivotX) * scale + offsetX),
+        yMax: round3(pivotY + (baseBorders.yMax - pivotY) * scale + offsetY),
+      };
+      setBordersBounds(nextBorders);
+      try {
+        localStorage.setItem(BORDERS_BOUNDS_STORAGE_KEY, JSON.stringify(nextBorders));
+      } catch {
+        // ignore
+      }
+    }
   }, []);
 
   const captureTransformSnapshot = useCallback((sourceList: DistrictInfo[]) => {
@@ -548,6 +601,7 @@ export const WorldMap: React.FC = React.memo(() => {
       center: [...d.center] as [number, number],
       polygon: d.polygon.map(pt => [...pt] as [number, number]),
     }));
+    bordersBaseRef.current = { ...bordersBoundsRef.current };
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     for (const d of sourceList) {
       for (const [px, py] of d.polygon) {
@@ -673,6 +727,19 @@ export const WorldMap: React.FC = React.memo(() => {
     districtsListRef.current = districtsList;
   }, [districtsList]);
 
+  useEffect(() => {
+    bordersBoundsRef.current = bordersBounds;
+    const overlay = bordersOverlayRef.current;
+    if (!overlay) return;
+    overlay.setBounds(
+      L.latLngBounds(
+        percentToLatLng(bordersBounds.xMin, bordersBounds.yMax),
+        percentToLatLng(bordersBounds.xMax, bordersBounds.yMin)
+      )
+    );
+    overlay.setOpacity(showCountryBorders && showDistricts ? 0.9 : 0);
+  }, [bordersBounds, showCountryBorders, showDistricts]);
+
   return (
     <div className="absolute inset-0 z-0 bg-[#16171a] overflow-hidden">
       {/* Giao diện Vẽ Đường Hành Quân Tự Do Trên Lưới & Bảng Lệnh Đạo Quân */}
@@ -706,6 +773,9 @@ export const WorldMap: React.FC = React.memo(() => {
             setTransformState(next);
             applyTransformState(next);
           }}
+          showCountryBorders={showCountryBorders}
+          onToggleCountryBorders={() => setShowCountryBorders(prev => !prev)}
+          bordersBounds={bordersBounds}
         />
       )}
 

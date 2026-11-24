@@ -17,6 +17,9 @@ interface DistrictEditorBarProps {
   transformState?: { offsetX: number; offsetY: number; scale: number };
   onUpdateTransformState?: React.Dispatch<React.SetStateAction<{ offsetX: number; offsetY: number; scale: number }>>;
   onResetTransform?: () => void;
+  showCountryBorders?: boolean;
+  onToggleCountryBorders?: () => void;
+  bordersBounds?: { xMin: number; yMin: number; xMax: number; yMax: number };
 }
 
 const TERRAIN_PALETTE: { type: TerrainType; label: string; icon: string; color: string }[] = [
@@ -40,6 +43,9 @@ export const DistrictEditorBar: React.FC<DistrictEditorBarProps> = ({
   transformState,
   onUpdateTransformState,
   onResetTransform,
+  showCountryBorders = true,
+  onToggleCountryBorders,
+  bordersBounds,
 }) => {
   const [tab, setTab] = useState<'polygon' | 'terrain' | 'transform'>('terrain');
   const [showImportModal, setShowImportModal] = useState<boolean>(false);
@@ -68,7 +74,7 @@ export const DistrictEditorBar: React.FC<DistrictEditorBarProps> = ({
   const handleSaveAsOfficial = async () => {
     try {
       setIsSavingOfficial(true);
-      const payload = { districts: districtsList };
+      const payload = bordersBounds ? { districts: districtsList, bordersBounds } : { districts: districtsList };
       const res = await fetch('/api/save-districts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -282,16 +288,31 @@ export const DistrictEditorBar: React.FC<DistrictEditorBarProps> = ({
               ✥ Dịch & Thu Phóng Toàn Bộ
             </button>
           </div>
-          <button
-            onClick={() => {
-              setTerrainEditMode(false);
-              onChangeTransformAllMode?.(false);
-              onToggleEditMode();
-            }}
+          <div className="flex items-center gap-2">
+            {onToggleCountryBorders && (
+              <button
+                onClick={onToggleCountryBorders}
+                className={`px-2.5 py-1 rounded text-xs font-bold border shadow cursor-pointer transition whitespace-nowrap ${
+                  showCountryBorders
+                    ? 'bg-amber-900/80 text-amber-200 border-amber-500'
+                    : 'bg-stone-800 text-stone-400 border-stone-600'
+                }`}
+                title="Bật/tắt lớp ranh giới Quốc gia & Tỉnh thành (/map_borders.svg)"
+              >
+                {showCountryBorders ? '🗺️ QG & Tỉnh: Bật' : '🗺️ QG & Tỉnh: Tắt'}
+              </button>
+            )}
+            <button
+              onClick={() => {
+                setTerrainEditMode(false);
+                onChangeTransformAllMode?.(false);
+                onToggleEditMode();
+              }}
             className="px-3 py-1 bg-[#22543d] hover:bg-[#276749] text-emerald-100 rounded text-xs font-bold border border-[#38a169] shadow cursor-pointer transition hover:scale-105 whitespace-nowrap"
           >
             ✓ Xong Sửa
           </button>
+          </div>
         </div>
 
         {/* NỘI DUNG TAB 3: DỊCH CHUYỂN & THU PHÓNG TOÀN BỘ RANH GIỚI */}
