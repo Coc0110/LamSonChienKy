@@ -53,6 +53,15 @@ export const WorldMap: React.FC = React.memo(() => {
   const [showDistricts, setShowDistricts] = useState<boolean>(true);
   const [hoveredDistrictId, setHoveredDistrictId] = useState<string | null>(null);
   const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
+  const [isTransformAllMode, setIsTransformAllMode] = useState<boolean>(false);
+  const [transformState, setTransformState] = useState<{ offsetX: number; offsetY: number; scale: number }>({
+    offsetX: 0,
+    offsetY: 0,
+    scale: 1,
+  });
+  const transformBaseRef = useRef<DistrictInfo[] | null>(null);
+  const transformPivotRef = useRef<[number, number]>([50, 50]);
+  const districtsListRef = useRef<DistrictInfo[]>([]);
 
   // Danh sách polygon các huyện (hỗ trợ lưu chỉnh sửa vào localStorage)
   const [districtsList, setDistrictsList] = useState<DistrictInfo[]>(() => {
@@ -506,11 +515,163 @@ export const WorldMap: React.FC = React.memo(() => {
     handlePlacementAtRef,
   });
 
+  const applyTransformState = useCallback((nextTransform: { offsetX: number; offsetY: number; scale: number }) => {
+    const base = transformBaseRef.current;
+    if (!base) return;
+    const [pivotX, pivotY] = transformPivotRef.current;
+    const { offsetX, offsetY, scale } = nextTransform;
+    const round3 = (n: number) => Math.round(n * 1000) / 1000;
+
+    const next = base.map(d => ({
+      ...d,
+      center: [
+        round3(pivotX + (d.center[0] - pivotX) * scale + offsetX),
+        round3(pivotY + (d.center[1] - pivotY) * scale + offsetY),
+      ] as [number, number],
+      polygon: d.polygon.map(([px, py]) => [
+        round3(pivotX + (px - pivotX) * scale + offsetX),
+        round3(pivotY + (py - pivotY) * scale + offsetY),
+      ] as [number, number]),
+    }));
+
+    setDistrictsList(next);
+    try {
+      localStorage.setItem(DISTRICT_STORAGE_KEY, JSON.stringify(next));
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const captureTransformSnapshot = useCallback((sourceList: DistrictInfo[]) => {
+    transformBaseRef.current = sourceList.map(d => ({
+      ...d,
+      center: [...d.center] as [number, number],
+      polygon: d.polygon.map(pt => [...pt] as [number, number]),
+    }));
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (const d of sourceList) {
+      for (const [px, py] of d.polygon) {
+        if (px < minX) minX = px;
+        if (px > maxX) maxX = px;
+        if (py < minY) minY = py;
+        if (py > maxY) maxY = py;
+      }
+    }
+    transformPivotRef.current = Number.isFinite(minX)
+      ? [(minX + maxX) / 2, (minY + maxY) / 2]
+      : [50, 50];
+    setTransformState({ offsetX: 0, offsetY: 0, scale: 1 });
+  }, []);
+
+  // Kéo thả & giữ Shift + cuộn chuột để di chuyển và thu phóng toàn bộ ranh giới huyện
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    const container = mapContainerRef.current;
+    if (!map || !container) return;
+
+    const activeTransform = isEditMode && isTransformAllMode;
+    if (!activeTransform) {
+      map.dragging.enable();
+      container.style.cursor = '';
+      transformBaseRef.current = null;
+      return;
+    }
+
+    if (!transformBaseRef.current) {
+      captureTransformSnapshot(districtsListRef.current);
+    }
+
+    map.dragging.disable();
+    container.style.cursor = 'move';
+
+    let isDragging = false;
+    let lastClientX = 0;
+    let lastClientY = 0;
+
+    const onPointerDown = (e: PointerEvent) => {
+      if (e.button !== 0) return;
+      isDragging = true;
+      lastClientX = e.clientX;
+      lastClientY = e.clientY;
+      container.style.cursor = 'grabbing';
+      container.setPointerCapture(e.pointerId);
+    };
+
+    const onPointerMove = (e: PointerEvent) => {
+      if (!isDragging) return;
+      const rect = container.getBoundingClientRect();
+      const prevPt = L.point(lastClientX - rect.left, lastClientY - rect.top);
+      const currPt = L.point(e.clientX - rect.left, e.clientY - rect.top);
+      const prevLatLng = map.containerPointToLatLng(prevPt);
+      const currLatLng = map.containerPointToLatLng(currPt);
+
+      const dLng = currLatLng.lng - prevLatLng.lng;
+      const dLat = currLatLng.lat - prevLatLng.lat;
+
+      lastClientX = e.clientX;
+      lastClientY = e.clientY;
+
+      setTransformState(prev => {
+        const next = {
+          ...prev,
+          offsetX: Math.round((prev.offsetX + (dLng / MAP_COORD_W) * 100) * 1000) / 1000,
+          offsetY: Math.round((prev.offsetY - (dLat / MAP_COORD_H) * 100) * 1000) / 1000,
+        };
+        applyTransformState(next);
+        return next;
+      });
+    };
+
+    const onPointerUp = (e: PointerEvent) => {
+      if (!isDragging) return;
+      isDragging = false;
+      container.style.cursor = 'move';
+      if (container.hasPointerCapture(e.pointerId)) {
+        container.releasePointerCapture(e.pointerId);
+      }
+    };
+
+    const onWheel = (e: WheelEvent) => {
+      if (!e.shiftKey) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const factor = e.deltaY < 0 ? 1.04 : 1 / 1.04;
+      setTransformState(prev => {
+        const next = {
+          ...prev,
+          scale: Math.max(0.2, Math.min(5.0, Math.round(prev.scale * factor * 1000) / 1000)),
+        };
+        applyTransformState(next);
+        return next;
+      });
+    };
+
+    container.addEventListener('pointerdown', onPointerDown);
+    container.addEventListener('pointermove', onPointerMove);
+    container.addEventListener('pointerup', onPointerUp);
+    container.addEventListener('pointercancel', onPointerUp);
+    container.addEventListener('wheel', onWheel, { passive: false });
+
+    return () => {
+      map.dragging.enable();
+      container.style.cursor = '';
+      container.removeEventListener('pointerdown', onPointerDown);
+      container.removeEventListener('pointermove', onPointerMove);
+      container.removeEventListener('pointerup', onPointerUp);
+      container.removeEventListener('pointercancel', onPointerUp);
+      container.removeEventListener('wheel', onWheel);
+    };
+  }, [isEditMode, isTransformAllMode, applyTransformState, captureTransformSnapshot]);
+
   // Hook quản lý Quân kỳ Đạo quân & Lộ trình hành quân trên lưới
   useArmyMarchLayer({
     mapInstance,
     armyLayerRef,
   });
+
+  useEffect(() => {
+    districtsListRef.current = districtsList;
+  }, [districtsList]);
 
   return (
     <div className="absolute inset-0 z-0 bg-[#16171a] overflow-hidden">
@@ -524,10 +685,27 @@ export const WorldMap: React.FC = React.memo(() => {
           selectedCityId={selectedCityId}
           districtsList={districtsList}
           onSelectCity={selectCity}
-          onToggleEditMode={toggleEditMode}
+          onToggleEditMode={() => {
+            setIsTransformAllMode(false);
+            toggleEditMode();
+          }}
           storageKey={DISTRICT_STORAGE_KEY}
           onResetCurrentDistrict={resetSingleDistrict}
           onImportDistricts={importDistrictsList}
+          onChangeTransformAllMode={setIsTransformAllMode}
+          transformState={transformState}
+          onUpdateTransformState={(updater) => {
+            setTransformState(prev => {
+              const next = typeof updater === 'function' ? updater(prev) : updater;
+              applyTransformState(next);
+              return next;
+            });
+          }}
+          onResetTransform={() => {
+            const next = { offsetX: 0, offsetY: 0, scale: 1 };
+            setTransformState(next);
+            applyTransformState(next);
+          }}
         />
       )}
 

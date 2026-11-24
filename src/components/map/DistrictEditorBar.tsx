@@ -13,6 +13,10 @@ interface DistrictEditorBarProps {
   storageKey: string;
   onResetCurrentDistrict?: (districtId: string) => void;
   onImportDistricts?: (data: DistrictInfo[]) => void;
+  onChangeTransformAllMode?: (active: boolean) => void;
+  transformState?: { offsetX: number; offsetY: number; scale: number };
+  onUpdateTransformState?: React.Dispatch<React.SetStateAction<{ offsetX: number; offsetY: number; scale: number }>>;
+  onResetTransform?: () => void;
 }
 
 const TERRAIN_PALETTE: { type: TerrainType; label: string; icon: string; color: string }[] = [
@@ -32,8 +36,12 @@ export const DistrictEditorBar: React.FC<DistrictEditorBarProps> = ({
   storageKey,
   onResetCurrentDistrict,
   onImportDistricts,
+  onChangeTransformAllMode,
+  transformState,
+  onUpdateTransformState,
+  onResetTransform,
 }) => {
-  const [tab, setTab] = useState<'polygon' | 'terrain'>('terrain');
+  const [tab, setTab] = useState<'polygon' | 'terrain' | 'transform'>('terrain');
   const [showImportModal, setShowImportModal] = useState<boolean>(false);
   const [importText, setImportText] = useState<string>('');
   const [isSavingOfficial, setIsSavingOfficial] = useState<boolean>(false);
@@ -47,12 +55,14 @@ export const DistrictEditorBar: React.FC<DistrictEditorBarProps> = ({
 
   const currentDistrict = districtsList.find(d => d.id === selectedCityId);
 
-  // Đảm bảo khi đóng thanh công cụ (thoát chế độ sửa) thì tắt hẳn chế độ sơn vẽ địa hình
+  // Đảm bảo khi đóng thanh công cụ (thoát chế độ sửa) thì tắt hẳn chế độ sơn vẽ địa hình & dịch chuyển toàn bộ
   useEffect(() => {
+    onChangeTransformAllMode?.(tab === 'transform');
     return () => {
       setTerrainEditMode(false);
+      onChangeTransformAllMode?.(false);
     };
-  }, [setTerrainEditMode]);
+  }, [setTerrainEditMode, onChangeTransformAllMode, tab]);
 
   // Lưu ranh giới trực tiếp vào file src/data/districtPolygons.json trên đĩa qua API
   const handleSaveAsOfficial = async () => {
@@ -226,13 +236,14 @@ export const DistrictEditorBar: React.FC<DistrictEditorBarProps> = ({
   return (
     <>
       <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[1000] w-[95vw] max-w-3xl bg-[#221008]/96 text-[#f5ebd7] px-4 py-3 rounded-xl border-2 border-amber-500 shadow-2xl backdrop-blur-md flex flex-col items-center gap-2 pointer-events-auto">
-        {/* Switch Tab: Nắn Ranh Giới / Sơn Địa Hình */}
+        {/* Switch Tab: Nắn Ranh Giới / Dịch & Thu Phóng Toàn Bộ / Sơn Địa Hình */}
         <div className="flex items-center gap-2 pb-1 border-b border-amber-900/60 w-full justify-between">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={() => {
                 setTab('terrain');
                 setTerrainEditMode(true);
+                onChangeTransformAllMode?.(false);
               }}
               className={`px-3 py-1 rounded text-xs font-bold transition cursor-pointer ${
                 tab === 'terrain'
@@ -246,6 +257,7 @@ export const DistrictEditorBar: React.FC<DistrictEditorBarProps> = ({
               onClick={() => {
                 setTab('polygon');
                 setTerrainEditMode(false);
+                onChangeTransformAllMode?.(false);
               }}
               className={`px-3 py-1 rounded text-xs font-bold transition cursor-pointer ${
                 tab === 'polygon'
@@ -255,10 +267,25 @@ export const DistrictEditorBar: React.FC<DistrictEditorBarProps> = ({
             >
               ✦ Nắn Ranh Giới Huyện
             </button>
+            <button
+              onClick={() => {
+                setTab('transform');
+                setTerrainEditMode(false);
+                onChangeTransformAllMode?.(true);
+              }}
+              className={`px-3 py-1 rounded text-xs font-bold transition cursor-pointer ${
+                tab === 'transform'
+                  ? 'bg-amber-600 text-white shadow'
+                  : 'bg-stone-800 text-stone-300 hover:bg-stone-700'
+              }`}
+            >
+              ✥ Dịch & Thu Phóng Toàn Bộ
+            </button>
           </div>
           <button
             onClick={() => {
               setTerrainEditMode(false);
+              onChangeTransformAllMode?.(false);
               onToggleEditMode();
             }}
             className="px-3 py-1 bg-[#22543d] hover:bg-[#276749] text-emerald-100 rounded text-xs font-bold border border-[#38a169] shadow cursor-pointer transition hover:scale-105 whitespace-nowrap"
@@ -266,6 +293,113 @@ export const DistrictEditorBar: React.FC<DistrictEditorBarProps> = ({
             ✓ Xong Sửa
           </button>
         </div>
+
+        {/* NỘI DUNG TAB 3: DỊCH CHUYỂN & THU PHÓNG TOÀN BỘ RANH GIỚI */}
+        {tab === 'transform' && transformState && onUpdateTransformState && (
+          <div className="flex flex-col items-center gap-2 w-full animate-in fade-in duration-150">
+            <div className="flex flex-wrap items-center justify-center gap-2 w-full">
+              <div className="flex items-center gap-1.5 bg-stone-900/70 px-2.5 py-1 rounded border border-amber-800/50">
+                <span className="text-[11px] font-bold text-amber-300">Thu Phóng:</span>
+                <button
+                  onClick={() =>
+                    onUpdateTransformState(prev => ({
+                      ...prev,
+                      scale: Math.max(0.2, Math.round((prev.scale - 0.02) * 1000) / 1000),
+                    }))
+                  }
+                  className="px-1.5 py-0.5 bg-stone-800 hover:bg-stone-700 rounded text-xs font-bold cursor-pointer"
+                >
+                  -
+                </button>
+                <input
+                  type="range"
+                  min={0.2}
+                  max={5.0}
+                  step={0.01}
+                  value={transformState.scale}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    onUpdateTransformState(prev => ({ ...prev, scale: val }));
+                  }}
+                  className="w-28 accent-amber-500 cursor-pointer"
+                />
+                <button
+                  onClick={() =>
+                    onUpdateTransformState(prev => ({
+                      ...prev,
+                      scale: Math.min(5.0, Math.round((prev.scale + 0.02) * 1000) / 1000),
+                    }))
+                  }
+                  className="px-1.5 py-0.5 bg-stone-800 hover:bg-stone-700 rounded text-xs font-bold cursor-pointer"
+                >
+                  +
+                </button>
+                <span className="text-xs font-mono text-amber-200 w-12 text-right">
+                  {transformState.scale.toFixed(2)}x
+                </span>
+              </div>
+
+              <div className="flex items-center gap-1 bg-stone-900/70 px-2 py-1 rounded border border-amber-800/50">
+                <span className="text-[11px] font-bold text-stone-300 mr-1">Nhích:</span>
+                <button
+                  onClick={() => onUpdateTransformState(prev => ({ ...prev, offsetX: Math.round((prev.offsetX - 0.2) * 1000) / 1000 }))}
+                  className="px-1.5 py-0.5 bg-stone-800 hover:bg-stone-700 rounded text-xs font-bold cursor-pointer"
+                  title="Dịch trái 0.2%"
+                >
+                  ←
+                </button>
+                <button
+                  onClick={() => onUpdateTransformState(prev => ({ ...prev, offsetY: Math.round((prev.offsetY - 0.2) * 1000) / 1000 }))}
+                  className="px-1.5 py-0.5 bg-stone-800 hover:bg-stone-700 rounded text-xs font-bold cursor-pointer"
+                  title="Dịch lên 0.2%"
+                >
+                  ↑
+                </button>
+                <button
+                  onClick={() => onUpdateTransformState(prev => ({ ...prev, offsetY: Math.round((prev.offsetY + 0.2) * 1000) / 1000 }))}
+                  className="px-1.5 py-0.5 bg-stone-800 hover:bg-stone-700 rounded text-xs font-bold cursor-pointer"
+                  title="Dịch xuống 0.2%"
+                >
+                  ↓
+                </button>
+                <button
+                  onClick={() => onUpdateTransformState(prev => ({ ...prev, offsetX: Math.round((prev.offsetX + 0.2) * 1000) / 1000 }))}
+                  className="px-1.5 py-0.5 bg-stone-800 hover:bg-stone-700 rounded text-xs font-bold cursor-pointer"
+                  title="Dịch phải 0.2%"
+                >
+                  →
+                </button>
+              </div>
+
+              <span className="text-[11px] font-mono text-stone-400">
+                dX: {transformState.offsetX >= 0 ? '+' : ''}{transformState.offsetX.toFixed(2)}% | dY: {transformState.offsetY >= 0 ? '+' : ''}{transformState.offsetY.toFixed(2)}%
+              </span>
+
+              <button
+                onClick={handleSaveAsOfficial}
+                disabled={isSavingOfficial}
+                className="px-2.5 py-1 bg-[#15803d] hover:bg-[#16a34a] text-white rounded text-xs font-bold border border-[#22c55e] shadow cursor-pointer transition whitespace-nowrap flex items-center gap-1"
+                title="Lưu toàn bộ tọa độ ranh giới mới vào src/data/districtPolygons.json"
+              >
+                <span>💾</span>
+                <span>{isSavingOfficial ? 'Đang lưu...' : 'Lưu Bản Chính Thức'}</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  onResetTransform?.();
+                  notify.info('Đã đưa toàn bộ ranh giới về lại mốc trước khi dịch/thu phóng!');
+                }}
+                className="px-2 py-1 bg-[#5c2419] hover:bg-[#783021] text-amber-100 rounded text-xs font-bold border border-[#963e2c] shadow cursor-pointer transition whitespace-nowrap"
+              >
+                ↺ Đặt Lại Mốc
+              </button>
+            </div>
+            <p className="text-[11px] text-amber-200/90 text-center">
+              ✦ Kéo chuột trái trực tiếp trên bản đồ để di chuyển toàn bộ {districtsList.length} ranh giới huyện • Giữ <b>Shift + Cuộn chuột</b> (hoặc dùng thanh Thu Phóng) để phóng to/thu nhỏ cụm ranh giới • Bấm <b>Lưu Bản Chính Thức</b> khi khớp.
+            </p>
+          </div>
+        )}
 
         {/* NỘI DUNG TAB 1: SƠN VẼ ĐỊA HÌNH LƯỚI */}
         {tab === 'terrain' && (
