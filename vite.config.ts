@@ -58,6 +58,29 @@ function saveDistrictsPlugin(): Plugin {
           return
         }
 
+        if (req.url === '/api/save-map-alignment' && req.method === 'POST') {
+          let body = ''
+          req.on('data', (chunk) => {
+            body += chunk
+          })
+          req.on('end', () => {
+            try {
+              const data = JSON.parse(body)
+              const formatted = JSON.stringify(data, null, 2)
+              const targetPath = path.resolve(__dirname, 'src/data/mapAlignment.json')
+              fs.writeFileSync(targetPath, formatted, 'utf8')
+              res.statusCode = 200
+              res.setHeader('Content-Type', 'application/json')
+              res.end(JSON.stringify({ success: true, message: 'Đã lưu tọa độ bản đồ thành công vào src/data/mapAlignment.json!' }))
+            } catch (err: any) {
+              res.statusCode = 500
+              res.setHeader('Content-Type', 'application/json')
+              res.end(JSON.stringify({ success: false, error: err?.message || 'Lỗi lưu file' }))
+            }
+          })
+          return
+        }
+
         next()
       })
     },

@@ -31,6 +31,27 @@ export const pointInPolygon = (x: number, y: number, vs: [number, number][]): bo
   return inside;
 };
 
+export interface MapAlignmentConfig {
+  imageUrl: string;
+  imageWidth: number;
+  imageHeight: number;
+  centerX: number;
+  centerY: number;
+  scale: number;
+}
+
+export const computeMapImageBounds = (cfg: MapAlignmentConfig): L.LatLngBounds => {
+  const aspect = (cfg.imageHeight || 1024) / (cfg.imageWidth || 512);
+  const wCrs = MAP_COORD_W * cfg.scale;
+  const hCrs = wCrs * aspect;
+  const centerLng = (cfg.centerX / 100) * MAP_COORD_W;
+  const centerLat = -(cfg.centerY / 100) * MAP_COORD_H;
+  return L.latLngBounds(
+    L.latLng(centerLat - hCrs / 2, centerLng - wCrs / 2),
+    L.latLng(centerLat + hCrs / 2, centerLng + wCrs / 2)
+  );
+};
+
 // Tra cứu huyện chứa tọa độ (x, y)
 export const findDistrictForCoord = <T extends { id: string; name: string; center: [number, number]; polygon: [number, number][] }>(
   x: number,
