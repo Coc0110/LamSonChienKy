@@ -1,8 +1,8 @@
 import L from 'leaflet';
 
-// Tọa độ hệ chuẩn Leaflet CRS.Simple khớp tỷ lệ 2720x2160 của bản đồ Thanh Hóa Wonderdraft:
-export const MAP_COORD_W = 680;
-export const MAP_COORD_H = 540;
+// Tọa độ hệ chuẩn Leaflet CRS.Simple tại Zoom 0:
+export const MAP_COORD_W = 560;
+export const MAP_COORD_H = 736;
 export const TILE_SIZE = 512;
 
 // Chuyển đổi tọa độ phần trăm % (0..100) sang Leaflet CRS.Simple [lat, lng]
@@ -29,27 +29,6 @@ export const pointInPolygon = (x: number, y: number, vs: [number, number][]): bo
     if (intersect) inside = !inside;
   }
   return inside;
-};
-
-export interface MapAlignmentConfig {
-  imageUrl: string;
-  imageWidth: number;
-  imageHeight: number;
-  centerX: number;
-  centerY: number;
-  scale: number;
-}
-
-export const computeMapImageBounds = (cfg: MapAlignmentConfig): L.LatLngBounds => {
-  const aspect = (cfg.imageHeight || 1024) / (cfg.imageWidth || 512);
-  const wCrs = MAP_COORD_W * cfg.scale;
-  const hCrs = wCrs * aspect;
-  const centerLng = (cfg.centerX / 100) * MAP_COORD_W;
-  const centerLat = -(cfg.centerY / 100) * MAP_COORD_H;
-  return L.latLngBounds(
-    L.latLng(centerLat - hCrs / 2, centerLng - wCrs / 2),
-    L.latLng(centerLat + hCrs / 2, centerLng + wCrs / 2)
-  );
 };
 
 // Tra cứu huyện chứa tọa độ (x, y)

@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import type { DistrictInfo } from '../../types/map';
 import type { TerrainType } from '../../types/terrain';
-import type { MapAlignmentConfig } from '../../utils/mapGeo';
 import { useUIStore } from '../../store/uiStore';
 import { notify } from '../../store/dialogStore';
 import { exportTerrainGridJSON, resetCustomTerrainGrid } from '../../data/terrainGrid';
@@ -14,13 +13,6 @@ interface DistrictEditorBarProps {
   storageKey: string;
   onResetCurrentDistrict?: (districtId: string) => void;
   onImportDistricts?: (data: DistrictInfo[]) => void;
-  mapAlignment?: MapAlignmentConfig;
-  onChangeMapAlignment?: React.Dispatch<React.SetStateAction<MapAlignmentConfig>>;
-  onResetMapAlignment?: () => void;
-  isAligningMap?: boolean;
-  onChangeAligningMap?: (active: boolean) => void;
-  alignOpacity?: number;
-  onChangeAlignOpacity?: (opacity: number) => void;
 }
 
 const TERRAIN_PALETTE: { type: TerrainType; label: string; icon: string; color: string }[] = [
@@ -40,19 +32,12 @@ export const DistrictEditorBar: React.FC<DistrictEditorBarProps> = ({
   storageKey,
   onResetCurrentDistrict,
   onImportDistricts,
-  mapAlignment,
-  onChangeMapAlignment,
-  onResetMapAlignment,
-  onChangeAligningMap,
-  alignOpacity = 0.85,
-  onChangeAlignOpacity,
 }) => {
-  const [tab, setTab] = useState<'polygon' | 'terrain' | 'alignment'>('alignment');
+  const [tab, setTab] = useState<'polygon' | 'terrain'>('terrain');
   const [showImportModal, setShowImportModal] = useState<boolean>(false);
   const [importText, setImportText] = useState<string>('');
   const [isSavingOfficial, setIsSavingOfficial] = useState<boolean>(false);
   const [isSavingTerrainOfficial, setIsSavingTerrainOfficial] = useState<boolean>(false);
-  const [isSavingAlignmentOfficial, setIsSavingAlignmentOfficial] = useState<boolean>(false);
 
   const setTerrainEditMode = useUIStore(state => state.setTerrainEditMode);
   const brushTerrain = useUIStore(state => state.brushTerrain);
@@ -62,39 +47,12 @@ export const DistrictEditorBar: React.FC<DistrictEditorBarProps> = ({
 
   const currentDistrict = districtsList.find(d => d.id === selectedCityId);
 
-  // Đảm bảo khi đóng thanh công cụ (thoát chế độ sửa) thì tắt hẳn chế độ sơn vẽ địa hình & căn chỉnh bản đồ
+  // Đảm bảo khi đóng thanh công cụ (thoát chế độ sửa) thì tắt hẳn chế độ sơn vẽ địa hình
   useEffect(() => {
-    onChangeAligningMap?.(tab === 'alignment');
     return () => {
       setTerrainEditMode(false);
-      onChangeAligningMap?.(false);
     };
-  }, [setTerrainEditMode, onChangeAligningMap, tab]);
-
-  const handleSaveMapAlignmentOfficial = async () => {
-    if (!mapAlignment) return;
-    try {
-      setIsSavingAlignmentOfficial(true);
-      const res = await fetch('/api/save-map-alignment', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(mapAlignment),
-      });
-      if (!res.ok) {
-        throw new Error(`Mã lỗi HTTP: ${res.status}`);
-      }
-      const result = await res.json();
-      if (result.success) {
-        notify.success(`🎉 Đã lưu tọa độ bản đồ (${mapAlignment.centerX}%, ${mapAlignment.centerY}%, tỉ lệ ${mapAlignment.scale}x) vào dự án!`);
-      } else {
-        throw new Error(result.error);
-      }
-    } catch (err: any) {
-      notify.error(`Chưa lưu được tự động qua server: ${err?.message}`);
-    } finally {
-      setIsSavingAlignmentOfficial(false);
-    }
-  };
+  }, [setTerrainEditMode]);
 
   // Lưu ranh giới trực tiếp vào file src/data/districtPolygons.json trên đĩa qua API
   const handleSaveAsOfficial = async () => {
@@ -268,42 +226,13 @@ export const DistrictEditorBar: React.FC<DistrictEditorBarProps> = ({
   return (
     <>
       <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[1000] w-[95vw] max-w-3xl bg-[#221008]/96 text-[#f5ebd7] px-4 py-3 rounded-xl border-2 border-amber-500 shadow-2xl backdrop-blur-md flex flex-col items-center gap-2 pointer-events-auto">
-        {/* Switch Tab: Căn Chỉnh Bản Đồ / Nắn Ranh Giới / Sơn Địa Hình */}
+        {/* Switch Tab: Nắn Ranh Giới / Sơn Địa Hình */}
         <div className="flex items-center gap-2 pb-1 border-b border-amber-900/60 w-full justify-between">
-          <div className="flex items-center gap-2 flex-wrap">
-            <button
-              onClick={() => {
-                setTab('alignment');
-                setTerrainEditMode(false);
-                onChangeAligningMap?.(true);
-              }}
-              className={`px-3 py-1 rounded text-xs font-bold transition cursor-pointer ${
-                tab === 'alignment'
-                  ? 'bg-amber-600 text-white shadow'
-                  : 'bg-stone-800 text-stone-300 hover:bg-stone-700'
-              }`}
-            >
-              🗺️ Căn Chỉnh Bản Đồ
-            </button>
-            <button
-              onClick={() => {
-                setTab('polygon');
-                setTerrainEditMode(false);
-                onChangeAligningMap?.(false);
-              }}
-              className={`px-3 py-1 rounded text-xs font-bold transition cursor-pointer ${
-                tab === 'polygon'
-                  ? 'bg-amber-600 text-white shadow'
-                  : 'bg-stone-800 text-stone-300 hover:bg-stone-700'
-              }`}
-            >
-              ✦ Nắn Ranh Giới Huyện
-            </button>
+          <div className="flex items-center gap-2">
             <button
               onClick={() => {
                 setTab('terrain');
                 setTerrainEditMode(true);
-                onChangeAligningMap?.(false);
               }}
               className={`px-3 py-1 rounded text-xs font-bold transition cursor-pointer ${
                 tab === 'terrain'
@@ -313,11 +242,23 @@ export const DistrictEditorBar: React.FC<DistrictEditorBarProps> = ({
             >
               ✦ Sơn Vẽ Lưới Địa Hình
             </button>
+            <button
+              onClick={() => {
+                setTab('polygon');
+                setTerrainEditMode(false);
+              }}
+              className={`px-3 py-1 rounded text-xs font-bold transition cursor-pointer ${
+                tab === 'polygon'
+                  ? 'bg-amber-600 text-white shadow'
+                  : 'bg-stone-800 text-stone-300 hover:bg-stone-700'
+              }`}
+            >
+              ✦ Nắn Ranh Giới Huyện
+            </button>
           </div>
           <button
             onClick={() => {
               setTerrainEditMode(false);
-              onChangeAligningMap?.(false);
               onToggleEditMode();
             }}
             className="px-3 py-1 bg-[#22543d] hover:bg-[#276749] text-emerald-100 rounded text-xs font-bold border border-[#38a169] shadow cursor-pointer transition hover:scale-105 whitespace-nowrap"
@@ -325,97 +266,6 @@ export const DistrictEditorBar: React.FC<DistrictEditorBarProps> = ({
             ✓ Xong Sửa
           </button>
         </div>
-
-        {/* NỘI DUNG TAB 0: CĂN CHỈNH TẤM BẢN ĐỒ NỀN PNG */}
-        {tab === 'alignment' && mapAlignment && onChangeMapAlignment && (
-          <div className="flex flex-col items-center gap-2 w-full animate-in fade-in duration-150">
-            <div className="flex flex-wrap items-center justify-center gap-2.5 w-full">
-              <div className="flex items-center gap-1.5 bg-stone-900/70 px-2.5 py-1 rounded border border-amber-800/50">
-                <span className="text-[11px] font-bold text-amber-300">Thu Phóng:</span>
-                <button
-                  onClick={() =>
-                    onChangeMapAlignment(prev => ({
-                      ...prev,
-                      scale: Math.max(0.2, Math.round((prev.scale - 0.05) * 1000) / 1000),
-                    }))
-                  }
-                  className="px-1.5 py-0.5 bg-stone-800 hover:bg-stone-700 rounded text-xs font-bold cursor-pointer"
-                >
-                  -
-                </button>
-                <input
-                  type="range"
-                  min={0.2}
-                  max={8.0}
-                  step={0.01}
-                  value={mapAlignment.scale}
-                  onChange={(e) => {
-                    const val = parseFloat(e.target.value);
-                    onChangeMapAlignment(prev => ({ ...prev, scale: val }));
-                  }}
-                  className="w-28 accent-amber-500 cursor-pointer"
-                />
-                <button
-                  onClick={() =>
-                    onChangeMapAlignment(prev => ({
-                      ...prev,
-                      scale: Math.min(12.0, Math.round((prev.scale + 0.05) * 1000) / 1000),
-                    }))
-                  }
-                  className="px-1.5 py-0.5 bg-stone-800 hover:bg-stone-700 rounded text-xs font-bold cursor-pointer"
-                >
-                  +
-                </button>
-                <span className="text-xs font-mono text-amber-200 w-12 text-right">
-                  {mapAlignment.scale.toFixed(2)}x
-                </span>
-              </div>
-
-              <div className="flex items-center gap-1.5 bg-stone-900/70 px-2.5 py-1 rounded border border-amber-800/50">
-                <span className="text-[11px] font-bold text-stone-300">Độ mờ:</span>
-                <input
-                  type="range"
-                  min={0.2}
-                  max={1.0}
-                  step={0.05}
-                  value={alignOpacity}
-                  onChange={(e) => onChangeAlignOpacity?.(parseFloat(e.target.value))}
-                  className="w-20 accent-amber-500 cursor-pointer"
-                />
-                <span className="text-xs font-mono text-stone-200 w-9 text-right">
-                  {Math.round(alignOpacity * 100)}%
-                </span>
-              </div>
-
-              <span className="text-[11px] font-mono text-stone-400">
-                X: {mapAlignment.centerX.toFixed(2)}% | Y: {mapAlignment.centerY.toFixed(2)}%
-              </span>
-
-              <button
-                onClick={handleSaveMapAlignmentOfficial}
-                disabled={isSavingAlignmentOfficial}
-                className="px-2.5 py-1 bg-[#15803d] hover:bg-[#16a34a] text-white rounded text-xs font-bold border border-[#22c55e] shadow cursor-pointer transition whitespace-nowrap flex items-center gap-1"
-                title="Lưu tọa độ & tỉ lệ tấm bản đồ vào src/data/mapAlignment.json"
-              >
-                <span>💾</span>
-                <span>{isSavingAlignmentOfficial ? 'Đang lưu...' : 'Lưu Tọa Độ Bản Đồ'}</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  onResetMapAlignment?.();
-                  notify.info('Đã khôi phục tọa độ bản đồ về bản đã lưu!');
-                }}
-                className="px-2 py-1 bg-[#5c2419] hover:bg-[#783021] text-amber-100 rounded text-xs font-bold border border-[#963e2c] shadow cursor-pointer transition whitespace-nowrap"
-              >
-                Khôi Phục
-              </button>
-            </div>
-            <p className="text-[11px] text-amber-200/90 text-center">
-              ✦ Kéo chuột trái trực tiếp trên màn hình để dịch chuyển tấm bản đồ • Giữ <b>Shift + Cuộn chuột</b> (hoặc dùng thanh Thu Phóng) để phóng to/thu nhỏ khớp biên giới • Bấm <b>Lưu Tọa Độ Bản Đồ</b> khi xong.
-            </p>
-          </div>
-        )}
 
         {/* NỘI DUNG TAB 1: SƠN VẼ ĐỊA HÌNH LƯỚI */}
         {tab === 'terrain' && (

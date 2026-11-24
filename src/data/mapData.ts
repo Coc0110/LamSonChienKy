@@ -7,8 +7,8 @@ export const INITIAL_STRUCTURES: PlacedStructure[] = [
     cityId: 'lam_son',
     type: 'farm',
     name: 'Đồn Điền Lam Sơn 1',
-    x: 55.6,
-    y: 41.24,
+    x: 57.6,
+    y: 47.2,
     terrain: 'plains',
     status: 'active',
     buildDaysTotal: 12,
@@ -24,8 +24,8 @@ export const INITIAL_STRUCTURES: PlacedStructure[] = [
     cityId: 'lam_son',
     type: 'farm',
     name: 'Đồn Điền Lam Sơn 2',
-    x: 56.72,
-    y: 51.93,
+    x: 58.0,
+    y: 49.6,
     terrain: 'plains',
     status: 'active',
     buildDaysTotal: 12,
@@ -41,8 +41,8 @@ export const INITIAL_STRUCTURES: PlacedStructure[] = [
     cityId: 'lam_son',
     type: 'forge',
     name: 'Lò Rèn Rừng Già Lam Sơn',
-    x: 48.87,
-    y: 47.48,
+    x: 55.2,
+    y: 48.6,
     terrain: 'forest',
     status: 'active',
     buildDaysTotal: 18,
@@ -64,8 +64,8 @@ export const INITIAL_CITIES: CityNode[] = [
     name: 'Lam Sơn',
     districtId: 'lam_son',
     type: 'camp',
-    x: 49.99,
-    y: 45.25,
+    x: 55.6,
+    y: 48.1,
     faction: 'lam_son',
     troops: 70,             // Toàn bộ lực lượng nghĩa quân tập hợp tại Lam Sơn
     hasBase: true,          // Căn cứ khởi phát duy nhất của nghĩa quân Lam Sơn
@@ -86,11 +86,11 @@ export const INITIAL_CITIES: CityNode[] = [
   },
 
   // --- HỆ THỐNG ĐỒN BỐT & THÀNH TRÌ ĐỒN TRÚ QUÂN MINH ---
-  { id: 'quan_du', name: 'Ải Quan Du', type: 'chokepoint', x: 42.14, y: 23.87, faction: 'ming', troops: 1200 },
-  { id: 'kinh_long', name: 'Ải Kình Lộng', type: 'chokepoint', x: 60.37, y: 31.44, faction: 'ming', troops: 1500 },
-  { id: 'tay_do', name: 'Thành Tây Đô', type: 'city', x: 60.34, y: 40.53, faction: 'ming', troops: 10000 },
-  { id: 'nga_lac', name: 'Đồn Nga Lạc', type: 'camp', x: 69.62, y: 42.13, faction: 'ming', troops: 1500 },
-  { id: 'da_cang', name: 'Đồn Đa Căng', type: 'camp', x: 63.45, y: 51.04, faction: 'ming', troops: 1800 },
+  { id: 'quan_du', name: 'Ải Quan Du', type: 'chokepoint', x: 52.8, y: 43.3, faction: 'ming', troops: 1200 },
+  { id: 'kinh_long', name: 'Ải Kình Lộng', type: 'chokepoint', x: 59.3, y: 45.0, faction: 'ming', troops: 1500 },
+  { id: 'tay_do', name: 'Thành Tây Đô', type: 'city', x: 59.29, y: 47.04, faction: 'ming', troops: 10000 },
+  { id: 'nga_lac', name: 'Đồn Nga Lạc', type: 'camp', x: 62.6, y: 47.4, faction: 'ming', troops: 1500 },
+  { id: 'da_cang', name: 'Đồn Đa Căng', type: 'camp', x: 60.4, y: 49.4, faction: 'ming', troops: 1800 },
 ];
 
 // Mạng lưới quân lộ và đường hành quân kết nối các huyện thành

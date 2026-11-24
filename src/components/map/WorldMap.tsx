@@ -8,13 +8,11 @@ import {
   percentToLatLng,
   latLngToPercent,
   findDistrictForCoord,
-  computeMapImageBounds,
-  type MapAlignmentConfig,
   MAP_COORD_W,
   MAP_COORD_H,
+  TILE_SIZE,
 } from '../../utils/mapGeo';
 import districtData from '../../data/districtPolygons.json';
-import defaultMapAlignment from '../../data/mapAlignment.json';
 import {
   validateCellPlacement,
   coordToCell,
@@ -55,29 +53,6 @@ export const WorldMap: React.FC = React.memo(() => {
   const [showDistricts, setShowDistricts] = useState<boolean>(true);
   const [hoveredDistrictId, setHoveredDistrictId] = useState<string | null>(null);
   const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
-  const [isAligningMap, setIsAligningMap] = useState<boolean>(false);
-  const [alignOpacity, setAlignOpacity] = useState<number>(0.85);
-  const alignFrameRef = useRef<L.Rectangle | null>(null);
-
-  const MAP_ALIGNMENT_STORAGE_KEY = 'lam_son_map_alignment_v2';
-  const [mapAlignment, setMapAlignment] = useState<MapAlignmentConfig>(() => {
-    try {
-      const saved = localStorage.getItem(MAP_ALIGNMENT_STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (typeof parsed.centerX === 'number' && typeof parsed.centerY === 'number' && typeof parsed.scale === 'number') {
-          return {
-            ...(defaultMapAlignment as MapAlignmentConfig),
-            ...parsed,
-          };
-        }
-      }
-    } catch {
-      // ignore
-    }
-    return defaultMapAlignment as MapAlignmentConfig;
-  });
-  const initialMapAlignmentRef = useRef<MapAlignmentConfig>(mapAlignment);
 
   // Danh sách polygon các huyện (hỗ trợ lưu chỉnh sửa vào localStorage)
   const [districtsList, setDistrictsList] = useState<DistrictInfo[]>(() => {
@@ -245,8 +220,8 @@ export const WorldMap: React.FC = React.memo(() => {
 
     const map = L.map(mapContainerRef.current, {
       crs: L.CRS.Simple,
-      minZoom: -1,
-      maxZoom: 4.5,
+      minZoom: 0,
+      maxZoom: 6,
       zoomSnap: 0.1,
       zoomDelta: 0.5,
       wheelPxPerZoomLevel: 100,
@@ -287,9 +262,21 @@ export const WorldMap: React.FC = React.memo(() => {
       draggable.enable();
     }
 
-    const initialCenter = percentToLatLng(50, 50);
-    const initialZoom = 0.5;
+    const initialCenter = percentToLatLng(54.5, 47.5);
+    const initialZoom = 1.2;
     map.setView(initialCenter, initialZoom);
+
+    const tileLayer = L.tileLayer('/tiles/{z}/{x}/{y}.jpg', {
+      minZoom: 0,
+      maxZoom: 6,
+      maxNativeZoom: 4,
+      minNativeZoom: 0,
+      tileSize: TILE_SIZE,
+      noWrap: true,
+      bounds: bounds,
+    });
+
+    tileLayer.addTo(map);
 
     map.on('zoomend', () => {
       const z = map.getZoom();
@@ -352,29 +339,58 @@ export const WorldMap: React.FC = React.memo(() => {
       map.setMinZoom(minCoverZoom);
 
       if (isInitial) {
-        const initialCenterPt = percentToLatLng(50, 50);
-        map.setView(initialCenterPt, minCoverZoom);
+        const initialCenterPt = percentToLatLng(54.5, 47.5);
+        const initialZoomVal = Math.max(minCoverZoom, minCoverZoom + 1.15);
+        map.setView(initialCenterPt, initialZoomVal);
       } else if (map.getZoom() < minCoverZoom) {
         map.setZoom(minCoverZoom);
       }
     };
 
-    const initialBounds = computeMapImageBounds(initialMapAlignmentRef.current);
+    const fullMapBounds = L.latLngBounds(
+      percentToLatLng(0, 100),
+      percentToLatLng(100, 0)
+    );
 
-    const wonderdraftOverlay = L.imageOverlay(initialMapAlignmentRef.current.imageUrl, initialBounds, {
-      opacity: 1.0,
+    const riversOverlay = L.imageOverlay('/map_rivers.svg', fullMapBounds, {
+      opacity: 0.95,
       interactive: false,
-      zIndex: 10,
+      zIndex: 15,
     }).addTo(map);
 
-    parchmentCutoutRef.current = wonderdraftOverlay;
-    parchmentSheetRef.current = null;
+    const bordersOverlay = L.imageOverlay('/map_borders.svg', fullMapBounds, {
+      opacity: 0.9,
+      interactive: false,
+      zIndex: 20,
+    }).addTo(map);
+
+    const thanhHoaBounds = L.latLngBounds(
+      percentToLatLng(36.0, 65.0),
+      percentToLatLng(70.0, 38.0)
+    );
+
+    const cutoutOverlay = L.imageOverlay('/thanh_hoa_parchment.png', thanhHoaBounds, {
+      opacity: 1.0,
+      interactive: false,
+      zIndex: 25,
+    }).addTo(map);
+
+    const sheetOverlay = L.imageOverlay('/thanh_hoa_parchment_full.jpg', thanhHoaBounds, {
+      opacity: 0,
+      interactive: false,
+      zIndex: 24,
+    }).addTo(map);
+
+    parchmentCutoutRef.current = cutoutOverlay;
+    parchmentSheetRef.current = sheetOverlay;
 
     const initTimer = setTimeout(() => {
       if (isDisposed) return;
       map.invalidateSize();
       updateView(true);
-      if (!(wonderdraftOverlay as any)._map) (wonderdraftOverlay as any)._layerAdd({ target: map });
+      [riversOverlay, bordersOverlay, sheetOverlay, cutoutOverlay].forEach(o => {
+        if (!(o as any)._map) (o as any)._layerAdd({ target: map });
+      });
     }, 50);
 
     const handleResize = () => {
@@ -418,130 +434,23 @@ export const WorldMap: React.FC = React.memo(() => {
     };
   }, []);
 
-  // Cập nhật tọa độ, kích thước, độ mờ & tương tác kéo thả/thu phóng tấm bản đồ nền PNG
+  // Chuyển đổi chế độ hiển thị Sa bàn Giấy Da Cừu
   useEffect(() => {
     const cutout = parchmentCutoutRef.current;
-    const map = mapInstanceRef.current;
-    if (!cutout || !map) return;
+    const sheet = parchmentSheetRef.current;
+    if (!cutout || !sheet) return;
 
-    const bounds = computeMapImageBounds(mapAlignment);
-    cutout.setBounds(bounds);
-
-    try {
-      localStorage.setItem(MAP_ALIGNMENT_STORAGE_KEY, JSON.stringify(mapAlignment));
-    } catch {
-      // ignore
-    }
-
-    const activeAlign = isEditMode && isAligningMap;
-    if (parchmentMode === 'off') {
+    if (parchmentMode === 'cutout') {
+      cutout.setOpacity(1.0);
+      sheet.setOpacity(0);
+    } else if (parchmentMode === 'sheet') {
       cutout.setOpacity(0);
+      sheet.setOpacity(1.0);
     } else {
-      cutout.setOpacity(activeAlign ? alignOpacity : 1.0);
+      cutout.setOpacity(0);
+      sheet.setOpacity(0);
     }
-
-    if (alignFrameRef.current) {
-      alignFrameRef.current.remove();
-      alignFrameRef.current = null;
-    }
-
-    if (activeAlign) {
-      alignFrameRef.current = L.rectangle(bounds, {
-        color: '#fbbf24',
-        weight: 2,
-        dashArray: '8 6',
-        fill: false,
-        interactive: false,
-      }).addTo(map);
-    }
-  }, [mapAlignment, isEditMode, isAligningMap, alignOpacity, parchmentMode]);
-
-  // Kéo thả di chuyển & giữ Shift + cuộn chuột thu phóng tấm bản đồ PNG khi ở chế độ Căn Chỉnh Bản Đồ
-  useEffect(() => {
-    const map = mapInstanceRef.current;
-    const container = mapContainerRef.current;
-    if (!map || !container) return;
-
-    const activeAlign = isEditMode && isAligningMap;
-    if (!activeAlign) {
-      map.dragging.enable();
-      container.style.cursor = '';
-      return;
-    }
-
-    map.dragging.disable();
-    container.style.cursor = 'grab';
-
-    let isDraggingImg = false;
-    let lastClientX = 0;
-    let lastClientY = 0;
-
-    const onPointerDown = (e: PointerEvent) => {
-      if (e.button !== 0) return;
-      isDraggingImg = true;
-      lastClientX = e.clientX;
-      lastClientY = e.clientY;
-      container.style.cursor = 'grabbing';
-      container.setPointerCapture(e.pointerId);
-    };
-
-    const onPointerMove = (e: PointerEvent) => {
-      if (!isDraggingImg) return;
-      const rect = container.getBoundingClientRect();
-      const prevPt = L.point(lastClientX - rect.left, lastClientY - rect.top);
-      const currPt = L.point(e.clientX - rect.left, e.clientY - rect.top);
-      const prevLatLng = map.containerPointToLatLng(prevPt);
-      const currLatLng = map.containerPointToLatLng(currPt);
-
-      const dLng = currLatLng.lng - prevLatLng.lng;
-      const dLat = currLatLng.lat - prevLatLng.lat;
-
-      lastClientX = e.clientX;
-      lastClientY = e.clientY;
-
-      setMapAlignment(prev => ({
-        ...prev,
-        centerX: Math.round((prev.centerX + (dLng / MAP_COORD_W) * 100) * 1000) / 1000,
-        centerY: Math.round((prev.centerY - (dLat / MAP_COORD_H) * 100) * 1000) / 1000,
-      }));
-    };
-
-    const onPointerUp = (e: PointerEvent) => {
-      if (!isDraggingImg) return;
-      isDraggingImg = false;
-      container.style.cursor = 'grab';
-      if (container.hasPointerCapture(e.pointerId)) {
-        container.releasePointerCapture(e.pointerId);
-      }
-    };
-
-    const onWheel = (e: WheelEvent) => {
-      if (!e.shiftKey) return;
-      e.preventDefault();
-      e.stopPropagation();
-      const factor = e.deltaY < 0 ? 1.04 : 1 / 1.04;
-      setMapAlignment(prev => ({
-        ...prev,
-        scale: Math.max(0.2, Math.min(12.0, Math.round(prev.scale * factor * 1000) / 1000)),
-      }));
-    };
-
-    container.addEventListener('pointerdown', onPointerDown);
-    container.addEventListener('pointermove', onPointerMove);
-    container.addEventListener('pointerup', onPointerUp);
-    container.addEventListener('pointercancel', onPointerUp);
-    container.addEventListener('wheel', onWheel, { passive: false });
-
-    return () => {
-      map.dragging.enable();
-      container.style.cursor = '';
-      container.removeEventListener('pointerdown', onPointerDown);
-      container.removeEventListener('pointermove', onPointerMove);
-      container.removeEventListener('pointerup', onPointerUp);
-      container.removeEventListener('pointercancel', onPointerUp);
-      container.removeEventListener('wheel', onWheel);
-    };
-  }, [isEditMode, isAligningMap]);
+  }, [parchmentMode]);
 
   const isFirstMountRef = useRef(true);
 
@@ -655,23 +564,10 @@ export const WorldMap: React.FC = React.memo(() => {
           selectedCityId={selectedCityId}
           districtsList={districtsList}
           onSelectCity={selectCity}
-          onToggleEditMode={() => {
-            setIsAligningMap(false);
-            toggleEditMode();
-          }}
+          onToggleEditMode={toggleEditMode}
           storageKey={DISTRICT_STORAGE_KEY}
           onResetCurrentDistrict={resetSingleDistrict}
           onImportDistricts={importDistrictsList}
-          mapAlignment={mapAlignment}
-          onChangeMapAlignment={setMapAlignment}
-          onResetMapAlignment={() => {
-            localStorage.removeItem(MAP_ALIGNMENT_STORAGE_KEY);
-            setMapAlignment(defaultMapAlignment as MapAlignmentConfig);
-          }}
-          isAligningMap={isAligningMap}
-          onChangeAligningMap={setIsAligningMap}
-          alignOpacity={alignOpacity}
-          onChangeAlignOpacity={setAlignOpacity}
         />
       )}
 
