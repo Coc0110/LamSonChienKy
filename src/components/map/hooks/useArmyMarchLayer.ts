@@ -46,6 +46,10 @@ export function useArmyMarchLayer({ mapInstance, armyLayerRef }: UseArmyMarchLay
 
     layer.clearLayers();
 
+    // Bản đồ 2D chỉ hiển thị bản đồ thuần túy, ẩn các tag/đạo quân trên bản đồ 2D
+    const show2DArmyLayer = false;
+    if (!show2DArmyLayer) return;
+
     // Đếm số đạo quân đứng trùng 1 ô để tách góc hiển thị không đè lên nhau
     const cellCountMap = new Map<string, number>();
     const cellIndexMap = new Map<string, number>();

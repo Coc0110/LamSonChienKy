@@ -36,6 +36,10 @@ export const useCityMarkers = ({
     if (!layer) return;
     layer.clearLayers();
 
+    // Bản đồ 2D chỉ hiển thị bản đồ thuần túy, ẩn các tag thành trì/quân số
+    const show2DCityMarkers = false;
+    if (!show2DCityMarkers) return;
+
     cities.forEach(city => {
       const troops = city.troops;
       const isLamSonBase = city.faction === 'lam_son' && (city.hasBase || city.id === 'lam_son');
