@@ -141,6 +141,7 @@ export const Region3DOverlay: React.FC = () => {
     <div className="fixed inset-0 z-40 bg-[#dbe6d5]">
       <Region3DCanvas
         layout={layout}
+        cityCoord={city ? { x: city.x, y: city.y } : undefined}
         isEnemy={activeRegion3D.mode === 'scout_view'}
         selectedBuildingId={selectedBuildingId}
         placementPreview={placementPreview}

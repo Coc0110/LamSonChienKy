@@ -8,7 +8,7 @@ import { useUIStore } from '../../../store/uiStore';
 import { useGameStore } from '../../../store/gameStore';
 import { notify } from '../../../store/dialogStore';
 
-export const DISTRICT_STORAGE_KEY = 'lam_son_district_polygons_custom_v6';
+export const DISTRICT_STORAGE_KEY = 'lam_son_district_polygons_custom_v7';
 
 const SHARED_VERTEX_TOL = 0.25;
 

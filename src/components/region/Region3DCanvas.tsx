@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { useGameStore } from '../../store/gameStore';
 import type { BaseBuilding, RegionCombatUnit, RegionLayout } from '../../types/region';
+import { createThanhHoa3DWorld } from '../../utils/thanhHoa3DTerrain';
 import {
   DIORAMA_PALETTE,
   animateSoldierWalk,
@@ -12,9 +13,7 @@ import {
   createNaturalBoulder,
   createNpcGroup,
   createUnitGroup,
-  createVietnameseTree,
   getMeadowBumpTexture,
-  type VietnameseTreeKind,
 } from '../../utils/region3DModels';
 import { isSoldierBaseReady, onSoldierBaseLoaded, preloadSoldierBaseModel } from '../../utils/soldierRigLoader';
 
@@ -30,6 +29,7 @@ interface PlacementPreviewConfig {
 
 interface Region3DCanvasProps {
   layout: RegionLayout;
+  cityCoord?: { x: number; y: number };
   isEnemy?: boolean;
   units?: RegionCombatUnit[];
   blockedTiles?: Array<{ col: number; row: number; kind: 'forest' | 'cliff' }>;
@@ -50,6 +50,7 @@ interface Region3DCanvasProps {
 
 export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
   layout,
+  cityCoord,
   isEnemy = false,
   units = [],
   blockedTiles = [],
@@ -110,13 +111,13 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0xdbe6d5);
-    scene.fog = new THREE.Fog(0xdbe6d5, 36, 72);
+    scene.fog = new THREE.Fog(0xdbe6d5, 75, 220);
 
     const camera = new THREE.PerspectiveCamera(
       42,
       container.clientWidth / Math.max(1, container.clientHeight),
       0.1,
-      220
+      360
     );
     camera.position.set(16, 18, 20);
 
@@ -135,7 +136,7 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
     controls.minPolarAngle = 0.35;
     controls.maxPolarAngle = Math.PI / 2.25;
     controls.minDistance = 11;
-    controls.maxDistance = 46;
+    controls.maxDistance = 120;
     controls.target.set(0, 0, 0);
 
     let zoomOutTriggered = false;
@@ -201,41 +202,11 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
     const tmpHemiSky = new THREE.Color();
     const tmpHemiGround = new THREE.Color();
 
-    // Đế đảo Diorama 24x24 có viền rừng cây bao quanh kiểu Clash of Clans
-    const outerRimGeo = new THREE.BoxGeometry(gridSize + 4.4, 1.5, gridSize + 4.4);
-    const islandMat = new THREE.MeshStandardMaterial({ color: DIORAMA_PALETTE.cliff, roughness: 0.92 });
-    const island = new THREE.Mesh(outerRimGeo, islandMat);
-    island.position.y = -0.82;
-    island.receiveShadow = true;
-    scene.add(island);
-
-    const outerGrassGeo = new THREE.BoxGeometry(gridSize + 4.2, 0.14, gridSize + 4.2);
-    const outerGrassMat = new THREE.MeshStandardMaterial({ color: DIORAMA_PALETTE.groundAlt, roughness: 0.95 });
-    const outerGrass = new THREE.Mesh(outerGrassGeo, outerGrassMat);
-    outerGrass.position.y = -0.08;
-    outerGrass.receiveShadow = true;
-    scene.add(outerGrass);
-
-    // Cây cối bản địa Việt Nam trang trí rìa ngoài (bụi tre, cây chuối, cây dừa, cây đa)
-    const treeKinds: VietnameseTreeKind[] = ['bamboo', 'banana', 'coconut', 'banyan'];
-    let tIdx = 0;
-    for (let i = -half - 1.2; i <= half + 1.2; i += 2.7) {
-      const positions: Array<[number, number]> = [
-        [i, -half - 1.25],
-        [i, half + 1.25],
-        [-half - 1.25, i],
-        [half + 1.25, i],
-      ];
-      for (const [tx, tz] of positions) {
-        const kind = treeKinds[tIdx++ % treeKinds.length];
-        const treeGroup = createVietnameseTree(kind);
-        const s = 0.85 + Math.abs(Math.sin(tx * 1.7 + tz * 2.3)) * 0.35;
-        treeGroup.scale.set(s, s, s);
-        treeGroup.rotation.y = (tIdx * 1.1) % (Math.PI * 2);
-        treeGroup.position.set(tx, 0, tz);
-        scene.add(treeGroup);
-      }
-    }
+    // Toàn bộ địa hình 3D tỉnh Thanh Hóa bao quanh căn cứ (tối ưu bằng 1 mesh + InstancedMesh)
+    const basePctX = cityCoord?.x ?? 50.8;
+    const basePctY = cityCoord?.y ?? 47.6;
+    const thanhHoaWorld = createThanhHoa3DWorld(basePctX, basePctY);
+    scene.add(thanhHoaWorld.group);
 
     // Mặt cỏ chi tiết kèm lối mòn đất nện (plane raycast duy nhất - map được nạp 1 lần trong syncBuildings)
     const groundGeo = new THREE.PlaneGeometry(gridSize, gridSize);
@@ -1245,6 +1216,7 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
     rafId = requestAnimationFrame(animate);
 
     return () => {
+      thanhHoaWorld.dispose();
       unsubSoldierBase();
       cancelAnimationFrame(rafId);
       window.removeEventListener('resize', handleResize);
