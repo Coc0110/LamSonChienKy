@@ -10,7 +10,6 @@ import {
   findDistrictForCoord,
   MAP_COORD_W,
   MAP_COORD_H,
-  TILE_SIZE,
 } from '../../utils/mapGeo';
 import districtData from '../../data/districtPolygons.json';
 import {
@@ -220,8 +219,8 @@ export const WorldMap: React.FC = React.memo(() => {
 
     const map = L.map(mapContainerRef.current, {
       crs: L.CRS.Simple,
-      minZoom: 0,
-      maxZoom: 6,
+      minZoom: -1,
+      maxZoom: 4.5,
       zoomSnap: 0.1,
       zoomDelta: 0.5,
       wheelPxPerZoomLevel: 100,
@@ -262,21 +261,9 @@ export const WorldMap: React.FC = React.memo(() => {
       draggable.enable();
     }
 
-    const initialCenter = percentToLatLng(54.5, 47.5);
-    const initialZoom = 1.2;
+    const initialCenter = percentToLatLng(50, 50);
+    const initialZoom = 0.5;
     map.setView(initialCenter, initialZoom);
-
-    const tileLayer = L.tileLayer('/tiles/{z}/{x}/{y}.jpg', {
-      minZoom: 0,
-      maxZoom: 6,
-      maxNativeZoom: 4,
-      minNativeZoom: 0,
-      tileSize: TILE_SIZE,
-      noWrap: true,
-      bounds: bounds,
-    });
-
-    tileLayer.addTo(map);
 
     map.on('zoomend', () => {
       const z = map.getZoom();
@@ -339,9 +326,8 @@ export const WorldMap: React.FC = React.memo(() => {
       map.setMinZoom(minCoverZoom);
 
       if (isInitial) {
-        const initialCenterPt = percentToLatLng(54.5, 47.5);
-        const initialZoomVal = Math.max(minCoverZoom, minCoverZoom + 1.15);
-        map.setView(initialCenterPt, initialZoomVal);
+        const initialCenterPt = percentToLatLng(50, 50);
+        map.setView(initialCenterPt, minCoverZoom);
       } else if (map.getZoom() < minCoverZoom) {
         map.setZoom(minCoverZoom);
       }
@@ -352,45 +338,20 @@ export const WorldMap: React.FC = React.memo(() => {
       percentToLatLng(100, 0)
     );
 
-    const riversOverlay = L.imageOverlay('/map_rivers.svg', fullMapBounds, {
-      opacity: 0.95,
-      interactive: false,
-      zIndex: 15,
-    }).addTo(map);
-
-    const bordersOverlay = L.imageOverlay('/map_borders.svg', fullMapBounds, {
-      opacity: 0.9,
-      interactive: false,
-      zIndex: 20,
-    }).addTo(map);
-
-    const thanhHoaBounds = L.latLngBounds(
-      percentToLatLng(36.0, 65.0),
-      percentToLatLng(70.0, 38.0)
-    );
-
-    const cutoutOverlay = L.imageOverlay('/thanh_hoa_parchment.png', thanhHoaBounds, {
+    const wonderdraftOverlay = L.imageOverlay('/thanh_hoa_wonderdraft.png', fullMapBounds, {
       opacity: 1.0,
       interactive: false,
-      zIndex: 25,
+      zIndex: 10,
     }).addTo(map);
 
-    const sheetOverlay = L.imageOverlay('/thanh_hoa_parchment_full.jpg', thanhHoaBounds, {
-      opacity: 0,
-      interactive: false,
-      zIndex: 24,
-    }).addTo(map);
-
-    parchmentCutoutRef.current = cutoutOverlay;
-    parchmentSheetRef.current = sheetOverlay;
+    parchmentCutoutRef.current = wonderdraftOverlay;
+    parchmentSheetRef.current = null;
 
     const initTimer = setTimeout(() => {
       if (isDisposed) return;
       map.invalidateSize();
       updateView(true);
-      [riversOverlay, bordersOverlay, sheetOverlay, cutoutOverlay].forEach(o => {
-        if (!(o as any)._map) (o as any)._layerAdd({ target: map });
-      });
+      if (!(wonderdraftOverlay as any)._map) (wonderdraftOverlay as any)._layerAdd({ target: map });
     }, 50);
 
     const handleResize = () => {

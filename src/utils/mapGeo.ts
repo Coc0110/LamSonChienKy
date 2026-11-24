@@ -1,8 +1,8 @@
 import L from 'leaflet';
 
-// Tọa độ hệ chuẩn Leaflet CRS.Simple tại Zoom 0:
-export const MAP_COORD_W = 560;
-export const MAP_COORD_H = 736;
+// Tọa độ hệ chuẩn Leaflet CRS.Simple khớp tỷ lệ 2720x2160 của bản đồ Thanh Hóa Wonderdraft:
+export const MAP_COORD_W = 680;
+export const MAP_COORD_H = 540;
 export const TILE_SIZE = 512;
 
 // Chuyển đổi tọa độ phần trăm % (0..100) sang Leaflet CRS.Simple [lat, lng]

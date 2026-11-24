@@ -33,7 +33,7 @@ export const DistrictEditorBar: React.FC<DistrictEditorBarProps> = ({
   onResetCurrentDistrict,
   onImportDistricts,
 }) => {
-  const [tab, setTab] = useState<'polygon' | 'terrain'>('terrain');
+  const [tab, setTab] = useState<'polygon' | 'terrain'>('polygon');
   const [showImportModal, setShowImportModal] = useState<boolean>(false);
   const [importText, setImportText] = useState<string>('');
   const [isSavingOfficial, setIsSavingOfficial] = useState<boolean>(false);
