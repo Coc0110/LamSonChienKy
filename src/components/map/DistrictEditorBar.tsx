@@ -20,8 +20,8 @@ interface DistrictEditorBarProps {
   showCountryBorders?: boolean;
   onToggleCountryBorders?: () => void;
   bordersBounds?: { xMin: number; yMin: number; xMax: number; yMax: number };
-  transformTarget?: 'districts' | 'borders' | 'satellite';
-  onChangeTransformTarget?: (target: 'districts' | 'borders' | 'satellite') => void;
+  transformTarget?: 'all' | 'districts' | 'borders' | 'satellite';
+  onChangeTransformTarget?: (target: 'all' | 'districts' | 'borders' | 'satellite') => void;
   showSatelliteRef?: boolean;
   onToggleSatelliteRef?: () => void;
   satelliteOpacity?: number;
@@ -52,7 +52,7 @@ export const DistrictEditorBar: React.FC<DistrictEditorBarProps> = ({
   showCountryBorders = true,
   onToggleCountryBorders,
   bordersBounds,
-  transformTarget = 'districts',
+  transformTarget = 'all',
   onChangeTransformTarget,
   showSatelliteRef = false,
   onToggleSatelliteRef,
@@ -366,6 +366,7 @@ export const DistrictEditorBar: React.FC<DistrictEditorBarProps> = ({
               <div className="flex flex-wrap items-center justify-center gap-1.5 w-full pb-1 border-b border-amber-900/40">
                 <span className="text-[11px] font-bold text-stone-300 mr-1">Đang chỉnh:</span>
                 {([
+                  { id: 'all', label: '🌐 Cả Huyện + QG & Tỉnh' },
                   { id: 'districts', label: '📍 Ranh Giới 24 Huyện' },
                   { id: 'borders', label: '🗺️ Ranh Giới QG & Tỉnh' },
                   { id: 'satellite', label: '🛰️ Bản Đồ Vệ Tinh Mẫu' },

@@ -59,8 +59,8 @@ export const WorldMap: React.FC = React.memo(() => {
   const [hoveredDistrictId, setHoveredDistrictId] = useState<string | null>(null);
   const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
   const [isTransformAllMode, setIsTransformAllMode] = useState<boolean>(false);
-  const [transformTarget, setTransformTarget] = useState<'districts' | 'borders' | 'satellite'>('districts');
-  const transformTargetRef = useRef<'districts' | 'borders' | 'satellite'>('districts');
+  const [transformTarget, setTransformTarget] = useState<'all' | 'districts' | 'borders' | 'satellite'>('all');
+  const transformTargetRef = useRef<'all' | 'districts' | 'borders' | 'satellite'>('all');
   const [transformState, setTransformState] = useState<{ offsetX: number; offsetY: number; scale: number }>({
     offsetX: 0,
     offsetY: 0,
@@ -301,6 +301,9 @@ export const WorldMap: React.FC = React.memo(() => {
           return;
         }
         if (e.button === 2 || e.which === 3) {
+          if (uiState.isEditMode && !uiState.terrainEditMode) {
+            return;
+          }
           const fakeEvent = new Proxy(e, {
             get(target, prop) {
               if (prop === 'which' || prop === 'button') return 1;
@@ -596,45 +599,52 @@ export const WorldMap: React.FC = React.memo(() => {
     const { offsetX, offsetY, scale } = nextTransform;
     const target = transformTargetRef.current;
 
-    if (target === 'districts') {
+    if (target === 'all' || target === 'districts') {
       const base = transformBaseRef.current;
-      if (!base) return;
-      const [pivotX, pivotY] = transformPivotRef.current;
-      const next = base.map(d => ({
-        ...d,
-        center: [
-          round3(pivotX + (d.center[0] - pivotX) * scale + offsetX),
-          round3(pivotY + (d.center[1] - pivotY) * scale + offsetY),
-        ] as [number, number],
-        polygon: d.polygon.map(([px, py]) => [
-          round3(pivotX + (px - pivotX) * scale + offsetX),
-          round3(pivotY + (py - pivotY) * scale + offsetY),
-        ] as [number, number]),
-      }));
-      setDistrictsList(next);
-      try {
-        localStorage.setItem(DISTRICT_STORAGE_KEY, JSON.stringify(next));
-      } catch {
-        // ignore
+      if (base) {
+        const [pivotX, pivotY] = transformPivotRef.current;
+        const next = base.map(d => ({
+          ...d,
+          center: [
+            round3(pivotX + (d.center[0] - pivotX) * scale + offsetX),
+            round3(pivotY + (d.center[1] - pivotY) * scale + offsetY),
+          ] as [number, number],
+          polygon: d.polygon.map(([px, py]) => [
+            round3(pivotX + (px - pivotX) * scale + offsetX),
+            round3(pivotY + (py - pivotY) * scale + offsetY),
+          ] as [number, number]),
+        }));
+        setDistrictsList(next);
+        try {
+          localStorage.setItem(DISTRICT_STORAGE_KEY, JSON.stringify(next));
+        } catch {
+          // ignore
+        }
       }
-    } else if (target === 'borders') {
+    }
+
+    if (target === 'all' || target === 'borders') {
       const baseBorders = bordersBaseRef.current;
-      if (!baseBorders) return;
-      const px = (baseBorders.xMin + baseBorders.xMax) / 2;
-      const py = (baseBorders.yMin + baseBorders.yMax) / 2;
-      const nextBorders = {
-        xMin: round3(px + (baseBorders.xMin - px) * scale + offsetX),
-        yMin: round3(py + (baseBorders.yMin - py) * scale + offsetY),
-        xMax: round3(px + (baseBorders.xMax - px) * scale + offsetX),
-        yMax: round3(py + (baseBorders.yMax - py) * scale + offsetY),
-      };
-      setBordersBounds(nextBorders);
-      try {
-        localStorage.setItem(BORDERS_BOUNDS_STORAGE_KEY, JSON.stringify(nextBorders));
-      } catch {
-        // ignore
+      if (baseBorders) {
+        const [px, py] = target === 'all'
+          ? transformPivotRef.current
+          : [(baseBorders.xMin + baseBorders.xMax) / 2, (baseBorders.yMin + baseBorders.yMax) / 2];
+        const nextBorders = {
+          xMin: round3(px + (baseBorders.xMin - px) * scale + offsetX),
+          yMin: round3(py + (baseBorders.yMin - py) * scale + offsetY),
+          xMax: round3(px + (baseBorders.xMax - px) * scale + offsetX),
+          yMax: round3(py + (baseBorders.yMax - py) * scale + offsetY),
+        };
+        setBordersBounds(nextBorders);
+        try {
+          localStorage.setItem(BORDERS_BOUNDS_STORAGE_KEY, JSON.stringify(nextBorders));
+        } catch {
+          // ignore
+        }
       }
-    } else if (target === 'satellite') {
+    }
+
+    if (target === 'satellite') {
       const baseSat = satelliteBaseRef.current;
       if (!baseSat) return;
       const px = (baseSat.xMin + baseSat.xMax) / 2;
@@ -676,6 +686,106 @@ export const WorldMap: React.FC = React.memo(() => {
       : [50, 50];
     setTransformState({ offsetX: 0, offsetY: 0, scale: 1 });
   }, []);
+
+  // Kéo chuột phải trong chế độ sửa ranh giới để di chuyển TẤT CẢ (24 Huyện + Ranh giới QG & Tỉnh)
+  const terrainEditMode = useUIStore(state => state.terrainEditMode);
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    const container = mapContainerRef.current;
+    if (!map || !container) return;
+    if (!isEditMode || terrainEditMode) return;
+
+    let isRightDragging = false;
+    let lastClientX = 0;
+    let lastClientY = 0;
+    let totalDxPx = 0;
+    let totalDyPx = 0;
+    let startDistricts: DistrictInfo[] | null = null;
+    let startBorders: { xMin: number; yMin: number; xMax: number; yMax: number } | null = null;
+    let accOffsetX = 0;
+    let accOffsetY = 0;
+
+    const round3 = (n: number) => Math.round(n * 1000) / 1000;
+
+    const onPointerDown = (e: PointerEvent) => {
+      if (e.button !== 2) return;
+      isRightDragging = true;
+      lastClientX = e.clientX;
+      lastClientY = e.clientY;
+      totalDxPx = 0;
+      totalDyPx = 0;
+      accOffsetX = 0;
+      accOffsetY = 0;
+      startDistricts = districtsListRef.current.map(d => ({
+        ...d,
+        center: [...d.center] as [number, number],
+        polygon: d.polygon.map(pt => [...pt] as [number, number]),
+      }));
+      startBorders = { ...bordersBoundsRef.current };
+    };
+
+    const onPointerMove = (e: PointerEvent) => {
+      if (!isRightDragging || !startDistricts || !startBorders) return;
+      const dxPx = e.clientX - lastClientX;
+      const dyPx = e.clientY - lastClientY;
+      totalDxPx += Math.abs(dxPx);
+      totalDyPx += Math.abs(dyPx);
+      if (totalDxPx + totalDyPx < 3) return;
+
+      const rect = container.getBoundingClientRect();
+      const prevPt = L.point(lastClientX - rect.left, lastClientY - rect.top);
+      const currPt = L.point(e.clientX - rect.left, e.clientY - rect.top);
+      const prevLatLng = map.containerPointToLatLng(prevPt);
+      const currLatLng = map.containerPointToLatLng(currPt);
+
+      accOffsetX += ((currLatLng.lng - prevLatLng.lng) / MAP_COORD_W) * 100;
+      accOffsetY -= ((currLatLng.lat - prevLatLng.lat) / MAP_COORD_H) * 100;
+
+      lastClientX = e.clientX;
+      lastClientY = e.clientY;
+
+      const nextDistricts = startDistricts.map(d => ({
+        ...d,
+        center: [round3(d.center[0] + accOffsetX), round3(d.center[1] + accOffsetY)] as [number, number],
+        polygon: d.polygon.map(([px, py]) => [round3(px + accOffsetX), round3(py + accOffsetY)] as [number, number]),
+      }));
+      const nextBorders = {
+        xMin: round3(startBorders.xMin + accOffsetX),
+        yMin: round3(startBorders.yMin + accOffsetY),
+        xMax: round3(startBorders.xMax + accOffsetX),
+        yMax: round3(startBorders.yMax + accOffsetY),
+      };
+
+      setDistrictsList(nextDistricts);
+      setBordersBounds(nextBorders);
+      try {
+        localStorage.setItem(DISTRICT_STORAGE_KEY, JSON.stringify(nextDistricts));
+        localStorage.setItem(BORDERS_BOUNDS_STORAGE_KEY, JSON.stringify(nextBorders));
+      } catch {
+        // ignore
+      }
+    };
+
+    const onPointerUp = (e: PointerEvent) => {
+      if (e.button !== 2 || !isRightDragging) return;
+      isRightDragging = false;
+      startDistricts = null;
+      startBorders = null;
+      if (isTransformAllMode) {
+        captureTransformSnapshot(districtsListRef.current);
+      }
+    };
+
+    container.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+
+    return () => {
+      container.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+    };
+  }, [isEditMode, terrainEditMode, isTransformAllMode, captureTransformSnapshot]);
 
   // Kéo thả & giữ Shift + cuộn chuột để di chuyển và thu phóng toàn bộ ranh giới huyện
   useEffect(() => {
