@@ -94,6 +94,15 @@ export const DistrictEditorBar: React.FC<DistrictEditorBarProps> = ({
       });
 
       if (!res.ok) {
+        if (res.status === 405 || res.status === 404) {
+          handleDownloadPolygonFile();
+          notify.warning(
+            `Đang chạy trên bản web tĩnh (Vercel) nên không thể ghi thẳng vào file mã nguồn (HTTP ${res.status}).\n` +
+            `✅ Đã tự động tải xuống file "districtPolygons.json" (và dữ liệu vẫn được giữ trong trình duyệt).\n` +
+            `👉 Gửi file vừa tải lên khung chat để cập nhật vào dự án, hoặc chạy "npm run dev" ở máy để lưu trực tiếp.`
+          );
+          return;
+        }
         throw new Error(`Mã lỗi HTTP: ${res.status}`);
       }
 
@@ -111,14 +120,15 @@ export const DistrictEditorBar: React.FC<DistrictEditorBarProps> = ({
   };
 
   const handleCopyPolygon = () => {
-    const custom = localStorage.getItem(storageKey);
-    const textToCopy = custom || JSON.stringify(districtsList, null, 2);
+    const payload = bordersBounds ? { districts: districtsList, bordersBounds } : { districts: districtsList };
+    const textToCopy = JSON.stringify(payload, null, 2);
     navigator.clipboard.writeText(textToCopy);
-    notify.info('Đã copy toàn bộ dữ liệu ranh giới huyện thành vào Clipboard!');
+    notify.info('Đã copy toàn bộ dữ liệu ranh giới (huyện + QG/tỉnh) vào Clipboard!');
   };
 
   const handleDownloadPolygonFile = () => {
-    const payload = JSON.stringify({ districts: districtsList }, null, 2);
+    const payloadObj = bordersBounds ? { districts: districtsList, bordersBounds } : { districts: districtsList };
+    const payload = JSON.stringify(payloadObj, null, 2);
     const blob = new Blob([payload], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -216,6 +226,15 @@ export const DistrictEditorBar: React.FC<DistrictEditorBarProps> = ({
       });
 
       if (!res.ok) {
+        if (res.status === 405 || res.status === 404) {
+          handleDownloadPolygonFile();
+          notify.warning(
+            `Đang chạy trên bản web tĩnh (Vercel) nên không thể ghi thẳng vào file mã nguồn (HTTP ${res.status}).\n` +
+            `✅ Đã tự động tải xuống file "districtPolygons.json" (và dữ liệu vẫn được giữ trong trình duyệt).\n` +
+            `👉 Gửi file vừa tải lên khung chat để cập nhật vào dự án, hoặc chạy "npm run dev" ở máy để lưu trực tiếp.`
+          );
+          return;
+        }
         throw new Error(`Mã lỗi HTTP: ${res.status}`);
       }
 
@@ -464,10 +483,26 @@ export const DistrictEditorBar: React.FC<DistrictEditorBarProps> = ({
                 onClick={handleSaveAsOfficial}
                 disabled={isSavingOfficial}
                 className="px-2.5 py-1 bg-[#15803d] hover:bg-[#16a34a] text-white rounded text-xs font-bold border border-[#22c55e] shadow cursor-pointer transition whitespace-nowrap flex items-center gap-1"
-                title="Lưu toàn bộ tọa độ ranh giới mới vào src/data/districtPolygons.json"
+                title="Lưu toàn bộ tọa độ ranh giới mới vào src/data/districtPolygons.json (local dev) hoặc tải file .json (Vercel)"
               >
                 <span>💾</span>
                 <span>{isSavingOfficial ? 'Đang lưu...' : 'Lưu Bản Chính Thức'}</span>
+              </button>
+
+              <button
+                onClick={handleCopyPolygon}
+                className="px-2 py-1 bg-[#2f4d66] hover:bg-[#3d6385] text-white rounded text-xs font-bold border border-[#5282ad] shadow cursor-pointer transition whitespace-nowrap"
+                title="Copy toàn bộ JSON ranh giới vào Clipboard"
+              >
+                📋 Copy JSON
+              </button>
+
+              <button
+                onClick={handleDownloadPolygonFile}
+                className="px-2 py-1 bg-[#1e3a5f] hover:bg-[#2b4c7e] text-sky-100 rounded text-xs font-bold border border-[#3b82f6] shadow cursor-pointer transition whitespace-nowrap"
+                title="Tải xuống file districtPolygons.json"
+              >
+                ⬇ Tải .json
               </button>
 
               <button
