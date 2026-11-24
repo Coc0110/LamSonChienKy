@@ -335,31 +335,8 @@ export const WorldMap: React.FC = React.memo(() => {
 
     tileLayer.addTo(map);
 
-    map.on('zoomend', () => {
-      const z = map.getZoom();
-      if (z < 4.2) return;
-      const ui = useUIStore.getState();
-      if (ui.activeRegion3D || ui.placementMode || ui.baseRelocateMode || ui.marchDrawMode) return;
-      const centerPct = latLngToPercent(map.getCenter());
-      const gs = useGameStore.getState();
-      let nearest: (typeof gs.cities)[number] | null = null;
-      let minDist = Infinity;
-      for (const c of gs.cities) {
-        const d = Math.hypot(c.x - centerPct.x, c.y - centerPct.y);
-        if (d < 8 && d < minDist) {
-          minDist = d;
-          nearest = c;
-        }
-      }
-      if (!nearest) return;
-      if (nearest.faction === 'lam_son' || nearest.hasBase) {
-        map.setZoom(3.2, { animate: false });
-        ui.setActiveRegion3D({ cityId: nearest.id, mode: 'base_build' });
-      } else if (gs.scoutedRegionIds[nearest.id] || (nearest.assignedScouts || 0) > 0) {
-        map.setZoom(3.2, { animate: false });
-        ui.setActiveRegion3D({ cityId: nearest.id, mode: 'scout_view' });
-      }
-    });
+    // Tạm thời tắt tự động chuyển sang bản đồ 3D khi zoom sâu để tiện sửa map
+    // map.on('zoomend', () => { ... });
 
     map.createPane('districtsPane');
     const dPane = map.getPane('districtsPane');
