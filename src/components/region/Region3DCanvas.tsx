@@ -9,11 +9,9 @@ import {
   animateSoldierWalk,
   createBuildingGroup,
   createDecorProp,
-  createDetailedGroundTexture,
   createNaturalBoulder,
   createNpcGroup,
   createUnitGroup,
-  getMeadowBumpTexture,
 } from '../../utils/region3DModels';
 import { isSoldierBaseReady, onSoldierBaseLoaded, preloadSoldierBaseModel } from '../../utils/soldierRigLoader';
 
@@ -117,7 +115,7 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
       42,
       container.clientWidth / Math.max(1, container.clientHeight),
       0.1,
-      700
+      950
     );
     camera.position.set(16, 18, 20);
 
@@ -158,14 +156,14 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
     sun.shadow.camera.bottom = -16;
     scene.add(sun);
 
-    // Mặt trời & Mặt trăng trên bầu trời 3D theo 12 Canh Giờ
+    // Mặt trời & Mặt trăng trên bầu trời 3D theo 12 Canh Giờ (quỹ đạo xa ngoài rìa bản đồ)
     const sunOrbGroup = new THREE.Group();
     const sunCore = new THREE.Mesh(
-      new THREE.SphereGeometry(2.2, 24, 24),
+      new THREE.SphereGeometry(13, 24, 24),
       new THREE.MeshBasicMaterial({ color: 0xfff3a8, fog: false })
     );
     const sunHalo = new THREE.Mesh(
-      new THREE.SphereGeometry(3.8, 24, 24),
+      new THREE.SphereGeometry(23, 24, 24),
       new THREE.MeshBasicMaterial({ color: 0xffb74d, transparent: true, opacity: 0.3, fog: false, depthWrite: false })
     );
     sunOrbGroup.add(sunCore, sunHalo);
@@ -173,11 +171,11 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
 
     const moonOrbGroup = new THREE.Group();
     const moonCore = new THREE.Mesh(
-      new THREE.SphereGeometry(1.7, 24, 24),
+      new THREE.SphereGeometry(10, 24, 24),
       new THREE.MeshBasicMaterial({ color: 0xeef4ff, fog: false })
     );
     const moonHalo = new THREE.Mesh(
-      new THREE.SphereGeometry(2.9, 24, 24),
+      new THREE.SphereGeometry(18, 24, 24),
       new THREE.MeshBasicMaterial({ color: 0x9cb8ff, transparent: true, opacity: 0.24, fog: false, depthWrite: false })
     );
     moonOrbGroup.add(moonCore, moonHalo);
@@ -208,25 +206,11 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
     const thanhHoaWorld = createThanhHoa3DWorld(basePctX, basePctY);
     scene.add(thanhHoaWorld.group);
 
-    // Mặt cỏ chi tiết kèm lối mòn đất nện (plane raycast duy nhất - map được nạp 1 lần trong syncBuildings)
+    // Mặt phẳng vô hình dùng cho raycast đặt/chọn công trình trực tiếp trên địa hình 3D mới
     const groundGeo = new THREE.PlaneGeometry(gridSize, gridSize);
     groundGeo.rotateX(-Math.PI / 2);
-    const groundMat = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      normalMap: getMeadowBumpTexture(),
-      normalScale: new THREE.Vector2(0.55, 0.55),
-      roughness: 0.96,
-    });
-    const groundPlane = new THREE.Mesh(groundGeo, groundMat);
-    groundPlane.receiveShadow = true;
+    const groundPlane = new THREE.Mesh(groundGeo, new THREE.MeshBasicMaterial({ visible: false }));
     scene.add(groundPlane);
-
-    // Lưới kẻ siêu mờ để không phá vỡ cảm giác thảm cỏ tự nhiên
-    const gridHelper = new THREE.GridHelper(gridSize, gridSize, 0x3b5428, 0x456330);
-    gridHelper.position.y = 0.012;
-    (gridHelper.material as THREE.Material).transparent = true;
-    (gridHelper.material as THREE.Material).opacity = 0.07;
-    scene.add(gridHelper);
 
     const envGroup = new THREE.Group();
     scene.add(envGroup);
@@ -384,13 +368,6 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
       const currentLayout = layoutRef.current;
       const enemy = isEnemyRef.current;
       const selId = selectedBuildingIdRef.current;
-
-      // Cập nhật lối mòn đất nện trên texture mặt cỏ (chỉ vẽ lại khi bố cục công trình thực sự đổi)
-      const nextTex = createDetailedGroundTexture(gridSize, currentLayout.buildings);
-      if (groundMat.map !== nextTex) {
-        groundMat.map = nextTex;
-        groundMat.needsUpdate = true;
-      }
 
       // Xây map ô tường/cổng để tự động nối liền tường rào
       const wallOccupied = new Set<string>();
@@ -1144,16 +1121,16 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
       smoothCanhHour = ((smoothCanhHour + hourDiff * 0.08) % 12 + 12) % 12;
 
       const sunAngle = ((smoothCanhHour - 3) / 6) * Math.PI;
-      const sunX = Math.cos(sunAngle) * 48;
-      const sunY = Math.sin(sunAngle) * 38;
-      sunOrbGroup.position.set(sunX, sunY, -22);
-      sunOrbGroup.visible = sunY > -4;
+      const sunX = Math.cos(sunAngle) * 460;
+      const sunY = Math.sin(sunAngle) * 320;
+      sunOrbGroup.position.set(sunX, sunY, -190);
+      sunOrbGroup.visible = sunY > 6;
 
       const moonAngle = sunAngle - Math.PI;
-      const moonX = Math.cos(moonAngle) * 48;
-      const moonY = Math.sin(moonAngle) * 38;
-      moonOrbGroup.position.set(moonX, moonY, -22);
-      moonOrbGroup.visible = moonY > -4;
+      const moonX = Math.cos(moonAngle) * 460;
+      const moonY = Math.sin(moonAngle) * 320;
+      moonOrbGroup.position.set(moonX, moonY, -190);
+      moonOrbGroup.visible = moonY > 6;
 
       const sunHeight = Math.sin(sunAngle); // +1 Ngọ (trưa), 0 Mão/Dậu (bình minh/hoàng hôn), -1 Tý (nửa đêm)
       const isMorningSide = Math.cos(sunAngle) >= 0;
@@ -1198,9 +1175,9 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
       hemi.groundColor.copy(tmpHemiGround);
 
       if (sunHeight >= -0.05) {
-        sun.position.set(sunX * 0.42, Math.max(10, sunY * 0.75), 14);
+        sun.position.set(Math.cos(sunAngle) * 20, Math.max(10, Math.sin(sunAngle) * 28), 14);
       } else {
-        sun.position.set(moonX * 0.42, Math.max(10, moonY * 0.75), 14);
+        sun.position.set(Math.cos(moonAngle) * 20, Math.max(10, Math.sin(moonAngle) * 28), 14);
       }
 
       const camDist = camera.position.distanceTo(controls.target);

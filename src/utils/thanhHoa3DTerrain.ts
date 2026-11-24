@@ -9,6 +9,7 @@ import {
   getGridTerrain,
 } from '../data/terrainGrid';
 import type { TerrainType } from '../types/terrain';
+import { getMeadowBumpTexture } from './region3DModels';
 
 interface DistrictPolyData {
   id: string;
@@ -27,11 +28,11 @@ const MIN_PCT_Y = 42.0;
 const MAX_PCT_Y = 56.0;
 
 const TERRAIN_COLORS: Record<TerrainType, [number, number, number]> = {
-  plains: [164, 152, 114],
-  forest: [76, 118, 62],
-  mountain: [112, 102, 86],
-  cliff: [94, 86, 76],
-  swamp: [88, 108, 92],
+  plains: [115, 145, 59],
+  forest: [94, 126, 48],
+  mountain: [104, 132, 54],
+  cliff: [96, 120, 56],
+  swamp: [78, 108, 62],
   water: [48, 94, 128],
 };
 
@@ -212,7 +213,7 @@ export function createThanhHoa3DWorld(
       if (!inside) {
         cellElevations[idx] = -1.45;
       } else if (inBasePlateau) {
-        cellElevations[idx] = -0.05;
+        cellElevations[idx] = 0;
       } else {
         const elev = baseElevationForTerrain(t, c, r);
         cellElevations[idx] = elev;
@@ -260,7 +261,7 @@ export function createThanhHoa3DWorld(
       const vz = posAttr.getZ(vIdx) + centerZ;
 
       if (Math.abs(vx) < 16.2 && Math.abs(vz) < 16.2) {
-        posAttr.setY(vIdx, -0.05);
+        posAttr.setY(vIdx, 0);
         continue;
       }
 
@@ -275,10 +276,19 @@ export function createThanhHoa3DWorld(
 
   terrainGeo.computeVertexNormals();
 
+  const bumpTex = getMeadowBumpTexture().clone();
+  bumpTex.wrapS = THREE.RepeatWrapping;
+  bumpTex.wrapT = THREE.RepeatWrapping;
+  bumpTex.repeat.set(Math.max(1, cols / 8), Math.max(1, rows / 8));
+  bumpTex.needsUpdate = true;
+  disposables.push(bumpTex);
+
   const terrainMat = new THREE.MeshStandardMaterial({
     map: terrainTex,
-    roughness: 0.9,
-    metalness: 0.04,
+    normalMap: bumpTex,
+    normalScale: new THREE.Vector2(0.45, 0.45),
+    roughness: 0.94,
+    metalness: 0.03,
   });
   const terrainMesh = new THREE.Mesh(terrainGeo, terrainMat);
   terrainMesh.position.set(centerX, 0, centerZ);
