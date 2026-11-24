@@ -7,9 +7,39 @@ import districtData from '../../../data/districtPolygons.json';
 import { useUIStore } from '../../../store/uiStore';
 import { notify } from '../../../store/dialogStore';
 
-export const DISTRICT_STORAGE_KEY = 'lam_son_district_polygons_custom_v5';
+export const DISTRICT_STORAGE_KEY = 'lam_son_district_polygons_custom_v6';
 
 const SHARED_VERTEX_TOL = 0.25;
+
+const computePolygonCentroid = (pts: [number, number][]): [number, number] => {
+  const p = pts.length > 3 && pts[0][0] === pts[pts.length - 1][0] && pts[0][1] === pts[pts.length - 1][1]
+    ? pts.slice(0, -1)
+    : pts;
+  const n = p.length;
+  if (n === 0) return [50, 50];
+  let area = 0;
+  let cx = 0;
+  let cy = 0;
+  for (let i = 0; i < n; i++) {
+    const [x0, y0] = p[i];
+    const [x1, y1] = p[(i + 1) % n];
+    const cross = x0 * y1 - x1 * y0;
+    area += cross;
+    cx += (x0 + x1) * cross;
+    cy += (y0 + y1) * cross;
+  }
+  area *= 0.5;
+  if (Math.abs(area) < 1e-6) {
+    return [
+      Math.round((p.reduce((s, pt) => s + pt[0], 0) / n) * 1000) / 1000,
+      Math.round((p.reduce((s, pt) => s + pt[1], 0) / n) * 1000) / 1000,
+    ];
+  }
+  return [
+    Math.round((cx / (6 * area)) * 1000) / 1000,
+    Math.round((cy / (6 * area)) * 1000) / 1000,
+  ];
+};
 
 interface SharedVertexRef {
   districtId: string;
@@ -94,7 +124,7 @@ export const useDistrictPolygons = ({
           newPoly[vertexIndex] = [newX, newY];
           if (vertexIndex === 0) newPoly[newPoly.length - 1] = [newX, newY];
           if (vertexIndex === newPoly.length - 1) newPoly[0] = [newX, newY];
-          return { ...d, polygon: newPoly };
+          return { ...d, polygon: newPoly, center: computePolygonCentroid(newPoly) };
         }
 
         const matchedIndices = sharedMap.get(d.id);
@@ -107,7 +137,7 @@ export const useDistrictPolygons = ({
               if (sIdx === newPoly.length - 1) newPoly[0] = [newX, newY];
             }
           }
-          return { ...d, polygon: newPoly };
+          return { ...d, polygon: newPoly, center: computePolygonCentroid(newPoly) };
         }
 
         return d;

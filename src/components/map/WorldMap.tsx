@@ -57,7 +57,11 @@ export const WorldMap: React.FC = React.memo(() => {
   const provinceHandlesLayerRef = useRef<L.LayerGroup | null>(null);
   const districtCutoutShadowLayerRef = useRef<L.LayerGroup | null>(null);
   const districtCutoutPaneRef = useRef<HTMLElement | null>(null);
+  const cloudFogOverlayRef = useRef<L.SVGOverlay | null>(null);
+  const cloudFogPaneRef = useRef<HTMLElement | null>(null);
   const polygonsMapRef = useRef<Map<string, L.Polygon>>(new Map());
+
+  const scoutedRegionIds = useGameStore(state => state.scoutedRegionIds);
 
   const [parchmentMode, setParchmentMode] = useState<ParchmentMode>('cutout');
   const [showDistricts, setShowDistricts] = useState<boolean>(true);
@@ -375,6 +379,14 @@ export const WorldMap: React.FC = React.memo(() => {
       ctPane.style.filter = 'brightness(1.12) contrast(1.04)';
       ctPane.style.transform = 'translate3d(0, -3px, 0)';
       districtCutoutPaneRef.current = ctPane;
+    }
+
+    map.createPane('cloudFogPane');
+    const fogPane = map.getPane('cloudFogPane');
+    if (fogPane) {
+      fogPane.style.zIndex = '460';
+      fogPane.style.pointerEvents = 'none';
+      cloudFogPaneRef.current = fogPane;
     }
 
     const highlightTileLayer = L.tileLayer('/tiles/{z}/{x}/{y}.jpg', {
@@ -908,6 +920,18 @@ export const WorldMap: React.FC = React.memo(() => {
         return;
       }
 
+      const city = cities.find(c => c.id === hoveredDistrictId);
+      const isRevealed =
+        hoveredDistrictId === 'lam_son' ||
+        city?.faction === 'lam_son' ||
+        Boolean(city?.hasBase) ||
+        Boolean(scoutedRegionIds[hoveredDistrictId]);
+      if (!isRevealed) {
+        pane.style.display = 'none';
+        pane.style.clipPath = '';
+        return;
+      }
+
       const d = districtsListRef.current.find(item => item.id === hoveredDistrictId);
       if (!d || d.polygon.length < 3) {
         pane.style.display = 'none';
@@ -937,7 +961,109 @@ export const WorldMap: React.FC = React.memo(() => {
     return () => {
       map.off('zoomend viewreset', updateCutout);
     };
-  }, [hoveredDistrictId, showDistricts, isZoomedOutOverview, isEditMode]);
+  }, [hoveredDistrictId, showDistricts, isZoomedOutOverview, isEditMode, cities, scoutedRegionIds]);
+
+  // Lớp mây mù phủ kín các tỉnh thành & huyện chưa được do thám (vẫn cho phép rê chuột xem tên)
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    const fogPane = cloudFogPaneRef.current;
+    if (!map || !fogPane) return;
+
+    if (cloudFogOverlayRef.current) {
+      cloudFogOverlayRef.current.remove();
+      cloudFogOverlayRef.current = null;
+    }
+
+    if (isEditMode || parchmentMode === 'off') {
+      fogPane.style.display = 'none';
+      return;
+    }
+    fogPane.style.display = 'block';
+
+    const svgNS = 'http://www.w3.org/2000/svg';
+    const svgEl = document.createElementNS(svgNS, 'svg');
+    svgEl.setAttribute('viewBox', '0 0 140 140');
+    svgEl.setAttribute('preserveAspectRatio', 'none');
+    svgEl.style.pointerEvents = 'none';
+
+    const defs = document.createElementNS(svgNS, 'defs');
+
+    const pat = document.createElementNS(svgNS, 'pattern');
+    pat.setAttribute('id', 'lam-son-cloud-pattern');
+    pat.setAttribute('patternUnits', 'userSpaceOnUse');
+    pat.setAttribute('width', '18');
+    pat.setAttribute('height', '18');
+    const img = document.createElementNS(svgNS, 'image');
+    img.setAttribute('href', '/cloud_fog_texture.png');
+    img.setAttribute('width', '18');
+    img.setAttribute('height', '18');
+    img.setAttribute('preserveAspectRatio', 'none');
+    pat.appendChild(img);
+    defs.appendChild(pat);
+
+    const mask = document.createElementNS(svgNS, 'mask');
+    mask.setAttribute('id', 'lam-son-cloud-mask');
+    const maskBg = document.createElementNS(svgNS, 'rect');
+    maskBg.setAttribute('x', '0');
+    maskBg.setAttribute('y', '0');
+    maskBg.setAttribute('width', '140');
+    maskBg.setAttribute('height', '140');
+    maskBg.setAttribute('fill', 'white');
+    mask.appendChild(maskBg);
+
+    districtsList.forEach(d => {
+      const city = cities.find(c => c.id === d.id);
+      const isRevealed =
+        d.id === 'lam_son' ||
+        city?.faction === 'lam_son' ||
+        Boolean(city?.hasBase) ||
+        Boolean(scoutedRegionIds[d.id]);
+      if (!isRevealed || d.polygon.length < 3) return;
+
+      const ptsStr = d.polygon.map(([px, py]) => `${(px + 20).toFixed(2)},${(py + 20).toFixed(2)}`).join(' ');
+
+      const featherPoly = document.createElementNS(svgNS, 'polygon');
+      featherPoly.setAttribute('points', ptsStr);
+      featherPoly.setAttribute('fill', 'none');
+      featherPoly.setAttribute('stroke', 'rgba(130, 130, 130, 0.65)');
+      featherPoly.setAttribute('stroke-width', '2.2');
+      featherPoly.setAttribute('stroke-linejoin', 'round');
+      mask.appendChild(featherPoly);
+
+      const clearPoly = document.createElementNS(svgNS, 'polygon');
+      clearPoly.setAttribute('points', ptsStr);
+      clearPoly.setAttribute('fill', 'black');
+      clearPoly.setAttribute('stroke', 'black');
+      clearPoly.setAttribute('stroke-width', '0.8');
+      clearPoly.setAttribute('stroke-linejoin', 'round');
+      mask.appendChild(clearPoly);
+    });
+
+    defs.appendChild(mask);
+    svgEl.appendChild(defs);
+
+    const cloudRect = document.createElementNS(svgNS, 'rect');
+    cloudRect.setAttribute('x', '0');
+    cloudRect.setAttribute('y', '0');
+    cloudRect.setAttribute('width', '140');
+    cloudRect.setAttribute('height', '140');
+    cloudRect.setAttribute('fill', 'url(#lam-son-cloud-pattern)');
+    cloudRect.setAttribute('mask', 'url(#lam-son-cloud-mask)');
+    cloudRect.setAttribute('opacity', '0.95');
+    svgEl.appendChild(cloudRect);
+
+    const fogBounds = L.latLngBounds(percentToLatLng(-20, 120), percentToLatLng(120, -20));
+    const overlay = L.svgOverlay(svgEl, fogBounds, {
+      pane: 'cloudFogPane',
+      interactive: false,
+    }).addTo(map);
+    cloudFogOverlayRef.current = overlay;
+
+    return () => {
+      overlay.remove();
+      if (cloudFogOverlayRef.current === overlay) cloudFogOverlayRef.current = null;
+    };
+  }, [mapInstance, districtsList, cities, scoutedRegionIds, isEditMode, parchmentMode]);
 
   return (
     <div className="absolute inset-0 z-0 bg-[#16171a] overflow-hidden">
