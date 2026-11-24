@@ -13,6 +13,7 @@ import {
   TILE_SIZE,
 } from '../../utils/mapGeo';
 import districtData from '../../data/districtPolygons.json';
+import { PROVINCE_REGIONS } from '../../data/provinceRegions';
 import {
   validateCellPlacement,
   coordToCell,
@@ -49,10 +50,12 @@ export const WorldMap: React.FC = React.memo(() => {
   const parchmentSheetRef = useRef<L.ImageOverlay | null>(null);
   const bordersOverlayRef = useRef<L.ImageOverlay | null>(null);
   const satelliteOverlayRef = useRef<L.ImageOverlay | null>(null);
+  const provinceLabelsLayerRef = useRef<L.LayerGroup | null>(null);
   const polygonsMapRef = useRef<Map<string, L.Polygon>>(new Map());
 
   const [parchmentMode, setParchmentMode] = useState<ParchmentMode>('cutout');
   const [showDistricts, setShowDistricts] = useState<boolean>(true);
+  const [isZoomedOutOverview, setIsZoomedOutOverview] = useState<boolean>(false);
   const [showCountryBorders, setShowCountryBorders] = useState<boolean>(true);
   const [showSatelliteRef, setShowSatelliteRef] = useState<boolean>(false);
   const [satelliteOpacity, setSatelliteOpacity] = useState<number>(0.55);
@@ -336,7 +339,11 @@ export const WorldMap: React.FC = React.memo(() => {
     tileLayer.addTo(map);
 
     // Tạm thời tắt tự động chuyển sang bản đồ 3D khi zoom sâu để tiện sửa map
-    // map.on('zoomend', () => { ... });
+    // Khi zoom out dưới mốc 2.45: ẩn ranh giới & tên các huyện, chỉ hiện tên các tỉnh/khu vực
+    const PROVINCE_OVERVIEW_ZOOM = 2.45;
+    map.on('zoomend', () => {
+      setIsZoomedOutOverview(map.getZoom() < PROVINCE_OVERVIEW_ZOOM);
+    });
 
     map.createPane('districtsPane');
     const dPane = map.getPane('districtsPane');
@@ -428,6 +435,7 @@ export const WorldMap: React.FC = React.memo(() => {
 
     const linesLayer = L.layerGroup().addTo(map);
     const labelsLayer = L.layerGroup().addTo(map);
+    const provinceLabelsLayer = L.layerGroup().addTo(map);
     const vertexHandlesLayer = L.layerGroup().addTo(map);
     const controlRadiusLayer = L.layerGroup().addTo(map);
     const nodesLayer = L.layerGroup().addTo(map);
@@ -438,6 +446,7 @@ export const WorldMap: React.FC = React.memo(() => {
     mapInstanceRef.current = map;
     linesLayerRef.current = linesLayer;
     labelsLayerRef.current = labelsLayer;
+    provinceLabelsLayerRef.current = provinceLabelsLayer;
     vertexHandlesLayerRef.current = vertexHandlesLayer;
     controlRadiusLayerRef.current = controlRadiusLayer;
     nodesLayerRef.current = nodesLayer;
@@ -525,7 +534,7 @@ export const WorldMap: React.FC = React.memo(() => {
     mapInstance,
     districtsList,
     setDistrictsList,
-    showDistricts,
+    showDistricts: showDistricts && !isZoomedOutOverview,
     parchmentMode,
     hoveredDistrictId,
     setHoveredDistrictId,
@@ -804,8 +813,51 @@ export const WorldMap: React.FC = React.memo(() => {
         percentToLatLng(bordersBounds.xMax, bordersBounds.yMin)
       )
     );
-    overlay.setOpacity(showCountryBorders && showDistricts ? 0.9 : 0);
-  }, [bordersBounds, showCountryBorders, showDistricts]);
+    overlay.setOpacity(showCountryBorders && (showDistricts || isZoomedOutOverview) ? 0.9 : 0);
+  }, [bordersBounds, showCountryBorders, showDistricts, isZoomedOutOverview]);
+
+  // Hiển thị tên tỉnh Thanh Hóa và các tỉnh/khu vực lân cận khi zoom out
+  useEffect(() => {
+    const layer = provinceLabelsLayerRef.current;
+    if (!layer) return;
+    layer.clearLayers();
+    if (!isZoomedOutOverview) return;
+
+    const w = bordersBounds.xMax - bordersBounds.xMin;
+    const h = bordersBounds.yMax - bordersBounds.yMin;
+
+    PROVINCE_REGIONS.forEach(region => {
+      const x = bordersBounds.xMin + region.relX * w;
+      const y = bordersBounds.yMin + region.relY * h;
+      const pos = percentToLatLng(x, y);
+
+      const textColor = region.isMain
+        ? 'text-amber-300'
+        : region.isForeign
+        ? 'text-stone-300/85'
+        : 'text-[#f5ebd7]';
+      const fontSize = region.isMain ? '22px' : region.isForeign ? '15px' : '16px';
+      const glow = region.isMain ? 'rgba(245, 158, 11, 0.7)' : 'rgba(0, 0, 0, 0.9)';
+
+      const html = `
+        <div class="pointer-events-none select-none whitespace-nowrap font-serif font-black tracking-[0.18em] ${textColor}"
+             style="font-size: ${fontSize}; transform: translate(-50%, -50%); text-align: center; text-shadow: -1.5px -1.5px 0 #180e06, 1.5px -1.5px 0 #180e06, -1.5px 1.5px 0 #180e06, 1.5px 1.5px 0 #180e06, 0 2px 10px rgba(0,0,0,0.95), 0 0 14px ${glow};">
+          ${region.name}
+        </div>
+      `;
+
+      L.marker(pos, {
+        icon: L.divIcon({
+          className: 'province-region-label',
+          html,
+          iconSize: [0, 0],
+          iconAnchor: [0, 0],
+        }),
+        interactive: false,
+        pane: 'districtLabelsPane',
+      }).addTo(layer);
+    });
+  }, [isZoomedOutOverview, bordersBounds]);
 
   return (
     <div className="absolute inset-0 z-0 bg-[#16171a] overflow-hidden">

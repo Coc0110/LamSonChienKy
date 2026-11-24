@@ -38,6 +38,13 @@ export const useStructureMarkers = ({
     if (!layer) return;
 
     const currentOverlayMap = overlaysRef.current;
+    // Tạm thời loại bỏ ruộng nương và lò rèn trên bản đồ 2D (sẽ liên kết với tài nguyên bản đồ 3D sau)
+    const show2DStructures = false;
+    if (!show2DStructures) {
+      currentOverlayMap.forEach(({ overlay }) => overlay.remove());
+      currentOverlayMap.clear();
+      return;
+    }
     const activeIds = new Set<string>();
 
     structures.forEach(structure => {

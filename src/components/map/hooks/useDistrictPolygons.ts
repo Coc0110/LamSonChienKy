@@ -7,7 +7,7 @@ import districtData from '../../../data/districtPolygons.json';
 import { useUIStore } from '../../../store/uiStore';
 import { notify } from '../../../store/dialogStore';
 
-export const DISTRICT_STORAGE_KEY = 'lam_son_district_polygons_custom_v4';
+export const DISTRICT_STORAGE_KEY = 'lam_son_district_polygons_custom_v5';
 
 const SHARED_VERTEX_TOL = 0.25;
 
@@ -560,7 +560,6 @@ export const useDistrictPolygons = ({
 
         const cityNode = cities.find(c => c.id === district.id);
         const faction = cityNode ? cityNode.faction : district.faction;
-        const troops = cityNode ? cityNode.troops : district.troops;
 
         const factionColor =
           faction === 'lam_son'
@@ -576,16 +575,10 @@ export const useDistrictPolygons = ({
             ? 'rgba(56, 189, 248, 0.6)'
             : 'rgba(0, 0, 0, 0.95)';
 
-        const troopsBadge =
-          troops > 0
-            ? `<span class="ml-2 text-xs font-mono font-medium text-amber-200/90 tracking-normal" style="text-shadow: 0 1px 3px #000, 0 0 6px #000;">[${troops.toLocaleString()}]</span>`
-            : '';
-
         const labelHtml = `
           <div class="pointer-events-none select-none flex items-center justify-center whitespace-nowrap font-serif font-black tracking-widest ${isSelected ? 'scale-115' : ''} transition-transform duration-150 animate-in fade-in zoom-in-95"
                style="font-size: 19px; transform: translate(-50%, calc(-70% - 14px)); text-align: center; text-shadow: -1.5px -1.5px 0 #180e06, 1.5px -1.5px 0 #180e06, -1.5px 1.5px 0 #180e06, 1.5px 1.5px 0 #180e06, 0 2px 8px rgba(0,0,0,0.95), 0 0 14px ${glowColor};">
             <span class="${factionColor}">${district.name}</span>
-            ${troopsBadge}
           </div>
         `;
 
