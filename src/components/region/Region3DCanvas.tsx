@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { useGameStore } from '../../store/gameStore';
 import type { BaseBuilding, RegionCombatUnit, RegionLayout } from '../../types/region';
 import {
   DIORAMA_PALETTE,
@@ -115,7 +116,7 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
       42,
       container.clientWidth / Math.max(1, container.clientHeight),
       0.1,
-      160
+      220
     );
     camera.position.set(16, 18, 20);
 
@@ -155,6 +156,50 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
     sun.shadow.camera.top = 16;
     sun.shadow.camera.bottom = -16;
     scene.add(sun);
+
+    // Mặt trời & Mặt trăng trên bầu trời 3D theo 12 Canh Giờ
+    const sunOrbGroup = new THREE.Group();
+    const sunCore = new THREE.Mesh(
+      new THREE.SphereGeometry(2.2, 24, 24),
+      new THREE.MeshBasicMaterial({ color: 0xfff3a8, fog: false })
+    );
+    const sunHalo = new THREE.Mesh(
+      new THREE.SphereGeometry(3.8, 24, 24),
+      new THREE.MeshBasicMaterial({ color: 0xffb74d, transparent: true, opacity: 0.3, fog: false, depthWrite: false })
+    );
+    sunOrbGroup.add(sunCore, sunHalo);
+    scene.add(sunOrbGroup);
+
+    const moonOrbGroup = new THREE.Group();
+    const moonCore = new THREE.Mesh(
+      new THREE.SphereGeometry(1.7, 24, 24),
+      new THREE.MeshBasicMaterial({ color: 0xeef4ff, fog: false })
+    );
+    const moonHalo = new THREE.Mesh(
+      new THREE.SphereGeometry(2.9, 24, 24),
+      new THREE.MeshBasicMaterial({ color: 0x9cb8ff, transparent: true, opacity: 0.24, fog: false, depthWrite: false })
+    );
+    moonOrbGroup.add(moonCore, moonHalo);
+    scene.add(moonOrbGroup);
+
+    const initStore = useGameStore.getState();
+    let smoothCanhHour = initStore.timeMode === 'day' ? 6 : initStore.canhHour;
+    const skyColorNight = new THREE.Color(0x131c33);
+    const skyColorDawn = new THREE.Color(0xe8a87c);
+    const skyColorDay = new THREE.Color(0xdbe6d5);
+    const skyColorDusk = new THREE.Color(0xd47459);
+    const lightColorDay = new THREE.Color(0xfff1d6);
+    const lightColorWarm = new THREE.Color(0xff9e5e);
+    const lightColorNight = new THREE.Color(0x8fb0e8);
+    const hemiSkyDay = new THREE.Color(0xfff9ec);
+    const hemiSkyWarm = new THREE.Color(0xffd4b8);
+    const hemiSkyNight = new THREE.Color(0x5a73a8);
+    const hemiGroundDay = new THREE.Color(0x6c7a5e);
+    const hemiGroundNight = new THREE.Color(0x1f293d);
+    const tmpSkyColor = new THREE.Color();
+    const tmpLightColor = new THREE.Color();
+    const tmpHemiSky = new THREE.Color();
+    const tmpHemiGround = new THREE.Color();
 
     // Đế đảo Diorama 24x24 có viền rừng cây bao quanh kiểu Clash of Clans
     const outerRimGeo = new THREE.BoxGeometry(gridSize + 4.4, 1.5, gridSize + 4.4);
@@ -1117,6 +1162,74 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
           vis.phase += ds / (0.68 * Math.max(0.3, vis.group.scale.x));
         }
         animateSoldierWalk(vis.group, vis.phase, moving);
+      }
+
+      // Cập nhật Mặt trời, Mặt trăng & màu sắc bầu trời/ánh sáng theo thời gian đang chạy
+      const { canhHour, timeMode } = useGameStore.getState();
+      const targetHour = timeMode === 'day' ? 6 : canhHour;
+      let hourDiff = targetHour - smoothCanhHour;
+      if (hourDiff > 6) hourDiff -= 12;
+      if (hourDiff < -6) hourDiff += 12;
+      smoothCanhHour = ((smoothCanhHour + hourDiff * 0.08) % 12 + 12) % 12;
+
+      const sunAngle = ((smoothCanhHour - 3) / 6) * Math.PI;
+      const sunX = Math.cos(sunAngle) * 48;
+      const sunY = Math.sin(sunAngle) * 38;
+      sunOrbGroup.position.set(sunX, sunY, -22);
+      sunOrbGroup.visible = sunY > -4;
+
+      const moonAngle = sunAngle - Math.PI;
+      const moonX = Math.cos(moonAngle) * 48;
+      const moonY = Math.sin(moonAngle) * 38;
+      moonOrbGroup.position.set(moonX, moonY, -22);
+      moonOrbGroup.visible = moonY > -4;
+
+      const sunHeight = Math.sin(sunAngle); // +1 Ngọ (trưa), 0 Mão/Dậu (bình minh/hoàng hôn), -1 Tý (nửa đêm)
+      const isMorningSide = Math.cos(sunAngle) >= 0;
+
+      if (sunHeight >= 0.35) {
+        // Ban ngày
+        tmpSkyColor.copy(skyColorDay);
+        tmpLightColor.copy(lightColorDay);
+        tmpHemiSky.copy(hemiSkyDay);
+        tmpHemiGround.copy(hemiGroundDay);
+        sun.intensity = 1.35;
+        hemi.intensity = 0.85;
+      } else if (sunHeight >= -0.2) {
+        // Chuyển tiếp Bình minh / Hoàng hôn
+        const t = (sunHeight + 0.2) / 0.55; // 0 (tối) -> 1 (sáng)
+        const tw = Math.sin(t * Math.PI); // đỉnh ấm lúc sunHeight ~ 0.075
+        const horizonColor = isMorningSide ? skyColorDawn : skyColorDusk;
+        tmpSkyColor.copy(skyColorNight).lerp(skyColorDay, t).lerp(horizonColor, tw * 0.72);
+        tmpLightColor.copy(lightColorNight).lerp(lightColorDay, t).lerp(lightColorWarm, tw * 0.8);
+        tmpHemiSky.copy(hemiSkyNight).lerp(hemiSkyDay, t).lerp(hemiSkyWarm, tw * 0.65);
+        tmpHemiGround.copy(hemiGroundNight).lerp(hemiGroundDay, t);
+        sun.intensity = 0.55 + t * 0.8;
+        hemi.intensity = 0.42 + t * 0.43;
+      } else {
+        // Ban đêm
+        tmpSkyColor.copy(skyColorNight);
+        tmpLightColor.copy(lightColorNight);
+        tmpHemiSky.copy(hemiSkyNight);
+        tmpHemiGround.copy(hemiGroundNight);
+        sun.intensity = 0.55;
+        hemi.intensity = 0.42;
+      }
+
+      if (scene.background instanceof THREE.Color) {
+        scene.background.copy(tmpSkyColor);
+      }
+      if (scene.fog instanceof THREE.Fog) {
+        scene.fog.color.copy(tmpSkyColor);
+      }
+      sun.color.copy(tmpLightColor);
+      hemi.color.copy(tmpHemiSky);
+      hemi.groundColor.copy(tmpHemiGround);
+
+      if (sunHeight >= -0.05) {
+        sun.position.set(sunX * 0.42, Math.max(10, sunY * 0.75), 14);
+      } else {
+        sun.position.set(moonX * 0.42, Math.max(10, moonY * 0.75), 14);
       }
 
       const camDist = camera.position.distanceTo(controls.target);
