@@ -13,7 +13,7 @@ import {
   TILE_SIZE,
 } from '../../utils/mapGeo';
 import districtData from '../../data/districtPolygons.json';
-import { PROVINCE_REGIONS } from '../../data/provinceRegions';
+import { PROVINCE_REGIONS, type ProvinceRegion } from '../../data/provinceRegions';
 import {
   validateCellPlacement,
   coordToCell,
@@ -28,6 +28,7 @@ import { TerrainInspectHUD } from './overlay/TerrainInspectHUD';
 import { MarchRouteDrawerOverlay } from './overlay/MarchRouteDrawerOverlay';
 import { WorldCombatHUD } from './overlay/WorldCombatHUD';
 import { useDistrictPolygons, DISTRICT_STORAGE_KEY } from './hooks/useDistrictPolygons';
+import { useProvincePolygons, PROVINCE_STORAGE_KEY } from './hooks/useProvincePolygons';
 import { useCityMarkers } from './hooks/useCityMarkers';
 import { useStructureMarkers } from './hooks/useStructureMarkers';
 import { useMapPlacement } from './hooks/useMapPlacement';
@@ -53,12 +54,29 @@ export const WorldMap: React.FC = React.memo(() => {
   const provincePolygonsLayerRef = useRef<L.LayerGroup | null>(null);
   const provincePolygonsMapRef = useRef<Map<string, L.Polygon>>(new Map());
   const provinceLabelsLayerRef = useRef<L.LayerGroup | null>(null);
+  const provinceHandlesLayerRef = useRef<L.LayerGroup | null>(null);
+  const districtCutoutShadowLayerRef = useRef<L.LayerGroup | null>(null);
+  const districtCutoutPaneRef = useRef<HTMLElement | null>(null);
   const polygonsMapRef = useRef<Map<string, L.Polygon>>(new Map());
 
   const [parchmentMode, setParchmentMode] = useState<ParchmentMode>('cutout');
   const [showDistricts, setShowDistricts] = useState<boolean>(true);
   const [isZoomedOutOverview, setIsZoomedOutOverview] = useState<boolean>(false);
+  const [isEditingProvinces, setIsEditingProvinces] = useState<boolean>(false);
+  const [selectedProvinceId, setSelectedProvinceId] = useState<string | null>('thanh_hoa');
   const [hoveredProvinceId, setHoveredProvinceId] = useState<string | null>(null);
+  const [provinceList, setProvinceList] = useState<ProvinceRegion[]>(() => {
+    try {
+      const saved = localStorage.getItem(PROVINCE_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {
+      // ignore
+    }
+    return PROVINCE_REGIONS;
+  });
   const [showCountryBorders, setShowCountryBorders] = useState<boolean>(true);
   const [showSatelliteRef, setShowSatelliteRef] = useState<boolean>(false);
   const [satelliteOpacity, setSatelliteOpacity] = useState<number>(0.55);
@@ -341,6 +359,36 @@ export const WorldMap: React.FC = React.memo(() => {
 
     tileLayer.addTo(map);
 
+    map.createPane('districtCutoutShadowPane');
+    const csPane = map.getPane('districtCutoutShadowPane');
+    if (csPane) {
+      csPane.style.zIndex = '435';
+      csPane.style.pointerEvents = 'none';
+    }
+
+    map.createPane('districtCutoutTilePane');
+    const ctPane = map.getPane('districtCutoutTilePane');
+    if (ctPane) {
+      ctPane.style.zIndex = '440';
+      ctPane.style.pointerEvents = 'none';
+      ctPane.style.display = 'none';
+      ctPane.style.filter = 'brightness(1.12) contrast(1.04)';
+      ctPane.style.transform = 'translate3d(0, -3px, 0)';
+      districtCutoutPaneRef.current = ctPane;
+    }
+
+    const highlightTileLayer = L.tileLayer('/tiles/{z}/{x}/{y}.jpg', {
+      minZoom: 0,
+      maxZoom: 6,
+      maxNativeZoom: 4,
+      minNativeZoom: 0,
+      tileSize: TILE_SIZE,
+      noWrap: true,
+      bounds: bounds,
+      pane: 'districtCutoutTilePane',
+    });
+    highlightTileLayer.addTo(map);
+
     // Tạm thời tắt tự động chuyển sang bản đồ 3D khi zoom sâu để tiện sửa map
     // Khi zoom out dưới mốc 2.45: ẩn ranh giới & tên các huyện, chỉ hiện tên các tỉnh/khu vực
     const PROVINCE_OVERVIEW_ZOOM = 2.45;
@@ -442,6 +490,8 @@ export const WorldMap: React.FC = React.memo(() => {
     const labelsLayer = L.layerGroup().addTo(map);
     const provincePolygonsLayer = L.layerGroup().addTo(map);
     const provinceLabelsLayer = L.layerGroup().addTo(map);
+    const provinceHandlesLayer = L.layerGroup().addTo(map);
+    const districtCutoutShadowLayer = L.layerGroup().addTo(map);
     const vertexHandlesLayer = L.layerGroup().addTo(map);
     const controlRadiusLayer = L.layerGroup().addTo(map);
     const nodesLayer = L.layerGroup().addTo(map);
@@ -454,6 +504,8 @@ export const WorldMap: React.FC = React.memo(() => {
     labelsLayerRef.current = labelsLayer;
     provincePolygonsLayerRef.current = provincePolygonsLayer;
     provinceLabelsLayerRef.current = provinceLabelsLayer;
+    provinceHandlesLayerRef.current = provinceHandlesLayer;
+    districtCutoutShadowLayerRef.current = districtCutoutShadowLayer;
     vertexHandlesLayerRef.current = vertexHandlesLayer;
     controlRadiusLayerRef.current = controlRadiusLayer;
     nodesLayerRef.current = nodesLayer;
@@ -541,18 +593,36 @@ export const WorldMap: React.FC = React.memo(() => {
     mapInstance,
     districtsList,
     setDistrictsList,
-    showDistricts: showDistricts && !isZoomedOutOverview,
+    showDistricts: showDistricts && !isZoomedOutOverview && !isEditingProvinces,
     parchmentMode,
     hoveredDistrictId,
     setHoveredDistrictId,
     selectedCityId,
     cities,
-    isEditMode,
+    isEditMode: isEditMode && !isEditingProvinces,
     selectDistrict,
     polygonsMapRef,
     labelsLayerRef,
     vertexHandlesLayerRef,
     handlePlacementAtRef,
+  });
+
+  // Hook quản lý Polygon & Chỉnh sửa Ranh giới các Tỉnh
+  const { resetSingleProvince } = useProvincePolygons({
+    mapInstance,
+    provinceList,
+    setProvinceList,
+    bordersBounds,
+    isZoomedOutOverview,
+    isEditingProvinces: isEditMode && isEditingProvinces,
+    selectedProvinceId,
+    setSelectedProvinceId,
+    hoveredProvinceId,
+    setHoveredProvinceId,
+    provincePolygonsLayerRef,
+    provincePolygonsMapRef,
+    provinceLabelsLayerRef,
+    provinceHandlesLayerRef,
   });
 
   // Hook quản lý Markers Căn cứ & Cứ điểm
@@ -823,104 +893,51 @@ export const WorldMap: React.FC = React.memo(() => {
     overlay.setOpacity(showCountryBorders && (showDistricts || isZoomedOutOverview) ? 0.9 : 0);
   }, [bordersBounds, showCountryBorders, showDistricts, isZoomedOutOverview]);
 
-  // Vùng tương tác cho các tỉnh thành khi zoom out (di chuột tới tỉnh nào thì highlight & hiện tên tỉnh đó)
+  // Cắt bản đồ theo ranh giới huyện khi di chuột vào để khu vực đó nổi lên khỏi mặt bản đồ
   useEffect(() => {
-    const polyLayer = provincePolygonsLayerRef.current;
-    if (!polyLayer) return;
-    polyLayer.clearLayers();
-    provincePolygonsMapRef.current.clear();
+    const map = mapInstanceRef.current;
+    const pane = districtCutoutPaneRef.current;
+    const shadowLayer = districtCutoutShadowLayerRef.current;
+    if (!map || !pane || !shadowLayer) return;
 
-    if (!isZoomedOutOverview) {
-      return;
-    }
+    const updateCutout = () => {
+      shadowLayer.clearLayers();
+      if (!hoveredDistrictId || !showDistricts || isZoomedOutOverview || isEditMode) {
+        pane.style.display = 'none';
+        pane.style.clipPath = '';
+        return;
+      }
 
-    const w = bordersBounds.xMax - bordersBounds.xMin;
-    const h = bordersBounds.yMax - bordersBounds.yMin;
+      const d = districtsListRef.current.find(item => item.id === hoveredDistrictId);
+      if (!d || d.polygon.length < 3) {
+        pane.style.display = 'none';
+        pane.style.clipPath = '';
+        return;
+      }
 
-    PROVINCE_REGIONS.forEach(region => {
-      const latlngs = region.polygon.map(([rx, ry]) =>
-        percentToLatLng(bordersBounds.xMin + rx * w, bordersBounds.yMin + ry * h)
-      );
+      const layerPts = d.polygon.map(([px, py]) => map.latLngToLayerPoint(percentToLatLng(px, py)));
+      const clipStr = `polygon(${layerPts.map(p => `${p.x.toFixed(1)}px ${p.y.toFixed(1)}px`).join(', ')})`;
+      pane.style.clipPath = clipStr;
+      pane.style.display = 'block';
 
-      const poly = L.polygon(latlngs, {
+      const shadowLatLngs = layerPts.map(p => map.layerPointToLatLng(L.point(p.x, p.y + 4)));
+      L.polygon(shadowLatLngs, {
         fill: true,
-        fillColor: region.isMain ? '#f59e0b' : '#fde68a',
-        fillOpacity: 0.0001,
-        color: region.isMain ? '#f59e0b' : '#fb923c',
+        fillColor: '#000000',
+        fillOpacity: 0.42,
         weight: 0,
         opacity: 0,
-        pane: 'districtsPane',
-        interactive: true,
-      });
+        pane: 'districtCutoutShadowPane',
+        interactive: false,
+      }).addTo(shadowLayer);
+    };
 
-      poly.on('mouseover', () => {
-        setHoveredProvinceId(region.id);
-      });
-      poly.on('mouseout', () => {
-        setHoveredProvinceId(prev => (prev === region.id ? null : prev));
-      });
-
-      poly.addTo(polyLayer);
-      provincePolygonsMapRef.current.set(region.id, poly);
-    });
-  }, [isZoomedOutOverview, bordersBounds]);
-
-  // Highlight vùng tỉnh + hiển thị tên tỉnh khi di chuột vào lúc đang zoom out
-  useEffect(() => {
-    provincePolygonsMapRef.current.forEach((poly, pid) => {
-      const region = PROVINCE_REGIONS.find(r => r.id === pid);
-      if (isZoomedOutOverview && hoveredProvinceId === pid) {
-        poly.setStyle({
-          color: region?.isMain ? '#d97706' : '#c2410c',
-          weight: 2.2,
-          opacity: 1.0,
-          fillOpacity: 0.0001,
-        });
-      } else {
-        poly.setStyle({
-          weight: 0,
-          opacity: 0,
-          fillOpacity: 0.0001,
-        });
-      }
-    });
-
-    const layer = provinceLabelsLayerRef.current;
-    if (!layer) return;
-    layer.clearLayers();
-    if (!isZoomedOutOverview || !hoveredProvinceId) return;
-
-    const region = PROVINCE_REGIONS.find(r => r.id === hoveredProvinceId);
-    if (!region) return;
-
-    const w = bordersBounds.xMax - bordersBounds.xMin;
-    const h = bordersBounds.yMax - bordersBounds.yMin;
-    const x = bordersBounds.xMin + region.relX * w;
-    const y = bordersBounds.yMin + region.relY * h;
-    const pos = percentToLatLng(x, y);
-
-    const textColor = region.isMain ? 'text-amber-300' : 'text-[#f5ebd7]';
-    const fontSize = region.isMain ? '22px' : '18px';
-    const glow = region.isMain ? 'rgba(245, 158, 11, 0.7)' : 'rgba(0, 0, 0, 0.9)';
-
-    const html = `
-      <div class="pointer-events-none select-none whitespace-nowrap font-serif font-black tracking-[0.18em] ${textColor} animate-in fade-in zoom-in-95 duration-150"
-           style="font-size: ${fontSize}; transform: translate(-50%, -50%); text-align: center; text-shadow: -1.5px -1.5px 0 #180e06, 1.5px -1.5px 0 #180e06, -1.5px 1.5px 0 #180e06, 1.5px 1.5px 0 #180e06, 0 2px 10px rgba(0,0,0,0.95), 0 0 14px ${glow};">
-        ${region.name}
-      </div>
-    `;
-
-    L.marker(pos, {
-      icon: L.divIcon({
-        className: 'province-region-label',
-        html,
-        iconSize: [0, 0],
-        iconAnchor: [0, 0],
-      }),
-      interactive: false,
-      pane: 'districtLabelsPane',
-    }).addTo(layer);
-  }, [isZoomedOutOverview, hoveredProvinceId, bordersBounds]);
+    updateCutout();
+    map.on('zoomend viewreset', updateCutout);
+    return () => {
+      map.off('zoomend viewreset', updateCutout);
+    };
+  }, [hoveredDistrictId, showDistricts, isZoomedOutOverview, isEditMode]);
 
   return (
     <div className="absolute inset-0 z-0 bg-[#16171a] overflow-hidden">
@@ -936,12 +953,18 @@ export const WorldMap: React.FC = React.memo(() => {
           onSelectCity={selectCity}
           onToggleEditMode={() => {
             setIsTransformAllMode(false);
+            setIsEditingProvinces(false);
             toggleEditMode();
           }}
           storageKey={DISTRICT_STORAGE_KEY}
           onResetCurrentDistrict={resetSingleDistrict}
           onImportDistricts={importDistrictsList}
           onChangeTransformAllMode={setIsTransformAllMode}
+          onChangeProvinceEditMode={setIsEditingProvinces}
+          provinceList={provinceList}
+          selectedProvinceId={selectedProvinceId}
+          onSelectProvince={setSelectedProvinceId}
+          onResetCurrentProvince={resetSingleProvince}
           transformState={transformState}
           onUpdateTransformState={(updater) => {
             setTransformState(prev => {

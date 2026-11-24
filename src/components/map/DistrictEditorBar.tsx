@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { DistrictInfo } from '../../types/map';
 import type { TerrainType } from '../../types/terrain';
+import type { ProvinceRegion } from '../../data/provinceRegions';
 import { useUIStore } from '../../store/uiStore';
 import { notify } from '../../store/dialogStore';
 import { exportTerrainGridJSON, resetCustomTerrainGrid } from '../../data/terrainGrid';
@@ -26,6 +27,11 @@ interface DistrictEditorBarProps {
   onToggleSatelliteRef?: () => void;
   satelliteOpacity?: number;
   onChangeSatelliteOpacity?: (opacity: number) => void;
+  onChangeProvinceEditMode?: (active: boolean) => void;
+  provinceList?: ProvinceRegion[];
+  selectedProvinceId?: string | null;
+  onSelectProvince?: (id: string) => void;
+  onResetCurrentProvince?: (id: string) => void;
 }
 
 const TERRAIN_PALETTE: { type: TerrainType; label: string; icon: string; color: string }[] = [
@@ -58,12 +64,18 @@ export const DistrictEditorBar: React.FC<DistrictEditorBarProps> = ({
   onToggleSatelliteRef,
   satelliteOpacity = 0.55,
   onChangeSatelliteOpacity,
+  onChangeProvinceEditMode,
+  provinceList = [],
+  selectedProvinceId,
+  onSelectProvince,
+  onResetCurrentProvince,
 }) => {
-  const [tab, setTab] = useState<'polygon' | 'terrain' | 'transform'>('terrain');
+  const [tab, setTab] = useState<'polygon' | 'terrain' | 'transform' | 'province'>('terrain');
   const [showImportModal, setShowImportModal] = useState<boolean>(false);
   const [importText, setImportText] = useState<string>('');
   const [isSavingOfficial, setIsSavingOfficial] = useState<boolean>(false);
   const [isSavingTerrainOfficial, setIsSavingTerrainOfficial] = useState<boolean>(false);
+  const [isSavingProvinceOfficial, setIsSavingProvinceOfficial] = useState<boolean>(false);
 
   const setTerrainEditMode = useUIStore(state => state.setTerrainEditMode);
   const brushTerrain = useUIStore(state => state.brushTerrain);
@@ -76,11 +88,50 @@ export const DistrictEditorBar: React.FC<DistrictEditorBarProps> = ({
   // Đảm bảo khi đóng thanh công cụ (thoát chế độ sửa) thì tắt hẳn chế độ sơn vẽ địa hình & dịch chuyển toàn bộ
   useEffect(() => {
     onChangeTransformAllMode?.(tab === 'transform');
+    onChangeProvinceEditMode?.(tab === 'province');
     return () => {
       setTerrainEditMode(false);
       onChangeTransformAllMode?.(false);
+      onChangeProvinceEditMode?.(false);
     };
-  }, [setTerrainEditMode, onChangeTransformAllMode, tab]);
+  }, [setTerrainEditMode, onChangeTransformAllMode, onChangeProvinceEditMode, tab]);
+
+  const handleSaveProvinceOfficial = async () => {
+    try {
+      setIsSavingProvinceOfficial(true);
+      const res = await fetch('/api/save-provinces', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provinces: provinceList }),
+      });
+      if (!res.ok) {
+        if (res.status === 405 || res.status === 404) {
+          const blob = new Blob([JSON.stringify(provinceList, null, 2)], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'provinceRegions.json';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          notify.warning('Đang chạy trên web tĩnh (Vercel), đã tự động tải file "provinceRegions.json".');
+          return;
+        }
+        throw new Error(`Mã lỗi HTTP: ${res.status}`);
+      }
+      const result = await res.json();
+      if (result.success) {
+        notify.success(`🎉 Đã lưu ranh giới ${provinceList.length} tỉnh thành vào src/data/provinceRegions.ts!`);
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (err: any) {
+      notify.error(`Chưa lưu được qua server: ${err?.message}`);
+    } finally {
+      setIsSavingProvinceOfficial(false);
+    }
+  };
 
   // Lưu ranh giới trực tiếp vào file src/data/districtPolygons.json trên đĩa qua API
   const handleSaveAsOfficial = async () => {
@@ -306,6 +357,20 @@ export const DistrictEditorBar: React.FC<DistrictEditorBarProps> = ({
             </button>
             <button
               onClick={() => {
+                setTab('province');
+                setTerrainEditMode(false);
+                onChangeTransformAllMode?.(false);
+              }}
+              className={`px-3 py-1 rounded text-xs font-bold transition cursor-pointer ${
+                tab === 'province'
+                  ? 'bg-amber-600 text-white shadow'
+                  : 'bg-stone-800 text-stone-300 hover:bg-stone-700'
+              }`}
+            >
+              ✦ Nắn Ranh Giới Tỉnh
+            </button>
+            <button
+              onClick={() => {
                 setTab('transform');
                 setTerrainEditMode(false);
                 onChangeTransformAllMode?.(true);
@@ -358,6 +423,51 @@ export const DistrictEditorBar: React.FC<DistrictEditorBarProps> = ({
           </button>
           </div>
         </div>
+
+        {/* NỘI DUNG TAB 4: NẮN RANH GIỚI TỈNH THÀNH */}
+        {tab === 'province' && (
+          <div className="flex flex-col items-center gap-2 w-full animate-in fade-in duration-150">
+            <div className="flex flex-wrap items-center justify-center gap-2 w-full">
+              <span className="text-[11px] font-bold text-stone-400">Chọn Tỉnh/Phủ:</span>
+              <select
+                value={selectedProvinceId || ''}
+                onChange={(e) => onSelectProvince?.(e.target.value)}
+                className="bg-[#382013] text-amber-200 border border-amber-600/80 rounded px-2.5 py-1 text-xs font-sans font-bold cursor-pointer focus:outline-none focus:ring-1 focus:ring-amber-400"
+              >
+                {provinceList.map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+              <button
+                onClick={() => selectedProvinceId && onResetCurrentProvince?.(selectedProvinceId)}
+                disabled={!selectedProvinceId}
+                className="px-2.5 py-1 bg-[#854d0e] hover:bg-[#a16207] disabled:opacity-50 text-amber-100 rounded text-xs font-bold border border-[#ca8a04] shadow cursor-pointer transition whitespace-nowrap"
+              >
+                ↺ Khôi Phục Tỉnh Này
+              </button>
+              <button
+                onClick={handleSaveProvinceOfficial}
+                disabled={isSavingProvinceOfficial}
+                className="px-2.5 py-1 bg-[#15803d] hover:bg-[#16a34a] text-white rounded text-xs font-bold border border-[#22c55e] shadow cursor-pointer transition whitespace-nowrap flex items-center gap-1"
+              >
+                <span>💾</span>
+                <span>{isSavingProvinceOfficial ? 'Đang lưu...' : 'Lưu Ranh Giới Tỉnh'}</span>
+              </button>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(JSON.stringify(provinceList, null, 2));
+                  notify.info('Đã copy JSON ranh giới các tỉnh vào Clipboard!');
+                }}
+                className="px-2 py-1 bg-[#2f4d66] hover:bg-[#3d6385] text-white rounded text-xs font-bold border border-[#5282ad] shadow cursor-pointer transition whitespace-nowrap"
+              >
+                📋 Copy JSON
+              </button>
+            </div>
+            <p className="text-[11px] text-amber-200/90 text-center">
+              ✦ Nhấp chọn tỉnh trên bản đồ • Kéo nút vàng để nắn biên giới (các tỉnh giáp ranh tự dính đỉnh chung) • Nhấp lên cạnh nét đứt để thêm đỉnh • Kéo chồng 2 nút để gộp.
+            </p>
+          </div>
+        )}
 
         {/* NỘI DUNG TAB 3: DỊCH CHUYỂN & THU PHÓNG TỪNG LỚP ĐỘC LẬP */}
         {tab === 'transform' && transformState && onUpdateTransformState && (
