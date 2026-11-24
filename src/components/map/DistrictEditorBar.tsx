@@ -20,6 +20,12 @@ interface DistrictEditorBarProps {
   showCountryBorders?: boolean;
   onToggleCountryBorders?: () => void;
   bordersBounds?: { xMin: number; yMin: number; xMax: number; yMax: number };
+  transformTarget?: 'districts' | 'borders' | 'satellite';
+  onChangeTransformTarget?: (target: 'districts' | 'borders' | 'satellite') => void;
+  showSatelliteRef?: boolean;
+  onToggleSatelliteRef?: () => void;
+  satelliteOpacity?: number;
+  onChangeSatelliteOpacity?: (opacity: number) => void;
 }
 
 const TERRAIN_PALETTE: { type: TerrainType; label: string; icon: string; color: string }[] = [
@@ -46,6 +52,12 @@ export const DistrictEditorBar: React.FC<DistrictEditorBarProps> = ({
   showCountryBorders = true,
   onToggleCountryBorders,
   bordersBounds,
+  transformTarget = 'districts',
+  onChangeTransformTarget,
+  showSatelliteRef = false,
+  onToggleSatelliteRef,
+  satelliteOpacity = 0.55,
+  onChangeSatelliteOpacity,
 }) => {
   const [tab, setTab] = useState<'polygon' | 'terrain' | 'transform'>('terrain');
   const [showImportModal, setShowImportModal] = useState<boolean>(false);
@@ -289,6 +301,19 @@ export const DistrictEditorBar: React.FC<DistrictEditorBarProps> = ({
             </button>
           </div>
           <div className="flex items-center gap-2">
+            {onToggleSatelliteRef && (
+              <button
+                onClick={onToggleSatelliteRef}
+                className={`px-2.5 py-1 rounded text-xs font-bold border shadow cursor-pointer transition whitespace-nowrap ${
+                  showSatelliteRef
+                    ? 'bg-sky-900/80 text-sky-200 border-sky-500'
+                    : 'bg-stone-800 text-stone-400 border-stone-600'
+                }`}
+                title="Bật/tắt tấm bản đồ vệ tinh mẫu để đối chiếu căn chỉnh"
+              >
+                {showSatelliteRef ? '🛰️ Vệ Tinh Mẫu: Bật' : '🛰️ Vệ Tinh Mẫu: Tắt'}
+              </button>
+            )}
             {onToggleCountryBorders && (
               <button
                 onClick={onToggleCountryBorders}
@@ -315,9 +340,48 @@ export const DistrictEditorBar: React.FC<DistrictEditorBarProps> = ({
           </div>
         </div>
 
-        {/* NỘI DUNG TAB 3: DỊCH CHUYỂN & THU PHÓNG TOÀN BỘ RANH GIỚI */}
+        {/* NỘI DUNG TAB 3: DỊCH CHUYỂN & THU PHÓNG TỪNG LỚP ĐỘC LẬP */}
         {tab === 'transform' && transformState && onUpdateTransformState && (
           <div className="flex flex-col items-center gap-2 w-full animate-in fade-in duration-150">
+            {onChangeTransformTarget && (
+              <div className="flex flex-wrap items-center justify-center gap-1.5 w-full pb-1 border-b border-amber-900/40">
+                <span className="text-[11px] font-bold text-stone-300 mr-1">Đang chỉnh:</span>
+                {([
+                  { id: 'districts', label: '📍 Ranh Giới 24 Huyện' },
+                  { id: 'borders', label: '🗺️ Ranh Giới QG & Tỉnh' },
+                  { id: 'satellite', label: '🛰️ Bản Đồ Vệ Tinh Mẫu' },
+                ] as const).map(opt => (
+                  <button
+                    key={opt.id}
+                    onClick={() => onChangeTransformTarget(opt.id)}
+                    className={`px-2.5 py-1 rounded text-xs font-bold border transition cursor-pointer ${
+                      transformTarget === opt.id
+                        ? 'bg-amber-600 text-white border-amber-400 shadow'
+                        : 'bg-stone-800/90 text-stone-300 border-stone-700 hover:bg-stone-700'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+                {showSatelliteRef && onChangeSatelliteOpacity && (
+                  <div className="flex items-center gap-1.5 bg-stone-900/70 px-2 py-0.5 rounded border border-sky-800/60 ml-1">
+                    <span className="text-[11px] text-sky-300 font-bold">Mờ Vệ Tinh:</span>
+                    <input
+                      type="range"
+                      min={0.1}
+                      max={1.0}
+                      step={0.05}
+                      value={satelliteOpacity}
+                      onChange={(e) => onChangeSatelliteOpacity(parseFloat(e.target.value))}
+                      className="w-16 accent-sky-400 cursor-pointer"
+                    />
+                    <span className="text-[11px] font-mono text-sky-200 w-8 text-right">
+                      {Math.round(satelliteOpacity * 100)}%
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
             <div className="flex flex-wrap items-center justify-center gap-2 w-full">
               <div className="flex items-center gap-1.5 bg-stone-900/70 px-2.5 py-1 rounded border border-amber-800/50">
                 <span className="text-[11px] font-bold text-amber-300">Thu Phóng:</span>

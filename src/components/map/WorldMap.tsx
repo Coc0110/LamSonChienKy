@@ -48,14 +48,19 @@ export const WorldMap: React.FC = React.memo(() => {
   const parchmentCutoutRef = useRef<L.ImageOverlay | null>(null);
   const parchmentSheetRef = useRef<L.ImageOverlay | null>(null);
   const bordersOverlayRef = useRef<L.ImageOverlay | null>(null);
+  const satelliteOverlayRef = useRef<L.ImageOverlay | null>(null);
   const polygonsMapRef = useRef<Map<string, L.Polygon>>(new Map());
 
   const [parchmentMode, setParchmentMode] = useState<ParchmentMode>('cutout');
   const [showDistricts, setShowDistricts] = useState<boolean>(true);
   const [showCountryBorders, setShowCountryBorders] = useState<boolean>(true);
+  const [showSatelliteRef, setShowSatelliteRef] = useState<boolean>(false);
+  const [satelliteOpacity, setSatelliteOpacity] = useState<number>(0.55);
   const [hoveredDistrictId, setHoveredDistrictId] = useState<string | null>(null);
   const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
   const [isTransformAllMode, setIsTransformAllMode] = useState<boolean>(false);
+  const [transformTarget, setTransformTarget] = useState<'districts' | 'borders' | 'satellite'>('districts');
+  const transformTargetRef = useRef<'districts' | 'borders' | 'satellite'>('districts');
   const [transformState, setTransformState] = useState<{ offsetX: number; offsetY: number; scale: number }>({
     offsetX: 0,
     offsetY: 0,
@@ -66,6 +71,7 @@ export const WorldMap: React.FC = React.memo(() => {
   const districtsListRef = useRef<DistrictInfo[]>([]);
 
   const BORDERS_BOUNDS_STORAGE_KEY = 'lam_son_borders_bounds_v1';
+  const SATELLITE_BOUNDS_STORAGE_KEY = 'lam_son_satellite_bounds_v1';
   const DEFAULT_BORDERS_BOUNDS = { xMin: 0, yMin: 16.626, xMax: 100, yMax: 82.34 };
   const [bordersBounds, setBordersBounds] = useState<{ xMin: number; yMin: number; xMax: number; yMax: number }>(() => {
     try {
@@ -83,6 +89,23 @@ export const WorldMap: React.FC = React.memo(() => {
   });
   const bordersBaseRef = useRef<{ xMin: number; yMin: number; xMax: number; yMax: number } | null>(null);
   const bordersBoundsRef = useRef(bordersBounds);
+
+  const [satelliteBounds, setSatelliteBounds] = useState<{ xMin: number; yMin: number; xMax: number; yMax: number }>(() => {
+    try {
+      const saved = localStorage.getItem(SATELLITE_BOUNDS_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (typeof parsed.xMin === 'number' && typeof parsed.yMin === 'number' && typeof parsed.xMax === 'number' && typeof parsed.yMax === 'number') {
+          return parsed;
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return DEFAULT_BORDERS_BOUNDS;
+  });
+  const satelliteBaseRef = useRef<{ xMin: number; yMin: number; xMax: number; yMax: number } | null>(null);
+  const satelliteBoundsRef = useRef(satelliteBounds);
 
   // Danh sách polygon các huyện (hỗ trợ lưu chỉnh sửa vào localStorage)
   const [districtsList, setDistrictsList] = useState<DistrictInfo[]>(() => {
@@ -377,6 +400,21 @@ export const WorldMap: React.FC = React.memo(() => {
       }
     };
 
+    const initSat = satelliteBoundsRef.current;
+    const satelliteOverlay = L.imageOverlay(
+      '/satellite_reference.jpg',
+      L.latLngBounds(
+        percentToLatLng(initSat.xMin, initSat.yMax),
+        percentToLatLng(initSat.xMax, initSat.yMin)
+      ),
+      {
+        opacity: 0,
+        interactive: false,
+        zIndex: 15,
+      }
+    ).addTo(map);
+    satelliteOverlayRef.current = satelliteOverlay;
+
     const initBorders = bordersBoundsRef.current;
     const bordersOverlay = L.imageOverlay(
       '/map_borders.svg',
@@ -396,6 +434,7 @@ export const WorldMap: React.FC = React.memo(() => {
       if (isDisposed) return;
       map.invalidateSize();
       updateView(true);
+      if (!(satelliteOverlay as any)._map) (satelliteOverlay as any)._layerAdd({ target: map });
       if (!(bordersOverlay as any)._map) (bordersOverlay as any)._layerAdd({ target: map });
     }, 50);
 
@@ -553,42 +592,62 @@ export const WorldMap: React.FC = React.memo(() => {
   });
 
   const applyTransformState = useCallback((nextTransform: { offsetX: number; offsetY: number; scale: number }) => {
-    const base = transformBaseRef.current;
-    if (!base) return;
-    const [pivotX, pivotY] = transformPivotRef.current;
-    const { offsetX, offsetY, scale } = nextTransform;
     const round3 = (n: number) => Math.round(n * 1000) / 1000;
+    const { offsetX, offsetY, scale } = nextTransform;
+    const target = transformTargetRef.current;
 
-    const next = base.map(d => ({
-      ...d,
-      center: [
-        round3(pivotX + (d.center[0] - pivotX) * scale + offsetX),
-        round3(pivotY + (d.center[1] - pivotY) * scale + offsetY),
-      ] as [number, number],
-      polygon: d.polygon.map(([px, py]) => [
-        round3(pivotX + (px - pivotX) * scale + offsetX),
-        round3(pivotY + (py - pivotY) * scale + offsetY),
-      ] as [number, number]),
-    }));
-
-    setDistrictsList(next);
-    try {
-      localStorage.setItem(DISTRICT_STORAGE_KEY, JSON.stringify(next));
-    } catch {
-      // ignore
-    }
-
-    const baseBorders = bordersBaseRef.current;
-    if (baseBorders) {
+    if (target === 'districts') {
+      const base = transformBaseRef.current;
+      if (!base) return;
+      const [pivotX, pivotY] = transformPivotRef.current;
+      const next = base.map(d => ({
+        ...d,
+        center: [
+          round3(pivotX + (d.center[0] - pivotX) * scale + offsetX),
+          round3(pivotY + (d.center[1] - pivotY) * scale + offsetY),
+        ] as [number, number],
+        polygon: d.polygon.map(([px, py]) => [
+          round3(pivotX + (px - pivotX) * scale + offsetX),
+          round3(pivotY + (py - pivotY) * scale + offsetY),
+        ] as [number, number]),
+      }));
+      setDistrictsList(next);
+      try {
+        localStorage.setItem(DISTRICT_STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+    } else if (target === 'borders') {
+      const baseBorders = bordersBaseRef.current;
+      if (!baseBorders) return;
+      const px = (baseBorders.xMin + baseBorders.xMax) / 2;
+      const py = (baseBorders.yMin + baseBorders.yMax) / 2;
       const nextBorders = {
-        xMin: round3(pivotX + (baseBorders.xMin - pivotX) * scale + offsetX),
-        yMin: round3(pivotY + (baseBorders.yMin - pivotY) * scale + offsetY),
-        xMax: round3(pivotX + (baseBorders.xMax - pivotX) * scale + offsetX),
-        yMax: round3(pivotY + (baseBorders.yMax - pivotY) * scale + offsetY),
+        xMin: round3(px + (baseBorders.xMin - px) * scale + offsetX),
+        yMin: round3(py + (baseBorders.yMin - py) * scale + offsetY),
+        xMax: round3(px + (baseBorders.xMax - px) * scale + offsetX),
+        yMax: round3(py + (baseBorders.yMax - py) * scale + offsetY),
       };
       setBordersBounds(nextBorders);
       try {
         localStorage.setItem(BORDERS_BOUNDS_STORAGE_KEY, JSON.stringify(nextBorders));
+      } catch {
+        // ignore
+      }
+    } else if (target === 'satellite') {
+      const baseSat = satelliteBaseRef.current;
+      if (!baseSat) return;
+      const px = (baseSat.xMin + baseSat.xMax) / 2;
+      const py = (baseSat.yMin + baseSat.yMax) / 2;
+      const nextSat = {
+        xMin: round3(px + (baseSat.xMin - px) * scale + offsetX),
+        yMin: round3(py + (baseSat.yMin - py) * scale + offsetY),
+        xMax: round3(px + (baseSat.xMax - px) * scale + offsetX),
+        yMax: round3(py + (baseSat.yMax - py) * scale + offsetY),
+      };
+      setSatelliteBounds(nextSat);
+      try {
+        localStorage.setItem(SATELLITE_BOUNDS_STORAGE_KEY, JSON.stringify(nextSat));
       } catch {
         // ignore
       }
@@ -602,6 +661,7 @@ export const WorldMap: React.FC = React.memo(() => {
       polygon: d.polygon.map(pt => [...pt] as [number, number]),
     }));
     bordersBaseRef.current = { ...bordersBoundsRef.current };
+    satelliteBaseRef.current = { ...satelliteBoundsRef.current };
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     for (const d of sourceList) {
       for (const [px, py] of d.polygon) {
@@ -728,6 +788,26 @@ export const WorldMap: React.FC = React.memo(() => {
   }, [districtsList]);
 
   useEffect(() => {
+    satelliteBoundsRef.current = satelliteBounds;
+    const overlay = satelliteOverlayRef.current;
+    if (!overlay) return;
+    overlay.setBounds(
+      L.latLngBounds(
+        percentToLatLng(satelliteBounds.xMin, satelliteBounds.yMax),
+        percentToLatLng(satelliteBounds.xMax, satelliteBounds.yMin)
+      )
+    );
+    overlay.setOpacity(isEditMode && showSatelliteRef ? satelliteOpacity : 0);
+  }, [satelliteBounds, isEditMode, showSatelliteRef, satelliteOpacity]);
+
+  useEffect(() => {
+    transformTargetRef.current = transformTarget;
+    if (isEditMode && isTransformAllMode) {
+      captureTransformSnapshot(districtsListRef.current);
+    }
+  }, [transformTarget, isEditMode, isTransformAllMode, captureTransformSnapshot]);
+
+  useEffect(() => {
     bordersBoundsRef.current = bordersBounds;
     const overlay = bordersOverlayRef.current;
     if (!overlay) return;
@@ -776,6 +856,16 @@ export const WorldMap: React.FC = React.memo(() => {
           showCountryBorders={showCountryBorders}
           onToggleCountryBorders={() => setShowCountryBorders(prev => !prev)}
           bordersBounds={bordersBounds}
+          transformTarget={transformTarget}
+          onChangeTransformTarget={(t) => {
+            setTransformTarget(t);
+            if (t === 'satellite') setShowSatelliteRef(true);
+            if (t === 'borders') setShowCountryBorders(true);
+          }}
+          showSatelliteRef={showSatelliteRef}
+          onToggleSatelliteRef={() => setShowSatelliteRef(prev => !prev)}
+          satelliteOpacity={satelliteOpacity}
+          onChangeSatelliteOpacity={setSatelliteOpacity}
         />
       )}
 
