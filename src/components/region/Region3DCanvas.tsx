@@ -111,13 +111,13 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0xdbe6d5);
-    scene.fog = new THREE.Fog(0xdbe6d5, 75, 220);
+    scene.fog = new THREE.Fog(0xdbe6d5, 130, 420);
 
     const camera = new THREE.PerspectiveCamera(
       42,
       container.clientWidth / Math.max(1, container.clientHeight),
       0.1,
-      360
+      700
     );
     camera.position.set(16, 18, 20);
 
@@ -136,7 +136,7 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
     controls.minPolarAngle = 0.35;
     controls.maxPolarAngle = Math.PI / 2.25;
     controls.minDistance = 11;
-    controls.maxDistance = 120;
+    controls.maxDistance = 240;
     controls.target.set(0, 0, 0);
 
     let zoomOutTriggered = false;

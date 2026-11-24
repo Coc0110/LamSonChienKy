@@ -1,286 +1,381 @@
 import * as THREE from 'three';
-import districtData from '../data/districtPolygons.json';
-import { MAP_COORD_W, MAP_COORD_H, pointInPolygon } from './mapGeo';
-import type { DistrictInfo } from '../types/map';
-import { getMeadowBumpTexture } from './region3DModels';
+import districtPolygonsJson from '../data/districtPolygons.json';
+import {
+  GRID_CELL_H_PCT,
+  GRID_CELL_W_PCT,
+  GRID_COLS,
+  GRID_ROWS,
+  coordToCell,
+  getGridTerrain,
+} from '../data/terrainGrid';
+import type { TerrainType } from '../types/terrain';
 
-const BOX_X0 = 37.0;
-const BOX_X1 = 71.5;
-const BOX_Y0 = 41.5;
-const BOX_Y1 = 56.5;
+interface DistrictPolyData {
+  id: string;
+  name: string;
+  polygon: [number, number][];
+}
 
-const WORLD_W = ((BOX_X1 - BOX_X0) / 100) * MAP_COORD_W; // 176.64
-const WORLD_H = ((BOX_Y1 - BOX_Y0) / 100) * MAP_COORD_H; // 153.60
+const DISTRICTS = (districtPolygonsJson as unknown as { districts: DistrictPolyData[] }).districts;
 
-const MOUNTAIN_DISTRICTS = new Set([
-  'chi_linh',
-  'quan_du',
-  'lang_chanh',
-  'thuong_xuan',
-  'ba_thuoc',
-  'muong_lat',
-  'cam_thuy',
-  'ngoc_lac',
-  'nhu_xuan',
-]);
+/** 1 2D terrain cell = 3 x 3 3D cells (1 3D cell = 1 x 1 3D unit). */
+export const CELL_SCALE_3D = 3;
 
-const FOREST_DISTRICTS = new Set([
-  'lam_son',
-  'chi_linh',
-  'quan_du',
-  'thach_thanh',
-  'ngoc_lac',
-  'cam_thuy',
-  'nhu_xuan',
-  'thuong_xuan',
-  'lang_chanh',
-  'ba_thuoc',
-  'nong_cong',
-]);
+const MIN_PCT_X = 37.5;
+const MAX_PCT_X = 71.0;
+const MIN_PCT_Y = 42.0;
+const MAX_PCT_Y = 56.0;
 
-const fbm2D = (x: number, y: number): number => {
-  const n1 = Math.sin(x * 0.45 + Math.cos(y * 0.37) * 1.4) * Math.cos(y * 0.42);
-  const n2 = Math.sin(x * 1.15 - y * 0.92) * 0.45;
-  const n3 = Math.cos(x * 2.3 + y * 2.1) * 0.2;
-  return (n1 + n2 + n3) * 0.5 + 0.5;
+const TERRAIN_COLORS: Record<TerrainType, [number, number, number]> = {
+  plains: [164, 152, 114],
+  forest: [76, 118, 62],
+  mountain: [112, 102, 86],
+  cliff: [94, 86, 76],
+  swamp: [88, 108, 92],
+  water: [48, 94, 128],
 };
 
-let cachedAlbedoTex: THREE.Texture | null = null;
-const getThanhHoaAlbedoTexture = (): THREE.Texture => {
-  if (cachedAlbedoTex) return cachedAlbedoTex;
-  const loader = new THREE.TextureLoader();
-  const tex = loader.load('/thanh_hoa_3d_albedo.jpg');
+function pointInPolygon(x: number, y: number, poly: [number, number][]): boolean {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = poly[i][0];
+    const yi = poly[i][1];
+    const xj = poly[j][0];
+    const yj = poly[j][1];
+    const intersect =
+      yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi + 1e-12) + xi;
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+function isInsideThanhHoa(pctX: number, pctY: number): boolean {
+  for (let i = 0; i < DISTRICTS.length; i++) {
+    if (pointInPolygon(pctX, pctY, DISTRICTS[i].polygon)) return true;
+  }
+  return false;
+}
+
+function hash2D(c: number, r: number): number {
+  const n = Math.sin(c * 127.1 + r * 311.7) * 43758.5453123;
+  return n - Math.floor(n);
+}
+
+function baseElevationForTerrain(t: TerrainType, c: number, r: number): number {
+  const n = hash2D(c, r);
+  switch (t) {
+    case 'water':
+      return -0.58;
+    case 'swamp':
+      return -0.14 + (n - 0.5) * 0.06;
+    case 'plains':
+      return 0.06 + n * 0.14;
+    case 'forest':
+      return 0.34 + n * 0.32;
+    case 'mountain':
+      return 2.1 + n * 2.2;
+    case 'cliff':
+      return 4.6 + n * 1.6;
+  }
+}
+
+function createTerrainGridTexture(
+  minCol: number,
+  minRow: number,
+  cols: number,
+  rows: number,
+  insideMask: Uint8Array,
+): THREE.CanvasTexture {
+  // 2x2 px per 3D sub-cell -> 6x6 px per 2D cell (3x3 sub-cells per 2D cell)
+  const pxPerSub = 2;
+  const pxPerCell = CELL_SCALE_3D * pxPerSub; // 6
+  const canvas = document.createElement('canvas');
+  canvas.width = cols * pxPerCell;
+  canvas.height = rows * pxPerCell;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    const fallback = new THREE.CanvasTexture(canvas);
+    fallback.colorSpace = THREE.SRGBColorSpace;
+    return fallback;
+  }
+
+  const img = ctx.createImageData(canvas.width, canvas.height);
+  const data = img.data;
+  const w = canvas.width;
+
+  for (let iy = 0; iy < rows; iy++) {
+    const r = minRow + iy;
+    const clampedR = Math.max(0, Math.min(GRID_ROWS - 1, r));
+    for (let ix = 0; ix < cols; ix++) {
+      const c = minCol + ix;
+      const clampedC = Math.max(0, Math.min(GRID_COLS - 1, c));
+      const idx = iy * cols + ix;
+      const inside = insideMask[idx] === 1;
+      const t = getGridTerrain(clampedC, clampedR);
+      const rgb = inside ? TERRAIN_COLORS[t] : TERRAIN_COLORS.water;
+      const jitter = Math.round((hash2D(c, r) - 0.5) * 14);
+
+      const baseX = ix * pxPerCell;
+      const baseY = iy * pxPerCell;
+
+      for (let sy = 0; sy < pxPerCell; sy++) {
+        const is2DBorderY = sy === 0;
+        const is3DBorderY = sy % pxPerSub === 0;
+        const py = baseY + sy;
+        for (let sx = 0; sx < pxPerCell; sx++) {
+          const is2DBorderX = sx === 0;
+          const is3DBorderX = sx % pxPerSub === 0;
+          const px = baseX + sx;
+          const pIdx = (py * w + px) * 4;
+
+          let shade = jitter;
+          if (inside && t !== 'water') {
+            if (is2DBorderX || is2DBorderY) shade -= 14;
+            else if (is3DBorderX || is3DBorderY) shade -= 6;
+          }
+
+          data[pIdx] = Math.max(0, Math.min(255, rgb[0] + shade));
+          data[pIdx + 1] = Math.max(0, Math.min(255, rgb[1] + shade));
+          data[pIdx + 2] = Math.max(0, Math.min(255, rgb[2] + shade));
+          data[pIdx + 3] = 255;
+        }
+      }
+    }
+  }
+
+  ctx.putImageData(img, 0, 0);
+
+  const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 4;
-  cachedAlbedoTex = tex;
+  tex.magFilter = THREE.LinearFilter;
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.needsUpdate = true;
   return tex;
-};
+}
 
 export interface ThanhHoaWorldResult {
   group: THREE.Group;
   dispose: () => void;
 }
 
-/**
- * Dựng toàn bộ địa hình 3D tỉnh Thanh Hóa quanh căn cứ đang chọn (basePctX, basePctY).
- * Tối ưu hóa tối đa bằng 1 mesh địa hình gộp + InstancedMesh cho cây cối & đỉnh núi (< 6 draw calls).
- */
-export function createThanhHoa3DWorld(basePctX: number, basePctY: number): ThanhHoaWorldResult {
+export function createThanhHoa3DWorld(
+  basePctX: number,
+  basePctY: number,
+): ThanhHoaWorldResult {
   const group = new THREE.Group();
-  const districts = ((districtData as unknown as { districts?: DistrictInfo[] }).districts) || [];
+  const disposables: Array<{ dispose: () => void }> = [];
 
-  const baseCrsX = (basePctX / 100) * MAP_COORD_W;
-  const baseCrsZ = (basePctY / 100) * MAP_COORD_H;
+  const minCell = coordToCell(MIN_PCT_X, MIN_PCT_Y);
+  const maxCell = coordToCell(MAX_PCT_X, MAX_PCT_Y);
+  const baseCell = coordToCell(basePctX, basePctY);
 
-  const boxCenterX = (((BOX_X0 + BOX_X1) * 0.5) / 100) * MAP_COORD_W - baseCrsX;
-  const boxCenterZ = (((BOX_Y0 + BOX_Y1) * 0.5) / 100) * MAP_COORD_H - baseCrsZ;
+  const minCol = minCell.col;
+  const maxCol = maxCell.col;
+  const minRow = minCell.row;
+  const maxRow = maxCell.row;
 
-  const pctToWorld = (px: number, py: number): [number, number] => [
-    (px / 100) * MAP_COORD_W - baseCrsX,
-    (py / 100) * MAP_COORD_H - baseCrsZ,
+  const cols = maxCol - minCol + 1;
+  const rows = maxRow - minRow + 1;
+  const worldW = cols * CELL_SCALE_3D;
+  const worldH = rows * CELL_SCALE_3D;
+
+  const centerX = ((minCol + maxCol) / 2 - baseCell.col) * CELL_SCALE_3D;
+  const centerZ = ((minRow + maxRow) / 2 - baseCell.row) * CELL_SCALE_3D;
+
+  const pctToWorld = (pctX: number, pctY: number): [number, number] => [
+    (pctX / GRID_CELL_W_PCT - (baseCell.col + 0.5)) * CELL_SCALE_3D,
+    (pctY / GRID_CELL_H_PCT - (baseCell.row + 0.5)) * CELL_SCALE_3D,
   ];
 
-  const findDistrictAtPct = (px: number, py: number): DistrictInfo | null => {
-    for (const d of districts) {
-      if (pointInPolygon(px, py, d.polygon)) return d;
+  const insideMask = new Uint8Array(cols * rows);
+  const cellElevations = new Float32Array(cols * rows);
+  const forestCells: Array<{ wx: number; wz: number; elev: number; c: number; r: number }> = [];
+  const mountainCells: Array<{ wx: number; wz: number; elev: number; c: number; r: number; isCliff: boolean }> = [];
+
+  for (let iy = 0; iy < rows; iy++) {
+    const r = minRow + iy;
+    const pctY = (r + 0.5) * GRID_CELL_H_PCT;
+    const wz = (r - baseCell.row) * CELL_SCALE_3D;
+    for (let ix = 0; ix < cols; ix++) {
+      const c = minCol + ix;
+      const pctX = (c + 0.5) * GRID_CELL_W_PCT;
+      const wx = (c - baseCell.col) * CELL_SCALE_3D;
+      const idx = iy * cols + ix;
+
+      const inside = isInsideThanhHoa(pctX, pctY);
+      insideMask[idx] = inside ? 1 : 0;
+
+      const t = getGridTerrain(c, r);
+      const inBasePlateau = Math.abs(wx) < 16.5 && Math.abs(wz) < 16.5;
+
+      if (!inside) {
+        cellElevations[idx] = -1.45;
+      } else if (inBasePlateau) {
+        cellElevations[idx] = -0.05;
+      } else {
+        const elev = baseElevationForTerrain(t, c, r);
+        cellElevations[idx] = elev;
+
+        if (t === 'forest' && hash2D(c + 17, r + 31) > 0.28) {
+          forestCells.push({ wx, wz, elev, c, r });
+        } else if ((t === 'mountain' || t === 'cliff') && hash2D(c + 53, r + 11) > 0.36) {
+          mountainCells.push({ wx, wz, elev, c, r, isCliff: t === 'cliff' });
+        }
+      }
     }
-    return null;
-  };
+  }
 
-  const sampleHeightAtWorld = (wx: number, wz: number): number => {
-    const px = ((wx + baseCrsX) / MAP_COORD_W) * 100;
-    const py = ((wz + baseCrsZ) / MAP_COORD_H) * 100;
-
-    // Giữ vùng sân căn cứ 32x32 phẳng ở y = -0.04 (dưới plane cỏ y = 0)
-    const distFromBase = Math.max(Math.abs(wx), Math.abs(wz));
-    if (distFromBase < 16.2) return -0.04;
-
-    const d = findDistrictAtPct(px, py);
-    if (!d) {
-      return -1.45;
-    }
-
-    const noise = fbm2D(wx * 0.14, wz * 0.14);
-    let h = 0.12 + noise * 0.35;
-    if (MOUNTAIN_DISTRICTS.has(d.id) || px < 48.5) {
-      const westFactor = Math.min(1, Math.max(0.25, (50.5 - px) / 9.5));
-      h += (1.1 + noise * 4.4) * westFactor;
-    }
-
-    // Chuyển tiếp mượt từ rìa sân căn cứ 32x32 ra địa hình xung quanh
-    const baseBlend = Math.min(1, Math.max(0, (distFromBase - 16.2) / 6.0));
-    return -0.04 * (1 - baseBlend) + h * baseBlend;
-  };
-
-  // 1. Mặt biển Đông bao quanh (1 draw call)
-  const seaGeo = new THREE.PlaneGeometry(420, 420);
+  // 1. Sea plane surrounding Thanh Hóa
+  const seaGeo = new THREE.PlaneGeometry(1100, 1100);
   seaGeo.rotateX(-Math.PI / 2);
   const seaMat = new THREE.MeshStandardMaterial({
-    color: 0x5c858f,
-    roughness: 0.38,
-    metalness: 0.08,
+    color: 0x385e7c,
+    roughness: 0.45,
+    metalness: 0.12,
   });
   const seaMesh = new THREE.Mesh(seaGeo, seaMat);
-  seaMesh.position.set(boxCenterX, -0.55, boxCenterZ);
+  seaMesh.position.set(centerX, -0.35, centerZ);
   seaMesh.receiveShadow = true;
   group.add(seaMesh);
+  disposables.push(seaGeo, seaMat);
 
-  // 2. Mesh địa hình toàn tỉnh Thanh Hóa (1 draw call)
-  const segX = 128;
-  const segZ = 104;
-  const terrainGeo = new THREE.PlaneGeometry(WORLD_W, WORLD_H, segX, segZ);
+  // 2. Single displaced terrain mesh driven by 2D terrain grid (1 2D cell = 3x3 3D units)
+  const terrainTex = createTerrainGridTexture(minCol, minRow, cols, rows, insideMask);
+  disposables.push(terrainTex);
+
+  const terrainGeo = new THREE.PlaneGeometry(worldW, worldH, cols, rows);
   terrainGeo.rotateX(-Math.PI / 2);
   const posAttr = terrainGeo.attributes.position as THREE.BufferAttribute;
 
-  for (let i = 0; i < posAttr.count; i++) {
-    const lx = posAttr.getX(i);
-    const lz = posAttr.getZ(i);
-    const wx = lx + boxCenterX;
-    const wz = lz + boxCenterZ;
-    posAttr.setY(i, sampleHeightAtWorld(wx, wz));
+  for (let iy = 0; iy <= rows; iy++) {
+    const cIy = Math.min(rows - 1, iy);
+    const pIy = Math.max(0, iy - 1);
+    for (let ix = 0; ix <= cols; ix++) {
+      const cIx = Math.min(cols - 1, ix);
+      const pIx = Math.max(0, ix - 1);
+
+      const vIdx = iy * (cols + 1) + ix;
+      const vx = posAttr.getX(vIdx) + centerX;
+      const vz = posAttr.getZ(vIdx) + centerZ;
+
+      if (Math.abs(vx) < 16.2 && Math.abs(vz) < 16.2) {
+        posAttr.setY(vIdx, -0.05);
+        continue;
+      }
+
+      // Average 4 surrounding cell elevations for smooth vertex transitions
+      const e00 = cellElevations[pIy * cols + pIx];
+      const e10 = cellElevations[pIy * cols + cIx];
+      const e01 = cellElevations[cIy * cols + pIx];
+      const e11 = cellElevations[cIy * cols + cIx];
+      posAttr.setY(vIdx, (e00 + e10 + e01 + e11) * 0.25);
+    }
   }
+
   terrainGeo.computeVertexNormals();
 
   const terrainMat = new THREE.MeshStandardMaterial({
-    map: getThanhHoaAlbedoTexture(),
-    bumpMap: getMeadowBumpTexture(),
-    bumpScale: 0.06,
-    roughness: 0.92,
-    metalness: 0.02,
+    map: terrainTex,
+    roughness: 0.9,
+    metalness: 0.04,
   });
   const terrainMesh = new THREE.Mesh(terrainGeo, terrainMat);
-  terrainMesh.position.set(boxCenterX, 0, boxCenterZ);
+  terrainMesh.position.set(centerX, 0, centerZ);
   terrainMesh.receiveShadow = true;
+  terrainMesh.castShadow = true;
   group.add(terrainMesh);
+  disposables.push(terrainGeo, terrainMat);
 
-  // 3. Đường ranh giới 23 huyện trên mặt đất 3D (1 draw call LineSegments)
-  const borderPositions: number[] = [];
-  for (const d of districts) {
+  // 3. District borders as a single LineSegments draw call
+  const borderVerts: number[] = [];
+  for (const d of DISTRICTS) {
     const poly = d.polygon;
-    for (let i = 0; i < poly.length - 1; i++) {
-      const [wx1, wz1] = pctToWorld(poly[i][0], poly[i][1]);
-      const [wx2, wz2] = pctToWorld(poly[i + 1][0], poly[i + 1][1]);
-      const y1 = sampleHeightAtWorld(wx1, wz1) + 0.12;
-      const y2 = sampleHeightAtWorld(wx2, wz2) + 0.12;
-      borderPositions.push(wx1, y1, wz1, wx2, y2, wz2);
+    for (let i = 0; i < poly.length; i++) {
+      const [x1, y1] = pctToWorld(poly[i][0], poly[i][1]);
+      const next = poly[(i + 1) % poly.length];
+      const [x2, y2] = pctToWorld(next[0], next[1]);
+      borderVerts.push(x1, 0.45, y1, x2, 0.45, y2);
     }
   }
   const borderGeo = new THREE.BufferGeometry();
-  borderGeo.setAttribute('position', new THREE.Float32BufferAttribute(borderPositions, 3));
+  borderGeo.setAttribute('position', new THREE.Float32BufferAttribute(borderVerts, 3));
   const borderMat = new THREE.LineBasicMaterial({
-    color: 0x5c2d14,
+    color: 0xd4a95a,
     transparent: true,
-    opacity: 0.55,
+    opacity: 0.42,
   });
   const borderLines = new THREE.LineSegments(borderGeo, borderMat);
   group.add(borderLines);
+  disposables.push(borderGeo, borderMat);
 
-  // 4. InstancedMesh cây rừng & đỉnh núi (chỉ 3 draw calls cho hàng trăm cây & núi!)
-  const treeTransforms: Array<{ x: number; y: number; z: number; s: number }> = [];
-  const peakTransforms: Array<{ x: number; y: number; z: number; sx: number; sy: number; rot: number }> = [];
+  // 4. InstancedMesh for forest trees (1 draw call for trunks + 1 for crowns)
+  if (forestCells.length > 0) {
+    const trunkGeo = new THREE.CylinderGeometry(0.11, 0.16, 0.72, 5);
+    const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5c3c22, roughness: 0.9 });
+    const crownGeo = new THREE.ConeGeometry(0.62, 1.45, 6);
+    const crownMat = new THREE.MeshStandardMaterial({ color: 0x3b6334, roughness: 0.85 });
 
-  // Deterministic pseudo-random scatter across Thanh Hóa
-  let seed = 1337;
-  const rand = () => {
-    seed = (seed * 1664525 + 1013904223) >>> 0;
-    return seed / 4294967296;
-  };
+    const trunkInst = new THREE.InstancedMesh(trunkGeo, trunkMat, forestCells.length);
+    const crownInst = new THREE.InstancedMesh(crownGeo, crownMat, forestCells.length);
+    trunkInst.castShadow = true;
+    crownInst.castShadow = true;
 
-  for (let i = 0; i < 1600; i++) {
-    const px = BOX_X0 + 1.5 + rand() * (BOX_X1 - BOX_X0 - 3.0);
-    const py = BOX_Y0 + 1.2 + rand() * (BOX_Y1 - BOX_Y0 - 2.4);
-    const d = findDistrictAtPct(px, py);
-    if (!d) continue;
-    const [wx, wz] = pctToWorld(px, py);
-    if (Math.max(Math.abs(wx), Math.abs(wz)) < 17.5) continue;
+    const dummy = new THREE.Object3D();
+    forestCells.forEach((cell, i) => {
+      const ox = (hash2D(cell.c + 3, cell.r + 7) - 0.5) * 1.8;
+      const oz = (hash2D(cell.c + 19, cell.r + 23) - 0.5) * 1.8;
+      const s = 0.75 + hash2D(cell.c + 41, cell.r + 43) * 0.55;
 
-    const hy = sampleHeightAtWorld(wx, wz);
-    if (hy < 0.05) continue;
+      dummy.position.set(cell.wx + ox, cell.elev + 0.36 * s, cell.wz + oz);
+      dummy.scale.set(s, s, s);
+      dummy.rotation.y = hash2D(cell.c, cell.r) * Math.PI * 2;
+      dummy.updateMatrix();
+      trunkInst.setMatrixAt(i, dummy.matrix);
 
-    if (MOUNTAIN_DISTRICTS.has(d.id) && hy > 1.8 && peakTransforms.length < 180 && rand() < 0.35) {
-      peakTransforms.push({
-        x: wx,
-        y: hy - 0.35,
-        z: wz,
-        sx: 1.4 + rand() * 1.9,
-        sy: 1.6 + rand() * 2.8,
-        rot: rand() * Math.PI * 2,
-      });
-    } else if ((FOREST_DISTRICTS.has(d.id) || rand() < 0.2) && treeTransforms.length < 480) {
-      treeTransforms.push({
-        x: wx,
-        y: hy,
-        z: wz,
-        s: 0.75 + rand() * 0.65,
-      });
-    }
+      dummy.position.set(cell.wx + ox, cell.elev + 1.15 * s, cell.wz + oz);
+      dummy.updateMatrix();
+      crownInst.setMatrixAt(i, dummy.matrix);
+    });
+
+    trunkInst.instanceMatrix.needsUpdate = true;
+    crownInst.instanceMatrix.needsUpdate = true;
+    group.add(trunkInst, crownInst);
+    disposables.push(trunkGeo, trunkMat, crownGeo, crownMat);
   }
 
-  const dummy = new THREE.Object3D();
+  // 5. InstancedMesh for mountain & cliff peaks (1 draw call)
+  if (mountainCells.length > 0) {
+    const peakGeo = new THREE.ConeGeometry(1.75, 3.2, 5);
+    const peakMat = new THREE.MeshStandardMaterial({
+      color: 0x6b6154,
+      roughness: 0.92,
+      flatShading: true,
+    });
+    const peakInst = new THREE.InstancedMesh(peakGeo, peakMat, mountainCells.length);
+    peakInst.castShadow = true;
+    peakInst.receiveShadow = true;
 
-  // Trunks + Crowns InstancedMesh
-  const trunkGeo = new THREE.CylinderGeometry(0.11, 0.16, 0.65, 6);
-  trunkGeo.translate(0, 0.32, 0);
-  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5c3d24, roughness: 0.92 });
-  const trunkInst = new THREE.InstancedMesh(trunkGeo, trunkMat, Math.max(1, treeTransforms.length));
-  trunkInst.count = treeTransforms.length;
+    const dummy = new THREE.Object3D();
+    mountainCells.forEach((cell, i) => {
+      const s = (cell.isCliff ? 1.15 : 0.85) + hash2D(cell.c + 5, cell.r + 9) * 0.55;
+      const hScale = cell.isCliff ? s * 1.35 : s;
+      dummy.position.set(cell.wx, cell.elev * 0.75 + 1.2 * hScale, cell.wz);
+      dummy.scale.set(s, hScale, s);
+      dummy.rotation.y = hash2D(cell.c + 13, cell.r + 29) * Math.PI;
+      dummy.updateMatrix();
+      peakInst.setMatrixAt(i, dummy.matrix);
+    });
 
-  const crownGeo = new THREE.ConeGeometry(0.58, 1.45, 7);
-  crownGeo.translate(0, 1.15, 0);
-  const crownMat = new THREE.MeshStandardMaterial({ color: 0x486e34, roughness: 0.88 });
-  const crownInst = new THREE.InstancedMesh(crownGeo, crownMat, Math.max(1, treeTransforms.length));
-  crownInst.count = treeTransforms.length;
-  crownInst.castShadow = true;
+    peakInst.instanceMatrix.needsUpdate = true;
+    group.add(peakInst);
+    disposables.push(peakGeo, peakMat);
+  }
 
-  treeTransforms.forEach((t, idx) => {
-    dummy.position.set(t.x, t.y, t.z);
-    dummy.scale.set(t.s, t.s, t.s);
-    dummy.rotation.set(0, idx * 0.7, 0);
-    dummy.updateMatrix();
-    trunkInst.setMatrixAt(idx, dummy.matrix);
-    crownInst.setMatrixAt(idx, dummy.matrix);
-  });
-  trunkInst.instanceMatrix.needsUpdate = true;
-  crownInst.instanceMatrix.needsUpdate = true;
-  group.add(trunkInst, crownInst);
-
-  // Mountain Peaks InstancedMesh
-  const peakGeo = new THREE.ConeGeometry(1.5, 2.4, 5);
-  peakGeo.translate(0, 1.1, 0);
-  const peakMat = new THREE.MeshStandardMaterial({
-    color: 0x7a7060,
-    roughness: 0.95,
-    flatShading: true,
-  });
-  const peakInst = new THREE.InstancedMesh(peakGeo, peakMat, Math.max(1, peakTransforms.length));
-  peakInst.count = peakTransforms.length;
-  peakInst.castShadow = true;
-  peakInst.receiveShadow = true;
-
-  peakTransforms.forEach((p, idx) => {
-    dummy.position.set(p.x, p.y, p.z);
-    dummy.scale.set(p.sx, p.sy, p.sx);
-    dummy.rotation.set(0, p.rot, 0);
-    dummy.updateMatrix();
-    peakInst.setMatrixAt(idx, dummy.matrix);
-  });
-  peakInst.instanceMatrix.needsUpdate = true;
-  group.add(peakInst);
-
-  const dispose = () => {
-    seaGeo.dispose();
-    seaMat.dispose();
-    terrainGeo.dispose();
-    terrainMat.dispose();
-    borderGeo.dispose();
-    borderMat.dispose();
-    trunkGeo.dispose();
-    trunkMat.dispose();
-    crownGeo.dispose();
-    crownMat.dispose();
-    peakGeo.dispose();
-    peakMat.dispose();
+  return {
+    group,
+    dispose: () => {
+      for (const d of disposables) d.dispose();
+    },
   };
-
-  return { group, dispose };
 }
