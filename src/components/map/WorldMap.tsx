@@ -59,6 +59,7 @@ export const WorldMap: React.FC = React.memo(() => {
   const [hoveredDistrictId, setHoveredDistrictId] = useState<string | null>(null);
   const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
   const [isTransformAllMode, setIsTransformAllMode] = useState<boolean>(false);
+  const isTransformAllRef = useRef<boolean>(false);
   const [transformTarget, setTransformTarget] = useState<'all' | 'districts' | 'borders' | 'satellite'>('all');
   const transformTargetRef = useRef<'all' | 'districts' | 'borders' | 'satellite'>('all');
   const [transformState, setTransformState] = useState<{ offsetX: number; offsetY: number; scale: number }>({
@@ -70,9 +71,9 @@ export const WorldMap: React.FC = React.memo(() => {
   const transformPivotRef = useRef<[number, number]>([50, 50]);
   const districtsListRef = useRef<DistrictInfo[]>([]);
 
-  const BORDERS_BOUNDS_STORAGE_KEY = 'lam_son_borders_bounds_v1';
-  const SATELLITE_BOUNDS_STORAGE_KEY = 'lam_son_satellite_bounds_v1';
-  const DEFAULT_BORDERS_BOUNDS = { xMin: 0, yMin: 16.626, xMax: 100, yMax: 82.34 };
+  const BORDERS_BOUNDS_STORAGE_KEY = 'lam_son_borders_bounds_v2';
+  const SATELLITE_BOUNDS_STORAGE_KEY = 'lam_son_satellite_bounds_v2';
+  const DEFAULT_BORDERS_BOUNDS = { xMin: -0.874, yMin: 16.565, xMax: 101.126, yMax: 83.593 };
   const [bordersBounds, setBordersBounds] = useState<{ xMin: number; yMin: number; xMax: number; yMax: number }>(() => {
     try {
       const saved = localStorage.getItem(BORDERS_BOUNDS_STORAGE_KEY);
@@ -296,14 +297,14 @@ export const WorldMap: React.FC = React.memo(() => {
       const origOnDown = draggable._onDown;
       draggable._onDown = function (e: any) {
         const uiState = useUIStore.getState();
-        const isLeftMouseDrawActive = uiState.terrainEditMode || Boolean(uiState.marchDrawMode);
+        const isLeftMouseDrawActive =
+          uiState.terrainEditMode ||
+          Boolean(uiState.marchDrawMode) ||
+          (uiState.isEditMode && isTransformAllRef.current);
         if (isLeftMouseDrawActive && !e.touches && (e.button === 0 || e.which === 1)) {
           return;
         }
         if (e.button === 2 || e.which === 3) {
-          if (uiState.isEditMode && !uiState.terrainEditMode) {
-            return;
-          }
           const fakeEvent = new Proxy(e, {
             get(target, prop) {
               if (prop === 'which' || prop === 'button') return 1;
@@ -687,115 +688,15 @@ export const WorldMap: React.FC = React.memo(() => {
     setTransformState({ offsetX: 0, offsetY: 0, scale: 1 });
   }, []);
 
-  // Kéo chuột phải trong chế độ sửa ranh giới để di chuyển TẤT CẢ (24 Huyện + Ranh giới QG & Tỉnh)
-  const terrainEditMode = useUIStore(state => state.terrainEditMode);
+  // Kéo thả chuột trái & giữ Shift + cuộn chuột để di chuyển và thu phóng lớp đang chọn (chuột phải luôn kéo di chuyển bản đồ)
   useEffect(() => {
-    const map = mapInstanceRef.current;
-    const container = mapContainerRef.current;
-    if (!map || !container) return;
-    if (!isEditMode || terrainEditMode) return;
-
-    let isRightDragging = false;
-    let lastClientX = 0;
-    let lastClientY = 0;
-    let totalDxPx = 0;
-    let totalDyPx = 0;
-    let startDistricts: DistrictInfo[] | null = null;
-    let startBorders: { xMin: number; yMin: number; xMax: number; yMax: number } | null = null;
-    let accOffsetX = 0;
-    let accOffsetY = 0;
-
-    const round3 = (n: number) => Math.round(n * 1000) / 1000;
-
-    const onPointerDown = (e: PointerEvent) => {
-      if (e.button !== 2) return;
-      isRightDragging = true;
-      lastClientX = e.clientX;
-      lastClientY = e.clientY;
-      totalDxPx = 0;
-      totalDyPx = 0;
-      accOffsetX = 0;
-      accOffsetY = 0;
-      startDistricts = districtsListRef.current.map(d => ({
-        ...d,
-        center: [...d.center] as [number, number],
-        polygon: d.polygon.map(pt => [...pt] as [number, number]),
-      }));
-      startBorders = { ...bordersBoundsRef.current };
-    };
-
-    const onPointerMove = (e: PointerEvent) => {
-      if (!isRightDragging || !startDistricts || !startBorders) return;
-      const dxPx = e.clientX - lastClientX;
-      const dyPx = e.clientY - lastClientY;
-      totalDxPx += Math.abs(dxPx);
-      totalDyPx += Math.abs(dyPx);
-      if (totalDxPx + totalDyPx < 3) return;
-
-      const rect = container.getBoundingClientRect();
-      const prevPt = L.point(lastClientX - rect.left, lastClientY - rect.top);
-      const currPt = L.point(e.clientX - rect.left, e.clientY - rect.top);
-      const prevLatLng = map.containerPointToLatLng(prevPt);
-      const currLatLng = map.containerPointToLatLng(currPt);
-
-      accOffsetX += ((currLatLng.lng - prevLatLng.lng) / MAP_COORD_W) * 100;
-      accOffsetY -= ((currLatLng.lat - prevLatLng.lat) / MAP_COORD_H) * 100;
-
-      lastClientX = e.clientX;
-      lastClientY = e.clientY;
-
-      const nextDistricts = startDistricts.map(d => ({
-        ...d,
-        center: [round3(d.center[0] + accOffsetX), round3(d.center[1] + accOffsetY)] as [number, number],
-        polygon: d.polygon.map(([px, py]) => [round3(px + accOffsetX), round3(py + accOffsetY)] as [number, number]),
-      }));
-      const nextBorders = {
-        xMin: round3(startBorders.xMin + accOffsetX),
-        yMin: round3(startBorders.yMin + accOffsetY),
-        xMax: round3(startBorders.xMax + accOffsetX),
-        yMax: round3(startBorders.yMax + accOffsetY),
-      };
-
-      setDistrictsList(nextDistricts);
-      setBordersBounds(nextBorders);
-      try {
-        localStorage.setItem(DISTRICT_STORAGE_KEY, JSON.stringify(nextDistricts));
-        localStorage.setItem(BORDERS_BOUNDS_STORAGE_KEY, JSON.stringify(nextBorders));
-      } catch {
-        // ignore
-      }
-    };
-
-    const onPointerUp = (e: PointerEvent) => {
-      if (e.button !== 2 || !isRightDragging) return;
-      isRightDragging = false;
-      startDistricts = null;
-      startBorders = null;
-      if (isTransformAllMode) {
-        captureTransformSnapshot(districtsListRef.current);
-      }
-    };
-
-    container.addEventListener('pointerdown', onPointerDown);
-    window.addEventListener('pointermove', onPointerMove);
-    window.addEventListener('pointerup', onPointerUp);
-
-    return () => {
-      container.removeEventListener('pointerdown', onPointerDown);
-      window.removeEventListener('pointermove', onPointerMove);
-      window.removeEventListener('pointerup', onPointerUp);
-    };
-  }, [isEditMode, terrainEditMode, isTransformAllMode, captureTransformSnapshot]);
-
-  // Kéo thả & giữ Shift + cuộn chuột để di chuyển và thu phóng toàn bộ ranh giới huyện
-  useEffect(() => {
+    isTransformAllRef.current = isTransformAllMode;
     const map = mapInstanceRef.current;
     const container = mapContainerRef.current;
     if (!map || !container) return;
 
     const activeTransform = isEditMode && isTransformAllMode;
     if (!activeTransform) {
-      map.dragging.enable();
       container.style.cursor = '';
       transformBaseRef.current = null;
       return;
@@ -805,7 +706,6 @@ export const WorldMap: React.FC = React.memo(() => {
       captureTransformSnapshot(districtsListRef.current);
     }
 
-    map.dragging.disable();
     container.style.cursor = 'move';
 
     let isDragging = false;

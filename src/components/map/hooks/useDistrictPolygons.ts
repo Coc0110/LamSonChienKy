@@ -7,7 +7,7 @@ import districtData from '../../../data/districtPolygons.json';
 import { useUIStore } from '../../../store/uiStore';
 import { notify } from '../../../store/dialogStore';
 
-export const DISTRICT_STORAGE_KEY = 'lam_son_district_polygons_custom_v2';
+export const DISTRICT_STORAGE_KEY = 'lam_son_district_polygons_custom_v3';
 
 interface UseDistrictPolygonsProps {
   mapInstance: L.Map | null;

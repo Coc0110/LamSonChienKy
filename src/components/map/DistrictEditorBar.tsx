@@ -517,7 +517,7 @@ export const DistrictEditorBar: React.FC<DistrictEditorBarProps> = ({
               </button>
             </div>
             <p className="text-[11px] text-amber-200/90 text-center">
-              ✦ Kéo chuột trái trực tiếp trên bản đồ để di chuyển toàn bộ {districtsList.length} ranh giới huyện • Giữ <b>Shift + Cuộn chuột</b> (hoặc dùng thanh Thu Phóng) để phóng to/thu nhỏ cụm ranh giới • Bấm <b>Lưu Bản Chính Thức</b> khi khớp.
+              ✦ Kéo <b>chuột trái</b> để dịch chuyển lớp đang chọn • Giữ <b>chuột phải</b> để kéo di chuyển toàn bộ bản đồ • Giữ <b>Shift + Cuộn chuột</b> để thu phóng • Bấm <b>Lưu Bản Chính Thức</b> khi khớp.
             </p>
           </div>
         )}

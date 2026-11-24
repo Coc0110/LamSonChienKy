@@ -166,7 +166,7 @@ function hashString(input: string): number {
 }
 
 export function getAllDistrictsList(): DistrictInfo[] {
-  return ((districtData as { districts?: DistrictInfo[] }).districts ?? []);
+  return ((districtData as unknown as { districts?: DistrictInfo[] }).districts ?? []);
 }
 
 export function hasDistrictMarket(districtId: string): boolean {
