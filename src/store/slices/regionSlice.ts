@@ -121,10 +121,17 @@ export const createRegionSlice: StateCreator<GameStore, [], [], RegionSlice> = (
       };
     }
 
-    if (!canPlaceOnRegionGrid(layout.buildings, col, row, spec.spanCols, spec.spanRows)) {
+    const baseCity = state.cities.find((c) => c.id === cityId);
+    const placeOpts = {
+      allowOutside: true,
+      basePctX: baseCity?.x ?? 50.8,
+      basePctY: baseCity?.y ?? 47.6,
+    };
+
+    if (!canPlaceOnRegionGrid(layout.buildings, col, row, spec.spanCols, spec.spanRows, undefined, placeOpts)) {
       return {
         success: false,
-        message: 'Vị trí bị vướng công trình khác hoặc vượt quá ranh giới 24×24!',
+        message: 'Vị trí bị vướng công trình khác hoặc nằm trên mặt nước / ngoài Thanh Hóa!',
       };
     }
 
@@ -243,8 +250,14 @@ export const createRegionSlice: StateCreator<GameStore, [], [], RegionSlice> = (
     if (!target) {
       return { success: false, message: 'Không tìm thấy công trình!' };
     }
-    if (!canPlaceOnRegionGrid(layout.buildings, newCol, newRow, target.spanCols, target.spanRows, buildingId)) {
-      return { success: false, message: 'Vị trí mới bị vướng công trình khác hoặc ngoài lưới!' };
+    const baseCity = get().cities.find((c) => c.id === cityId);
+    const moveOpts = {
+      allowOutside: true,
+      basePctX: baseCity?.x ?? 50.8,
+      basePctY: baseCity?.y ?? 47.6,
+    };
+    if (!canPlaceOnRegionGrid(layout.buildings, newCol, newRow, target.spanCols, target.spanRows, buildingId, moveOpts)) {
+      return { success: false, message: 'Vị trí mới bị vướng công trình khác hoặc nằm trên mặt nước / ngoài Thanh Hóa!' };
     }
 
     set((s) => ({

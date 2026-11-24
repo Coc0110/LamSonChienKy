@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { useGameStore } from '../../store/gameStore';
 import type { BaseBuilding, RegionCombatUnit, RegionLayout } from '../../types/region';
-import { createThanhHoa3DWorld } from '../../utils/thanhHoa3DTerrain';
+import { createThanhHoa3DWorld, getThanhHoaElevationAtWorld } from '../../utils/thanhHoa3DTerrain';
 import {
   DIORAMA_PALETTE,
   animateSoldierWalk,
@@ -206,8 +206,8 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
     const thanhHoaWorld = createThanhHoa3DWorld(basePctX, basePctY);
     scene.add(thanhHoaWorld.group);
 
-    // Mặt phẳng vô hình dùng cho raycast đặt/chọn công trình trực tiếp trên địa hình 3D mới
-    const groundGeo = new THREE.PlaneGeometry(gridSize, gridSize);
+    // Mặt phẳng vô hình phủ toàn Thanh Hóa dùng cho raycast đặt/chọn công trình trên địa hình 3D mới
+    const groundGeo = new THREE.PlaneGeometry(1100, 1100);
     groundGeo.rotateX(-Math.PI / 2);
     const groundPlane = new THREE.Mesh(groundGeo, new THREE.MeshBasicMaterial({ visible: false }));
     scene.add(groundPlane);
@@ -398,7 +398,8 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
         const group = createBuildingGroup(b.type, b.level, enemy, isConstructing, wallMask, variant);
         const cx = b.col + b.spanCols / 2 - half;
         const cz = b.row + b.spanRows / 2 - half;
-        group.position.set(cx, 0, cz);
+        const elevY = getThanhHoaElevationAtWorld(cx, cz, basePctX, basePctY);
+        group.position.set(cx, elevY, cz);
         group.traverse((obj) => {
           if (obj instanceof THREE.Mesh && obj.name === 'animated_flag') {
             animatedFlags.push(obj);
@@ -791,7 +792,6 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
       const pt = hits[0].point;
       const col = Math.floor(pt.x + half);
       const row = Math.floor(pt.z + half);
-      if (col < 0 || row < 0 || col >= gridSize || row >= gridSize) return null;
       return { col, row };
     };
 
@@ -802,13 +802,12 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
       const preview = placementPreviewRef.current;
       if (preview && cell) {
         const valid = preview.canPlaceAt(cell.col, cell.row);
+        const px = cell.col + preview.spanCols / 2 - half;
+        const pz = cell.row + preview.spanRows / 2 - half;
+        const py = getThanhHoaElevationAtWorld(px, pz, basePctX, basePctY) + 0.18;
         previewBox.visible = true;
         previewBox.scale.set(preview.spanCols, 1, preview.spanRows);
-        previewBox.position.set(
-          cell.col + preview.spanCols / 2 - half,
-          0.18,
-          cell.row + preview.spanRows / 2 - half
-        );
+        previewBox.position.set(px, py, pz);
         (previewBox.material as THREE.MeshBasicMaterial).color.setHex(valid ? 0x22c55e : 0xef4444);
       } else {
         previewBox.visible = false;

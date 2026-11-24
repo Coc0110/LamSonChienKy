@@ -44,6 +44,11 @@ export const Region3DOverlay: React.FC = () => {
 
   const placementPreview = useMemo(() => {
     if (!activeRegion3D || activeRegion3D.mode !== 'base_build' || !layout) return null;
+    const placeOpts = {
+      allowOutside: true,
+      basePctX: city?.x ?? 50.8,
+      basePctY: city?.y ?? 47.6,
+    };
     if (isMovingBuilding && selectedBuilding) {
       return {
         spanCols: selectedBuilding.spanCols,
@@ -55,7 +60,8 @@ export const Region3DOverlay: React.FC = () => {
             row,
             selectedBuilding.spanCols,
             selectedBuilding.spanRows,
-            selectedBuilding.id
+            selectedBuilding.id,
+            placeOpts
           ),
       };
     }
@@ -65,11 +71,11 @@ export const Region3DOverlay: React.FC = () => {
         spanCols: spec.spanCols,
         spanRows: spec.spanRows,
         canPlaceAt: (col: number, row: number) =>
-          canPlaceOnRegionGrid(layout.buildings, col, row, spec.spanCols, spec.spanRows),
+          canPlaceOnRegionGrid(layout.buildings, col, row, spec.spanCols, spec.spanRows, undefined, placeOpts),
       };
     }
     return null;
-  }, [activeRegion3D, layout, isMovingBuilding, selectedBuilding, activeBuildType]);
+  }, [activeRegion3D, layout, isMovingBuilding, selectedBuilding, activeBuildType, city]);
 
   if (!activeRegion3D || !layout) return null;
 

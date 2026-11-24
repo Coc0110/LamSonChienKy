@@ -19,7 +19,7 @@ interface DistrictPolyData {
 
 const DISTRICTS = (districtPolygonsJson as unknown as { districts: DistrictPolyData[] }).districts;
 
-/** 1 2D terrain cell = 3 x 3 3D cells (1 3D cell = 1 x 1 3D unit). */
+/** 1 2D terrain cell = 3 x 3 3D units. */
 export const CELL_SCALE_3D = 3;
 
 const MIN_PCT_X = 37.5;
@@ -35,6 +35,9 @@ const TERRAIN_COLORS: Record<TerrainType, [number, number, number]> = {
   swamp: [78, 108, 62],
   water: [48, 94, 128],
 };
+
+const RIVER_BANK_COLOR: [number, number, number] = [106, 122, 68];
+const RIVER_DEEP_COLOR: [number, number, number] = [44, 88, 122];
 
 function pointInPolygon(x: number, y: number, poly: [number, number][]): boolean {
   let inside = false;
@@ -62,6 +65,11 @@ function hash2D(c: number, r: number): number {
   return n - Math.floor(n);
 }
 
+function smoothstep(edge0: number, edge1: number, x: number): number {
+  const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
+  return t * t * (3 - 2 * t);
+}
+
 function baseElevationForTerrain(t: TerrainType, c: number, r: number): number {
   const n = hash2D(c, r);
   switch (t) {
@@ -70,9 +78,9 @@ function baseElevationForTerrain(t: TerrainType, c: number, r: number): number {
     case 'swamp':
       return -0.14 + (n - 0.5) * 0.06;
     case 'plains':
-      return 0.06 + n * 0.14;
+      return 0.04 + n * 0.1;
     case 'forest':
-      return 0.34 + n * 0.32;
+      return 0.3 + n * 0.28;
     case 'mountain':
       return 2.1 + n * 2.2;
     case 'cliff':
@@ -80,16 +88,63 @@ function baseElevationForTerrain(t: TerrainType, c: number, r: number): number {
   }
 }
 
-function createTerrainGridTexture(
+export function getThanhHoaElevationAtWorld(
+  wx: number,
+  wz: number,
+  basePctX: number,
+  basePctY: number,
+): number {
+  if (Math.abs(wx) < 16.2 && Math.abs(wz) < 16.2) return 0;
+  const baseCell = coordToCell(basePctX, basePctY);
+  const c = Math.max(0, Math.min(GRID_COLS - 1, baseCell.col + Math.round(wx / CELL_SCALE_3D)));
+  const r = Math.max(0, Math.min(GRID_ROWS - 1, baseCell.row + Math.round(wz / CELL_SCALE_3D)));
+  const pctX = (c + 0.5) * GRID_CELL_W_PCT;
+  const pctY = (r + 0.5) * GRID_CELL_H_PCT;
+  if (!isInsideThanhHoa(pctX, pctY)) return -1.45;
+  return baseElevationForTerrain(getGridTerrain(c, r), c, r);
+}
+
+export function isThanhHoaBuildable(
+  basePctX: number,
+  basePctY: number,
+  col: number,
+  row: number,
+  spanCols: number,
+  spanRows: number,
+  gridSize = 32,
+): boolean {
+  const half = gridSize / 2;
+  const baseCell = coordToCell(basePctX, basePctY);
+  const samplePoints: Array<[number, number]> = [
+    [col + 0.5, row + 0.5],
+    [col + spanCols - 0.5, row + 0.5],
+    [col + 0.5, row + spanRows - 0.5],
+    [col + spanCols - 0.5, row + spanRows - 0.5],
+    [col + spanCols * 0.5, row + spanRows * 0.5],
+  ];
+
+  for (const [gx, gz] of samplePoints) {
+    const wx = gx - half;
+    const wz = gz - half;
+    if (Math.abs(wx) < 16 && Math.abs(wz) < 16) continue;
+    const c = Math.max(0, Math.min(GRID_COLS - 1, baseCell.col + Math.round(wx / CELL_SCALE_3D)));
+    const r = Math.max(0, Math.min(GRID_ROWS - 1, baseCell.row + Math.round(wz / CELL_SCALE_3D)));
+    const pctX = (c + 0.5) * GRID_CELL_W_PCT;
+    const pctY = (r + 0.5) * GRID_CELL_H_PCT;
+    if (!isInsideThanhHoa(pctX, pctY)) return false;
+    if (getGridTerrain(c, r) === 'water') return false;
+  }
+  return true;
+}
+
+function createSmoothTerrainTexture(
   minCol: number,
   minRow: number,
   cols: number,
   rows: number,
   insideMask: Uint8Array,
 ): THREE.CanvasTexture {
-  // 2x2 px per 3D sub-cell -> 6x6 px per 2D cell (3x3 sub-cells per 2D cell)
-  const pxPerSub = 2;
-  const pxPerCell = CELL_SCALE_3D * pxPerSub; // 6
+  const pxPerCell = 8;
   const canvas = document.createElement('canvas');
   canvas.width = cols * pxPerCell;
   canvas.height = rows * pxPerCell;
@@ -100,47 +155,93 @@ function createTerrainGridTexture(
     return fallback;
   }
 
+  const waterField = new Float32Array(cols * rows);
+  const landR = new Float32Array(cols * rows);
+  const landG = new Float32Array(cols * rows);
+  const landB = new Float32Array(cols * rows);
+
+  for (let iy = 0; iy < rows; iy++) {
+    const r = Math.max(0, Math.min(GRID_ROWS - 1, minRow + iy));
+    for (let ix = 0; ix < cols; ix++) {
+      const c = Math.max(0, Math.min(GRID_COLS - 1, minCol + ix));
+      const idx = iy * cols + ix;
+      const inside = insideMask[idx] === 1;
+      const t = getGridTerrain(c, r);
+      const isWater = !inside || t === 'water';
+      waterField[idx] = isWater ? 1 : 0;
+      const rgb = isWater ? TERRAIN_COLORS.plains : TERRAIN_COLORS[t];
+      const jitter = (hash2D(c, r) - 0.5) * 10;
+      landR[idx] = rgb[0] + jitter;
+      landG[idx] = rgb[1] + jitter;
+      landB[idx] = rgb[2] + jitter;
+    }
+  }
+
   const img = ctx.createImageData(canvas.width, canvas.height);
   const data = img.data;
   const w = canvas.width;
+  const h = canvas.height;
 
-  for (let iy = 0; iy < rows; iy++) {
-    const r = minRow + iy;
-    const clampedR = Math.max(0, Math.min(GRID_ROWS - 1, r));
-    for (let ix = 0; ix < cols; ix++) {
-      const c = minCol + ix;
-      const clampedC = Math.max(0, Math.min(GRID_COLS - 1, c));
-      const idx = iy * cols + ix;
-      const inside = insideMask[idx] === 1;
-      const t = getGridTerrain(clampedC, clampedR);
-      const rgb = inside ? TERRAIN_COLORS[t] : TERRAIN_COLORS.water;
-      const jitter = Math.round((hash2D(c, r) - 0.5) * 14);
+  for (let py = 0; py < h; py++) {
+    const fy = Math.max(0, Math.min(rows - 1.001, py / pxPerCell - 0.5));
+    const iy0 = Math.floor(fy);
+    const iy1 = Math.min(rows - 1, iy0 + 1);
+    const ty = fy - iy0;
+    const row0 = iy0 * cols;
+    const row1 = iy1 * cols;
 
-      const baseX = ix * pxPerCell;
-      const baseY = iy * pxPerCell;
+    for (let px = 0; px < w; px++) {
+      const fx = Math.max(0, Math.min(cols - 1.001, px / pxPerCell - 0.5));
+      const ix0 = Math.floor(fx);
+      const ix1 = Math.min(cols - 1, ix0 + 1);
+      const tx = fx - ix0;
 
-      for (let sy = 0; sy < pxPerCell; sy++) {
-        const is2DBorderY = sy === 0;
-        const is3DBorderY = sy % pxPerSub === 0;
-        const py = baseY + sy;
-        for (let sx = 0; sx < pxPerCell; sx++) {
-          const is2DBorderX = sx === 0;
-          const is3DBorderX = sx % pxPerSub === 0;
-          const px = baseX + sx;
-          const pIdx = (py * w + px) * 4;
+      const i00 = row0 + ix0;
+      const i10 = row0 + ix1;
+      const i01 = row1 + ix0;
+      const i11 = row1 + ix1;
 
-          let shade = jitter;
-          if (inside && t !== 'water') {
-            if (is2DBorderX || is2DBorderY) shade -= 14;
-            else if (is3DBorderX || is3DBorderY) shade -= 6;
-          }
+      const w00 = (1 - tx) * (1 - ty);
+      const w10 = tx * (1 - ty);
+      const w01 = (1 - tx) * ty;
+      const w11 = tx * ty;
 
-          data[pIdx] = Math.max(0, Math.min(255, rgb[0] + shade));
-          data[pIdx + 1] = Math.max(0, Math.min(255, rgb[1] + shade));
-          data[pIdx + 2] = Math.max(0, Math.min(255, rgb[2] + shade));
-          data[pIdx + 3] = 255;
-        }
+      // Bilinear land color (no grid lines)
+      let rVal = landR[i00] * w00 + landR[i10] * w10 + landR[i01] * w01 + landR[i11] * w11;
+      let gVal = landG[i00] * w00 + landG[i10] * w10 + landG[i01] * w01 + landG[i11] * w11;
+      let bVal = landB[i00] * w00 + landB[i10] * w10 + landB[i01] * w01 + landB[i11] * w11;
+
+      // Smooth flowing river contour from bilinear water field + subtle organic bank curve
+      const wf =
+        waterField[i00] * w00 +
+        waterField[i10] * w10 +
+        waterField[i01] * w01 +
+        waterField[i11] * w11 +
+        Math.sin(fx * 1.9 + fy * 1.4) * 0.035;
+
+      if (wf > 0.24) {
+        const bankMix = smoothstep(0.24, 0.42, wf);
+        const waterMix = smoothstep(0.4, 0.56, wf);
+        const deepMix = smoothstep(0.56, 0.82, wf);
+
+        rVal = rVal * (1 - bankMix) + RIVER_BANK_COLOR[0] * bankMix;
+        gVal = gVal * (1 - bankMix) + RIVER_BANK_COLOR[1] * bankMix;
+        bVal = bVal * (1 - bankMix) + RIVER_BANK_COLOR[2] * bankMix;
+
+        const wr = TERRAIN_COLORS.water[0] * (1 - deepMix) + RIVER_DEEP_COLOR[0] * deepMix;
+        const wg = TERRAIN_COLORS.water[1] * (1 - deepMix) + RIVER_DEEP_COLOR[1] * deepMix;
+        const wb = TERRAIN_COLORS.water[2] * (1 - deepMix) + RIVER_DEEP_COLOR[2] * deepMix;
+
+        rVal = rVal * (1 - waterMix) + wr * waterMix;
+        gVal = gVal * (1 - waterMix) + wg * waterMix;
+        bVal = bVal * (1 - waterMix) + wb * waterMix;
       }
+
+      const pIdx = (py * w + px) * 4;
+      data[pIdx] = Math.max(0, Math.min(255, Math.round(rVal)));
+      data[pIdx + 1] = Math.max(0, Math.min(255, Math.round(gVal)));
+      data[pIdx + 2] = Math.max(0, Math.min(255, Math.round(bVal)));
+      data[pIdx + 3] = 255;
     }
   }
 
@@ -190,7 +291,7 @@ export function createThanhHoa3DWorld(
   ];
 
   const insideMask = new Uint8Array(cols * rows);
-  const cellElevations = new Float32Array(cols * rows);
+  const rawElevations = new Float32Array(cols * rows);
   const forestCells: Array<{ wx: number; wz: number; elev: number; c: number; r: number }> = [];
   const mountainCells: Array<{ wx: number; wz: number; elev: number; c: number; r: number; isCliff: boolean }> = [];
 
@@ -211,12 +312,12 @@ export function createThanhHoa3DWorld(
       const inBasePlateau = Math.abs(wx) < 16.5 && Math.abs(wz) < 16.5;
 
       if (!inside) {
-        cellElevations[idx] = -1.45;
+        rawElevations[idx] = -1.45;
       } else if (inBasePlateau) {
-        cellElevations[idx] = 0;
+        rawElevations[idx] = 0;
       } else {
         const elev = baseElevationForTerrain(t, c, r);
-        cellElevations[idx] = elev;
+        rawElevations[idx] = elev;
 
         if (t === 'forest' && hash2D(c + 17, r + 31) > 0.28) {
           forestCells.push({ wx, wz, elev, c, r });
@@ -227,13 +328,41 @@ export function createThanhHoa3DWorld(
     }
   }
 
+  // Smooth river & bank elevations so rivers flow continuously without sharp steps
+  const cellElevations = new Float32Array(cols * rows);
+  for (let iy = 0; iy < rows; iy++) {
+    for (let ix = 0; ix < cols; ix++) {
+      const idx = iy * cols + ix;
+      if (rawElevations[idx] > 0.35) {
+        cellElevations[idx] = rawElevations[idx];
+        continue;
+      }
+      let sum = 0;
+      let count = 0;
+      for (let dy = -1; dy <= 1; dy++) {
+        const ny = iy + dy;
+        if (ny < 0 || ny >= rows) continue;
+        for (let dx = -1; dx <= 1; dx++) {
+          const nx = ix + dx;
+          if (nx < 0 || nx >= cols) continue;
+          const v = rawElevations[ny * cols + nx];
+          if (v <= 0.6) {
+            sum += v;
+            count++;
+          }
+        }
+      }
+      cellElevations[idx] = count > 0 ? sum / count : rawElevations[idx];
+    }
+  }
+
   // 1. Sea plane surrounding Thanh Hóa
   const seaGeo = new THREE.PlaneGeometry(1100, 1100);
   seaGeo.rotateX(-Math.PI / 2);
   const seaMat = new THREE.MeshStandardMaterial({
-    color: 0x385e7c,
-    roughness: 0.45,
-    metalness: 0.12,
+    color: 0x2f5b7e,
+    roughness: 0.38,
+    metalness: 0.14,
   });
   const seaMesh = new THREE.Mesh(seaGeo, seaMat);
   seaMesh.position.set(centerX, -0.35, centerZ);
@@ -241,8 +370,8 @@ export function createThanhHoa3DWorld(
   group.add(seaMesh);
   disposables.push(seaGeo, seaMat);
 
-  // 2. Single displaced terrain mesh driven by 2D terrain grid (1 2D cell = 3x3 3D units)
-  const terrainTex = createTerrainGridTexture(minCol, minRow, cols, rows, insideMask);
+  // 2. Single displaced terrain mesh with smooth grass & flowing rivers (no grid lines)
+  const terrainTex = createSmoothTerrainTexture(minCol, minRow, cols, rows, insideMask);
   disposables.push(terrainTex);
 
   const terrainGeo = new THREE.PlaneGeometry(worldW, worldH, cols, rows);
@@ -265,7 +394,6 @@ export function createThanhHoa3DWorld(
         continue;
       }
 
-      // Average 4 surrounding cell elevations for smooth vertex transitions
       const e00 = cellElevations[pIy * cols + pIx];
       const e10 = cellElevations[pIy * cols + cIx];
       const e01 = cellElevations[cIy * cols + pIx];

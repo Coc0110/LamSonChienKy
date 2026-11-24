@@ -1,6 +1,7 @@
 import type { CityNode } from '../types';
 import type { BaseBuilding, BaseBuildingType, RegionLayout } from '../types/region';
 import { BASE_BUILDING_CATALOG, REGION_GRID_SIZE, getBuildingMaxHp } from '../data/regionBuildings';
+import { isThanhHoaBuildable } from './thanhHoa3DTerrain';
 
 function makeBuilding(
   idPrefix: string,
@@ -32,9 +33,21 @@ export function canPlaceOnRegionGrid(
   row: number,
   spanCols: number,
   spanRows: number,
-  ignoreId?: string
+  ignoreId?: string,
+  options?: { allowOutside?: boolean; basePctX?: number; basePctY?: number }
 ): boolean {
-  if (col < 0 || row < 0 || col + spanCols > REGION_GRID_SIZE || row + spanRows > REGION_GRID_SIZE) {
+  if (options?.allowOutside) {
+    const ok = isThanhHoaBuildable(
+      options.basePctX ?? 50.8,
+      options.basePctY ?? 47.6,
+      col,
+      row,
+      spanCols,
+      spanRows,
+      REGION_GRID_SIZE
+    );
+    if (!ok) return false;
+  } else if (col < 0 || row < 0 || col + spanCols > REGION_GRID_SIZE || row + spanRows > REGION_GRID_SIZE) {
     return false;
   }
   for (const b of buildings) {
