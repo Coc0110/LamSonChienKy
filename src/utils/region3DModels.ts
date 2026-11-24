@@ -2654,10 +2654,10 @@ function getBuildingParts(
     }
 
     case 'wall': {
-      // 1x1 Lũy tre 2 lớp dựa sát khít vào kẽ nhau, thân tre biến thiên ngẫu nhiên tự nhiên, vót vát chéo quay đỉnh cao vào giữa 2 hàng
+      // 1x1 Lũy tre 2 lớp dựa sát khít vào kẽ nhau, thân tre biến thiên ngẫu nhiên tự nhiên, không đúp góc / không xuyên nhau
       const poleH = 0.88 + tier * 0.07;
-      const rPole = 0.062;
-      const rowOff = 0.05; // Hai hàng dựa sát khít: cây hàng đối diện lọt vào kẽ giữa 2 cây hàng bên này
+      const rPole = 0.06;
+      const rowOff = 0.058; // Hai hàng dựa sát khít: cây hàng đối diện lọt vào kẽ giữa 2 cây hàng này mà không xuyên nhau
 
       // Ụ đất chân tường nối liền mạch theo các hướng wallMask
       push('earthDark', createOrganicEarthMound(0.76, 0.76, 0.14, 21.5 + wallMask));
@@ -2674,7 +2674,7 @@ function getBuildingParts(
         push('earthDark', createOrganicEarthMound(0.64, 0.72, 0.135, 23.9).translate(-0.26, 0, 0));
       }
 
-      // Hàm dựng cây tre chuẩn mẫu ngẫu nhiên nhẹ chiều cao, độ dày, độ nghiêng và góc vát
+      // Hàm dựng cây tre chuẩn mẫu ngẫu nhiên nhẹ (nghiêng nhẹ ra ngoài hoặc dọc hàng để 2 hàng không xuyên qua nhau)
       const addBeveledBamboo = (
         r: number,
         h: number,
@@ -2686,9 +2686,12 @@ function getBuildingParts(
         inwardZ: number,
         seed: number
       ) => {
-        const leanX = (hash01(seed + 2) - 0.5) * 0.055;
-        const leanZ = (hash01(seed + 3) - 0.5) * 0.055;
-        const yawJitter = (hash01(seed + 4) - 0.5) * 0.42;
+        // Chỉ nghiêng nhẹ dọc hàng hoặc hơi ngả ra ngoài (không bao giờ ngả vào tâm xuyên sang hàng đối diện)
+        const alongLean = (hash01(seed + 2) - 0.5) * 0.035;
+        const outLean = hash01(seed + 3) * 0.024;
+        const leanX = inwardZ !== 0 ? -inwardZ * outLean : alongLean;
+        const leanZ = inwardX !== 0 ? inwardX * outLean : -alongLean;
+        const yawJitter = (hash01(seed + 4) - 0.5) * 0.36;
 
         const culm = createBambooCulmLathe(r, h, joints);
         culm.rotateX(leanX);
@@ -2713,38 +2716,45 @@ function getBuildingParts(
         push('earthDark', tip.hollowCore);
       };
 
-      const addStaggeredWallSpan = (axis: 'x' | 'z', start: number, end: number) => {
+      const addStaggeredWallSpan = (
+        axis: 'x' | 'z',
+        start: number,
+        end: number,
+        railStart = start,
+        railEnd = end
+      ) => {
         const len = Math.abs(end - start);
         const dir = end >= start ? 1 : -1;
         // Dùng bước chia đều 1.0 / 7 = 0.14286 để cây cuối ô N nối khít cây đầu ô N+1 không bao giờ hở khe
         const step = 1 / 7;
-        const count = Math.max(2, Math.round(len / step));
+        const count = Math.max(1, Math.round(len / step));
         for (const rowSide of [-1, 1] as const) {
           const perp = rowSide * rowOff;
           // Xếp so le nửa bước để cây hàng đối diện lọt khít vào kẽ giữa 2 cây hàng này
           const stagger = rowSide === 1 ? step * 0.5 : 0;
           for (let i = 0; i < count; i++) {
             const along = start + dir * ((i + 0.5) * step + stagger);
-            if (dir > 0 ? along > end + 0.04 : along < end - 0.04) continue;
+            if (dir > 0 ? along > end + 0.02 : along < end - 0.02) continue;
             const seed = variant * 131 + i * 37 + (rowSide > 0 ? 19 : 7) + (axis === 'x' ? 3 : 53);
             const h = poleH * (0.85 + hash01(seed) * 0.26);
-            const r = rPole * (0.9 + hash01(seed + 1) * 0.2);
+            const r = rPole * (0.9 + hash01(seed + 1) * 0.16);
             const joints = 3 + Math.floor(hash01(seed + 5) * 2);
-            const alongJit = (hash01(seed + 6) - 0.5) * 0.014;
+            const alongJit = (hash01(seed + 6) - 0.5) * 0.008;
             if (axis === 'x') {
               addBeveledBamboo(r, h, joints, along + alongJit, 0.09, perp, 0, -rowSide, seed);
             } else {
               addBeveledBamboo(r, h, joints, perp, 0.09, along + alongJit, -rowSide, 0, seed);
             }
           }
-          // 2 thanh giằng tre ngang buộc sát ngoài mỗi hàng (dài phủ trọn biên ô 1.02 để không hở mối nối)
-          const railPerp = rowSide * (rowOff + rPole * 0.92);
-          const mid = (start + end) / 2;
+          // 2 thanh giằng tre ngang buộc sát ngoài mỗi hàng
+          const railPerp = rowSide * (rowOff + rPole * 0.94);
+          const railLen = Math.abs(railEnd - railStart);
+          const railMid = (railStart + railEnd) / 2;
           for (const ry of [0.38, 0.68]) {
             if (axis === 'x') {
-              push('bambooDry', cyl(0.024, 0.024, len + 0.1, 6, 0, 0, 0).rotateZ(Math.PI / 2).translate(mid, ry, railPerp));
+              push('bambooDry', cyl(0.024, 0.024, railLen + 0.08, 6, 0, 0, 0).rotateZ(Math.PI / 2).translate(railMid, ry, railPerp));
             } else {
-              push('bambooDry', cyl(0.024, 0.024, len + 0.1, 6, 0, 0, 0).rotateX(Math.PI / 2).translate(railPerp, ry, mid));
+              push('bambooDry', cyl(0.024, 0.024, railLen + 0.08, 6, 0, 0, 0).rotateX(Math.PI / 2).translate(railPerp, ry, railMid));
             }
           }
         }
@@ -2757,17 +2767,42 @@ function getBuildingParts(
         const hasS = (wallMask & 2) !== 0;
         const hasE = (wallMask & 4) !== 0;
         const hasW = (wallMask & 8) !== 0;
-        if (hasE && hasW) {
-          addStaggeredWallSpan('x', -0.5, 0.5);
+        const isCorner = (hasE || hasW) && (hasN || hasS);
+
+        if (isCorner) {
+          // Ô góc: đặt đúng 4 cây tre cụm góc không chồng lấn + các nhánh bắt đầu từ ±0.16 để không đúp / không xuyên nhau
+          const cornerSignX = hasE && !hasW ? 1 : hasW && !hasE ? -1 : 0;
+          const cornerSignZ = hasS && !hasN ? 1 : hasN && !hasS ? -1 : 0;
+          for (const [ci, [cx, cz]] of ([
+            [-0.065, -0.065],
+            [0.065, -0.065],
+            [-0.065, 0.065],
+            [0.065, 0.065],
+          ] as const).entries()) {
+            const cSeed = variant * 97 + ci * 29 + 11;
+            const ch = poleH * (0.88 + hash01(cSeed) * 0.22);
+            const cr = rPole * 0.96;
+            const inX = cornerSignX !== 0 ? cornerSignX : -Math.sign(cx);
+            const inZ = cornerSignZ !== 0 ? cornerSignZ : -Math.sign(cz);
+            addBeveledBamboo(cr, ch, 4, cx, 0.09, cz, inX, inZ, cSeed);
+          }
+          if (hasW) addStaggeredWallSpan('x', -0.5, -0.15, -0.5, 0.06);
+          if (hasE) addStaggeredWallSpan('x', 0.15, 0.5, -0.06, 0.5);
+          if (hasN) addStaggeredWallSpan('z', -0.5, -0.15, -0.5, 0.06);
+          if (hasS) addStaggeredWallSpan('z', 0.15, 0.5, -0.06, 0.5);
         } else {
-          if (hasW) addStaggeredWallSpan('x', -0.5, 0.06);
-          if (hasE) addStaggeredWallSpan('x', -0.06, 0.5);
-        }
-        if (hasN && hasS) {
-          addStaggeredWallSpan('z', -0.5, 0.5);
-        } else {
-          if (hasN) addStaggeredWallSpan('z', -0.5, 0.06);
-          if (hasS) addStaggeredWallSpan('z', -0.06, 0.5);
+          if (hasE && hasW) {
+            addStaggeredWallSpan('x', -0.5, 0.5);
+          } else {
+            if (hasW) addStaggeredWallSpan('x', -0.5, 0.04);
+            if (hasE) addStaggeredWallSpan('x', -0.04, 0.5);
+          }
+          if (hasN && hasS) {
+            addStaggeredWallSpan('z', -0.5, 0.5);
+          } else {
+            if (hasN) addStaggeredWallSpan('z', -0.5, 0.04);
+            if (hasS) addStaggeredWallSpan('z', -0.04, 0.5);
+          }
         }
       }
       break;

@@ -15,7 +15,11 @@ import {
   getMeadowBumpTexture,
   type VietnameseTreeKind,
 } from '../../utils/region3DModels';
-import { onSoldierBaseLoaded, preloadSoldierBaseModel } from '../../utils/soldierRigLoader';
+import { isSoldierBaseReady, onSoldierBaseLoaded, preloadSoldierBaseModel } from '../../utils/soldierRigLoader';
+
+if (typeof window !== 'undefined') {
+  void preloadSoldierBaseModel();
+}
 
 interface PlacementPreviewConfig {
   spanCols: number;
@@ -411,8 +415,8 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
         });
         buildingsGroup.add(group);
 
-        // Vật dụng trang trí & NPC hoạt động quanh công trình
-        if (!isConstructing) {
+        // Vật dụng trang trí & NPC hoạt động quanh công trình (chỉ sinh khi model người .glb đã sẵn sàng để tránh hiện dáng cũ)
+        if (!isConstructing && isSoldierBaseReady()) {
           if (b.type === 'farm') {
             const farmer = createNpcGroup('farmer');
             farmer.position.set(cx + 0.8, 0.25, cz + 0.5);
@@ -649,44 +653,48 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
               dirZ,
             };
           };
-          const members = squadSlots.map((slot, idx) => {
-            const m = createNpcGroup('guard');
-            const p0 = samplePath(totalLength - slot.b);
-            const rightX = -p0.dirZ;
-            const rightZ = p0.dirX;
-            m.position.set(p0.x + rightX * slot.r, 0.02, p0.z + rightZ * slot.r);
-            m.rotation.y = Math.atan2(p0.dirX, p0.dirZ);
-            npcsGroup.add(m);
-            return {
-              mesh: m,
-              offsetRight: slot.r,
-              offsetBack: slot.b,
-              walkPhase: idx * 0.35,
-            };
-          });
+          const members = isSoldierBaseReady()
+            ? squadSlots.map((slot, idx) => {
+                const m = createNpcGroup('guard');
+                const p0 = samplePath(totalLength - slot.b);
+                const rightX = -p0.dirZ;
+                const rightZ = p0.dirX;
+                m.position.set(p0.x + rightX * slot.r, 0.02, p0.z + rightZ * slot.r);
+                m.rotation.y = Math.atan2(p0.dirX, p0.dirZ);
+                npcsGroup.add(m);
+                return {
+                  mesh: m,
+                  offsetRight: slot.r,
+                  offsetBack: slot.b,
+                  walkPhase: idx * 0.35,
+                };
+              })
+            : [];
 
           patrolSquad = { waypoints, segLengths, totalLength, distance: 0, members };
         }
 
         // Thêm 3 binh lính đi lang thang quanh làng (không cầm giáo, tìm đường tránh công trình)
-        const wanderCount = 3;
-        for (let i = 0; i < wanderCount; i++) {
-          const startWp = walkableSpots[(i * 3) % walkableSpots.length] || { x: 0, z: 0 };
-          const goalWp = walkableSpots[(i * 3 + 5) % walkableSpots.length] || startWp;
-          const stroller = createNpcGroup('soldier_unarmed');
-          stroller.position.set(startWp.x, 0.02, startWp.z);
-          npcsGroup.add(stroller);
-          animatedNpcs.push({
-            mesh: stroller,
-            role: 'soldier_unarmed',
-            baseX: startWp.x,
-            baseZ: startWp.z,
-            phase: i * 1.7,
-            path: findWorldPath(startWp.x, startWp.z, goalWp.x, goalWp.z),
-            pathIdx: 0,
-            pauseUntil: 0,
-            walkPhase: i * 0.5,
-          });
+        if (isSoldierBaseReady()) {
+          const wanderCount = 3;
+          for (let i = 0; i < wanderCount; i++) {
+            const startWp = walkableSpots[(i * 3) % walkableSpots.length] || { x: 0, z: 0 };
+            const goalWp = walkableSpots[(i * 3 + 5) % walkableSpots.length] || startWp;
+            const stroller = createNpcGroup('soldier_unarmed');
+            stroller.position.set(startWp.x, 0.02, startWp.z);
+            npcsGroup.add(stroller);
+            animatedNpcs.push({
+              mesh: stroller,
+              role: 'soldier_unarmed',
+              baseX: startWp.x,
+              baseZ: startWp.z,
+              phase: i * 1.7,
+              path: findWorldPath(startWp.x, startWp.z, goalWp.x, goalWp.z),
+              pathIdx: 0,
+              pauseUntil: 0,
+              walkPhase: i * 0.5,
+            });
+          }
         }
       }
 
@@ -701,6 +709,7 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
     >();
 
     const syncUnits = () => {
+      if (!isSoldierBaseReady()) return;
       const list = unitsRef.current;
       const selU = selectedUnitIdRef.current;
       const activeIds = new Set<string>();

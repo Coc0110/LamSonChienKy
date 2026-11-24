@@ -38,6 +38,7 @@ let cachedRiggedBodyGeo: THREE.BufferGeometry | null = null;
 let cachedShirtShellGeo: THREE.BufferGeometry | null = null;
 let cachedPantsShellGeo: THREE.BufferGeometry | null = null;
 let cachedArmorParts: CachedArmorPart[] = [];
+let armorLoaded = false;
 let loadPromise: Promise<boolean> | null = null;
 const loadListeners = new Set<() => void>();
 
@@ -92,7 +93,7 @@ export function onSoldierBaseLoaded(cb: () => void): () => void {
 }
 
 export function isSoldierBaseReady(): boolean {
-  return cachedRiggedBodyGeo !== null;
+  return cachedRiggedBodyGeo !== null && armorLoaded;
 }
 
 /**
@@ -413,11 +414,13 @@ export function preloadSoldierBaseModel(): Promise<boolean> {
             });
 
             cachedArmorParts = parts;
+            armorLoaded = true;
             loadListeners.forEach((cb) => cb());
             resolve(true);
           },
           undefined,
           () => {
+            armorLoaded = true;
             loadListeners.forEach((cb) => cb());
             resolve(true);
           }
