@@ -317,14 +317,16 @@ export const useDistrictPolygons = ({
           color: '#991b1b',
           weight: 2.8,
           opacity: 1.0,
-          fillOpacity: 0.0001,
+          fillColor: '#b91c1c',
+          fillOpacity: 0.12,
         });
       } else if (isHovered) {
         poly.setStyle({
           color: '#c2410c',
           weight: 2.0,
           opacity: 1.0,
-          fillOpacity: 0.0001,
+          fillColor: '#f59e0b',
+          fillOpacity: 0.16,
         });
       } else {
         poly.setStyle({

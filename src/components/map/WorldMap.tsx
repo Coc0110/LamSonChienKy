@@ -51,6 +51,7 @@ export const WorldMap: React.FC = React.memo(() => {
   const bordersOverlayRef = useRef<L.ImageOverlay | null>(null);
   const satelliteOverlayRef = useRef<L.ImageOverlay | null>(null);
   const provincePolygonsLayerRef = useRef<L.LayerGroup | null>(null);
+  const provincePolygonsMapRef = useRef<Map<string, L.Polygon>>(new Map());
   const provinceLabelsLayerRef = useRef<L.LayerGroup | null>(null);
   const polygonsMapRef = useRef<Map<string, L.Polygon>>(new Map());
 
@@ -822,11 +823,12 @@ export const WorldMap: React.FC = React.memo(() => {
     overlay.setOpacity(showCountryBorders && (showDistricts || isZoomedOutOverview) ? 0.9 : 0);
   }, [bordersBounds, showCountryBorders, showDistricts, isZoomedOutOverview]);
 
-  // Vùng tương tác cho các tỉnh thành khi zoom out (di chuột tới tỉnh nào mới hiện tên tỉnh đó)
+  // Vùng tương tác cho các tỉnh thành khi zoom out (di chuột tới tỉnh nào thì highlight & hiện tên tỉnh đó)
   useEffect(() => {
     const polyLayer = provincePolygonsLayerRef.current;
     if (!polyLayer) return;
     polyLayer.clearLayers();
+    provincePolygonsMapRef.current.clear();
 
     if (!isZoomedOutOverview) {
       return;
@@ -842,9 +844,9 @@ export const WorldMap: React.FC = React.memo(() => {
 
       const poly = L.polygon(latlngs, {
         fill: true,
-        fillColor: '#ffffff',
+        fillColor: region.isMain ? '#f59e0b' : '#fde68a',
         fillOpacity: 0.0001,
-        color: '#f59e0b',
+        color: region.isMain ? '#f59e0b' : '#fb923c',
         weight: 0,
         opacity: 0,
         pane: 'districtsPane',
@@ -859,11 +861,31 @@ export const WorldMap: React.FC = React.memo(() => {
       });
 
       poly.addTo(polyLayer);
+      provincePolygonsMapRef.current.set(region.id, poly);
     });
   }, [isZoomedOutOverview, bordersBounds]);
 
-  // Hiển thị tên tỉnh khi di chuột vào vùng tỉnh lúc đang zoom out
+  // Highlight vùng tỉnh + hiển thị tên tỉnh khi di chuột vào lúc đang zoom out
   useEffect(() => {
+    provincePolygonsMapRef.current.forEach((poly, pid) => {
+      const region = PROVINCE_REGIONS.find(r => r.id === pid);
+      if (isZoomedOutOverview && hoveredProvinceId === pid) {
+        poly.setStyle({
+          color: region?.isMain ? '#f59e0b' : '#fb923c',
+          weight: 2.5,
+          opacity: 0.95,
+          fillColor: region?.isMain ? '#f59e0b' : '#fde68a',
+          fillOpacity: 0.2,
+        });
+      } else {
+        poly.setStyle({
+          weight: 0,
+          opacity: 0,
+          fillOpacity: 0.0001,
+        });
+      }
+    });
+
     const layer = provinceLabelsLayerRef.current;
     if (!layer) return;
     layer.clearLayers();
@@ -878,12 +900,8 @@ export const WorldMap: React.FC = React.memo(() => {
     const y = bordersBounds.yMin + region.relY * h;
     const pos = percentToLatLng(x, y);
 
-    const textColor = region.isMain
-      ? 'text-amber-300'
-      : region.isForeign
-      ? 'text-stone-300/90'
-      : 'text-[#f5ebd7]';
-    const fontSize = region.isMain ? '22px' : region.isForeign ? '16px' : '18px';
+    const textColor = region.isMain ? 'text-amber-300' : 'text-[#f5ebd7]';
+    const fontSize = region.isMain ? '22px' : '18px';
     const glow = region.isMain ? 'rgba(245, 158, 11, 0.7)' : 'rgba(0, 0, 0, 0.9)';
 
     const html = `
