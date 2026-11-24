@@ -59,7 +59,7 @@ export const WorldMap: React.FC = React.memo(() => {
   const [alignOpacity, setAlignOpacity] = useState<number>(0.85);
   const alignFrameRef = useRef<L.Rectangle | null>(null);
 
-  const MAP_ALIGNMENT_STORAGE_KEY = 'lam_son_map_alignment_v1';
+  const MAP_ALIGNMENT_STORAGE_KEY = 'lam_son_map_alignment_v2';
   const [mapAlignment, setMapAlignment] = useState<MapAlignmentConfig>(() => {
     try {
       const saved = localStorage.getItem(MAP_ALIGNMENT_STORAGE_KEY);

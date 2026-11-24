@@ -1,8 +1,8 @@
 {
   "imageUrl": "/thanh_hoa_custom_map.png",
-  "imageWidth": 512,
-  "imageHeight": 1024,
-  "centerX": 48.0,
-  "centerY": 54.0,
-  "scale": 2.85
+  "imageWidth": 3400,
+  "imageHeight": 2700,
+  "centerX": 50.0,
+  "centerY": 50.0,
+  "scale": 1.0
 }
