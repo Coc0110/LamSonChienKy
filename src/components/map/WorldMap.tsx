@@ -871,11 +871,10 @@ export const WorldMap: React.FC = React.memo(() => {
       const region = PROVINCE_REGIONS.find(r => r.id === pid);
       if (isZoomedOutOverview && hoveredProvinceId === pid) {
         poly.setStyle({
-          color: region?.isMain ? '#f59e0b' : '#fb923c',
-          weight: 2.5,
-          opacity: 0.95,
-          fillColor: region?.isMain ? '#f59e0b' : '#fde68a',
-          fillOpacity: 0.2,
+          color: region?.isMain ? '#d97706' : '#c2410c',
+          weight: 2.2,
+          opacity: 1.0,
+          fillOpacity: 0.0001,
         });
       } else {
         poly.setStyle({
