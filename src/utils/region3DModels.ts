@@ -2809,14 +2809,11 @@ function getBuildingParts(
     }
 
     case 'gate': {
-      // 3x1 Cổng Thành: Vọng lâu gỗ nhỏ có mái che ở trên, cánh cổng gỗ dày có then cài lớn
+      // 3x1 Cổng Thành: Vọng lâu gỗ nhỏ có mái che ở trên, 2 cánh cổng mở tự động khi lính đi qua
       push('earthDark', createOrganicEarthMound(2.9, 0.95, 0.14, 25.1));
       // 2 trụ cổng gỗ lim lớn hai bên
       push('woodDark', box(0.55, 1.35, 0.8, -1.15, 0.72, 0));
       push('woodDark', box(0.55, 1.35, 0.8, 1.15, 0.72, 0));
-      // Cánh cổng gỗ dày + then cài lớn
-      push('wood', box(1.75, 0.92, 0.2, 0, 0.55, 0));
-      push('woodDark', box(1.9, 0.14, 0.28, 0, 0.55, 0.04)); // Then cài lớn
       // Vọng lâu nhỏ bên trên cổng có mái che
       push('wood', box(2.6, 0.16, 0.95, 0, 1.42, 0));
       for (const px of [-0.95, 0.95]) {
@@ -2931,6 +2928,30 @@ export function createBuildingGroup(
     waterMesh.position.set(-1.42, 0.46, 1.88);
     waterMesh.name = 'animated_water';
     group.add(waterMesh);
+  }
+
+  // 2 cánh cổng gỗ có bản lề để đóng mở khi quân lính đi qua
+  if (type === 'gate') {
+    const woodMat = getSharedMaterial('wood', isConstructing, opacity);
+    const woodDarkMat = getSharedMaterial('woodDark', isConstructing, opacity);
+
+    const doorLeft = new THREE.Group();
+    doorLeft.name = 'gate_door_left';
+    doorLeft.position.set(-0.87, 0.55, 0);
+    const panelL = new THREE.Mesh(box(0.87, 0.92, 0.18, 0.435, 0, 0), woodMat);
+    const barL = new THREE.Mesh(box(0.92, 0.13, 0.24, 0.435, 0, 0.03), woodDarkMat);
+    panelL.castShadow = true;
+    doorLeft.add(panelL, barL);
+    group.add(doorLeft);
+
+    const doorRight = new THREE.Group();
+    doorRight.name = 'gate_door_right';
+    doorRight.position.set(0.87, 0.55, 0);
+    const panelR = new THREE.Mesh(box(0.87, 0.92, 0.18, -0.435, 0, 0), woodMat);
+    const barR = new THREE.Mesh(box(0.92, 0.13, 0.24, -0.435, 0, 0.03), woodDarkMat);
+    panelR.castShadow = true;
+    doorRight.add(panelR, barR);
+    group.add(doorRight);
   }
 
   return group;
@@ -3375,6 +3396,27 @@ export function animateSoldierWalk(group: THREE.Group, phase: number, isMoving: 
   rig.torso.position.y = rig.baseTorsoY + Math.abs(c) * 0.024;
   rig.torso.rotation.y = s * 0.07;
   rig.head.rotation.y = -s * 0.04;
+}
+
+export function animateSoldierChop(group: THREE.Group, phase: number): void {
+  const s = Math.sin(phase);
+  if (group.userData.skinnedRig) {
+    animateRiggedSoldierWalk(group, phase * 0.35, true);
+    group.rotation.x = Math.max(0, s) * 0.22;
+    return;
+  }
+  const rig = group.userData.rig as SoldierRig | undefined;
+  if (!rig) return;
+
+  rig.leftLeg.rotation.x = -0.22;
+  rig.rightLeg.rotation.x = 0.22;
+  rig.rightArm.rotation.x = -1.35 + s * 0.95;
+  rig.rightForearm.rotation.x = -0.5 + s * 0.35;
+  rig.leftArm.rotation.x = -0.82 + s * 0.45;
+  rig.leftForearm.rotation.x = -0.45;
+  rig.torso.rotation.x = 0.14 + Math.max(0, s) * 0.2;
+  rig.torso.rotation.y = -0.14 + s * 0.2;
+  rig.torso.position.y = rig.baseTorsoY - Math.max(0, s) * 0.02;
 }
 
 const soldierGeoCache: Record<string, THREE.BufferGeometry> = {};

@@ -7,6 +7,7 @@ import type { BaseBuilding, RegionCombatUnit, RegionLayout } from '../../types/r
 import { CELL_SCALE_3D, createThanhHoa3DWorld, getThanhHoaElevationAtWorld } from '../../utils/thanhHoa3DTerrain';
 import {
   DIORAMA_PALETTE,
+  animateSoldierChop,
   animateSoldierWalk,
   createBuildingGroup,
   createDecorProp,
@@ -253,7 +254,19 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
       kind: 'chop_tree' | 'clear_forest';
       targetX: number;
       targetZ: number;
-      state: 'going' | 'working' | 'returning';
+      gateIndex: number;
+      gateInnerX: number;
+      gateInnerZ: number;
+      gateOuterX: number;
+      gateOuterZ: number;
+      state:
+        | 'to_gate'
+        | 'wait_gate'
+        | 'to_target'
+        | 'working'
+        | 'to_gate_return'
+        | 'wait_gate_return'
+        | 'to_base';
       workElapsed: number;
       workDuration: number;
       soldiers: Array<{
@@ -410,6 +423,13 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
     let findWorldPath: (sx: number, sz: number, gx: number, gz: number) => Array<{ x: number; z: number }> = () => [];
     const animatedFlags: THREE.Mesh[] = [];
     const animatedWaters: THREE.Mesh[] = [];
+    const animatedGates: Array<{
+      wx: number;
+      wz: number;
+      leftDoor: THREE.Object3D;
+      rightDoor: THREE.Object3D;
+      openAmount: number;
+    }> = [];
 
     const syncBuildings = () => {
       while (buildingsGroup.children.length > 0) {
@@ -424,6 +444,7 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
       walkableSpots = [];
       animatedFlags.length = 0;
       animatedWaters.length = 0;
+      animatedGates.length = 0;
 
       const currentLayout = layoutRef.current;
       const enemy = isEnemyRef.current;
@@ -467,6 +488,13 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
             animatedWaters.push(obj);
           }
         });
+        if (b.type === 'gate') {
+          const leftDoor = group.getObjectByName('gate_door_left');
+          const rightDoor = group.getObjectByName('gate_door_right');
+          if (leftDoor && rightDoor) {
+            animatedGates.push({ wx: cx, wz: cz, leftDoor, rightDoor, openAmount: 0 });
+          }
+        }
         buildingsGroup.add(group);
 
         // Vật dụng trang trí & NPC hoạt động quanh công trình (chỉ sinh khi model người .glb đã sẵn sàng để tránh hiện dáng cũ)
@@ -910,15 +938,41 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
       targetZ: number,
     ) => {
       if (activeWorkKeys.has(key)) return;
-      const needed = kind === 'clear_forest' ? 10 : 1;
+      const needed = kind === 'clear_forest' ? 5 : 1;
       const currentTroops = useGameStore.getState().resources.troops;
       if (currentTroops < needed) {
         notify.warning(
           kind === 'clear_forest'
-            ? 'Cần ít nhất 10 lính để phái đi khai hoang ô rừng!'
+            ? 'Cần ít nhất 5 lính để phái đi khai hoang ô rừng!'
             : 'Cần ít nhất 1 lính để phái đi chặt cây!'
         );
         return;
+      }
+
+      // Tìm cổng thành gần hướng mục tiêu nhất để lính đi qua cổng
+      let gateIndex = -1;
+      let bestGateScore = Infinity;
+      animatedGates.forEach((g, idx) => {
+        const d = Math.hypot(g.wx, g.wz) + Math.hypot(targetX - g.wx, targetZ - g.wz);
+        if (d < bestGateScore) {
+          bestGateScore = d;
+          gateIndex = idx;
+        }
+      });
+
+      let gateInnerX = 0;
+      let gateInnerZ = 0;
+      let gateOuterX = 0;
+      let gateOuterZ = 0;
+      if (gateIndex >= 0) {
+        const g = animatedGates[gateIndex];
+        const gl = Math.max(0.01, Math.hypot(g.wx, g.wz));
+        const nx = g.wx / gl;
+        const nz = g.wz / gl;
+        gateInnerX = g.wx - nx * 1.15;
+        gateInnerZ = g.wz - nz * 1.15;
+        gateOuterX = g.wx + nx * 1.25;
+        gateOuterZ = g.wz + nz * 1.25;
       }
 
       activeWorkKeys.add(key);
@@ -926,7 +980,7 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
       for (let i = 0; i < needed; i++) {
         const g = createUnitGroup('swordsman', 'lam_son');
         const angle = (i / needed) * Math.PI * 2;
-        const radius = needed === 1 ? 0.35 : 0.65 + (i % 2) * 0.45;
+        const radius = needed === 1 ? 0.42 : 0.65 + (i % 2) * 0.38;
         const ox = Math.cos(angle) * radius;
         const oz = Math.sin(angle) * radius;
         g.position.set(ox * 0.4, 0, oz * 0.4);
@@ -939,9 +993,14 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
         kind,
         targetX,
         targetZ,
-        state: 'going',
+        gateIndex,
+        gateInnerX,
+        gateInnerZ,
+        gateOuterX,
+        gateOuterZ,
+        state: gateIndex >= 0 ? 'to_gate' : 'to_target',
         workElapsed: 0,
-        workDuration: kind === 'clear_forest' ? 4.5 : 2.6,
+        workDuration: kind === 'clear_forest' ? 4.8 : 2.8,
         soldiers,
       });
 
@@ -949,7 +1008,7 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
       treeHighlightRing.visible = false;
       notify.info(
         kind === 'clear_forest'
-          ? 'Đã phái 10 lính đi khai hoang ô rừng!'
+          ? 'Đã phái 5 lính đi khai hoang ô rừng!'
           : 'Đã phái 1 lính đi chặt cây!'
       );
     };
@@ -1259,20 +1318,71 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
         animateSoldierWalk(vis.group, vis.phase, moving);
       }
 
-      // Cập nhật các toán lính đi chặt cây / khai hoang rừng
+      // Cập nhật đóng/mở cổng thành tự động khi toán lính đi chặt cây / khai hoang tiến lại gần
+      for (const gate of animatedGates) {
+        let soldierNear = false;
+        for (const task of workSquads) {
+          for (const s of task.soldiers) {
+            if (Math.hypot(s.group.position.x - gate.wx, s.group.position.z - gate.wz) < 2.6) {
+              soldierNear = true;
+              break;
+            }
+          }
+          if (soldierNear) break;
+        }
+        gate.openAmount = soldierNear
+          ? Math.min(1, gate.openAmount + dt * 1.35)
+          : Math.max(0, gate.openAmount - dt * 1.05);
+        gate.leftDoor.rotation.y = -gate.openAmount * 1.35;
+        gate.rightDoor.rotation.y = gate.openAmount * 1.35;
+      }
+
+      // Cập nhật các toán lính đi chặt cây / khai hoang rừng (tốc độ hành quân bình thường, chờ mở cổng)
       for (let wi = workSquads.length - 1; wi >= 0; wi--) {
         const task = workSquads[wi];
-        const moveSpeed = 6.2 * dt;
+        const moveSpeed = 1.15 * dt;
+        const gate = task.gateIndex >= 0 ? animatedGates[task.gateIndex] : undefined;
         let allArrived = true;
 
-        for (const s of task.soldiers) {
-          const destX = task.state === 'returning' ? s.offsetX * 0.4 : task.targetX + s.offsetX;
-          const destZ = task.state === 'returning' ? s.offsetZ * 0.4 : task.targetZ + s.offsetZ;
+        for (let si = 0; si < task.soldiers.length; si++) {
+          const s = task.soldiers[si];
+          const spreadX = s.offsetX * 0.35;
+          const spreadZ = s.offsetZ * 0.35;
+
+          let destX = s.offsetX * 0.4;
+          let destZ = s.offsetZ * 0.4;
+          if (task.state === 'to_gate' || task.state === 'wait_gate') {
+            destX = task.gateInnerX + spreadX;
+            destZ = task.gateInnerZ + spreadZ;
+          } else if (task.state === 'to_target') {
+            destX = task.targetX + s.offsetX;
+            destZ = task.targetZ + s.offsetZ;
+          } else if (task.state === 'to_gate_return' || task.state === 'wait_gate_return') {
+            destX = task.gateOuterX + spreadX;
+            destZ = task.gateOuterZ + spreadZ;
+          }
+
+          if (task.state === 'working') {
+            s.group.rotation.y = Math.atan2(task.targetX - s.group.position.x, task.targetZ - s.group.position.z);
+            s.phase += dt * 10;
+            animateSoldierChop(s.group, s.phase);
+            continue;
+          }
+
+          if (task.state === 'wait_gate' || task.state === 'wait_gate_return') {
+            s.group.rotation.y = Math.atan2(
+              (gate?.wx ?? 0) - s.group.position.x,
+              (gate?.wz ?? 0) - s.group.position.z
+            );
+            animateSoldierWalk(s.group, s.phase, false);
+            continue;
+          }
+
           const dx = destX - s.group.position.x;
           const dz = destZ - s.group.position.z;
           const dist = Math.hypot(dx, dz);
 
-          if (task.state !== 'working' && dist > 0.12) {
+          if (dist > 0.14) {
             allArrived = false;
             const step = Math.min(dist, moveSpeed);
             s.group.position.x += (dx / dist) * step;
@@ -1284,18 +1394,20 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
               basePctY
             );
             s.group.rotation.y = Math.atan2(dx, dz);
-            s.phase += step / 0.55;
-            animateSoldierWalk(s.group, s.phase, true);
-          } else if (task.state === 'working') {
-            s.group.rotation.y = Math.atan2(task.targetX - s.group.position.x, task.targetZ - s.group.position.z);
-            s.phase += dt * 7;
+            s.phase += step / 0.32;
             animateSoldierWalk(s.group, s.phase, true);
           } else {
             animateSoldierWalk(s.group, s.phase, false);
           }
         }
 
-        if (task.state === 'going' && allArrived) {
+        if (task.state === 'to_gate' && allArrived) {
+          task.state = gate && gate.openAmount < 0.88 ? 'wait_gate' : 'to_target';
+        } else if (task.state === 'wait_gate') {
+          if (!gate || gate.openAmount >= 0.88) {
+            task.state = 'to_target';
+          }
+        } else if (task.state === 'to_target' && allArrived) {
           task.state = 'working';
           task.workElapsed = 0;
         } else if (task.state === 'working') {
@@ -1308,9 +1420,15 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
                 ? 'Đã khai hoang xong ô rừng (+35 vàng, +25 lương)!'
                 : 'Đã chặt xong cây (+8 vàng, +5 lương)!'
             );
-            task.state = 'returning';
+            task.state = gate ? 'to_gate_return' : 'to_base';
           }
-        } else if (task.state === 'returning' && allArrived) {
+        } else if (task.state === 'to_gate_return' && allArrived) {
+          task.state = gate && gate.openAmount < 0.88 ? 'wait_gate_return' : 'to_base';
+        } else if (task.state === 'wait_gate_return') {
+          if (!gate || gate.openAmount >= 0.88) {
+            task.state = 'to_base';
+          }
+        } else if (task.state === 'to_base' && allArrived) {
           for (const s of task.soldiers) {
             workGroup.remove(s.group);
           }

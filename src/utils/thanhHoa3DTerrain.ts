@@ -570,13 +570,27 @@ export function createThanhHoa3DWorld(
       baseHex = 0x3e6c30,
       crownCenterY = 1.4,
     ) => {
-      const g = new THREE.IcosahedronGeometry(radius, 1);
+      const g = new THREE.IcosahedronGeometry(radius, 2);
       if (ry !== 0) g.rotateY(ry);
       g.scale(sx, sy, sz);
-      g.translate(x, y, z);
 
-      // Sunlit top vs shaded underside vertex coloring (0 extra draw calls)
+      // Organic leafy tuft displacement on every vertex for crisp foliage detail
       const pos = g.attributes.position as THREE.BufferAttribute;
+      for (let i = 0; i < pos.count; i++) {
+        const lx = pos.getX(i);
+        const ly = pos.getY(i);
+        const lz = pos.getZ(i);
+        const bump =
+          1 +
+          0.15 * Math.sin(lx * 11.5 + ly * 9.3) * Math.cos(lz * 12.7) +
+          0.09 * Math.cos(lx * 21.1 - lz * 18.4 + ly * 15.2);
+        pos.setXYZ(i, lx * bump, ly * bump, lz * bump);
+      }
+
+      g.translate(x, y, z);
+      g.computeVertexNormals();
+
+      // Sunlit leaf tips vs deep shaded interior vertex coloring (0 extra draw calls)
       const colors = new Float32Array(pos.count * 3);
       const baseColor = new THREE.Color(baseHex);
       for (let i = 0; i < pos.count; i++) {
@@ -584,9 +598,10 @@ export function createThanhHoa3DWorld(
         const vx = pos.getX(i);
         const vz = pos.getZ(i);
         const radial = Math.hypot(vx, vz);
+        const leafVar = Math.sin(vx * 16 + vy * 14 + vz * 18) * 0.08;
         const shade = Math.max(
-          0.62,
-          Math.min(1.22, 0.84 + (vy - crownCenterY) * 0.24 + radial * 0.14),
+          0.56,
+          Math.min(1.26, 0.82 + (vy - crownCenterY) * 0.28 + radial * 0.16 + leafVar),
         );
         colors[i * 3] = Math.min(1, baseColor.r * shade);
         colors[i * 3 + 1] = Math.min(1, baseColor.g * shade);
