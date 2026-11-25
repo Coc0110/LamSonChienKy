@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import districtPolygonsJson from '../data/districtPolygons.json';
 import {
   GRID_CELL_H_PCT,
@@ -155,7 +156,7 @@ function createSmoothTerrainTexture(
     return fallback;
   }
 
-  const waterField = new Float32Array(cols * rows);
+  const rawWaterField = new Float32Array(cols * rows);
   const landR = new Float32Array(cols * rows);
   const landG = new Float32Array(cols * rows);
   const landB = new Float32Array(cols * rows);
@@ -168,12 +169,33 @@ function createSmoothTerrainTexture(
       const inside = insideMask[idx] === 1;
       const t = getGridTerrain(c, r);
       const isWater = !inside || t === 'water';
-      waterField[idx] = isWater ? 1 : 0;
+      rawWaterField[idx] = isWater ? 1 : 0;
       const rgb = isWater ? TERRAIN_COLORS.plains : TERRAIN_COLORS[t];
       const jitter = (hash2D(c, r) - 0.5) * 10;
       landR[idx] = rgb[0] + jitter;
       landG[idx] = rgb[1] + jitter;
       landB[idx] = rgb[2] + jitter;
+    }
+  }
+
+  // Smooth water field with a 3x3 weighted kernel so river bends curve organically without stair-step edges
+  const waterField = new Float32Array(cols * rows);
+  for (let iy = 0; iy < rows; iy++) {
+    for (let ix = 0; ix < cols; ix++) {
+      let acc = 0;
+      let wSum = 0;
+      for (let dy = -1; dy <= 1; dy++) {
+        const ny = iy + dy;
+        if (ny < 0 || ny >= rows) continue;
+        for (let dx = -1; dx <= 1; dx++) {
+          const nx = ix + dx;
+          if (nx < 0 || nx >= cols) continue;
+          const weight = dx === 0 && dy === 0 ? 4 : dx === 0 || dy === 0 ? 2 : 1;
+          acc += rawWaterField[ny * cols + nx] * weight;
+          wSum += weight;
+        }
+      }
+      waterField[iy * cols + ix] = acc / wSum;
     }
   }
 
@@ -356,7 +378,7 @@ export function createThanhHoa3DWorld(
     }
   }
 
-  // 1. Sea plane surrounding Thanh Hóa
+  // 1. Sea plane surrounding Thanh Hóa (kept below deepest riverbeds so it never pokes through rivers)
   const seaGeo = new THREE.PlaneGeometry(1100, 1100);
   seaGeo.rotateX(-Math.PI / 2);
   const seaMat = new THREE.MeshStandardMaterial({
@@ -365,7 +387,7 @@ export function createThanhHoa3DWorld(
     metalness: 0.14,
   });
   const seaMesh = new THREE.Mesh(seaGeo, seaMat);
-  seaMesh.position.set(centerX, -0.35, centerZ);
+  seaMesh.position.set(centerX, -0.95, centerZ);
   seaMesh.receiveShadow = true;
   group.add(seaMesh);
   disposables.push(seaGeo, seaMat);
@@ -447,39 +469,133 @@ export function createThanhHoa3DWorld(
   group.add(borderLines);
   disposables.push(borderGeo, borderMat);
 
-  // 4. InstancedMesh for forest trees (1 draw call for trunks + 1 for crowns)
+  // 4. 4 distinct Oak tree variants placed with random scale & rotation via InstancedMesh
   if (forestCells.length > 0) {
-    const trunkGeo = new THREE.CylinderGeometry(0.11, 0.16, 0.72, 5);
-    const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5c3c22, roughness: 0.9 });
-    const crownGeo = new THREE.ConeGeometry(0.62, 1.45, 6);
-    const crownMat = new THREE.MeshStandardMaterial({ color: 0x3b6334, roughness: 0.85 });
+    const makeLimb = (rTop: number, rBot: number, h: number, x: number, y: number, z: number, rx = 0, rz = 0) => {
+      const g = new THREE.CylinderGeometry(rTop, rBot, h, 5).toNonIndexed();
+      if (rx !== 0) g.rotateX(rx);
+      if (rz !== 0) g.rotateZ(rz);
+      g.translate(x, y, z);
+      return g;
+    };
+    const makeLobe = (radius: number, x: number, y: number, z: number, sx = 1, sy = 0.82, sz = 1) => {
+      const g = new THREE.IcosahedronGeometry(radius, 1);
+      g.scale(sx, sy, sz);
+      g.translate(x, y, z);
+      return g;
+    };
 
-    const trunkInst = new THREE.InstancedMesh(trunkGeo, trunkMat, forestCells.length);
-    const crownInst = new THREE.InstancedMesh(crownGeo, crownMat, forestCells.length);
-    trunkInst.castShadow = true;
-    crownInst.castShadow = true;
+    const oakVariants = [
+      // 0: Cây sồi cổ thụ tán rộng (Broad Spreading Oak)
+      {
+        trunkGeo: mergeGeometries([
+          makeLimb(0.14, 0.24, 0.95, 0, 0.46, 0),
+          makeLimb(0.08, 0.12, 0.65, -0.24, 0.96, 0.08, 0.2, 0.58),
+          makeLimb(0.08, 0.12, 0.62, 0.24, 0.95, -0.08, -0.22, -0.54),
+        ]),
+        crownGeo: mergeGeometries([
+          makeLobe(0.68, 0, 1.48, 0, 1.15, 0.78, 1.1),
+          makeLobe(0.52, -0.46, 1.26, 0.18, 1.05, 0.78, 1.0),
+          makeLobe(0.5, 0.44, 1.28, -0.18, 1.0, 0.8, 1.05),
+          makeLobe(0.45, 0.08, 1.24, 0.42, 1.0, 0.76, 1.0),
+          makeLobe(0.44, -0.12, 1.25, -0.4, 1.0, 0.76, 1.0),
+        ]),
+        crownColor: 0x3f6d31,
+      },
+      // 1: Cây sồi tán cao (Tall Upright Oak)
+      {
+        trunkGeo: mergeGeometries([
+          makeLimb(0.12, 0.2, 1.25, 0, 0.6, 0),
+          makeLimb(0.07, 0.1, 0.55, 0.18, 1.18, 0.12, 0.3, -0.45),
+        ]),
+        crownGeo: mergeGeometries([
+          makeLobe(0.58, 0, 1.85, 0, 1.0, 0.92, 1.0),
+          makeLobe(0.48, 0.34, 1.48, 0.22, 1.05, 0.82, 1.0),
+          makeLobe(0.46, -0.32, 1.52, -0.2, 1.0, 0.84, 1.05),
+          makeLobe(0.42, 0.05, 2.22, -0.05, 0.95, 0.85, 0.95),
+        ]),
+        crownColor: 0x497938,
+      },
+      // 2: Cây sồi hai chạc (Twin-Crown Oak)
+      {
+        trunkGeo: mergeGeometries([
+          makeLimb(0.14, 0.22, 0.72, 0, 0.34, 0),
+          makeLimb(0.09, 0.13, 0.82, -0.22, 0.88, 0.05, 0.12, 0.45),
+          makeLimb(0.08, 0.12, 0.75, 0.25, 0.85, -0.1, -0.18, -0.52),
+        ]),
+        crownGeo: mergeGeometries([
+          makeLobe(0.56, -0.34, 1.42, 0.08, 1.08, 0.84, 1.05),
+          makeLobe(0.5, 0.38, 1.32, -0.16, 1.05, 0.8, 1.02),
+          makeLobe(0.46, 0.02, 1.58, 0.22, 1.0, 0.82, 1.0),
+        ]),
+        crownColor: 0x36602c,
+      },
+      // 3: Cây sồi rậm thấp (Bushy Young Oak)
+      {
+        trunkGeo: mergeGeometries([
+          makeLimb(0.11, 0.18, 0.62, 0, 0.3, 0),
+        ]),
+        crownGeo: mergeGeometries([
+          makeLobe(0.56, 0, 0.98, 0, 1.12, 0.82, 1.12),
+          makeLobe(0.42, -0.34, 0.86, -0.2, 1.05, 0.78, 1.0),
+          makeLobe(0.42, 0.32, 0.88, 0.22, 1.0, 0.78, 1.05),
+        ]),
+        crownColor: 0x52823f,
+      },
+    ];
+
+    const trunkMat = new THREE.MeshStandardMaterial({
+      color: 0x5b3d24,
+      roughness: 0.92,
+      flatShading: true,
+    });
+    disposables.push(trunkMat);
+
+    const bucketed: Array<typeof forestCells> = [[], [], [], []];
+    for (const cell of forestCells) {
+      const vIdx = Math.floor(hash2D(cell.c + 71, cell.r + 97) * oakVariants.length) % oakVariants.length;
+      bucketed[vIdx].push(cell);
+    }
 
     const dummy = new THREE.Object3D();
-    forestCells.forEach((cell, i) => {
-      const ox = (hash2D(cell.c + 3, cell.r + 7) - 0.5) * 1.8;
-      const oz = (hash2D(cell.c + 19, cell.r + 23) - 0.5) * 1.8;
-      const s = 0.75 + hash2D(cell.c + 41, cell.r + 43) * 0.55;
+    oakVariants.forEach((variant, vIdx) => {
+      const cells = bucketed[vIdx];
+      if (cells.length === 0) {
+        variant.trunkGeo.dispose();
+        variant.crownGeo.dispose();
+        return;
+      }
 
-      dummy.position.set(cell.wx + ox, cell.elev + 0.36 * s, cell.wz + oz);
-      dummy.scale.set(s, s, s);
-      dummy.rotation.y = hash2D(cell.c, cell.r) * Math.PI * 2;
-      dummy.updateMatrix();
-      trunkInst.setMatrixAt(i, dummy.matrix);
+      const crownMat = new THREE.MeshStandardMaterial({
+        color: variant.crownColor,
+        roughness: 0.86,
+        flatShading: true,
+      });
+      const trunkInst = new THREE.InstancedMesh(variant.trunkGeo, trunkMat, cells.length);
+      const crownInst = new THREE.InstancedMesh(variant.crownGeo, crownMat, cells.length);
+      trunkInst.castShadow = true;
+      crownInst.castShadow = true;
+      crownInst.receiveShadow = true;
 
-      dummy.position.set(cell.wx + ox, cell.elev + 1.15 * s, cell.wz + oz);
-      dummy.updateMatrix();
-      crownInst.setMatrixAt(i, dummy.matrix);
+      cells.forEach((cell, i) => {
+        const ox = (hash2D(cell.c + 3, cell.r + 7) - 0.5) * 1.9;
+        const oz = (hash2D(cell.c + 19, cell.r + 23) - 0.5) * 1.9;
+        const s = 0.6 + hash2D(cell.c + 41, cell.r + 43) * 0.85;
+        const sy = s * (0.9 + hash2D(cell.c + 61, cell.r + 67) * 0.22);
+
+        dummy.position.set(cell.wx + ox, cell.elev - 0.04, cell.wz + oz);
+        dummy.scale.set(s, sy, s);
+        dummy.rotation.y = hash2D(cell.c, cell.r) * Math.PI * 2;
+        dummy.updateMatrix();
+        trunkInst.setMatrixAt(i, dummy.matrix);
+        crownInst.setMatrixAt(i, dummy.matrix);
+      });
+
+      trunkInst.instanceMatrix.needsUpdate = true;
+      crownInst.instanceMatrix.needsUpdate = true;
+      group.add(trunkInst, crownInst);
+      disposables.push(variant.trunkGeo, variant.crownGeo, crownMat);
     });
-
-    trunkInst.instanceMatrix.needsUpdate = true;
-    crownInst.instanceMatrix.needsUpdate = true;
-    group.add(trunkInst, crownInst);
-    disposables.push(trunkGeo, trunkMat, crownGeo, crownMat);
   }
 
   // 5. InstancedMesh for mountain & cliff peaks (1 draw call)
