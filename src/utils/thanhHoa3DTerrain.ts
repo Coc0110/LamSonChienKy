@@ -521,7 +521,7 @@ export function createThanhHoa3DWorld(
   const terrainMesh = new THREE.Mesh(terrainGeo, terrainMat);
   terrainMesh.position.set(centerX, 0, centerZ);
   terrainMesh.receiveShadow = true;
-  terrainMesh.castShadow = true;
+  terrainMesh.castShadow = false;
   group.add(terrainMesh);
   disposables.push(terrainGeo, terrainMat);
 
@@ -631,7 +631,7 @@ export function createThanhHoa3DWorld(
       side: THREE.DoubleSide,
     });
     fogTintMaterials.push(fogMat);
-    for (const fy of [1.4, 4.0, 7.0, 10.2]) {
+    for (const fy of [2.0, 7.2]) {
       const fogMesh = new THREE.Mesh(fogGeo, fogMat);
       fogMesh.position.set(centerX, fy, centerZ);
       fogGroup.add(fogMesh);

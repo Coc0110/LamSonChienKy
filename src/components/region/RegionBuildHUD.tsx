@@ -54,10 +54,23 @@ interface RegionBuildHUDProps {
   onDispatchMarch: (formationId: string) => void;
   onOpenArmyModal: () => void;
   foragedInventory: ForagedInventoryItem[];
+  resourcesSummary: { food: number; swords: number; spears: number; bows: number };
   canAuctionThisMonth: boolean;
-  onForageWatchtower: (watchtowerId: string, level: number) => void;
+  onForageWatchtower: (
+    watchtowerId: string,
+    level: number,
+    mode: 'gather' | 'hunt' | 'treasure'
+  ) => void;
   onSellForagedItem: (uid: string) => void;
-  onAuctionForagedItem: (uid: string) => void;
+  onSellBaseResource: (kind: 'food' | 'swords' | 'spears' | 'bows', amount: number) => void;
+  onRunMarketAuction: (payload: {
+    kind: 'item' | 'food' | 'swords' | 'spears' | 'bows';
+    uid?: string;
+    amount?: number;
+    startPrice: number;
+    bidStep: number;
+    targetPrice: number;
+  }) => void;
   onSelectBuildType: (type: BaseBuildingType | null) => void;
   onCloseBuildPalette: () => void;
   onUpgradeBuilding: (buildingId: string) => void;
@@ -112,10 +125,12 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
   onDispatchMarch,
   onOpenArmyModal,
   foragedInventory,
+  resourcesSummary,
   canAuctionThisMonth,
   onForageWatchtower,
   onSellForagedItem,
-  onAuctionForagedItem,
+  onSellBaseResource,
+  onRunMarketAuction,
   onSelectBuildType,
   onCloseBuildPalette,
   onUpgradeBuilding,
@@ -128,6 +143,13 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
   const isScout = mode === 'scout_view';
   const [activeTab, setActiveTab] = useState<BuildTabKey>('facility');
   const [mainHallTab, setMainHallTab] = useState<'info' | 'commands' | 'military'>('info');
+  const [watchtowerTab, setWatchtowerTab] = useState<'scout' | 'hunt'>('scout');
+  const [forageMode, setForageMode] = useState<'gather' | 'hunt' | 'treasure'>('gather');
+  const [marketTab, setMarketTab] = useState<'trade' | 'auction'>('trade');
+  const [auctionSelection, setAuctionSelection] = useState<string>('food_100');
+  const [auctionStartPrice, setAuctionStartPrice] = useState<number>(20);
+  const [auctionBidStep, setAuctionBidStep] = useState<number>(5);
+  const [auctionTargetPrice, setAuctionTargetPrice] = useState<number>(40);
   const mainHall = layout.buildings.find((b) => b.type === 'main_hall' && b.status !== 'destroyed');
   const mainLevel = mainHall?.level ?? 1;
   const buildSpan = getBuildableHalfRadius(mainLevel) * 2;
@@ -622,19 +644,18 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
 
               return (
                 <>
-                  {/* Header */}
-                  <div className="flex items-start justify-between border-b border-[#8c6b44]/35 pb-3">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-lg font-black text-[#261304]">{spec.name}</h3>
-                        <span className="rounded-full bg-[#8c6b44]/15 border border-[#8c6b44]/30 px-2.5 py-0.5 text-xs font-bold text-[#6e380e]">
-                          Cấp {lv}/{spec.maxLevel}
+                  {/* Header (chỉ giữ tên & cấp độ, bỏ mô tả và độ bền) */}
+                  <div className="flex items-center justify-between border-b border-[#8c6b44]/35 pb-2.5">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-lg font-black text-[#261304]">{spec.name}</h3>
+                      <span className="rounded-full bg-[#8c6b44]/15 border border-[#8c6b44]/30 px-2.5 py-0.5 text-xs font-bold text-[#6e380e]">
+                        Cấp {lv}/{spec.maxLevel}
+                      </span>
+                      {isBusy && (
+                        <span className="text-xs font-semibold text-[#8c2d19]">
+                          (Còn {selectedBuilding.buildDaysRemaining} ngày)
                         </span>
-                        <span className="text-xs text-[#6b4423]">({cityName})</span>
-                      </div>
-                      <p className="text-xs font-semibold text-[#8c2d19] mt-1">
-                        {spec.effectLabel(lv)}
-                      </p>
+                      )}
                     </div>
                     <button
                       onClick={onClearSelection}
@@ -644,26 +665,9 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
                     </button>
                   </div>
 
-                  <p className="mt-3 text-sm text-[#3a220f] leading-relaxed">{spec.description}</p>
-
-                  <div className="mt-3 flex items-center justify-between rounded-lg border border-[#8c6b44]/30 bg-black/[0.04] px-3 py-2 text-xs">
-                    <span className="flex items-center gap-1.5 text-[#3a220f]">
-                      <Shield className="h-4 w-4 text-emerald-700" />
-                      Độ bền:{' '}
-                      <strong>
-                        {selectedBuilding.hp}/{selectedBuilding.maxHp}
-                      </strong>
-                    </span>
-                    {isBusy && (
-                      <span className="font-semibold text-[#8c2d19]">
-                        Đang thi công: còn {selectedBuilding.buildDaysRemaining} ngày
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Các nút thao tác công trình */}
+                  {/* Các chức năng công trình hiển thị trực tiếp bên dưới */}
                   {!isScout && (
-                    <div className="mt-4 flex flex-col gap-2 border-t border-[#8c6b44]/30 pt-3">
+                    <div className="mt-3 flex flex-col gap-2.5">
                       {selectedBuilding.type === 'barracks' && (
                         <button
                           onClick={() => onOpenBuildingAction('training')}
@@ -692,48 +696,39 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
                         </button>
                       )}
                       {selectedBuilding.type === 'watchtower' && (
-                        <div className="space-y-2.5">
-                          {/* Săn bắt hái lượm (thu vật phẩm hiếm đem bán/đấu giá tại Chợ) */}
-                          <div className="rounded-lg border border-[#8c6b44]/35 bg-white/45 p-3">
-                            <div className="flex items-center justify-between mb-1.5">
-                              <span className="flex items-center gap-1.5 text-xs font-black text-emerald-900">
-                                <Trees className="h-4 w-4" />
-                                Săn Bắt & Hái Lượm
-                              </span>
-                              <span className="text-[10px] font-bold text-[#5c3e23]">
-                                Tỉ lệ đồ hiếm: {Math.min(65, 16 + selectedBuilding.level * 10)}%
-                              </span>
-                            </div>
-                            <p className="text-[11px] text-[#5c3e23] mb-2">
-                              Cử người vào rừng thu thập lương thực và vật phẩm hiếm để bán hoặc đấu giá tại Chợ Phiên (1 lần/ngày).
-                            </p>
+                        <div className="rounded-lg border border-[#8c6b44]/35 bg-white/45 p-3">
+                          <div className="flex gap-1.5 border-b border-[#8c6b44]/25 pb-2 mb-2.5">
                             <button
-                              onClick={() =>
-                                onForageWatchtower(selectedBuilding.id, selectedBuilding.level)
-                              }
-                              className="w-full rounded-lg bg-emerald-700 py-1.5 text-xs font-bold text-white hover:bg-emerald-800 cursor-pointer shadow"
+                              onClick={() => setWatchtowerTab('scout')}
+                              className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-black cursor-pointer ${
+                                watchtowerTab === 'scout'
+                                  ? 'bg-[#8c2d19] text-[#fff3db] shadow'
+                                  : 'bg-white/60 text-[#5c3e23] hover:bg-amber-100'
+                              }`}
                             >
-                              Cử người đi săn bắt hái lượm
+                              <Eye className="h-3.5 w-3.5" />
+                              Do Thám
+                            </button>
+                            <button
+                              onClick={() => setWatchtowerTab('hunt')}
+                              className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-black cursor-pointer ${
+                                watchtowerTab === 'hunt'
+                                  ? 'bg-emerald-700 text-white shadow'
+                                  : 'bg-white/60 text-[#5c3e23] hover:bg-amber-100'
+                              }`}
+                            >
+                              <Trees className="h-3.5 w-3.5" />
+                              Đi Săn & Hái Lượm
                             </button>
                           </div>
 
-                          {/* Do thám huyện thành */}
-                          <div className="rounded-lg border border-[#8c6b44]/35 bg-white/45 p-3">
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="flex items-center gap-1.5 text-xs font-black text-[#8c2d19]">
-                                <Eye className="h-4 w-4" />
-                                Do Thám Huyện Thành
-                              </span>
-                              <span className="text-[10px] font-bold text-[#5c3e23]">
-                                {selectedBuilding.level >= 4 ? 'Mở toàn bộ (gồm Tây Đô)' : 'Tây Đô cần Lv.4'}
-                              </span>
-                            </div>
-                            {scoutableDistricts.length === 0 ? (
+                          {watchtowerTab === 'scout' ? (
+                            scoutableDistricts.length === 0 ? (
                               <p className="text-xs text-emerald-800 font-semibold text-center py-2">
                                 Tất cả huyện thành đã được do thám!
                               </p>
                             ) : (
-                              <div className="max-h-36 overflow-y-auto space-y-1.5 pr-1">
+                              <div className="max-h-44 overflow-y-auto space-y-1.5 pr-1">
                                 {scoutableDistricts.map((d) => {
                                   const lockedTayDo = d.isTayDo && selectedBuilding.level < 4;
                                   return (
@@ -758,87 +753,282 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
                                   );
                                 })}
                               </div>
-                            )}
-                          </div>
+                            )
+                          ) : (
+                            <div className="space-y-2">
+                              <div className="grid grid-cols-1 gap-1.5">
+                                {(
+                                  [
+                                    {
+                                      key: 'gather',
+                                      title: 'Hái Lượm Thảo Dược',
+                                      desc: `+${8 + lv * 2} lương · Thảo dược, Mật ong (${Math.min(65, 14 + lv * 10)}% đồ hiếm)`,
+                                    },
+                                    {
+                                      key: 'hunt',
+                                      title: 'Săn Bắn Rừng Sâu',
+                                      desc: `+${12 + lv * 3} lương · Da thú, Nhung hươu (${Math.min(70, Math.round((14 + lv * 10) * 1.15))}% đồ hiếm)`,
+                                    },
+                                    {
+                                      key: 'treasure',
+                                      title: 'Thám Bảo Cổ Tích (-10 lương)',
+                                      desc: `Tỉ lệ đồ hiếm cực cao (${Math.min(85, Math.round((14 + lv * 10) * 1.9))}% Ngọc bích, Kỳ nam)`,
+                                    },
+                                  ] as const
+                                ).map((m) => (
+                                  <button
+                                    key={m.key}
+                                    onClick={() => setForageMode(m.key)}
+                                    className={`rounded-lg border p-2 text-left cursor-pointer transition-all ${
+                                      forageMode === m.key
+                                        ? 'border-emerald-700 bg-emerald-50/90 shadow-sm'
+                                        : 'border-[#8c6b44]/25 bg-white/60 hover:bg-amber-50'
+                                    }`}
+                                  >
+                                    <div className="text-xs font-black text-[#261304]">{m.title}</div>
+                                    <div className="text-[10px] text-[#5c3e23]">{m.desc}</div>
+                                  </button>
+                                ))}
+                              </div>
+                              <button
+                                onClick={() =>
+                                  onForageWatchtower(selectedBuilding.id, selectedBuilding.level, forageMode)
+                                }
+                                className="w-full rounded-lg bg-emerald-700 py-2 text-xs font-bold text-white hover:bg-emerald-800 cursor-pointer shadow"
+                              >
+                                Xuất phát đi săn (1 lần/ngày)
+                              </button>
+                            </div>
+                          )}
                         </div>
                       )}
 
                       {selectedBuilding.type === 'market' && (
                         <div className="rounded-lg border border-[#8c6b44]/35 bg-white/45 p-3">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="flex items-center gap-1.5 text-xs font-black text-[#8c2d19]">
-                              <Store className="h-4 w-4" />
-                              Kho Vật Phẩm & Đấu Giá ({foragedInventory.length} món)
-                            </span>
-                            <span
-                              className={`rounded px-2 py-0.5 text-[10px] font-bold ${
-                                canAuctionThisMonth
-                                  ? 'bg-amber-200 text-amber-950'
-                                  : 'bg-stone-200 text-stone-600'
+                          <div className="flex gap-1.5 border-b border-[#8c6b44]/25 pb-2 mb-2.5">
+                            <button
+                              onClick={() => setMarketTab('trade')}
+                              className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-black cursor-pointer ${
+                                marketTab === 'trade'
+                                  ? 'bg-[#8c5828] text-[#fff3db] shadow'
+                                  : 'bg-white/60 text-[#5c3e23] hover:bg-amber-100'
                               }`}
                             >
-                              {canAuctionThisMonth ? 'Đấu giá tháng: Còn 1 lượt' : 'Đấu giá tháng: Đã dùng'}
-                            </span>
+                              <Store className="h-3.5 w-3.5" />
+                              Buôn Bán
+                            </button>
+                            <button
+                              onClick={() => setMarketTab('auction')}
+                              className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-black cursor-pointer ${
+                                marketTab === 'auction'
+                                  ? 'bg-[#8c2d19] text-[#fff3db] shadow'
+                                  : 'bg-white/60 text-[#5c3e23] hover:bg-amber-100'
+                              }`}
+                            >
+                              <Gavel className="h-3.5 w-3.5" />
+                              Đấu Giá ({canAuctionThisMonth ? '1/1' : '0/1'})
+                            </button>
                           </div>
-                          {foragedInventory.length === 0 ? (
-                            <p className="text-xs text-[#5c3e23] text-center py-3">
-                              Chưa có vật phẩm nào. Hãy bấm vào Chòi Canh để cử người đi săn bắt hái lượm!
-                            </p>
-                          ) : (
-                            <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1">
-                              {foragedInventory.map((item) => {
-                                const bonus = 1 + (selectedBuilding.level - 1) * 0.15;
-                                const sellPrice = Math.round(item.basePrice * bonus);
-                                return (
-                                  <div
-                                    key={item.uid}
-                                    className={`flex items-center justify-between rounded border px-2.5 py-1.5 text-xs ${
-                                      item.rare
-                                        ? 'border-amber-600/45 bg-amber-50/85'
-                                        : 'border-[#8c6b44]/25 bg-white/65'
-                                    }`}
-                                  >
-                                    <div className="min-w-0 pr-2">
-                                      <div className="flex items-center gap-1.5">
-                                        <span className="font-bold text-[#261304] truncate">
-                                          {item.name}
-                                        </span>
-                                        {item.rare && (
-                                          <span className="rounded bg-amber-600 px-1.5 py-0.5 text-[9px] font-black text-white">
-                                            HIẾM
-                                          </span>
-                                        )}
+
+                          {marketTab === 'trade' ? (
+                            <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1">
+                              {/* Bán Lương thực & Vũ khí */}
+                              <div className="grid grid-cols-2 gap-1.5 text-xs">
+                                {(
+                                  [
+                                    { kind: 'food', amount: 100, label: '100 Lương thực', base: 20, avail: resourcesSummary.food },
+                                    { kind: 'swords', amount: 10, label: '10 Kiếm', base: 30, avail: resourcesSummary.swords },
+                                    { kind: 'spears', amount: 10, label: '10 Giáo', base: 32, avail: resourcesSummary.spears },
+                                    { kind: 'bows', amount: 10, label: '10 Cung', base: 35, avail: resourcesSummary.bows },
+                                  ] as const
+                                ).map((r) => {
+                                  const price = Math.round(r.base * (1 + (lv - 1) * 0.15));
+                                  return (
+                                    <div
+                                      key={r.kind}
+                                      className="flex items-center justify-between rounded border border-[#8c6b44]/25 bg-white/65 px-2 py-1.5"
+                                    >
+                                      <div>
+                                        <div className="font-bold text-[#261304] text-[11px]">{r.label}</div>
+                                        <div className="text-[10px] text-[#5c3e23]">Kho: {r.avail} · +{price}V</div>
                                       </div>
-                                      <span className="text-[10px] text-[#5c3e23]">
-                                        Giá bán: {sellPrice}V · Đấu giá: ~{Math.round(sellPrice * 2.2)}V
-                                      </span>
-                                    </div>
-                                    <div className="flex gap-1 shrink-0">
                                       <button
-                                        onClick={() => onSellForagedItem(item.uid)}
-                                        className="flex items-center gap-1 rounded bg-[#8c5828] px-2 py-1 text-[11px] font-bold text-[#fff3db] hover:bg-[#6e421a] cursor-pointer"
+                                        disabled={r.avail < r.amount}
+                                        onClick={() => onSellBaseResource(r.kind, r.amount)}
+                                        className="rounded bg-[#8c5828] px-2 py-1 text-[10px] font-bold text-[#fff3db] hover:bg-[#6e421a] disabled:opacity-40 cursor-pointer"
                                       >
-                                        <Coins className="h-3 w-3" />
                                         Bán
                                       </button>
-                                      <button
-                                        disabled={!canAuctionThisMonth}
-                                        onClick={() => onAuctionForagedItem(item.uid)}
-                                        className="flex items-center gap-1 rounded bg-[#8c2d19] px-2 py-1 text-[11px] font-bold text-[#fff3db] hover:bg-[#6e1e0d] disabled:opacity-40 cursor-pointer"
-                                        title={
-                                          canAuctionThisMonth
-                                            ? 'Đấu giá thu lợi nhuận cao (1 lần/tháng)'
-                                            : 'Tháng này đã đấu giá rồi'
-                                        }
+                                    </div>
+                                  );
+                                })}
+                              </div>
+
+                              {/* Bán vật phẩm săn bắt */}
+                              <div className="border-t border-[#8c6b44]/20 pt-2 space-y-1.5">
+                                <div className="text-[11px] font-black text-[#5c3e23]">
+                                  Vật phẩm săn bắt ({foragedInventory.length})
+                                </div>
+                                {foragedInventory.length === 0 ? (
+                                  <p className="text-[11px] text-[#5c3e23] text-center py-2">
+                                    Chưa có vật phẩm săn bắt. Hãy cử người từ Chòi Canh!
+                                  </p>
+                                ) : (
+                                  foragedInventory.map((item) => {
+                                    const sellPrice = Math.round(item.basePrice * (1 + (lv - 1) * 0.15));
+                                    return (
+                                      <div
+                                        key={item.uid}
+                                        className={`flex items-center justify-between rounded border px-2.5 py-1.5 text-xs ${
+                                          item.rare
+                                            ? 'border-amber-600/45 bg-amber-50/85'
+                                            : 'border-[#8c6b44]/25 bg-white/65'
+                                        }`}
                                       >
-                                        <Gavel className="h-3 w-3" />
-                                        Đấu giá
-                                      </button>
+                                        <div className="flex items-center gap-1.5 min-w-0">
+                                          <span className="font-bold text-[#261304] truncate">{item.name}</span>
+                                          {item.rare && (
+                                            <span className="rounded bg-amber-600 px-1 py-0.5 text-[9px] font-black text-white">
+                                              HIẾM
+                                            </span>
+                                          )}
+                                        </div>
+                                        <button
+                                          onClick={() => onSellForagedItem(item.uid)}
+                                          className="flex items-center gap-1 rounded bg-[#8c5828] px-2.5 py-1 text-[11px] font-bold text-[#fff3db] hover:bg-[#6e421a] cursor-pointer shrink-0"
+                                        >
+                                          <Coins className="h-3 w-3" />
+                                          +{sellPrice}V
+                                        </button>
+                                      </div>
+                                    );
+                                  })
+                                )}
+                              </div>
+                            </div>
+                          ) : (
+                            (() => {
+                              const bonus = 1 + (lv - 1) * 0.15;
+                              const auctionOptions: Array<{
+                                id: string;
+                                label: string;
+                                kind: 'item' | 'food' | 'swords' | 'spears' | 'bows';
+                                uid?: string;
+                                amount?: number;
+                                fairValue: number;
+                                isRare: boolean;
+                              }> = [
+                                { id: 'food_100', label: `100 Lương thực (Kho: ${resourcesSummary.food})`, kind: 'food', amount: 100, fairValue: Math.round(20 * bonus), isRare: false },
+                                { id: 'swords_10', label: `10 Kiếm (Kho: ${resourcesSummary.swords})`, kind: 'swords', amount: 10, fairValue: Math.round(30 * bonus), isRare: false },
+                                { id: 'spears_10', label: `10 Giáo (Kho: ${resourcesSummary.spears})`, kind: 'spears', amount: 10, fairValue: Math.round(32 * bonus), isRare: false },
+                                { id: 'bows_10', label: `10 Cung (Kho: ${resourcesSummary.bows})`, kind: 'bows', amount: 10, fairValue: Math.round(35 * bonus), isRare: false },
+                                ...foragedInventory.map((it) => ({
+                                  id: `item_${it.uid}`,
+                                  label: `${it.name}${it.rare ? ' [HIẾM]' : ''}`,
+                                  kind: 'item' as const,
+                                  uid: it.uid,
+                                  fairValue: Math.round(it.basePrice * bonus),
+                                  isRare: it.rare,
+                                })),
+                              ];
+                              const activeOpt =
+                                auctionOptions.find((o) => o.id === auctionSelection) ?? auctionOptions[0];
+                              const filterMax = Math.round(
+                                activeOpt.fairValue * (activeOpt.isRare ? 2.6 : 1.55)
+                              );
+
+                              return (
+                                <div className="space-y-2.5 text-xs">
+                                  <div>
+                                    <label className="block text-[11px] font-bold text-[#5c3e23] mb-1">
+                                      Chọn vật phẩm đưa lên sàn đấu giá (1 lần/tháng)
+                                    </label>
+                                    <select
+                                      value={activeOpt.id}
+                                      onChange={(e) => {
+                                        const nextId = e.target.value;
+                                        setAuctionSelection(nextId);
+                                        const nextOpt = auctionOptions.find((o) => o.id === nextId);
+                                        if (nextOpt) {
+                                          setAuctionStartPrice(Math.max(5, Math.round(nextOpt.fairValue * 0.9)));
+                                          setAuctionTargetPrice(
+                                            Math.round(nextOpt.fairValue * (nextOpt.isRare ? 2.4 : 1.5))
+                                          );
+                                        }
+                                      }}
+                                      className="w-full rounded border border-[#8c6b44]/40 bg-white/80 px-2 py-1.5 text-xs font-bold text-[#261304]"
+                                    >
+                                      {auctionOptions.map((o) => (
+                                        <option key={o.id} value={o.id}>
+                                          {o.label}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+
+                                  <div className="grid grid-cols-3 gap-2">
+                                    <div>
+                                      <label className="block text-[10px] font-bold text-[#5c3e23] mb-0.5">
+                                        Giá sàn (Vàng)
+                                      </label>
+                                      <input
+                                        type="number"
+                                        min={1}
+                                        value={auctionStartPrice}
+                                        onChange={(e) => setAuctionStartPrice(Math.max(1, Number(e.target.value) || 1))}
+                                        className="w-full rounded border border-[#8c6b44]/40 bg-white/85 px-2 py-1 text-xs font-bold"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-[10px] font-bold text-[#5c3e23] mb-0.5">
+                                        Bước nhảy (V)
+                                      </label>
+                                      <input
+                                        type="number"
+                                        min={1}
+                                        value={auctionBidStep}
+                                        onChange={(e) => setAuctionBidStep(Math.max(1, Number(e.target.value) || 1))}
+                                        className="w-full rounded border border-[#8c6b44]/40 bg-white/85 px-2 py-1 text-xs font-bold"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-[10px] font-bold text-[#5c3e23] mb-0.5">
+                                        Giá thắng phiên
+                                      </label>
+                                      <input
+                                        type="number"
+                                        min={1}
+                                        value={auctionTargetPrice}
+                                        onChange={(e) => setAuctionTargetPrice(Math.max(1, Number(e.target.value) || 1))}
+                                        className="w-full rounded border border-[#8c6b44]/40 bg-white/85 px-2 py-1 text-xs font-bold"
+                                      />
                                     </div>
                                   </div>
-                                );
-                              })}
-                            </div>
+
+                                  <div className="rounded border border-amber-700/30 bg-amber-50/80 px-2.5 py-1.5 text-[11px] text-[#5c3e23]">
+                                    <strong>Bộ lọc định giá:</strong> Giá trị thực ~{activeOpt.fairValue}V · Trần thương nhân trả tối đa ~<strong>{filterMax}V</strong> (tránh thổi giá vật phẩm bình dân).
+                                  </div>
+
+                                  <button
+                                    disabled={!canAuctionThisMonth}
+                                    onClick={() =>
+                                      onRunMarketAuction({
+                                        kind: activeOpt.kind,
+                                        uid: activeOpt.uid,
+                                        amount: activeOpt.amount,
+                                        startPrice: auctionStartPrice,
+                                        bidStep: auctionBidStep,
+                                        targetPrice: auctionTargetPrice,
+                                      })
+                                    }
+                                    className="w-full flex items-center justify-center gap-1.5 rounded-lg bg-[#8c2d19] py-2 text-xs font-bold text-[#fff3db] hover:bg-[#6e1e0d] disabled:opacity-40 cursor-pointer shadow"
+                                  >
+                                    <Gavel className="h-3.5 w-3.5" />
+                                    {canAuctionThisMonth ? 'Mở Phiên Đấu Giá' : 'Tháng này đã đấu giá rồi'}
+                                  </button>
+                                </div>
+                              );
+                            })()
                           )}
                         </div>
                       )}

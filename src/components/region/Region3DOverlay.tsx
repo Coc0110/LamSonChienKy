@@ -34,7 +34,8 @@ export const Region3DOverlay: React.FC = () => {
   const month = useGameStore((s) => s.month);
   const forageFromWatchtower = useGameStore((s) => s.forageFromWatchtower);
   const sellForagedItem = useGameStore((s) => s.sellForagedItem);
-  const auctionForagedItem = useGameStore((s) => s.auctionForagedItem);
+  const sellBaseResourceAtMarket = useGameStore((s) => s.sellBaseResourceAtMarket);
+  const runMarketAuction = useGameStore((s) => s.runMarketAuction);
   const getOrCreateRegionLayout = useGameStore((s) => s.getOrCreateRegionLayout);
   const placeBaseBuilding = useGameStore((s) => s.placeBaseBuilding);
   const upgradeBaseBuilding = useGameStore((s) => s.upgradeBaseBuilding);
@@ -261,9 +262,15 @@ export const Region3DOverlay: React.FC = () => {
           setActiveModal('army');
         }}
         foragedInventory={foragedInventory ?? []}
+        resourcesSummary={{
+          food: resources.food,
+          swords: resources.swords,
+          spears: resources.spears,
+          bows: resources.bows,
+        }}
         canAuctionThisMonth={lastAuctionMonthKey !== `${year}-${month}`}
-        onForageWatchtower={(watchtowerId, level) => {
-          const res = forageFromWatchtower(watchtowerId, level);
+        onForageWatchtower={(watchtowerId, level, forageMode) => {
+          const res = forageFromWatchtower(watchtowerId, level, forageMode);
           if (res.success) notify.success(res.message);
           else notify.warning(res.message);
         }}
@@ -272,8 +279,13 @@ export const Region3DOverlay: React.FC = () => {
           if (res.success) notify.success(res.message);
           else notify.warning(res.message);
         }}
-        onAuctionForagedItem={(uid) => {
-          const res = auctionForagedItem(uid, activeRegion3D.cityId);
+        onSellBaseResource={(kind, amount) => {
+          const res = sellBaseResourceAtMarket(activeRegion3D.cityId, kind, amount);
+          if (res.success) notify.success(res.message);
+          else notify.warning(res.message);
+        }}
+        onRunMarketAuction={(payload) => {
+          const res = runMarketAuction(activeRegion3D.cityId, payload);
           if (res.success) notify.success(res.message);
           else notify.warning(res.message);
         }}
