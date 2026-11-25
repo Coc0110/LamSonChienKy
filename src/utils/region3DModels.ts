@@ -2986,52 +2986,98 @@ export function createBuildingGroup(
     group.add(doorRight);
   }
 
-  // Khung giàn giáo tre bọc quanh công trình khi đang xây dựng hoặc nâng cấp
+  // Khung giàn giáo tre dày đặc dùng model tre có đốt (createBambooCulmLathe) che phủ công trình bên trong
   if (isConstructing) {
     const spec = BASE_BUILDING_CATALOG[type];
     const bounds = new THREE.Box3().setFromObject(group);
-    const scW = Math.max(spec.spanCols * 0.96, bounds.max.x - bounds.min.x + 0.24);
-    const scD = Math.max(spec.spanRows * 0.96, bounds.max.z - bounds.min.z + 0.24);
-    const scH = Math.max(1.35, bounds.max.y + 0.22);
+    const scW = Math.max(spec.spanCols * 0.96, bounds.max.x - bounds.min.x + 0.28);
+    const scD = Math.max(spec.spanRows * 0.96, bounds.max.z - bounds.min.z + 0.28);
+    const scH = Math.max(1.45, bounds.max.y + 0.3);
     const hx = scW / 2;
     const hz = scD / 2;
 
     const bambooParts: THREE.BufferGeometry[] = [];
-    const plankParts: THREE.BufferGeometry[] = [];
+    const screenParts: THREE.BufferGeometry[] = [];
 
-    const xCols = spec.spanCols >= 3 ? [-hx, 0, hx] : [-hx, hx];
-    const zRows = spec.spanRows >= 3 ? [-hz, 0, hz] : [-hz, hz];
-    for (const px of xCols) {
-      for (const pz of zRows) {
-        if (Math.abs(px) < hx - 0.01 && Math.abs(pz) < hz - 0.01) continue;
-        bambooParts.push(cyl(0.032, 0.04, scH, 5, px, scH / 2, pz));
-      }
+    const vNodes = Math.max(3, Math.round(scH * 2));
+    const stepX = Math.max(0.24, scW / Math.max(4, Math.round(scW / 0.26)));
+    const stepZ = Math.max(0.24, scD / Math.max(4, Math.round(scD / 0.26)));
+
+    // Cọc tre đứng dày đặc bao quanh 4 mặt
+    for (let px = -hx; px <= hx + 0.01; px += stepX) {
+      const x = Math.min(hx, px);
+      const h1 = scH * (0.94 + ((Math.round(x * 10) & 1) ? 0.06 : 0));
+      const h2 = scH * (0.94 + ((Math.round(x * 13) & 1) ? 0.06 : 0));
+      bambooParts.push(createBambooCulmLathe(0.036, h1, vNodes).translate(x, 0, hz));
+      bambooParts.push(createBambooCulmLathe(0.036, h2, vNodes).translate(x, 0, -hz));
+    }
+    for (let pz = -hz + stepZ; pz < hz - 0.01; pz += stepZ) {
+      const z = Math.min(hz, pz);
+      const h1 = scH * (0.94 + ((Math.round(z * 11) & 1) ? 0.06 : 0));
+      const h2 = scH * (0.94 + ((Math.round(z * 15) & 1) ? 0.06 : 0));
+      bambooParts.push(createBambooCulmLathe(0.036, h1, vNodes).translate(hx, 0, z));
+      bambooParts.push(createBambooCulmLathe(0.036, h2, vNodes).translate(-hx, 0, z));
     }
 
-    const tiers = scH > 2.2 ? [0.65, 1.4, scH - 0.12] : [0.6, scH - 0.12];
+    // Các thanh tre ngang nhiều tầng + thanh giằng chéo
+    const tiers = scH > 2.2 ? [0.42, 0.95, 1.5, scH - 0.14] : [0.42, 0.95, scH - 0.14];
+    const hNodesX = Math.max(3, Math.round(scW * 1.5));
+    const hNodesZ = Math.max(3, Math.round(scD * 1.5));
     for (const ty of tiers) {
-      bambooParts.push(cyl(0.026, 0.026, scW + 0.14, 5, 0, ty, hz).rotateZ(Math.PI / 2));
-      bambooParts.push(cyl(0.026, 0.026, scW + 0.14, 5, 0, ty, -hz).rotateZ(Math.PI / 2));
-      bambooParts.push(cyl(0.026, 0.026, scD + 0.14, 5, hx, ty, 0).rotateX(Math.PI / 2));
-      bambooParts.push(cyl(0.026, 0.026, scD + 0.14, 5, -hx, ty, 0).rotateX(Math.PI / 2));
+      bambooParts.push(
+        createBambooCulmLathe(0.028, scW + 0.16, hNodesX)
+          .rotateZ(Math.PI / 2)
+          .translate((scW + 0.16) / 2, ty, hz + 0.02)
+      );
+      bambooParts.push(
+        createBambooCulmLathe(0.028, scW + 0.16, hNodesX)
+          .rotateZ(Math.PI / 2)
+          .translate((scW + 0.16) / 2, ty, -hz - 0.02)
+      );
+      bambooParts.push(
+        createBambooCulmLathe(0.028, scD + 0.16, hNodesZ)
+          .rotateX(Math.PI / 2)
+          .translate(hx + 0.02, ty, -(scD + 0.16) / 2)
+      );
+      bambooParts.push(
+        createBambooCulmLathe(0.028, scD + 0.16, hNodesZ)
+          .rotateX(Math.PI / 2)
+          .translate(-hx - 0.02, ty, -(scD + 0.16) / 2)
+      );
     }
 
-    // Thanh giằng chéo & ván sàn tre
-    const diagLenX = Math.hypot(scW, scH * 0.65);
-    const diagAngX = Math.atan2(scW, scH * 0.65);
-    bambooParts.push(cyl(0.022, 0.022, diagLenX, 5, 0, 0, 0).rotateZ(diagAngX).translate(0, scH * 0.45, hz));
-    bambooParts.push(cyl(0.022, 0.022, diagLenX, 5, 0, 0, 0).rotateZ(-diagAngX).translate(0, scH * 0.45, -hz));
+    const diagLenX = Math.hypot(scW, scH * 0.72);
+    const diagAngX = Math.atan2(scW, scH * 0.72);
+    bambooParts.push(
+      createBambooCulmLathe(0.025, diagLenX, 4)
+        .translate(0, -diagLenX / 2, 0)
+        .rotateZ(diagAngX)
+        .translate(0, scH * 0.48, hz + 0.03)
+    );
+    bambooParts.push(
+      createBambooCulmLathe(0.025, diagLenX, 4)
+        .translate(0, -diagLenX / 2, 0)
+        .rotateZ(-diagAngX)
+        .translate(0, scH * 0.48, -hz - 0.03)
+    );
 
-    plankParts.push(box(scW * 0.85, 0.04, 0.24, 0, tiers[0] + 0.02, hz - 0.12));
-    plankParts.push(box(0.24, 0.04, scD * 0.85, hx - 0.12, tiers[0] + 0.02, 0));
+    // Tấm phên nứa / cót che kín công trình bên trong giàn giáo
+    const screenH = scH * 0.84;
+    screenParts.push(box(scW * 0.96, screenH, 0.03, 0, screenH / 2 + 0.06, hz - 0.03));
+    screenParts.push(box(scW * 0.96, screenH, 0.03, 0, screenH / 2 + 0.06, -hz + 0.03));
+    screenParts.push(box(0.03, screenH, scD * 0.96, hx - 0.03, screenH / 2 + 0.06, 0));
+    screenParts.push(box(0.03, screenH, scD * 0.96, -hx + 0.03, screenH / 2 + 0.06, 0));
+    screenParts.push(box(scW * 0.92, 0.04, scD * 0.92, 0, scH - 0.14, 0));
 
     const bambooMat = getSharedMaterial('bamboo', false, 1);
-    const plankMat = getSharedMaterial('bambooDry', false, 1);
+    const screenMat = getSharedMaterial('bambooDry', false, 1);
     const scaffoldMesh = new THREE.Mesh(safeMerge(bambooParts), bambooMat);
     scaffoldMesh.castShadow = true;
-    const plankMesh = new THREE.Mesh(safeMerge(plankParts), plankMat);
-    plankMesh.castShadow = true;
-    group.add(scaffoldMesh, plankMesh);
+    scaffoldMesh.receiveShadow = true;
+    const screenMesh = new THREE.Mesh(safeMerge(screenParts), screenMat);
+    screenMesh.castShadow = true;
+    screenMesh.receiveShadow = true;
+    group.add(scaffoldMesh, screenMesh);
   }
 
   return group;

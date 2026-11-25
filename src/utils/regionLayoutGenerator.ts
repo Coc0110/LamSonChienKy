@@ -40,14 +40,35 @@ export function canPlaceOnRegionGrid(
     const mainHall = buildings.find((b) => b.type === 'main_hall' && b.status !== 'destroyed');
     if (mainHall) {
       const halfR = getBuildableHalfRadius(mainHall.level);
-      const centerCol = mainHall.col + mainHall.spanCols / 2;
-      const centerRow = mainHall.row + mainHall.spanRows / 2;
-      const minC = Math.floor(centerCol - halfR);
-      const maxC = Math.ceil(centerCol + halfR);
-      const minR = Math.floor(centerRow - halfR);
-      const maxR = Math.ceil(centerRow + halfR);
-      if (col < minC || row < minR || col + spanCols > maxC || row + spanRows > maxR) {
-        return false;
+      if (ignoreId === mainHall.id) {
+        // Khi di dời Nhà Chính: mọi công trình đã xây khác phải vẫn nằm trong phạm vi mới
+        const newCenterCol = col + spanCols / 2;
+        const newCenterRow = row + spanRows / 2;
+        const newMinC = Math.floor(newCenterCol - halfR);
+        const newMaxC = Math.ceil(newCenterCol + halfR);
+        const newMinR = Math.floor(newCenterRow - halfR);
+        const newMaxR = Math.ceil(newCenterRow + halfR);
+        for (const b of buildings) {
+          if (b.id === mainHall.id || b.status === 'destroyed') continue;
+          if (
+            b.col < newMinC ||
+            b.row < newMinR ||
+            b.col + b.spanCols > newMaxC ||
+            b.row + b.spanRows > newMaxR
+          ) {
+            return false;
+          }
+        }
+      } else {
+        const centerCol = mainHall.col + mainHall.spanCols / 2;
+        const centerRow = mainHall.row + mainHall.spanRows / 2;
+        const minC = Math.floor(centerCol - halfR);
+        const maxC = Math.ceil(centerCol + halfR);
+        const minR = Math.floor(centerRow - halfR);
+        const maxR = Math.ceil(centerRow + halfR);
+        if (col < minC || row < minR || col + spanCols > maxC || row + spanRows > maxR) {
+          return false;
+        }
       }
     }
     const ok = isThanhHoaBuildable(

@@ -299,7 +299,13 @@ export const createRegionSlice: StateCreator<GameStore, [], [], RegionSlice> = (
       basePctY: baseCity?.y ?? 47.6,
     };
     if (!canPlaceOnRegionGrid(layout.buildings, newCol, newRow, target.spanCols, target.spanRows, buildingId, moveOpts)) {
-      return { success: false, message: 'Vị trí mới bị vướng công trình khác hoặc nằm trên mặt nước / ngoài Thanh Hóa!' };
+      return {
+        success: false,
+        message:
+          target.type === 'main_hall'
+            ? 'Không thể di dời Nhà Chính ra quá xa khiến công trình đã xây nằm ngoài phạm vi!'
+            : 'Vị trí mới bị vướng công trình khác, nằm trên mặt nước hoặc vượt phạm vi Nhà Chính!',
+      };
     }
 
     set((s) => ({
