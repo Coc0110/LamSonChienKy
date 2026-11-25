@@ -24,7 +24,11 @@ import {
 } from 'lucide-react';
 import type { TacticalFormation } from '../../types';
 import type { BaseBuilding, BaseBuildingType, RegionLayout } from '../../types/region';
-import type { BaseAutomationConfig, ForagedInventoryItem } from '../../store/slices/regionSlice';
+import type {
+  BaseAutomationConfig,
+  ForagedInventoryItem,
+  WatchtowerScoutTask,
+} from '../../store/slices/regionSlice';
 import {
   BASE_BUILDING_CATALOG,
   checkMainHallUpgradeRequirements,
@@ -46,8 +50,14 @@ interface RegionBuildHUDProps {
   enemyTroops?: number;
   baseAutomation: BaseAutomationConfig;
   onUpdateAutomation: (patch: Partial<BaseAutomationConfig>) => void;
-  scoutableDistricts: Array<{ id: string; name: string; isTayDo: boolean }>;
-  onScoutDistrict: (targetId: string) => void;
+  scoutableDistricts: Array<{ id: string; name: string; scoutDays: number }>;
+  activeWatchtowerScouts: Record<string, WatchtowerScoutTask>;
+  onScoutDistrict: (
+    watchtowerId: string,
+    targetId: string,
+    targetName: string,
+    scoutDays: number
+  ) => void;
   formations: TacticalFormation[];
   defenseFormationIds: string[];
   onToggleDefenseFormation: (formationId: string) => void;
@@ -118,6 +128,7 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
   baseAutomation,
   onUpdateAutomation,
   scoutableDistricts,
+  activeWatchtowerScouts,
   onScoutDistrict,
   formations,
   defenseFormationIds,
@@ -723,35 +734,43 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
                           </div>
 
                           {watchtowerTab === 'scout' ? (
-                            scoutableDistricts.length === 0 ? (
+                            activeWatchtowerScouts[selectedBuilding.id] ? (
+                              <div className="rounded-lg border border-amber-700/30 bg-amber-50/80 p-3 text-center">
+                                <p className="text-xs font-black text-[#8c2d19]">
+                                  Đang do thám {activeWatchtowerScouts[selectedBuilding.id].targetName}
+                                </p>
+                                <p className="mt-1 text-[11px] font-semibold text-[#5c3e23]">
+                                  Còn {activeWatchtowerScouts[selectedBuilding.id].daysRemaining}/
+                                  {activeWatchtowerScouts[selectedBuilding.id].totalDays} ngày
+                                </p>
+                              </div>
+                            ) : scoutableDistricts.length === 0 ? (
                               <p className="text-xs text-emerald-800 font-semibold text-center py-2">
-                                Tất cả huyện thành đã được do thám!
+                                Không còn khu vực hợp lệ để do thám ở cấp hiện tại.
                               </p>
                             ) : (
                               <div className="max-h-44 overflow-y-auto space-y-1.5 pr-1">
-                                {scoutableDistricts.map((d) => {
-                                  const lockedTayDo = d.isTayDo && selectedBuilding.level < 4;
-                                  return (
-                                    <div
-                                      key={d.id}
-                                      className="flex items-center justify-between rounded border border-[#8c6b44]/25 bg-white/65 px-2.5 py-1.5 text-xs"
-                                    >
+                                {scoutableDistricts.map((d) => (
+                                  <div
+                                    key={d.id}
+                                    className="flex items-center justify-between rounded border border-[#8c6b44]/25 bg-white/65 px-2.5 py-1.5 text-xs"
+                                  >
+                                    <div className="flex items-center gap-1.5">
                                       <span className="font-bold text-[#261304]">{d.name}</span>
-                                      {lockedTayDo ? (
-                                        <span className="flex items-center gap-1 text-[10px] font-bold text-stone-500">
-                                          <Lock className="h-3 w-3" /> Cần Lv.4
-                                        </span>
-                                      ) : (
-                                        <button
-                                          onClick={() => onScoutDistrict(d.id)}
-                                          className="rounded bg-[#8c2d19] px-2.5 py-1 text-[11px] font-bold text-[#fff3db] hover:bg-[#6e1e0d] cursor-pointer"
-                                        >
-                                          Do thám
-                                        </button>
-                                      )}
+                                      <span className="text-[10px] font-semibold text-[#6e4927]">
+                                        ({d.scoutDays} ngày)
+                                      </span>
                                     </div>
-                                  );
-                                })}
+                                    <button
+                                      onClick={() =>
+                                        onScoutDistrict(selectedBuilding.id, d.id, d.name, d.scoutDays)
+                                      }
+                                      className="rounded bg-[#8c2d19] px-2.5 py-1 text-[11px] font-bold text-[#fff3db] hover:bg-[#6e1e0d] cursor-pointer"
+                                    >
+                                      Do thám
+                                    </button>
+                                  </div>
+                                ))}
                               </div>
                             )
                           ) : (

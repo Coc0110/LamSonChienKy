@@ -8,6 +8,7 @@ import {
   GRID_ROWS,
   coordToCell,
   getGridTerrain,
+  loadCustomTerrainGrid,
 } from '../data/terrainGrid';
 import type { TerrainType } from '../types/terrain';
 import { getMeadowBumpTexture } from './region3DModels';
@@ -311,6 +312,7 @@ export function createThanhHoa3DWorld(
   initialHiddenKeys?: Set<string>,
   exploredIds?: Set<string>,
 ): ThanhHoaWorldResult {
+  loadCustomTerrainGrid();
   const group = new THREE.Group();
   const disposables: Array<{ dispose: () => void }> = [];
 

@@ -6,6 +6,7 @@ import { BASE_BUILDING_CATALOG } from '../../data/regionBuildings';
 import districtPolygonsJson from '../../data/districtPolygons.json';
 import type { BaseBuilding, BaseBuildingType } from '../../types/region';
 import { canPlaceOnRegionGrid } from '../../utils/regionLayoutGenerator';
+import { getEligibleScoutDistricts, type DistrictPolygonEntry } from '../../utils/districtScoutUtils';
 import { Region3DCanvas } from './Region3DCanvas';
 import { RegionBuildHUD } from './RegionBuildHUD';
 
@@ -23,7 +24,8 @@ export const Region3DOverlay: React.FC = () => {
   const baseAutomationMap = useGameStore((s) => s.baseAutomation);
   const setBaseAutomation = useGameStore((s) => s.setBaseAutomation);
   const scoutedRegionIds = useGameStore((s) => s.scoutedRegionIds);
-  const markRegionScouted = useGameStore((s) => s.markRegionScouted);
+  const activeWatchtowerScouts = useGameStore((s) => s.activeWatchtowerScouts);
+  const startWatchtowerScout = useGameStore((s) => s.startWatchtowerScout);
   const formations = useGameStore((s) => s.formations);
   const defenseFormationIdsMap = useGameStore((s) => s.defenseFormationIds);
   const toggleDefenseFormation = useGameStore((s) => s.toggleDefenseFormation);
@@ -214,39 +216,37 @@ export const Region3DOverlay: React.FC = () => {
           }
         }
         onUpdateAutomation={(patch) => setBaseAutomation(activeRegion3D.cityId, patch)}
-        scoutableDistricts={(
-          districtPolygonsJson as unknown as {
-            districts: Array<{ id: string; name: string; faction: string; center: [number, number] }>;
-          }
-        ).districts
-          .filter((d) => {
-            const ownedByPlayer = cities.some(
-              (c) => c.id === d.id && (c.faction === 'lam_son' || c.hasBase)
-            );
-            return !ownedByPlayer && d.faction !== 'lam_son' && !scoutedRegionIds?.[d.id];
-          })
-          .sort((a, b) => {
-            const bx = city?.x ?? 50.8;
-            const by = city?.y ?? 47.6;
-            return (
-              Math.hypot(a.center[0] - bx, a.center[1] - by) -
-              Math.hypot(b.center[0] - bx, b.center[1] - by)
-            );
-          })
-          .map((d) => ({
-            id: d.id,
-            name: d.name,
-            isTayDo: d.id === 'tay_do' || d.name.toLowerCase().includes('tây đô'),
-          }))}
-        onScoutDistrict={(targetId) => {
-          markRegionScouted(targetId);
+        scoutableDistricts={(() => {
           const allDistricts = (
             districtPolygonsJson as unknown as {
-              districts: Array<{ id: string; name: string }>;
+              districts: Array<DistrictPolygonEntry & { faction: string; center: [number, number] }>;
             }
           ).districts;
-          const targetName = allDistricts.find((d) => d.id === targetId)?.name || targetId;
-          notify.success(`Đã do thám huyện ${targetName}! Sương mù đã được gỡ bỏ trên cả bản đồ 2D và 3D.`);
+          const wtLevel =
+            selectedBuilding?.type === 'watchtower' ? selectedBuilding.level : 1;
+          const scoutedIds = Object.keys(scoutedRegionIds ?? {});
+          const activeTargetIds = new Set(
+            Object.values(activeWatchtowerScouts ?? {}).map((t) => t.targetId)
+          );
+          const eligible = getEligibleScoutDistricts(allDistricts, scoutedIds, wtLevel).filter(
+            (d) =>
+              !activeTargetIds.has(d.id) &&
+              !cities.some((c) => c.id === d.id && (c.faction === 'lam_son' || c.hasBase))
+          );
+          const centerById = new Map(allDistricts.map((d) => [d.id, d.center]));
+          const bx = city?.x ?? 50.8;
+          const by = city?.y ?? 47.6;
+          return eligible.sort((a, b) => {
+            const ca = centerById.get(a.id) ?? [bx, by];
+            const cb = centerById.get(b.id) ?? [bx, by];
+            return Math.hypot(ca[0] - bx, ca[1] - by) - Math.hypot(cb[0] - bx, cb[1] - by);
+          });
+        })()}
+        activeWatchtowerScouts={activeWatchtowerScouts ?? {}}
+        onScoutDistrict={(watchtowerId, targetId, targetName, scoutDays) => {
+          const res = startWatchtowerScout(watchtowerId, targetId, targetName, scoutDays);
+          if (res.success) notify.success(res.message);
+          else notify.warning(res.message);
         }}
         formations={formations.filter((f) => f.faction === 'lam_son')}
         defenseFormationIds={defenseFormationIdsMap?.[activeRegion3D.cityId] ?? []}

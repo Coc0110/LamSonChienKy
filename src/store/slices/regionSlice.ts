@@ -42,6 +42,13 @@ export interface ForagedInventoryItem {
   basePrice: number;
 }
 
+export interface WatchtowerScoutTask {
+  targetId: string;
+  targetName: string;
+  totalDays: number;
+  daysRemaining: number;
+}
+
 export interface RegionSlice {
   regionLayouts: Record<string, RegionLayout>;
   clearedTerrainKeys: Record<string, string[]>; // cityId -> array of "col,row" cleared keys
@@ -49,6 +56,7 @@ export interface RegionSlice {
   bushes: Record<string, SpawnedBush[]>;
   bushNextSpawnDay: Record<string, number>;
   scoutedRegionIds: Record<string, number>; // cityId -> day last scouted
+  activeWatchtowerScouts: Record<string, WatchtowerScoutTask>; // watchtowerId -> active scout task
   defenseFormationIds: Record<string, string[]>; // cityId -> formationIds assigned to defense
   foragedInventory: ForagedInventoryItem[];
   watchtowerLastForageDay: Record<string, number>;
@@ -82,6 +90,12 @@ export interface RegionSlice {
   ) => { success: boolean; message: string };
   tickRegionConstruction: () => void;
   markRegionScouted: (cityId: string) => void;
+  startWatchtowerScout: (
+    watchtowerId: string,
+    targetId: string,
+    targetName: string,
+    days: number
+  ) => { success: boolean; message: string };
   setRegionLayout: (cityId: string, layout: RegionLayout) => void;
   completeTerrainClearing: (cityId: string, key: string, kind: 'chop_tree' | 'clear_forest') => void;
   setBaseAutomation: (cityId: string, patch: Partial<BaseAutomationConfig>) => void;
@@ -141,6 +155,7 @@ export const createRegionSlice: StateCreator<GameStore, [], [], RegionSlice> = (
   bushes: {},
   bushNextSpawnDay: {},
   scoutedRegionIds: {},
+  activeWatchtowerScouts: {},
   defenseFormationIds: {},
   foragedInventory: [],
   watchtowerLastForageDay: {},
@@ -682,6 +697,38 @@ export const createRegionSlice: StateCreator<GameStore, [], [], RegionSlice> = (
     });
   },
 
+  startWatchtowerScout: (watchtowerId, targetId, targetName, days) => {
+    const state = get();
+    if (state.activeWatchtowerScouts?.[watchtowerId]) {
+      return {
+        success: false,
+        message: 'Chòi canh này đang cử người đi do thám khu vực khác!',
+      };
+    }
+    if (state.scoutedRegionIds?.[targetId]) {
+      return {
+        success: false,
+        message: `${targetName} đã được do thám trước đó!`,
+      };
+    }
+    const safeDays = Math.max(1, Math.round(days));
+    set((s) => ({
+      activeWatchtowerScouts: {
+        ...s.activeWatchtowerScouts,
+        [watchtowerId]: {
+          targetId,
+          targetName,
+          totalDays: safeDays,
+          daysRemaining: safeDays,
+        },
+      },
+    }));
+    return {
+      success: true,
+      message: `Đã cử trinh sát do thám ${targetName} (dự kiến ${safeDays} ngày).`,
+    };
+  },
+
   forageFromWatchtower: (watchtowerId, watchtowerLevel, mode = 'gather') => {
     const state = get();
     const absDay = (state.year - 1418) * 365 + (state.month - 1) * 30 + state.day;
@@ -1012,6 +1059,27 @@ export const createRegionSlice: StateCreator<GameStore, [], [], RegionSlice> = (
             },
           }));
         }
+      }
+    }
+
+    // 5. Cập nhật tiến độ do thám của các Chòi Canh
+    const activeScouts = get().activeWatchtowerScouts ?? {};
+    const scoutEntries = Object.entries(activeScouts);
+    if (scoutEntries.length > 0) {
+      const nextScouts: Record<string, WatchtowerScoutTask> = {};
+      const completed: WatchtowerScoutTask[] = [];
+      for (const [wtId, task] of scoutEntries) {
+        const rem = task.daysRemaining - 1;
+        if (rem <= 0) {
+          completed.push(task);
+        } else {
+          nextScouts[wtId] = { ...task, daysRemaining: rem };
+        }
+      }
+      set({ activeWatchtowerScouts: nextScouts });
+      for (const done of completed) {
+        get().markRegionScouted(done.targetId);
+        notify.success(`Trinh sát đã hoàn tất do thám ${done.targetName}! Sương mù đã được vén mở.`);
       }
     }
   },
