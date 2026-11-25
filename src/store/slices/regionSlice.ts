@@ -113,11 +113,21 @@ export interface RegionSlice {
     kind: 'food' | 'swords' | 'spears' | 'bows',
     amount: number
   ) => { success: boolean; message: string };
+  sellMarketGoods: (
+    cityId: string,
+    payload: {
+      kind: 'item' | 'food' | 'swords' | 'spears' | 'bows';
+      itemId?: string;
+      amount: number;
+      askPrice: number;
+    }
+  ) => { success: boolean; message: string };
   runMarketAuction: (
     cityId: string,
     payload: {
       kind: 'item' | 'food' | 'swords' | 'spears' | 'bows';
       uid?: string;
+      itemId?: string;
       amount?: number;
       startPrice: number;
       bidStep: number;
@@ -854,6 +864,88 @@ export const createRegionSlice: StateCreator<GameStore, [], [], RegionSlice> = (
     };
   },
 
+  sellMarketGoods: (cityId, payload) => {
+    const state = get();
+    const amount = Math.max(1, Math.round(payload.amount));
+    const askPrice = Math.max(1, Math.round(payload.askPrice));
+    const layout = state.getOrCreateRegionLayout(cityId);
+    const market = layout.buildings.find((b) => b.type === 'market' && b.status === 'active');
+    const marketLvl = market?.level ?? 1;
+    const bonus = 1 + (marketLvl - 1) * 0.15;
+
+    let itemName = '';
+    let fairTotal = 0;
+    let isRare = false;
+
+    if (payload.kind === 'item') {
+      const matching = (state.foragedInventory ?? []).filter((it) => it.itemId === payload.itemId);
+      if (matching.length < amount) {
+        return { success: false, message: 'Không đủ số lượng vật phẩm trong kho!' };
+      }
+      const sample = matching[0];
+      itemName = `${amount} ${sample.name}`;
+      fairTotal = Math.max(1, Math.round(sample.basePrice * amount * bonus));
+      isRare = sample.rare;
+    } else {
+      const avail = state.resources[payload.kind] ?? 0;
+      if (avail < amount) {
+        return { success: false, message: 'Không đủ số lượng trong kho để bán!' };
+      }
+      const unitBase =
+        payload.kind === 'food' ? 0.2 : payload.kind === 'swords' ? 3 : payload.kind === 'spears' ? 3.2 : 3.5;
+      fairTotal = Math.max(1, Math.round(amount * unitBase * bonus));
+      const label =
+        payload.kind === 'food'
+          ? 'Lương thực'
+          : payload.kind === 'swords'
+          ? 'Kiếm'
+          : payload.kind === 'spears'
+          ? 'Giáo'
+          : 'Cung';
+      itemName = `${amount} ${label}`;
+    }
+
+    const maxAcceptable = Math.max(fairTotal + 3, Math.round(fairTotal * (isRare ? 1.8 : 1.35)));
+    if (askPrice > maxAcceptable) {
+      return {
+        success: false,
+        message: `Thương nhân từ chối: Giá bán (${askPrice}V) quá cao so với giá thị trường (~${fairTotal}V, tối đa ~${maxAcceptable}V)!`,
+      };
+    }
+
+    set((s) => {
+      if (payload.kind === 'item') {
+        let removed = 0;
+        const nextInv = (s.foragedInventory ?? []).filter((it) => {
+          if (it.itemId === payload.itemId && removed < amount) {
+            removed++;
+            return false;
+          }
+          return true;
+        });
+        return {
+          foragedInventory: nextInv,
+          resources: {
+            ...s.resources,
+            gold: s.resources.gold + askPrice,
+          },
+        };
+      }
+      return {
+        resources: {
+          ...s.resources,
+          [payload.kind]: Math.max(0, s.resources[payload.kind] - amount),
+          gold: s.resources.gold + askPrice,
+        },
+      };
+    });
+
+    return {
+      success: true,
+      message: `Đã bán ${itemName} tại Chợ Phiên thu về +${askPrice} vàng!`,
+    };
+  },
+
   runMarketAuction: (cityId, payload) => {
     const state = get();
     const monthKey = `${state.year}-${state.month}`;
@@ -874,11 +966,23 @@ export const createRegionSlice: StateCreator<GameStore, [], [], RegionSlice> = (
     let isRare = false;
 
     if (payload.kind === 'item') {
-      const item = (state.foragedInventory ?? []).find((it) => it.uid === payload.uid);
-      if (!item) return { success: false, message: 'Không tìm thấy vật phẩm để đấu giá!' };
-      itemName = item.name;
-      fairValue = Math.round(item.basePrice * bonus);
-      isRare = item.rare;
+      if (payload.itemId) {
+        const amt = Math.max(1, Math.round(payload.amount ?? 1));
+        const matching = (state.foragedInventory ?? []).filter((it) => it.itemId === payload.itemId);
+        if (matching.length < amt) {
+          return { success: false, message: 'Không đủ số lượng vật phẩm để đấu giá!' };
+        }
+        const sample = matching[0];
+        itemName = amt > 1 ? `${amt} ${sample.name}` : sample.name;
+        fairValue = Math.max(1, Math.round(sample.basePrice * amt * bonus));
+        isRare = sample.rare;
+      } else {
+        const item = (state.foragedInventory ?? []).find((it) => it.uid === payload.uid);
+        if (!item) return { success: false, message: 'Không tìm thấy vật phẩm để đấu giá!' };
+        itemName = item.name;
+        fairValue = Math.round(item.basePrice * bonus);
+        isRare = item.rare;
+      }
     } else {
       const amt = payload.amount ?? 0;
       const avail = state.resources[payload.kind] ?? 0;
@@ -922,6 +1026,24 @@ export const createRegionSlice: StateCreator<GameStore, [], [], RegionSlice> = (
 
     set((s) => {
       if (payload.kind === 'item') {
+        if (payload.itemId) {
+          const amt = Math.max(1, Math.round(payload.amount ?? 1));
+          let removed = 0;
+          return {
+            lastAuctionMonthKey: monthKey,
+            foragedInventory: (s.foragedInventory ?? []).filter((it) => {
+              if (it.itemId === payload.itemId && removed < amt) {
+                removed++;
+                return false;
+              }
+              return true;
+            }),
+            resources: {
+              ...s.resources,
+              gold: s.resources.gold + finalBid,
+            },
+          };
+        }
         return {
           lastAuctionMonthKey: monthKey,
           foragedInventory: (s.foragedInventory ?? []).filter((it) => it.uid !== payload.uid),

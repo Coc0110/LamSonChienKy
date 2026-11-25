@@ -35,8 +35,7 @@ export const Region3DOverlay: React.FC = () => {
   const year = useGameStore((s) => s.year);
   const month = useGameStore((s) => s.month);
   const forageFromWatchtower = useGameStore((s) => s.forageFromWatchtower);
-  const sellForagedItem = useGameStore((s) => s.sellForagedItem);
-  const sellBaseResourceAtMarket = useGameStore((s) => s.sellBaseResourceAtMarket);
+  const sellMarketGoods = useGameStore((s) => s.sellMarketGoods);
   const runMarketAuction = useGameStore((s) => s.runMarketAuction);
   const getOrCreateRegionLayout = useGameStore((s) => s.getOrCreateRegionLayout);
   const placeBaseBuilding = useGameStore((s) => s.placeBaseBuilding);
@@ -274,13 +273,8 @@ export const Region3DOverlay: React.FC = () => {
           if (res.success) notify.success(res.message);
           else notify.warning(res.message);
         }}
-        onSellForagedItem={(uid) => {
-          const res = sellForagedItem(uid, activeRegion3D.cityId);
-          if (res.success) notify.success(res.message);
-          else notify.warning(res.message);
-        }}
-        onSellBaseResource={(kind, amount) => {
-          const res = sellBaseResourceAtMarket(activeRegion3D.cityId, kind, amount);
+        onSellMarketGoods={(payload) => {
+          const res = sellMarketGoods(activeRegion3D.cityId, payload);
           if (res.success) notify.success(res.message);
           else notify.warning(res.message);
         }}

@@ -71,11 +71,16 @@ interface RegionBuildHUDProps {
     level: number,
     mode: 'gather' | 'hunt' | 'treasure'
   ) => void;
-  onSellForagedItem: (uid: string) => void;
-  onSellBaseResource: (kind: 'food' | 'swords' | 'spears' | 'bows', amount: number) => void;
+  onSellMarketGoods: (payload: {
+    kind: 'item' | 'food' | 'swords' | 'spears' | 'bows';
+    itemId?: string;
+    amount: number;
+    askPrice: number;
+  }) => void;
   onRunMarketAuction: (payload: {
     kind: 'item' | 'food' | 'swords' | 'spears' | 'bows';
     uid?: string;
+    itemId?: string;
     amount?: number;
     startPrice: number;
     bidStep: number;
@@ -139,8 +144,7 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
   resourcesSummary,
   canAuctionThisMonth,
   onForageWatchtower,
-  onSellForagedItem,
-  onSellBaseResource,
+  onSellMarketGoods,
   onRunMarketAuction,
   onSelectBuildType,
   onCloseBuildPalette,
@@ -157,7 +161,11 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
   const [watchtowerTab, setWatchtowerTab] = useState<'scout' | 'hunt'>('scout');
   const [forageMode, setForageMode] = useState<'gather' | 'hunt' | 'treasure'>('gather');
   const [marketTab, setMarketTab] = useState<'trade' | 'auction'>('trade');
-  const [auctionSelection, setAuctionSelection] = useState<string>('food_100');
+  const [tradeSelection, setTradeSelection] = useState<string>('food');
+  const [tradeAmount, setTradeAmount] = useState<number>(100);
+  const [tradePrice, setTradePrice] = useState<number>(20);
+  const [auctionSelection, setAuctionSelection] = useState<string>('food');
+  const [auctionAmount, setAuctionAmount] = useState<number>(100);
   const [auctionStartPrice, setAuctionStartPrice] = useState<number>(20);
   const [auctionBidStep, setAuctionBidStep] = useState<number>(5);
   const [auctionTargetPrice, setAuctionTargetPrice] = useState<number>(40);
@@ -822,219 +830,371 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
                         </div>
                       )}
 
-                      {selectedBuilding.type === 'market' && (
-                        <div className="rounded-lg border border-[#8c6b44]/35 bg-white/45 p-3">
-                          <div className="flex gap-1.5 border-b border-[#8c6b44]/25 pb-2 mb-2.5">
-                            <button
-                              onClick={() => setMarketTab('trade')}
-                              className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-black cursor-pointer ${
-                                marketTab === 'trade'
-                                  ? 'bg-[#8c5828] text-[#fff3db] shadow'
-                                  : 'bg-white/60 text-[#5c3e23] hover:bg-amber-100'
-                              }`}
-                            >
-                              <Store className="h-3.5 w-3.5" />
-                              Buôn Bán
-                            </button>
-                            <button
-                              onClick={() => setMarketTab('auction')}
-                              className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-black cursor-pointer ${
-                                marketTab === 'auction'
-                                  ? 'bg-[#8c2d19] text-[#fff3db] shadow'
-                                  : 'bg-white/60 text-[#5c3e23] hover:bg-amber-100'
-                              }`}
-                            >
-                              <Gavel className="h-3.5 w-3.5" />
-                              Đấu Giá ({canAuctionThisMonth ? '1/1' : '0/1'})
-                            </button>
-                          </div>
+                      {selectedBuilding.type === 'market' && (() => {
+                        const bonus = 1 + (lv - 1) * 0.15;
+                        const groupedForaged = new Map<
+                          string,
+                          { itemId: string; name: string; rare: boolean; basePrice: number; count: number }
+                        >();
+                        for (const it of foragedInventory) {
+                          const existing = groupedForaged.get(it.itemId);
+                          if (existing) {
+                            existing.count += 1;
+                          } else {
+                            groupedForaged.set(it.itemId, {
+                              itemId: it.itemId,
+                              name: it.name,
+                              rare: it.rare,
+                              basePrice: it.basePrice,
+                              count: 1,
+                            });
+                          }
+                        }
 
-                          {marketTab === 'trade' ? (
-                            <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1">
-                              {/* Bán Lương thực & Vũ khí */}
-                              <div className="grid grid-cols-2 gap-1.5 text-xs">
-                                {(
-                                  [
-                                    { kind: 'food', amount: 100, label: '100 Lương thực', base: 20, avail: resourcesSummary.food },
-                                    { kind: 'swords', amount: 10, label: '10 Kiếm', base: 30, avail: resourcesSummary.swords },
-                                    { kind: 'spears', amount: 10, label: '10 Giáo', base: 32, avail: resourcesSummary.spears },
-                                    { kind: 'bows', amount: 10, label: '10 Cung', base: 35, avail: resourcesSummary.bows },
-                                  ] as const
-                                ).map((r) => {
-                                  const price = Math.round(r.base * (1 + (lv - 1) * 0.15));
-                                  return (
-                                    <div
-                                      key={r.kind}
-                                      className="flex items-center justify-between rounded border border-[#8c6b44]/25 bg-white/65 px-2 py-1.5"
-                                    >
-                                      <div>
-                                        <div className="font-bold text-[#261304] text-[11px]">{r.label}</div>
-                                        <div className="text-[10px] text-[#5c3e23]">Kho: {r.avail} · +{price}V</div>
-                                      </div>
-                                      <button
-                                        disabled={r.avail < r.amount}
-                                        onClick={() => onSellBaseResource(r.kind, r.amount)}
-                                        className="rounded bg-[#8c5828] px-2 py-1 text-[10px] font-bold text-[#fff3db] hover:bg-[#6e421a] disabled:opacity-40 cursor-pointer"
-                                      >
-                                        Bán
-                                      </button>
-                                    </div>
-                                  );
-                                })}
-                              </div>
+                        const marketCards: Array<{
+                          id: string;
+                          kind: 'item' | 'food' | 'swords' | 'spears' | 'bows';
+                          itemId?: string;
+                          name: string;
+                          avail: number;
+                          unitBase: number;
+                          step: number;
+                          defaultAmt: number;
+                          isRare: boolean;
+                        }> = [
+                          { id: 'food', kind: 'food', name: 'Lương thực', avail: resourcesSummary.food, unitBase: 0.2, step: 10, defaultAmt: Math.min(100, Math.max(10, resourcesSummary.food)), isRare: false },
+                          { id: 'swords', kind: 'swords', name: 'Kiếm', avail: resourcesSummary.swords, unitBase: 3, step: 1, defaultAmt: Math.min(10, Math.max(1, resourcesSummary.swords)), isRare: false },
+                          { id: 'spears', kind: 'spears', name: 'Giáo', avail: resourcesSummary.spears, unitBase: 3.2, step: 1, defaultAmt: Math.min(10, Math.max(1, resourcesSummary.spears)), isRare: false },
+                          { id: 'bows', kind: 'bows', name: 'Cung', avail: resourcesSummary.bows, unitBase: 3.5, step: 1, defaultAmt: Math.min(10, Math.max(1, resourcesSummary.bows)), isRare: false },
+                          ...Array.from(groupedForaged.values()).map((g) => ({
+                            id: `item_${g.itemId}`,
+                            kind: 'item' as const,
+                            itemId: g.itemId,
+                            name: g.name,
+                            avail: g.count,
+                            unitBase: g.basePrice,
+                            step: 1,
+                            defaultAmt: 1,
+                            isRare: g.rare,
+                          })),
+                        ];
 
-                              {/* Bán vật phẩm săn bắt */}
-                              <div className="border-t border-[#8c6b44]/20 pt-2 space-y-1.5">
-                                <div className="text-[11px] font-black text-[#5c3e23]">
-                                  Vật phẩm săn bắt ({foragedInventory.length})
-                                </div>
-                                {foragedInventory.length === 0 ? (
-                                  <p className="text-[11px] text-[#5c3e23] text-center py-2">
-                                    Chưa có vật phẩm săn bắt. Hãy cử người từ Chòi Canh!
-                                  </p>
-                                ) : (
-                                  foragedInventory.map((item) => {
-                                    const sellPrice = Math.round(item.basePrice * (1 + (lv - 1) * 0.15));
-                                    return (
-                                      <div
-                                        key={item.uid}
-                                        className={`flex items-center justify-between rounded border px-2.5 py-1.5 text-xs ${
-                                          item.rare
-                                            ? 'border-amber-600/45 bg-amber-50/85'
-                                            : 'border-[#8c6b44]/25 bg-white/65'
-                                        }`}
-                                      >
-                                        <div className="flex items-center gap-1.5 min-w-0">
-                                          <span className="font-bold text-[#261304] truncate">{item.name}</span>
-                                          {item.rare && (
-                                            <span className="rounded bg-amber-600 px-1 py-0.5 text-[9px] font-black text-white">
-                                              HIẾM
-                                            </span>
-                                          )}
-                                        </div>
-                                        <button
-                                          onClick={() => onSellForagedItem(item.uid)}
-                                          className="flex items-center gap-1 rounded bg-[#8c5828] px-2.5 py-1 text-[11px] font-bold text-[#fff3db] hover:bg-[#6e421a] cursor-pointer shrink-0"
-                                        >
-                                          <Coins className="h-3 w-3" />
-                                          +{sellPrice}V
-                                        </button>
-                                      </div>
-                                    );
-                                  })
-                                )}
-                              </div>
+                        const isTrade = marketTab === 'trade';
+                        const activeId = isTrade ? tradeSelection : auctionSelection;
+                        const activeCard = marketCards.find((c) => c.id === activeId) ?? marketCards[0];
+                        const maxAmt = Math.max(1, activeCard.avail);
+                        const rawAmt = isTrade ? tradeAmount : auctionAmount;
+                        const clampedAmt = Math.max(1, Math.min(maxAmt, rawAmt));
+                        const fairValue = Math.max(1, Math.round(clampedAmt * activeCard.unitBase * bonus));
+                        const tradeMaxAcceptable = Math.max(
+                          fairValue + 3,
+                          Math.round(fairValue * (activeCard.isRare ? 1.8 : 1.35))
+                        );
+                        const auctionFilterMax = Math.round(
+                          fairValue * (activeCard.isRare ? 2.6 : 1.55)
+                        );
+
+                        const handleSelectCard = (card: typeof activeCard) => {
+                          const nextAmt = Math.max(1, Math.min(Math.max(1, card.avail), card.defaultAmt));
+                          const nextFair = Math.max(1, Math.round(nextAmt * card.unitBase * bonus));
+                          if (isTrade) {
+                            setTradeSelection(card.id);
+                            setTradeAmount(nextAmt);
+                            setTradePrice(nextFair);
+                          } else {
+                            setAuctionSelection(card.id);
+                            setAuctionAmount(nextAmt);
+                            setAuctionStartPrice(Math.max(5, Math.round(nextFair * 0.9)));
+                            setAuctionTargetPrice(Math.round(nextFair * (card.isRare ? 2.4 : 1.5)));
+                          }
+                        };
+
+                        const handleChangeAmt = (nextRaw: number) => {
+                          const nextAmt = Math.max(1, Math.min(maxAmt, Math.round(nextRaw) || 1));
+                          const nextFair = Math.max(1, Math.round(nextAmt * activeCard.unitBase * bonus));
+                          if (isTrade) {
+                            setTradeAmount(nextAmt);
+                            setTradePrice(nextFair);
+                          } else {
+                            setAuctionAmount(nextAmt);
+                            setAuctionStartPrice(Math.max(5, Math.round(nextFair * 0.9)));
+                            setAuctionTargetPrice(Math.round(nextFair * (activeCard.isRare ? 2.4 : 1.5)));
+                          }
+                        };
+
+                        return (
+                          <div className="rounded-lg border border-[#8c6b44]/35 bg-white/45 p-3">
+                            <div className="flex gap-1.5 border-b border-[#8c6b44]/25 pb-2 mb-2.5">
+                              <button
+                                onClick={() => setMarketTab('trade')}
+                                className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-black cursor-pointer ${
+                                  isTrade
+                                    ? 'bg-[#8c5828] text-[#fff3db] shadow'
+                                    : 'bg-white/60 text-[#5c3e23] hover:bg-amber-100'
+                                }`}
+                              >
+                                <Store className="h-3.5 w-3.5" />
+                                Buôn Bán
+                              </button>
+                              <button
+                                onClick={() => setMarketTab('auction')}
+                                className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-black cursor-pointer ${
+                                  !isTrade
+                                    ? 'bg-[#8c2d19] text-[#fff3db] shadow'
+                                    : 'bg-white/60 text-[#5c3e23] hover:bg-amber-100'
+                                }`}
+                              >
+                                <Gavel className="h-3.5 w-3.5" />
+                                Đấu Giá ({canAuctionThisMonth ? '1/1' : '0/1'})
+                              </button>
                             </div>
-                          ) : (
-                            (() => {
-                              const bonus = 1 + (lv - 1) * 0.15;
-                              const auctionOptions: Array<{
-                                id: string;
-                                label: string;
-                                kind: 'item' | 'food' | 'swords' | 'spears' | 'bows';
-                                uid?: string;
-                                amount?: number;
-                                fairValue: number;
-                                isRare: boolean;
-                              }> = [
-                                { id: 'food_100', label: `100 Lương thực (Kho: ${resourcesSummary.food})`, kind: 'food', amount: 100, fairValue: Math.round(20 * bonus), isRare: false },
-                                { id: 'swords_10', label: `10 Kiếm (Kho: ${resourcesSummary.swords})`, kind: 'swords', amount: 10, fairValue: Math.round(30 * bonus), isRare: false },
-                                { id: 'spears_10', label: `10 Giáo (Kho: ${resourcesSummary.spears})`, kind: 'spears', amount: 10, fairValue: Math.round(32 * bonus), isRare: false },
-                                { id: 'bows_10', label: `10 Cung (Kho: ${resourcesSummary.bows})`, kind: 'bows', amount: 10, fairValue: Math.round(35 * bonus), isRare: false },
-                                ...foragedInventory.map((it) => ({
-                                  id: `item_${it.uid}`,
-                                  label: `${it.name}${it.rare ? ' [HIẾM]' : ''}`,
-                                  kind: 'item' as const,
-                                  uid: it.uid,
-                                  fairValue: Math.round(it.basePrice * bonus),
-                                  isRare: it.rare,
-                                })),
-                              ];
-                              const activeOpt =
-                                auctionOptions.find((o) => o.id === auctionSelection) ?? auctionOptions[0];
-                              const filterMax = Math.round(
-                                activeOpt.fairValue * (activeOpt.isRare ? 2.6 : 1.55)
-                              );
 
-                              return (
-                                <div className="space-y-2.5 text-xs">
+                            {/* Lưới thẻ vật phẩm kiểu shopping */}
+                            <div className="grid grid-cols-2 gap-1.5 max-h-36 overflow-y-auto pr-1 mb-2.5">
+                              {marketCards.map((card) => {
+                                const selected = card.id === activeCard.id;
+                                const unitHint =
+                                  card.kind === 'food'
+                                    ? `${Math.max(1, Math.round(10 * card.unitBase * bonus))}V / 10`
+                                    : `${Math.max(1, Math.round(card.unitBase * bonus))}V / cái`;
+                                return (
+                                  <button
+                                    key={card.id}
+                                    type="button"
+                                    onClick={() => handleSelectCard(card)}
+                                    className={`flex flex-col justify-between rounded-lg border p-2 text-left transition cursor-pointer ${
+                                      selected
+                                        ? 'border-[#8c2d19] bg-amber-50/95 ring-1 ring-[#8c2d19]/40 shadow-sm'
+                                        : card.isRare
+                                        ? 'border-amber-600/40 bg-amber-50/60 hover:bg-amber-50'
+                                        : 'border-[#8c6b44]/25 bg-white/70 hover:bg-white'
+                                    }`}
+                                  >
+                                    <div className="flex items-center justify-between gap-1">
+                                      <span className="text-[11px] font-black text-[#261304] truncate">
+                                        {card.name}
+                                      </span>
+                                      {card.isRare && (
+                                        <span className="rounded bg-amber-600 px-1 py-0.5 text-[8px] font-black text-white shrink-0">
+                                          HIẾM
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="mt-1 flex items-center justify-between text-[10px] text-[#5c3e23]">
+                                      <span className={card.avail === 0 ? 'text-red-700 font-bold' : ''}>
+                                        Kho: {card.avail}
+                                      </span>
+                                      <span className="font-bold text-[#8c5828]">~{unitHint}</span>
+                                    </div>
+                                  </button>
+                                );
+                              })}
+                            </div>
+
+                            {/* Khu vực chỉnh số lượng & giá */}
+                            <div className="space-y-2 rounded-lg border border-[#8c6b44]/25 bg-white/70 p-2.5 text-xs">
+                              <div className="flex items-center justify-between">
+                                <span className="font-black text-[#261304]">
+                                  {activeCard.name}
+                                </span>
+                                <span className="text-[10px] font-semibold text-[#5c3e23]">
+                                  Tối đa: {activeCard.avail}
+                                </span>
+                              </div>
+
+                              {/* Tăng giảm số lượng */}
+                              <div>
+                                <label className="block text-[10px] font-bold text-[#5c3e23] mb-0.5">
+                                  Số lượng
+                                </label>
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    type="button"
+                                    disabled={activeCard.avail <= 0}
+                                    onClick={() => handleChangeAmt(clampedAmt - activeCard.step)}
+                                    className="rounded border border-[#8c6b44]/40 bg-white px-2.5 py-1 text-xs font-black text-[#261304] hover:bg-amber-100 disabled:opacity-40 cursor-pointer"
+                                  >
+                                    -
+                                  </button>
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    max={maxAmt}
+                                    value={clampedAmt}
+                                    onChange={(e) => handleChangeAmt(Number(e.target.value))}
+                                    className="w-full rounded border border-[#8c6b44]/40 bg-white px-2 py-1 text-center text-xs font-bold text-[#261304]"
+                                  />
+                                  <button
+                                    type="button"
+                                    disabled={activeCard.avail <= 0}
+                                    onClick={() => handleChangeAmt(clampedAmt + activeCard.step)}
+                                    className="rounded border border-[#8c6b44]/40 bg-white px-2.5 py-1 text-xs font-black text-[#261304] hover:bg-amber-100 disabled:opacity-40 cursor-pointer"
+                                  >
+                                    +
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={activeCard.avail <= 0}
+                                    onClick={() => handleChangeAmt(activeCard.avail)}
+                                    className="rounded border border-[#8c6b44]/40 bg-amber-50 px-2 py-1 text-[10px] font-bold text-[#6e380e] hover:bg-amber-100 disabled:opacity-40 cursor-pointer shrink-0"
+                                  >
+                                    Tất cả
+                                  </button>
+                                </div>
+                              </div>
+
+                              {isTrade ? (
+                                <>
+                                  {/* Tăng giảm / nhập giá bán */}
                                   <div>
-                                    <label className="block text-[11px] font-bold text-[#5c3e23] mb-1">
-                                      Chọn vật phẩm đưa lên sàn đấu giá (1 lần/tháng)
+                                    <label className="block text-[10px] font-bold text-[#5c3e23] mb-0.5">
+                                      Giá bán (Vàng)
                                     </label>
-                                    <select
-                                      value={activeOpt.id}
-                                      onChange={(e) => {
-                                        const nextId = e.target.value;
-                                        setAuctionSelection(nextId);
-                                        const nextOpt = auctionOptions.find((o) => o.id === nextId);
-                                        if (nextOpt) {
-                                          setAuctionStartPrice(Math.max(5, Math.round(nextOpt.fairValue * 0.9)));
-                                          setAuctionTargetPrice(
-                                            Math.round(nextOpt.fairValue * (nextOpt.isRare ? 2.4 : 1.5))
-                                          );
-                                        }
-                                      }}
-                                      className="w-full rounded border border-[#8c6b44]/40 bg-white/80 px-2 py-1.5 text-xs font-bold text-[#261304]"
-                                    >
-                                      {auctionOptions.map((o) => (
-                                        <option key={o.id} value={o.id}>
-                                          {o.label}
-                                        </option>
-                                      ))}
-                                    </select>
-                                  </div>
-
-                                  <div className="grid grid-cols-3 gap-2">
-                                    <div>
-                                      <label className="block text-[10px] font-bold text-[#5c3e23] mb-0.5">
-                                        Giá sàn (Vàng)
-                                      </label>
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => setTradePrice(Math.max(1, tradePrice - 5))}
+                                        className="rounded border border-[#8c6b44]/40 bg-white px-2.5 py-1 text-xs font-black text-[#261304] hover:bg-amber-100 cursor-pointer"
+                                      >
+                                        -
+                                      </button>
                                       <input
                                         type="number"
                                         min={1}
-                                        value={auctionStartPrice}
-                                        onChange={(e) => setAuctionStartPrice(Math.max(1, Number(e.target.value) || 1))}
-                                        className="w-full rounded border border-[#8c6b44]/40 bg-white/85 px-2 py-1 text-xs font-bold"
+                                        value={tradePrice}
+                                        onChange={(e) => setTradePrice(Math.max(1, Number(e.target.value) || 1))}
+                                        className="w-full rounded border border-[#8c6b44]/40 bg-white px-2 py-1 text-center text-xs font-bold text-[#261304]"
                                       />
+                                      <button
+                                        type="button"
+                                        onClick={() => setTradePrice(tradePrice + 5)}
+                                        className="rounded border border-[#8c6b44]/40 bg-white px-2.5 py-1 text-xs font-black text-[#261304] hover:bg-amber-100 cursor-pointer"
+                                      >
+                                        +
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  <div className="rounded border border-amber-700/25 bg-amber-50/75 px-2 py-1 text-[10px] text-[#5c3e23]">
+                                    Định giá thị trường: ~<strong>{fairValue}V</strong> · Thương nhân chấp nhận tối đa ~<strong>{tradeMaxAcceptable}V</strong>
+                                  </div>
+
+                                  <button
+                                    disabled={activeCard.avail < clampedAmt || activeCard.avail <= 0}
+                                    onClick={() =>
+                                      onSellMarketGoods({
+                                        kind: activeCard.kind,
+                                        itemId: activeCard.itemId,
+                                        amount: clampedAmt,
+                                        askPrice: tradePrice,
+                                      })
+                                    }
+                                    className="w-full flex items-center justify-center gap-1.5 rounded-lg bg-[#8c5828] py-2 text-xs font-bold text-[#fff3db] hover:bg-[#6e421a] disabled:opacity-40 cursor-pointer shadow"
+                                  >
+                                    <Coins className="h-3.5 w-3.5" />
+                                    Bán Ngay (+{tradePrice}V)
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <div className="grid grid-cols-3 gap-1.5">
+                                    <div>
+                                      <label className="block text-[10px] font-bold text-[#5c3e23] mb-0.5">
+                                        Giá sàn (V)
+                                      </label>
+                                      <div className="flex items-center gap-0.5">
+                                        <button
+                                          type="button"
+                                          onClick={() => setAuctionStartPrice(Math.max(1, auctionStartPrice - 5))}
+                                          className="rounded border border-[#8c6b44]/40 bg-white px-1.5 py-1 text-[11px] font-black hover:bg-amber-100 cursor-pointer"
+                                        >
+                                          -
+                                        </button>
+                                        <input
+                                          type="number"
+                                          min={1}
+                                          value={auctionStartPrice}
+                                          onChange={(e) => setAuctionStartPrice(Math.max(1, Number(e.target.value) || 1))}
+                                          className="w-full min-w-0 rounded border border-[#8c6b44]/40 bg-white px-1 py-1 text-center text-[11px] font-bold"
+                                        />
+                                        <button
+                                          type="button"
+                                          onClick={() => setAuctionStartPrice(auctionStartPrice + 5)}
+                                          className="rounded border border-[#8c6b44]/40 bg-white px-1.5 py-1 text-[11px] font-black hover:bg-amber-100 cursor-pointer"
+                                        >
+                                          +
+                                        </button>
+                                      </div>
                                     </div>
                                     <div>
                                       <label className="block text-[10px] font-bold text-[#5c3e23] mb-0.5">
                                         Bước nhảy (V)
                                       </label>
-                                      <input
-                                        type="number"
-                                        min={1}
-                                        value={auctionBidStep}
-                                        onChange={(e) => setAuctionBidStep(Math.max(1, Number(e.target.value) || 1))}
-                                        className="w-full rounded border border-[#8c6b44]/40 bg-white/85 px-2 py-1 text-xs font-bold"
-                                      />
+                                      <div className="flex items-center gap-0.5">
+                                        <button
+                                          type="button"
+                                          onClick={() => setAuctionBidStep(Math.max(1, auctionBidStep - 1))}
+                                          className="rounded border border-[#8c6b44]/40 bg-white px-1.5 py-1 text-[11px] font-black hover:bg-amber-100 cursor-pointer"
+                                        >
+                                          -
+                                        </button>
+                                        <input
+                                          type="number"
+                                          min={1}
+                                          value={auctionBidStep}
+                                          onChange={(e) => setAuctionBidStep(Math.max(1, Number(e.target.value) || 1))}
+                                          className="w-full min-w-0 rounded border border-[#8c6b44]/40 bg-white px-1 py-1 text-center text-[11px] font-bold"
+                                        />
+                                        <button
+                                          type="button"
+                                          onClick={() => setAuctionBidStep(auctionBidStep + 1)}
+                                          className="rounded border border-[#8c6b44]/40 bg-white px-1.5 py-1 text-[11px] font-black hover:bg-amber-100 cursor-pointer"
+                                        >
+                                          +
+                                        </button>
+                                      </div>
                                     </div>
                                     <div>
                                       <label className="block text-[10px] font-bold text-[#5c3e23] mb-0.5">
-                                        Giá thắng phiên
+                                        Giá thắng (V)
                                       </label>
-                                      <input
-                                        type="number"
-                                        min={1}
-                                        value={auctionTargetPrice}
-                                        onChange={(e) => setAuctionTargetPrice(Math.max(1, Number(e.target.value) || 1))}
-                                        className="w-full rounded border border-[#8c6b44]/40 bg-white/85 px-2 py-1 text-xs font-bold"
-                                      />
+                                      <div className="flex items-center gap-0.5">
+                                        <button
+                                          type="button"
+                                          onClick={() => setAuctionTargetPrice(Math.max(1, auctionTargetPrice - 5))}
+                                          className="rounded border border-[#8c6b44]/40 bg-white px-1.5 py-1 text-[11px] font-black hover:bg-amber-100 cursor-pointer"
+                                        >
+                                          -
+                                        </button>
+                                        <input
+                                          type="number"
+                                          min={1}
+                                          value={auctionTargetPrice}
+                                          onChange={(e) => setAuctionTargetPrice(Math.max(1, Number(e.target.value) || 1))}
+                                          className="w-full min-w-0 rounded border border-[#8c6b44]/40 bg-white px-1 py-1 text-center text-[11px] font-bold"
+                                        />
+                                        <button
+                                          type="button"
+                                          onClick={() => setAuctionTargetPrice(auctionTargetPrice + 5)}
+                                          className="rounded border border-[#8c6b44]/40 bg-white px-1.5 py-1 text-[11px] font-black hover:bg-amber-100 cursor-pointer"
+                                        >
+                                          +
+                                        </button>
+                                      </div>
                                     </div>
                                   </div>
 
-                                  <div className="rounded border border-amber-700/30 bg-amber-50/80 px-2.5 py-1.5 text-[11px] text-[#5c3e23]">
-                                    <strong>Bộ lọc định giá:</strong> Giá trị thực ~{activeOpt.fairValue}V · Trần thương nhân trả tối đa ~<strong>{filterMax}V</strong> (tránh thổi giá vật phẩm bình dân).
+                                  <div className="rounded border border-amber-700/25 bg-amber-50/75 px-2 py-1 text-[10px] text-[#5c3e23]">
+                                    <strong>Bộ lọc định giá:</strong> Giá trị thực ~{fairValue}V · Trần thương nhân trả tối đa ~<strong>{auctionFilterMax}V</strong>
                                   </div>
 
                                   <button
-                                    disabled={!canAuctionThisMonth}
+                                    disabled={!canAuctionThisMonth || activeCard.avail < clampedAmt || activeCard.avail <= 0}
                                     onClick={() =>
                                       onRunMarketAuction({
-                                        kind: activeOpt.kind,
-                                        uid: activeOpt.uid,
-                                        amount: activeOpt.amount,
+                                        kind: activeCard.kind,
+                                        itemId: activeCard.itemId,
+                                        amount: clampedAmt,
                                         startPrice: auctionStartPrice,
                                         bidStep: auctionBidStep,
                                         targetPrice: auctionTargetPrice,
@@ -1045,12 +1205,12 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
                                     <Gavel className="h-3.5 w-3.5" />
                                     {canAuctionThisMonth ? 'Mở Phiên Đấu Giá' : 'Tháng này đã đấu giá rồi'}
                                   </button>
-                                </div>
-                              );
-                            })()
-                          )}
-                        </div>
-                      )}
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })()}
 
                       <div className="flex gap-2">
                         <button
