@@ -631,7 +631,7 @@ export function createThanhHoa3DWorld(
       side: THREE.DoubleSide,
     });
     fogTintMaterials.push(fogMat);
-    for (const fy of [2.0, 7.2]) {
+    for (const fy of [1.4, 4.0, 7.0, 10.2]) {
       const fogMesh = new THREE.Mesh(fogGeo, fogMat);
       fogMesh.position.set(centerX, fy, centerZ);
       fogGroup.add(fogMesh);
@@ -707,7 +707,7 @@ export function createThanhHoa3DWorld(
   // 4. 5 high-detail Oak tree variants (buttress roots, multi-branched trunks, vertex-shaded layered foliage)
   if (treeSpawns.length > 0) {
     const makeLimb = (rTop: number, rBot: number, h: number, x: number, y: number, z: number, rx = 0, rz = 0) => {
-      const g = new THREE.CylinderGeometry(rTop, rBot, h, 7).toNonIndexed();
+      const g = new THREE.CylinderGeometry(rTop, rBot, h, 5).toNonIndexed();
       if (rx !== 0) g.rotateX(rx);
       if (rz !== 0) g.rotateZ(rz);
       g.translate(x, y, z);
@@ -726,7 +726,7 @@ export function createThanhHoa3DWorld(
       baseHex = 0x3e6c30,
       crownCenterY = 1.4,
     ) => {
-      const g = new THREE.IcosahedronGeometry(radius, 2);
+      const g = new THREE.IcosahedronGeometry(radius, 1);
       if (ry !== 0) g.rotateY(ry);
       g.scale(sx, sy, sz);
 
@@ -910,8 +910,8 @@ export function createThanhHoa3DWorld(
 
       const trunkInst = new THREE.InstancedMesh(variant.trunkGeo, trunkMat, cells.length);
       const crownInst = new THREE.InstancedMesh(variant.crownGeo, crownMat, cells.length);
-      trunkInst.castShadow = true;
-      crownInst.castShadow = true;
+      trunkInst.castShadow = false;
+      crownInst.castShadow = false;
       crownInst.receiveShadow = true;
 
       cells.forEach((cell, i) => {
@@ -948,7 +948,7 @@ export function createThanhHoa3DWorld(
       flatShading: true,
     });
     const peakInst = new THREE.InstancedMesh(peakGeo, peakMat, mountainCells.length);
-    peakInst.castShadow = true;
+    peakInst.castShadow = false;
     peakInst.receiveShadow = true;
 
     const dummy = new THREE.Object3D();
