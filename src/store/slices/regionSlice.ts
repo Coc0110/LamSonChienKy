@@ -50,7 +50,8 @@ export interface RegionSlice {
     cityId: string,
     type: BaseBuildingType,
     col: number,
-    row: number
+    row: number,
+    rotation?: 0 | 1 | 2 | 3
   ) => { success: boolean; message: string; building?: BaseBuilding };
   upgradeBaseBuilding: (
     cityId: string,
@@ -60,7 +61,8 @@ export interface RegionSlice {
     cityId: string,
     buildingId: string,
     newCol: number,
-    newRow: number
+    newRow: number,
+    rotation?: 0 | 1 | 2 | 3
   ) => { success: boolean; message: string };
   demolishBaseBuilding: (
     cityId: string,
@@ -127,10 +129,12 @@ export const createRegionSlice: StateCreator<GameStore, [], [], RegionSlice> = (
     return generated;
   },
 
-  placeBaseBuilding: (cityId, type, col, row) => {
+  placeBaseBuilding: (cityId, type, col, row, rotation = 0) => {
     const state = get();
     const layout = state.getOrCreateRegionLayout(cityId);
     const spec = BASE_BUILDING_CATALOG[type];
+    const effSpanCols = rotation % 2 === 1 ? spec.spanRows : spec.spanCols;
+    const effSpanRows = rotation % 2 === 1 ? spec.spanCols : spec.spanRows;
 
     const mainHall = layout.buildings.find((b) => b.type === 'main_hall' && b.status !== 'destroyed');
     const mainHallLvl = mainHall?.level ?? 1;
@@ -157,7 +161,7 @@ export const createRegionSlice: StateCreator<GameStore, [], [], RegionSlice> = (
       basePctY: baseCity?.y ?? 47.6,
     };
 
-    if (!canPlaceOnRegionGrid(layout.buildings, col, row, spec.spanCols, spec.spanRows, undefined, placeOpts)) {
+    if (!canPlaceOnRegionGrid(layout.buildings, col, row, effSpanCols, effSpanRows, undefined, placeOpts)) {
       return {
         success: false,
         message: 'Vị trí bị vướng công trình khác hoặc nằm trên mặt nước / ngoài Thanh Hóa!',
@@ -179,12 +183,13 @@ export const createRegionSlice: StateCreator<GameStore, [], [], RegionSlice> = (
       level: 1,
       col,
       row,
-      spanCols: spec.spanCols,
-      spanRows: spec.spanRows,
+      spanCols: effSpanCols,
+      spanRows: effSpanRows,
       hp: maxHp,
       maxHp,
       status: isInstant ? 'active' : 'building',
       buildDaysRemaining: isInstant ? 0 : spec.buildDays,
+      rotation,
     };
 
     set((s) => ({
@@ -286,19 +291,23 @@ export const createRegionSlice: StateCreator<GameStore, [], [], RegionSlice> = (
     };
   },
 
-  moveBaseBuilding: (cityId, buildingId, newCol, newRow) => {
+  moveBaseBuilding: (cityId, buildingId, newCol, newRow, rotation) => {
     const layout = get().getOrCreateRegionLayout(cityId);
     const target = layout.buildings.find((b) => b.id === buildingId);
     if (!target) {
       return { success: false, message: 'Không tìm thấy công trình!' };
     }
+    const nextRot: 0 | 1 | 2 | 3 = rotation !== undefined ? rotation : target.rotation ?? 0;
+    const baseSpec = BASE_BUILDING_CATALOG[target.type];
+    const effSpanCols = nextRot % 2 === 1 ? baseSpec.spanRows : baseSpec.spanCols;
+    const effSpanRows = nextRot % 2 === 1 ? baseSpec.spanCols : baseSpec.spanRows;
     const baseCity = get().cities.find((c) => c.id === cityId);
     const moveOpts = {
       allowOutside: true,
       basePctX: baseCity?.x ?? 50.8,
       basePctY: baseCity?.y ?? 47.6,
     };
-    if (!canPlaceOnRegionGrid(layout.buildings, newCol, newRow, target.spanCols, target.spanRows, buildingId, moveOpts)) {
+    if (!canPlaceOnRegionGrid(layout.buildings, newCol, newRow, effSpanCols, effSpanRows, buildingId, moveOpts)) {
       return {
         success: false,
         message:
@@ -314,7 +323,9 @@ export const createRegionSlice: StateCreator<GameStore, [], [], RegionSlice> = (
         [cityId]: {
           ...layout,
           buildings: layout.buildings.map((b) =>
-            b.id === buildingId ? { ...b, col: newCol, row: newRow } : b
+            b.id === buildingId
+              ? { ...b, col: newCol, row: newRow, spanCols: effSpanCols, spanRows: effSpanRows, rotation: nextRot }
+              : b
           ),
         },
       },

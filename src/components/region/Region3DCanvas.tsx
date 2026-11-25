@@ -25,8 +25,12 @@ if (typeof window !== 'undefined') {
 }
 
 interface PlacementPreviewConfig {
+  buildingType: BaseBuilding['type'];
+  level: number;
+  rotation: 0 | 1 | 2 | 3;
   spanCols: number;
   spanRows: number;
+  onRotate: (dir: 1 | -1) => void;
   canPlaceAt: (col: number, row: number) => boolean;
 }
 
@@ -105,6 +109,8 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
     unitsGroup: THREE.Group;
     envGroup: THREE.Group;
     previewBox: THREE.Mesh;
+    previewModelHolder: THREE.Group;
+    syncPreviewModel: (preview: PlacementPreviewConfig | null) => void;
     selectionRing: THREE.Mesh;
     buildGridGroup: THREE.Group;
     syncBuildings: () => void;
@@ -262,6 +268,48 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
     const buildGridGroup = new THREE.Group();
     buildGridGroup.visible = showBuildGridRef.current;
     scene.add(buildGridGroup);
+
+    // Model 3D nhấp nháy đi theo con trỏ khi đặt mới / di dời công trình
+    const previewModelHolder = new THREE.Group();
+    previewModelHolder.visible = false;
+    scene.add(previewModelHolder);
+    let previewModelKey = '';
+    const previewModelMaterials: THREE.MeshStandardMaterial[] = [];
+
+    const syncPreviewModel = (preview: PlacementPreviewConfig | null) => {
+      if (!preview) {
+        previewModelHolder.visible = false;
+        return;
+      }
+      const nextKey = `${preview.buildingType}_${preview.level}`;
+      if (nextKey !== previewModelKey) {
+        previewModelKey = nextKey;
+        while (previewModelHolder.children.length > 0) {
+          previewModelHolder.remove(previewModelHolder.children[0]);
+        }
+        for (const m of previewModelMaterials) m.dispose();
+        previewModelMaterials.length = 0;
+
+        const ghostGroup = createBuildingGroup(preview.buildingType, preview.level, false, false, 0, 0);
+        ghostGroup.traverse((obj) => {
+          if (obj instanceof THREE.Mesh) {
+            const orig = obj.material;
+            const cloned =
+              orig instanceof THREE.MeshStandardMaterial
+                ? orig.clone()
+                : new THREE.MeshStandardMaterial({ color: 0xd6c4a0, roughness: 0.85 });
+            cloned.transparent = true;
+            cloned.opacity = 0.65;
+            cloned.depthWrite = false;
+            obj.material = cloned;
+            obj.castShadow = false;
+            previewModelMaterials.push(cloned);
+          }
+        });
+        previewModelHolder.add(ghostGroup);
+      }
+      previewModelHolder.rotation.y = -((preview.rotation ?? 0) * Math.PI) / 2;
+    };
 
     // Con đường đất nện trong căn cứ (chỉ vẽ phần đường trong suốt, nằm khít lên địa hình 3D mới)
     const pathsGeo = new THREE.PlaneGeometry(gridSize, gridSize);
@@ -578,6 +626,7 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
         const cz = b.row + b.spanRows / 2 - half;
         const elevY = getThanhHoaElevationAtWorld(cx, cz, basePctX, basePctY);
         group.position.set(cx, elevY, cz);
+        group.rotation.y = -((b.rotation ?? 0) * Math.PI) / 2;
         group.traverse((obj) => {
           if (obj instanceof THREE.Mesh && obj.name === 'animated_flag') {
             animatedFlags.push(obj);
@@ -1006,6 +1055,8 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
       unitsGroup,
       envGroup,
       previewBox,
+      previewModelHolder,
+      syncPreviewModel,
       selectionRing,
       buildGridGroup,
       syncBuildings,
@@ -1050,19 +1101,27 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
 
       const preview = placementPreviewRef.current;
       if (preview && cell) {
+        syncPreviewModel(preview);
         const valid = preview.canPlaceAt(cell.col, cell.row);
         const px = cell.col + preview.spanCols / 2 - half;
         const pz = cell.row + preview.spanRows / 2 - half;
-        const py = getThanhHoaElevationAtWorld(px, pz, basePctX, basePctY) + 0.18;
+        const groundElev = getThanhHoaElevationAtWorld(px, pz, basePctX, basePctY);
+        const py = groundElev + 0.18;
         previewBox.visible = true;
         previewBox.scale.set(preview.spanCols, 1, preview.spanRows);
         previewBox.position.set(px, py, pz);
         (previewBox.material as THREE.MeshBasicMaterial).color.setHex(valid ? 0x22c55e : 0xef4444);
+
+        previewModelHolder.visible = true;
+        previewModelHolder.position.set(px, groundElev + 0.02, pz);
+        previewModelHolder.rotation.y = -((preview.rotation ?? 0) * Math.PI) / 2;
+
         forestHighlightGroup.visible = false;
         treeHighlightRing.visible = false;
         domEl.style.cursor = '';
       } else {
         previewBox.visible = false;
+        previewModelHolder.visible = false;
         if (cell) {
           const currentBushes = useGameStore.getState().bushes?.[layoutRef.current.cityId] ?? [];
           const bushHit = currentBushes.find((b) => Math.hypot(b.wx - cell.wx, b.wz - cell.wz) < 1.25);
@@ -1256,10 +1315,19 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
       onClickCellRef.current?.(cell.col, cell.row, hitBuilding, hitUnit);
     };
 
+    const handleWheel = (e: WheelEvent) => {
+      const preview = placementPreviewRef.current;
+      if (!preview) return;
+      e.preventDefault();
+      e.stopPropagation();
+      preview.onRotate(e.deltaY > 0 ? 1 : -1);
+    };
+
     const domEl = renderer.domElement;
     domEl.addEventListener('pointermove', handlePointerMove);
     domEl.addEventListener('pointerdown', handlePointerDown);
     domEl.addEventListener('pointerup', handlePointerUp);
+    domEl.addEventListener('wheel', handleWheel, { passive: false, capture: true });
 
     const handleResize = () => {
       if (!container) return;
@@ -1303,6 +1371,14 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
 
       for (const bb of animatedBillboards) {
         bb.lookAt(camera.position);
+      }
+
+      // Nhấp nháy model 3D xem trước khi đặt mới / di dời công trình
+      if (previewModelHolder.visible && previewModelMaterials.length > 0) {
+        const blink = 0.38 + 0.42 * (0.5 + 0.5 * Math.sin(now * 0.0085));
+        for (const m of previewModelMaterials) {
+          m.opacity = blink;
+        }
       }
 
       const pushOutOfBuildings = (pos: THREE.Vector3, radius: number) => {
@@ -1771,6 +1847,7 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
       thanhHoaWorld.dispose();
       pathsGeo.dispose();
       pathsMat.dispose();
+      for (const m of previewModelMaterials) m.dispose();
       unsubBushes();
       unsubSoldierBase();
       cancelAnimationFrame(rafId);
@@ -1778,6 +1855,7 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
       domEl.removeEventListener('pointermove', handlePointerMove);
       domEl.removeEventListener('pointerdown', handlePointerDown);
       domEl.removeEventListener('pointerup', handlePointerUp);
+      domEl.removeEventListener('wheel', handleWheel, { capture: true });
       controls.dispose();
       renderer.dispose();
       if (domEl.parentNode === container) {
@@ -1797,8 +1875,14 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
   }, [units, selectedUnitId]);
 
   useEffect(() => {
-    if (!placementPreview && sceneRefs.current) {
-      sceneRefs.current.previewBox.visible = false;
+    const refs = sceneRefs.current;
+    if (!refs) return;
+    if (!placementPreview) {
+      refs.previewBox.visible = false;
+      refs.previewModelHolder.visible = false;
+    } else {
+      refs.syncPreviewModel(placementPreview);
+      refs.previewBox.scale.set(placementPreview.spanCols, 1, placementPreview.spanRows);
     }
   }, [placementPreview]);
 

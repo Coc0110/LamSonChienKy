@@ -28,6 +28,7 @@ export interface BaseBuilding {
   maxHp: number;
   status: BaseBuildingStatus;
   buildDaysRemaining?: number;
+  rotation?: 0 | 1 | 2 | 3;
 }
 
 export interface RegionLayout {

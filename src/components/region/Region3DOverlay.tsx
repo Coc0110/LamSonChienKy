@@ -29,6 +29,7 @@ export const Region3DOverlay: React.FC = () => {
   const [selectedBuildingId, setSelectedBuildingId] = useState<string | null>(null);
   const [activeBuildType, setActiveBuildType] = useState<BaseBuildingType | null>(null);
   const [isMovingBuilding, setIsMovingBuilding] = useState(false);
+  const [buildRotation, setBuildRotation] = useState<0 | 1 | 2 | 3>(0);
   const [hoveredCell, setHoveredCell] = useState<{ col: number; row: number } | null>(null);
 
   const city = useMemo(
@@ -53,17 +54,27 @@ export const Region3DOverlay: React.FC = () => {
       basePctX: city?.x ?? 50.8,
       basePctY: city?.y ?? 47.6,
     };
+    const onRotate = (dir: 1 | -1) =>
+      setBuildRotation((r) => ((((r + dir) % 4) + 4) % 4) as 0 | 1 | 2 | 3);
+
     if (isMovingBuilding && selectedBuilding) {
+      const baseSpec = BASE_BUILDING_CATALOG[selectedBuilding.type];
+      const effCols = buildRotation % 2 === 1 ? baseSpec.spanRows : baseSpec.spanCols;
+      const effRows = buildRotation % 2 === 1 ? baseSpec.spanCols : baseSpec.spanRows;
       return {
-        spanCols: selectedBuilding.spanCols,
-        spanRows: selectedBuilding.spanRows,
+        buildingType: selectedBuilding.type,
+        level: selectedBuilding.level,
+        rotation: buildRotation,
+        spanCols: effCols,
+        spanRows: effRows,
+        onRotate,
         canPlaceAt: (col: number, row: number) =>
           canPlaceOnRegionGrid(
             layout.buildings,
             col,
             row,
-            selectedBuilding.spanCols,
-            selectedBuilding.spanRows,
+            effCols,
+            effRows,
             selectedBuilding.id,
             placeOpts
           ),
@@ -71,25 +82,32 @@ export const Region3DOverlay: React.FC = () => {
     }
     if (activeBuildType) {
       const spec = BASE_BUILDING_CATALOG[activeBuildType];
+      const effCols = buildRotation % 2 === 1 ? spec.spanRows : spec.spanCols;
+      const effRows = buildRotation % 2 === 1 ? spec.spanCols : spec.spanRows;
       return {
-        spanCols: spec.spanCols,
-        spanRows: spec.spanRows,
+        buildingType: activeBuildType,
+        level: 1,
+        rotation: buildRotation,
+        spanCols: effCols,
+        spanRows: effRows,
+        onRotate,
         canPlaceAt: (col: number, row: number) =>
-          canPlaceOnRegionGrid(layout.buildings, col, row, spec.spanCols, spec.spanRows, undefined, placeOpts),
+          canPlaceOnRegionGrid(layout.buildings, col, row, effCols, effRows, undefined, placeOpts),
       };
     }
     return null;
-  }, [activeRegion3D, layout, isMovingBuilding, selectedBuilding, activeBuildType, city]);
+  }, [activeRegion3D, layout, isMovingBuilding, selectedBuilding, activeBuildType, buildRotation, city]);
 
   if (!activeRegion3D || !layout) return null;
 
   const handleClickCell = (col: number, row: number, building: BaseBuilding | null) => {
     if (activeRegion3D.mode === 'base_build') {
       if (isMovingBuilding && selectedBuilding) {
-        const res = moveBaseBuilding(activeRegion3D.cityId, selectedBuilding.id, col, row);
+        const res = moveBaseBuilding(activeRegion3D.cityId, selectedBuilding.id, col, row, buildRotation);
         if (res.success) {
           notify.success(res.message);
           setIsMovingBuilding(false);
+          if (is3DBuildPaletteOpen) setSelectedBuildingId(null);
         } else {
           notify.warning(res.message);
         }
@@ -97,15 +115,23 @@ export const Region3DOverlay: React.FC = () => {
       }
 
       if (activeBuildType) {
-        const res = placeBaseBuilding(activeRegion3D.cityId, activeBuildType, col, row);
+        const res = placeBaseBuilding(activeRegion3D.cityId, activeBuildType, col, row, buildRotation);
         if (res.success) {
           notify.success(res.message);
-          if (activeBuildType !== 'wall') {
+          if (activeBuildType !== 'wall' && activeBuildType !== 'road') {
             setActiveBuildType(null);
           }
         } else {
           notify.warning(res.message);
         }
+        return;
+      }
+
+      // Trong chế độ xây dựng: nhấn vào công trình sẽ vào thẳng chế độ di dời, không mở thông tin chi tiết
+      if (is3DBuildPaletteOpen && building) {
+        setSelectedBuildingId(building.id);
+        setIsMovingBuilding(true);
+        setBuildRotation(building.rotation ?? 0);
         return;
       }
     }
@@ -174,12 +200,18 @@ export const Region3DOverlay: React.FC = () => {
         onSelectBuildType={(type) => {
           setIsMovingBuilding(false);
           setActiveBuildType(type);
+          setBuildRotation(0);
           if (type) setSelectedBuildingId(null);
         }}
-        onCloseBuildPalette={() => set3DBuildPaletteOpen(false)}
+        onCloseBuildPalette={() => {
+          set3DBuildPaletteOpen(false);
+          setIsMovingBuilding(false);
+          setSelectedBuildingId(null);
+        }}
         onUpgradeBuilding={handleUpgrade}
         onStartMoveBuilding={() => {
           setActiveBuildType(null);
+          setBuildRotation(selectedBuilding?.rotation ?? 0);
           setIsMovingBuilding((v) => !v);
         }}
         onDemolishBuilding={handleDemolish}
