@@ -54,11 +54,15 @@ function pointInPolygon(x: number, y: number, poly: [number, number][]): boolean
   return inside;
 }
 
-function isInsideThanhHoa(pctX: number, pctY: number): boolean {
+function getDistrictIdAt(pctX: number, pctY: number): string | null {
   for (let i = 0; i < DISTRICTS.length; i++) {
-    if (pointInPolygon(pctX, pctY, DISTRICTS[i].polygon)) return true;
+    if (pointInPolygon(pctX, pctY, DISTRICTS[i].polygon)) return DISTRICTS[i].id;
   }
-  return false;
+  return null;
+}
+
+function isInsideThanhHoa(pctX: number, pctY: number): boolean {
+  return getDistrictIdAt(pctX, pctY) !== null;
 }
 
 function hash2D(c: number, r: number): number {
@@ -304,6 +308,7 @@ export function createThanhHoa3DWorld(
   basePctX: number,
   basePctY: number,
   initialHiddenKeys?: Set<string>,
+  exploredIds?: Set<string>,
 ): ThanhHoaWorldResult {
   const group = new THREE.Group();
   const disposables: Array<{ dispose: () => void }> = [];
@@ -325,12 +330,8 @@ export function createThanhHoa3DWorld(
   const centerX = ((minCol + maxCol) / 2 - baseCell.col) * CELL_SCALE_3D;
   const centerZ = ((minRow + maxRow) / 2 - baseCell.row) * CELL_SCALE_3D;
 
-  const pctToWorld = (pctX: number, pctY: number): [number, number] => [
-    (pctX / GRID_CELL_W_PCT - (baseCell.col + 0.5)) * CELL_SCALE_3D,
-    (pctY / GRID_CELL_H_PCT - (baseCell.row + 0.5)) * CELL_SCALE_3D,
-  ];
-
   const insideMask = new Uint8Array(cols * rows);
+  const rawFogField = new Float32Array(cols * rows);
   const rawElevations = new Float32Array(cols * rows);
 
   interface TreeSpawn {
@@ -358,8 +359,12 @@ export function createThanhHoa3DWorld(
       const wx = (c - baseCell.col) * CELL_SCALE_3D;
       const idx = iy * cols + ix;
 
-      const inside = isInsideThanhHoa(pctX, pctY);
+      const districtId = getDistrictIdAt(pctX, pctY);
+      const inside = districtId !== null;
       insideMask[idx] = inside ? 1 : 0;
+      if (districtId && exploredIds && !exploredIds.has(districtId)) {
+        rawFogField[idx] = 1;
+      }
 
       const t = getGridTerrain(c, r);
       const inBasePlateau = Math.abs(wx) < 16.5 && Math.abs(wz) < 16.5;
@@ -520,27 +525,122 @@ export function createThanhHoa3DWorld(
   group.add(terrainMesh);
   disposables.push(terrainGeo, terrainMat);
 
-  // 3. District borders as a single LineSegments draw call
-  const borderVerts: number[] = [];
-  for (const d of DISTRICTS) {
-    const poly = d.polygon;
-    for (let i = 0; i < poly.length; i++) {
-      const [x1, y1] = pctToWorld(poly[i][0], poly[i][1]);
-      const next = poly[(i + 1) % poly.length];
-      const [x2, y2] = pctToWorld(next[0], next[1]);
-      borderVerts.push(x1, 0.45, y1, x2, 0.45, y2);
+  // 3. Lớp mây sương 3D che phủ các huyện thành chưa do thám (không vẽ ranh giới huyện)
+  if (exploredIds) {
+    const fogField = new Float32Array(cols * rows);
+    const fogPuffs: Array<{ wx: number; wz: number; c: number; r: number }> = [];
+    for (let iy = 0; iy < rows; iy++) {
+      const r = minRow + iy;
+      const wz = (r - baseCell.row) * CELL_SCALE_3D;
+      for (let ix = 0; ix < cols; ix++) {
+        const c = minCol + ix;
+        const wx = (c - baseCell.col) * CELL_SCALE_3D;
+        let acc = 0;
+        let wSum = 0;
+        for (let dy = -2; dy <= 2; dy++) {
+          const ny = iy + dy;
+          if (ny < 0 || ny >= rows) continue;
+          for (let dx = -2; dx <= 2; dx++) {
+            const nx = ix + dx;
+            if (nx < 0 || nx >= cols) continue;
+            const weight = 5 - Math.abs(dx) - Math.abs(dy);
+            acc += rawFogField[ny * cols + nx] * weight;
+            wSum += weight;
+          }
+        }
+        const val = acc / wSum;
+        fogField[iy * cols + ix] = val;
+        if (val > 0.65 && (ix + iy) % 2 === 0 && hash2D(c + 91, r + 47) > 0.42) {
+          fogPuffs.push({ wx, wz, c, r });
+        }
+      }
+    }
+
+    const fogCanvas = document.createElement('canvas');
+    const fScale = 2;
+    fogCanvas.width = cols * fScale;
+    fogCanvas.height = rows * fScale;
+    const fCtx = fogCanvas.getContext('2d');
+    if (fCtx) {
+      const fImg = fCtx.createImageData(fogCanvas.width, fogCanvas.height);
+      const fData = fImg.data;
+      const fw = fogCanvas.width;
+      const fh = fogCanvas.height;
+      for (let py = 0; py < fh; py++) {
+        const fy = Math.max(0, Math.min(rows - 1.001, py / fScale - 0.5));
+        const iy0 = Math.floor(fy);
+        const iy1 = Math.min(rows - 1, iy0 + 1);
+        const ty = fy - iy0;
+        for (let px = 0; px < fw; px++) {
+          const fx = Math.max(0, Math.min(cols - 1.001, px / fScale - 0.5));
+          const ix0 = Math.floor(fx);
+          const ix1 = Math.min(cols - 1, ix0 + 1);
+          const tx = fx - ix0;
+
+          const v =
+            fogField[iy0 * cols + ix0] * (1 - tx) * (1 - ty) +
+            fogField[iy0 * cols + ix1] * tx * (1 - ty) +
+            fogField[iy1 * cols + ix0] * (1 - tx) * ty +
+            fogField[iy1 * cols + ix1] * tx * ty;
+
+          const wisp = 0.08 * Math.sin(fx * 0.65 + fy * 0.45) * Math.cos(fx * 0.3 - fy * 0.7);
+          const alpha = smoothstep(0.08, 0.72, v + wisp) * 238;
+          const pIdx = (py * fw + px) * 4;
+          fData[pIdx] = 232;
+          fData[pIdx + 1] = 238;
+          fData[pIdx + 2] = 234;
+          fData[pIdx + 3] = Math.max(0, Math.min(255, Math.round(alpha)));
+        }
+      }
+      fCtx.putImageData(fImg, 0, 0);
+    }
+
+    const fogTex = new THREE.CanvasTexture(fogCanvas);
+    fogTex.colorSpace = THREE.SRGBColorSpace;
+    fogTex.magFilter = THREE.LinearFilter;
+    fogTex.minFilter = THREE.LinearMipmapLinearFilter;
+    const fogGeo = new THREE.PlaneGeometry(worldW, worldH);
+    fogGeo.rotateX(-Math.PI / 2);
+    const fogMat = new THREE.MeshBasicMaterial({
+      map: fogTex,
+      transparent: true,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    const fogMesh = new THREE.Mesh(fogGeo, fogMat);
+    fogMesh.position.set(centerX, 6.8, centerZ);
+    group.add(fogMesh);
+    disposables.push(fogTex, fogGeo, fogMat);
+
+    if (fogPuffs.length > 0) {
+      const puffGeo = new THREE.IcosahedronGeometry(3.6, 1);
+      const puffMat = new THREE.MeshStandardMaterial({
+        color: 0xe6ede8,
+        roughness: 0.96,
+        metalness: 0,
+        transparent: true,
+        opacity: 0.72,
+        depthWrite: false,
+      });
+      const puffInst = new THREE.InstancedMesh(puffGeo, puffMat, fogPuffs.length);
+      const dummy = new THREE.Object3D();
+      fogPuffs.forEach((p, i) => {
+        const s = 0.85 + hash2D(p.c + 3, p.r + 17) * 0.75;
+        dummy.position.set(
+          p.wx + (hash2D(p.c, p.r) - 0.5) * 2,
+          6.4 + hash2D(p.c + 9, p.r + 21) * 1.8,
+          p.wz + (hash2D(p.r, p.c) - 0.5) * 2
+        );
+        dummy.scale.set(s * 1.35, s * 0.36, s * 1.25);
+        dummy.rotation.y = hash2D(p.c + 5, p.r + 11) * Math.PI * 2;
+        dummy.updateMatrix();
+        puffInst.setMatrixAt(i, dummy.matrix);
+      });
+      puffInst.instanceMatrix.needsUpdate = true;
+      group.add(puffInst);
+      disposables.push(puffGeo, puffMat);
     }
   }
-  const borderGeo = new THREE.BufferGeometry();
-  borderGeo.setAttribute('position', new THREE.Float32BufferAttribute(borderVerts, 3));
-  const borderMat = new THREE.LineBasicMaterial({
-    color: 0xd4a95a,
-    transparent: true,
-    opacity: 0.42,
-  });
-  const borderLines = new THREE.LineSegments(borderGeo, borderMat);
-  group.add(borderLines);
-  disposables.push(borderGeo, borderMat);
 
   // Map from cellKey ("c,r") -> list of InstancedMesh instances to hide in O(1) when chopped/cleared
   const keyToInstances = new Map<

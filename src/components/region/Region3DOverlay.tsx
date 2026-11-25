@@ -170,6 +170,7 @@ export const Region3DOverlay: React.FC = () => {
         cityCoord={city ? { x: city.x, y: city.y } : undefined}
         isEnemy={activeRegion3D.mode === 'scout_view'}
         selectedBuildingId={selectedBuildingId}
+        movingBuildingId={isMovingBuilding ? selectedBuilding?.id ?? null : null}
         placementPreview={placementPreview}
         showBuildGrid={is3DBuildPaletteOpen || Boolean(placementPreview)}
         onHoverCell={setHoveredCell}

@@ -42,6 +42,7 @@ interface Region3DCanvasProps {
   blockedTiles?: Array<{ col: number; row: number; kind: 'forest' | 'cliff' }>;
   exitZone?: { minCol: number; maxCol: number; minRow: number; maxRow: number };
   selectedBuildingId?: string | null;
+  movingBuildingId?: string | null;
   selectedUnitId?: string | null;
   placementPreview?: PlacementPreviewConfig | null;
   showBuildGrid?: boolean;
@@ -64,6 +65,7 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
   blockedTiles = [],
   exitZone,
   selectedBuildingId = null,
+  movingBuildingId = null,
   selectedUnitId = null,
   placementPreview = null,
   showBuildGrid = false,
@@ -85,6 +87,9 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
 
   const selectedBuildingIdRef = useRef(selectedBuildingId);
   selectedBuildingIdRef.current = selectedBuildingId;
+
+  const movingBuildingIdRef = useRef(movingBuildingId);
+  movingBuildingIdRef.current = movingBuildingId;
 
   const selectedUnitIdRef = useRef(selectedUnitId);
   selectedUnitIdRef.current = selectedUnitId;
@@ -223,7 +228,14 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
     const basePctX = cityCoord?.x ?? 50.8;
     const basePctY = cityCoord?.y ?? 47.6;
     const initialHiddenKeys = new Set(initStore.clearedTerrainKeys?.[layout.cityId] ?? []);
-    const thanhHoaWorld = createThanhHoa3DWorld(basePctX, basePctY, initialHiddenKeys);
+    const exploredIds = new Set<string>([layout.cityId]);
+    for (const c of initStore.cities) {
+      if (c.faction === 'lam_son' || c.hasBase) exploredIds.add(c.id);
+    }
+    for (const sid of Object.keys(initStore.scoutedRegionIds ?? {})) {
+      exploredIds.add(sid);
+    }
+    const thanhHoaWorld = createThanhHoa3DWorld(basePctX, basePctY, initialHiddenKeys, exploredIds);
     scene.add(thanhHoaWorld.group);
 
     // Highlight ô rừng rậm (3x3) & cây đồng bằng khi di chuột
@@ -559,6 +571,7 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
       const currentLayout = layoutRef.current;
       const enemy = isEnemyRef.current;
       const selId = selectedBuildingIdRef.current;
+      const movingId = movingBuildingIdRef.current;
 
       // Khôi phục lối mòn đất nện trong suốt kết nối các công trình căn cứ
       const nextPathsTex = createDetailedGroundTexture(gridSize, currentLayout.buildings, true);
@@ -598,7 +611,7 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
       // Xây map ô tường/cổng để tự động nối liền tường rào
       const wallOccupied = new Set<string>();
       for (const b of currentLayout.buildings) {
-        if (b.status === 'destroyed') continue;
+        if (b.status === 'destroyed' || (movingId && b.id === movingId)) continue;
         if (b.type === 'wall' || b.type === 'gate') {
           for (let c = b.col; c < b.col + b.spanCols; c++) {
             for (let r = b.row; r < b.row + b.spanRows; r++) {
@@ -609,7 +622,7 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
       }
 
       for (const b of currentLayout.buildings) {
-        if (b.status === 'destroyed') continue;
+        if (b.status === 'destroyed' || (movingId && b.id === movingId)) continue;
 
         let wallMask = 0;
         if (b.type === 'wall') {
@@ -1373,9 +1386,9 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
         bb.lookAt(camera.position);
       }
 
-      // Nhấp nháy model 3D xem trước khi đặt mới / di dời công trình
+      // Nhấp nháy nhẹ nhàng model 3D xem trước khi đặt mới / di dời công trình
       if (previewModelHolder.visible && previewModelMaterials.length > 0) {
-        const blink = 0.38 + 0.42 * (0.5 + 0.5 * Math.sin(now * 0.0085));
+        const blink = 0.46 + 0.34 * (0.5 + 0.5 * Math.sin(now * 0.0032));
         for (const m of previewModelMaterials) {
           m.opacity = blink;
         }
@@ -1868,7 +1881,7 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
 
   useEffect(() => {
     sceneRefs.current?.syncBuildings();
-  }, [layout, selectedBuildingId, isEnemy]);
+  }, [layout, selectedBuildingId, movingBuildingId, isEnemy]);
 
   useEffect(() => {
     sceneRefs.current?.syncUnits();
