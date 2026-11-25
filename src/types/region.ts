@@ -9,7 +9,8 @@ export type BaseBuildingType =
   | 'wall'          // Tường rào / Lũy tre
   | 'gate'          // Cổng thành
   | 'watchtower'    // Chòi canh cung
-  | 'spike_trap';   // Bẫy chông
+  | 'spike_trap'    // Bẫy chông
+  | 'road';         // Đường đất
 
 export type BaseBuildingCategory = 'core' | 'economy' | 'military' | 'defense';
 

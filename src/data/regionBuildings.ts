@@ -209,7 +209,32 @@ export const BASE_BUILDING_CATALOG: Record<BaseBuildingType, BaseBuildingSpec> =
     description: 'Gây sát thương lớn khi quân địch giẫm phải.',
     effectLabel: (lvl) => `${90 * lvl} sát thương nổ bẫy`,
   },
+  road: {
+    type: 'road',
+    name: 'Đường Đất',
+    shortName: 'Đường',
+    category: 'defense',
+    spanCols: 1,
+    spanRows: 1,
+    maxLevel: 1,
+    baseHp: 120,
+    goldCost: 2,
+    foodCost: 0,
+    buildDays: 0,
+    maxPerBase: 80,
+    requiredMainHallLevel: 1,
+    description: 'Lối đi đất nện nối liền các công trình trong căn cứ.',
+    effectLabel: () => 'Kết nối giao thông nội thành',
+  },
 };
+
+export function getBuildableHalfRadius(mainHallLevel: number): number {
+  if (mainHallLevel >= 5) return 44;
+  if (mainHallLevel === 4) return 35;
+  if (mainHallLevel === 3) return 28;
+  if (mainHallLevel === 2) return 22;
+  return 16;
+}
 
 export const BUILDING_BUILD_ORDER: BaseBuildingType[] = [
   'farm',

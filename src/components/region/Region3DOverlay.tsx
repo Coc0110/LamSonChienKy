@@ -145,6 +145,7 @@ export const Region3DOverlay: React.FC = () => {
         isEnemy={activeRegion3D.mode === 'scout_view'}
         selectedBuildingId={selectedBuildingId}
         placementPreview={placementPreview}
+        showBuildGrid={is3DBuildPaletteOpen || Boolean(placementPreview)}
         onHoverCell={setHoveredCell}
         onClickCell={handleClickCell}
         onZoomOutThreshold={handleZoomOut}

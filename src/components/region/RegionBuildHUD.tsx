@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   ArrowUpCircle,
   Hammer,
@@ -18,6 +18,7 @@ import type { BaseBuilding, BaseBuildingType, RegionLayout } from '../../types/r
 import type { BaseAutomationConfig } from '../../store/slices/regionSlice';
 import {
   BASE_BUILDING_CATALOG,
+  getBuildableHalfRadius,
   getUpgradeCost,
 } from '../../data/regionBuildings';
 
@@ -45,20 +46,34 @@ interface RegionBuildHUDProps {
   onZoomOut: () => void;
 }
 
-const BUILD_ORDER: BaseBuildingType[] = [
-  'house',
-  'farm',
-  'forge',
-  'barracks',
-  'wall',
-  'gate',
-  'watchtower',
-  'spike_trap',
+type BuildTabKey = 'production' | 'facility' | 'road';
+
+const BUILD_TABS: Array<{
+  key: BuildTabKey;
+  label: string;
+  items: BaseBuildingType[];
+}> = [
+  { key: 'production', label: 'Sản xuất', items: ['farm', 'forge'] },
+  { key: 'facility', label: 'Cơ sở', items: ['house', 'barracks', 'watchtower', 'spike_trap'] },
+  { key: 'road', label: 'Đường', items: ['road', 'wall', 'gate'] },
 ];
+
+const BUILDING_ICON: Partial<Record<BaseBuildingType, string>> = {
+  farm: '/icons/structure_farm.png',
+  forge: '/icons/structure_forge.png',
+  barracks: '/icons/flag.png',
+  house: '/icons/structure_camp.png',
+  watchtower: '/icons/watchtower.png',
+  wall: '/icons/palisade.png',
+  gate: '/icons/gate.png',
+  road: '/icons/road.png',
+  spike_trap: '/icons/spike.png',
+};
 
 export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
   cityName,
   mode,
+  layout,
   gold,
   food,
   selectedBuilding,
@@ -77,6 +92,11 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
   onZoomOut,
 }) => {
   const isScout = mode === 'scout_view';
+  const [activeTab, setActiveTab] = useState<BuildTabKey>('facility');
+  const mainHall = layout.buildings.find((b) => b.type === 'main_hall' && b.status !== 'destroyed');
+  const mainLevel = mainHall?.level ?? 1;
+  const buildSpan = getBuildableHalfRadius(mainLevel) * 2;
+  const currentTabItems = BUILD_TABS.find((t) => t.key === activeTab)?.items ?? [];
 
   return (
     <div className="pointer-events-none fixed inset-0 z-40 flex flex-col justify-between pt-[76px] pb-4 pl-[104px] pr-4">
@@ -403,48 +423,127 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
         </div>
       )}
 
-      {/* Thanh chọn công trình xây dựng trên bản đồ 3D (khi bấm nút Xây Dựng trên Leftbar) */}
+      {/* Giao diện Xây dựng kiểu Bách Cảnh Đồ: Cuộn giấy phân loại bên trái + Thẻ bài công trình phía dưới */}
       {!isScout && isBuildPaletteOpen && (
-        <div className="pointer-events-auto self-center rounded-2xl border-2 border-amber-900/45 bg-[#f6ecd9]/95 px-3 py-2.5 shadow-xl font-serif max-w-[92vw] overflow-x-auto">
-          <div className="flex items-center justify-between mb-1.5 px-1">
-            <span className="text-xs font-black text-amber-950">
-              Chọn công trình để đặt trực tiếp trên bản đồ 3D
-            </span>
-            <button
-              onClick={() => {
-                onSelectBuildType(null);
-                onCloseBuildPalette();
-              }}
-              className="rounded p-0.5 text-stone-600 hover:bg-stone-900/10 cursor-pointer"
-            >
-              <X className="h-4 w-4" />
-            </button>
+        <div className="pointer-events-none flex items-end justify-between gap-3 w-full">
+          {/* Cuộn giấy dọc chọn nhóm: Sản xuất / Cơ sở / Đường */}
+          <div className="pointer-events-auto relative flex flex-col items-center w-[124px] shrink-0 font-serif select-none">
+            {/* Thanh cuộn gỗ trên */}
+            <div className="h-3 w-[134px] rounded-full bg-gradient-to-b from-[#8b5a2b] via-[#5e3a18] to-[#3d240d] border border-[#2a1708] shadow-md z-10" />
+            <div className="w-full bg-[#faf1dd] border-x-2 border-[#7c4d25]/60 px-2 py-2.5 flex flex-col gap-1.5 shadow-xl">
+              {BUILD_TABS.map((tab) => {
+                const isActive = activeTab === tab.key;
+                return (
+                  <button
+                    key={tab.key}
+                    onClick={() => setActiveTab(tab.key)}
+                    className={`w-full rounded-lg py-2 px-2 text-center text-xs font-black tracking-wide transition-all cursor-pointer border ${
+                      isActive
+                        ? 'bg-[#f3cfa4] text-[#5c2c0c] border-[#c88a4b] shadow-inner'
+                        : 'bg-transparent text-[#4b3523] border-transparent hover:bg-[#efe0c4]'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
+              <div className="mt-1 border-t border-[#8b5a2b]/20 pt-1.5 text-center text-[10px] font-bold text-[#7c5228]">
+                Phạm vi: {buildSpan}×{buildSpan}
+                <div className="text-[9px] font-normal text-[#8d6b47]">Nhà Chính Lv.{mainLevel}</div>
+              </div>
+            </div>
+            {/* Thanh cuộn gỗ dưới */}
+            <div className="h-3 w-[134px] rounded-full bg-gradient-to-b from-[#8b5a2b] via-[#5e3a18] to-[#3d240d] border border-[#2a1708] shadow-md z-10" />
           </div>
-          <div className="flex items-center gap-1.5">
-            {BUILD_ORDER.map((type) => {
+
+          {/* Hàng thẻ bài công trình nằm ngang phía dưới */}
+          <div className="pointer-events-auto flex-1 flex items-end gap-2.5 overflow-x-auto pb-1 pr-2">
+            {currentTabItems.map((type) => {
               const spec = BASE_BUILDING_CATALOG[type];
+              const count = layout.buildings.filter(
+                (b) => b.type === type && b.status !== 'destroyed'
+              ).length;
+              const isFull = count >= spec.maxPerBase;
               const isSelected = activeBuildType === type;
               const canAfford = gold >= spec.goldCost && food >= spec.foodCost;
+              const lockedByHall = mainLevel < spec.requiredMainHallLevel;
+              const disabled = isFull || lockedByHall;
+              const iconSrc = BUILDING_ICON[type] || '/icons/structure_camp.png';
+
               return (
-                <button
+                <div
                   key={type}
-                  onClick={() => onSelectBuildType(isSelected ? null : type)}
-                  className={`flex flex-col items-center rounded-xl border px-2.5 py-1.5 text-center transition-all cursor-pointer min-w-[78px] ${
-                    isSelected
-                      ? 'border-red-700 bg-red-800 text-amber-50 shadow'
-                      : canAfford
-                      ? 'border-amber-900/25 bg-[#fbf5e8] text-stone-900 hover:bg-amber-100'
-                      : 'border-stone-400/30 bg-stone-200/70 text-stone-500'
+                  onClick={() => {
+                    if (!disabled) onSelectBuildType(isSelected ? null : type);
+                  }}
+                  className={`relative flex flex-col items-center justify-between w-[134px] h-[156px] shrink-0 rounded-xl border-2 p-2.5 font-serif transition-all select-none ${
+                    disabled
+                      ? 'border-[#a89a84] bg-[#e5dccb]/90 opacity-75 cursor-not-allowed'
+                      : isSelected
+                      ? 'border-[#b91c1c] bg-[#fff7e6] -translate-y-1.5 shadow-[0_10px_24px_rgba(185,28,28,0.35)] cursor-pointer'
+                      : 'border-[#c4a77d] bg-[#faf2e1]/95 hover:-translate-y-1 hover:border-[#8b5a2b] shadow-lg cursor-pointer'
                   }`}
                 >
-                  <span className="text-[11px] font-bold leading-tight">{spec.name}</span>
-                  <span className={`text-[10px] mt-0.5 ${isSelected ? 'text-amber-200' : 'text-amber-800'}`}>
-                    {spec.goldCost}V · {spec.foodCost}L
+                  {/* Góc trên phải: số lượng hiện tại / tối đa */}
+                  <span className="self-end rounded bg-[#5c3a18]/10 px-1.5 py-0.5 text-[10px] font-black text-[#4b321a]">
+                    {count}/{spec.maxPerBase}
                   </span>
-                </button>
+
+                  {/* Minh họa công trình ở giữa */}
+                  <div className="flex items-center justify-center h-14 w-full my-0.5">
+                    <img
+                      src={iconSrc}
+                      alt={spec.name}
+                      onError={(e) => {
+                        e.currentTarget.src = '/icons/structure_camp.png';
+                      }}
+                      className="h-12 w-12 object-contain drop-shadow-[0_2px_3px_rgba(0,0,0,0.28)] pointer-events-none"
+                    />
+                  </div>
+
+                  {/* Nút trạng thái + chi phí */}
+                  <div
+                    className={`w-full rounded-md py-1 px-1.5 text-center text-[11px] font-black border ${
+                      isFull
+                        ? 'bg-[#d97736]/85 text-white border-[#b45309]'
+                        : lockedByHall
+                        ? 'bg-stone-500 text-stone-100 border-stone-600'
+                        : isSelected
+                        ? 'bg-[#b91c1c] text-amber-50 border-[#7f1d1d]'
+                        : canAfford
+                        ? 'bg-[#e89d58] text-[#3d1c04] border-[#b46928]'
+                        : 'bg-stone-300 text-stone-600 border-stone-400'
+                    }`}
+                  >
+                    {isFull
+                      ? 'Đã xây xong'
+                      : lockedByHall
+                      ? `Mở Lv.${spec.requiredMainHallLevel}`
+                      : isSelected
+                      ? 'Đang chọn'
+                      : `${spec.goldCost}V · ${spec.foodCost}L`}
+                  </div>
+
+                  {/* Tên công trình ở chân thẻ */}
+                  <span className="mt-1 text-xs font-black text-[#3b2511] text-center leading-tight truncate w-full">
+                    {spec.name}
+                  </span>
+                </div>
               );
             })}
           </div>
+
+          {/* Nút Đóng chế độ xây dựng bên phải */}
+          <button
+            onClick={() => {
+              onSelectBuildType(null);
+              onCloseBuildPalette();
+            }}
+            className="pointer-events-auto self-end flex items-center gap-1.5 rounded-xl border-2 border-[#7c4d25] bg-[#faf1dd] px-3.5 py-2.5 text-xs font-black text-[#4b2b10] shadow-lg hover:bg-[#f3cfa4] cursor-pointer shrink-0 font-serif"
+          >
+            <X className="h-4 w-4" />
+            Đóng
+          </button>
         </div>
       )}
     </div>

@@ -5,6 +5,7 @@ import { useGameStore } from '../../store/gameStore';
 import { notify } from '../../store/dialogStore';
 import type { BaseBuilding, RegionCombatUnit, RegionLayout } from '../../types/region';
 import { CELL_SCALE_3D, createThanhHoa3DWorld, getThanhHoaElevationAtWorld } from '../../utils/thanhHoa3DTerrain';
+import { getBuildableHalfRadius } from '../../data/regionBuildings';
 import {
   DIORAMA_PALETTE,
   animateSoldierChop,
@@ -39,6 +40,7 @@ interface Region3DCanvasProps {
   selectedBuildingId?: string | null;
   selectedUnitId?: string | null;
   placementPreview?: PlacementPreviewConfig | null;
+  showBuildGrid?: boolean;
   deployZoneHighlight?: boolean;
   onHoverCell?: (cell: { col: number; row: number } | null) => void;
   onClickCell?: (
@@ -60,6 +62,7 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
   selectedBuildingId = null,
   selectedUnitId = null,
   placementPreview = null,
+  showBuildGrid = false,
   deployZoneHighlight = false,
   onHoverCell,
   onClickCell,
@@ -85,6 +88,9 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
   const placementPreviewRef = useRef(placementPreview);
   placementPreviewRef.current = placementPreview;
 
+  const showBuildGridRef = useRef(showBuildGrid);
+  showBuildGridRef.current = showBuildGrid;
+
   const onHoverCellRef = useRef(onHoverCell);
   onHoverCellRef.current = onHoverCell;
 
@@ -100,6 +106,7 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
     envGroup: THREE.Group;
     previewBox: THREE.Mesh;
     selectionRing: THREE.Mesh;
+    buildGridGroup: THREE.Group;
     syncBuildings: () => void;
     syncUnits: () => void;
   } | null>(null);
@@ -250,6 +257,11 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
 
     const workGroup = new THREE.Group();
     scene.add(workGroup);
+
+    // Lưới xây dựng & ranh giới phạm vi quanh Nhà Chính (chỉ hiện khi ở chế độ xây dựng)
+    const buildGridGroup = new THREE.Group();
+    buildGridGroup.visible = showBuildGridRef.current;
+    scene.add(buildGridGroup);
 
     // Con đường đất nện trong căn cứ (chỉ vẽ phần đường trong suốt, nằm khít lên địa hình 3D mới)
     const pathsGeo = new THREE.PlaneGeometry(gridSize, gridSize);
@@ -505,6 +517,34 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
         pathsMat.needsUpdate = true;
       }
 
+      // Xây dựng lưới & khung ranh giới phạm vi xây dựng quanh Nhà Chính theo cấp độ
+      while (buildGridGroup.children.length > 0) {
+        const child = buildGridGroup.children[0];
+        buildGridGroup.remove(child);
+        if (child instanceof THREE.GridHelper || child instanceof THREE.LineSegments) {
+          child.geometry.dispose();
+          if (Array.isArray(child.material)) child.material.forEach((m) => m.dispose());
+          else child.material.dispose();
+        }
+      }
+      const hallForGrid = currentLayout.buildings.find(
+        (b) => b.type === 'main_hall' && b.status !== 'destroyed'
+      );
+      const halfR = getBuildableHalfRadius(hallForGrid?.level ?? 1);
+      const mhCenterX = hallForGrid ? hallForGrid.col + hallForGrid.spanCols / 2 - half : 0;
+      const mhCenterZ = hallForGrid ? hallForGrid.row + hallForGrid.spanRows / 2 - half : 0;
+      const gridSpan = halfR * 2;
+      const buildGrid = new THREE.GridHelper(gridSpan, gridSpan, 0xfacc15, 0xfef08a);
+      buildGrid.position.set(mhCenterX, 0.04, mhCenterZ);
+      (buildGrid.material as THREE.Material).transparent = true;
+      (buildGrid.material as THREE.Material).opacity = 0.22;
+      const boundaryEdges = new THREE.LineSegments(
+        new THREE.EdgesGeometry(new THREE.BoxGeometry(gridSpan, 0.16, gridSpan)),
+        new THREE.LineBasicMaterial({ color: 0xfacc15 })
+      );
+      boundaryEdges.position.set(mhCenterX, 0.08, mhCenterZ);
+      buildGridGroup.add(buildGrid, boundaryEdges);
+
       // Xây map ô tường/cổng để tự động nối liền tường rào
       const wallOccupied = new Set<string>();
       for (const b of currentLayout.buildings) {
@@ -612,7 +652,7 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
         }
       }
       for (const b of currentLayout.buildings) {
-        if (b.status === 'destroyed' || b.type === 'spike_trap') continue;
+        if (b.status === 'destroyed' || b.type === 'spike_trap' || b.type === 'road' || b.type === 'gate') continue;
         buildingAABBs.push({
           minX: b.col - half,
           maxX: b.col + b.spanCols - half,
@@ -902,6 +942,7 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
       envGroup,
       previewBox,
       selectionRing,
+      buildGridGroup,
       syncBuildings,
       syncUnits,
     };
@@ -1691,6 +1732,12 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
       sceneRefs.current.previewBox.visible = false;
     }
   }, [placementPreview]);
+
+  useEffect(() => {
+    if (sceneRefs.current) {
+      sceneRefs.current.buildGridGroup.visible = showBuildGrid;
+    }
+  }, [showBuildGrid]);
 
   return <div ref={containerRef} className="w-full h-full cursor-grab active:cursor-grabbing select-none" />;
 };

@@ -616,7 +616,18 @@ function buildRoadGrid(gridSize: number, buildings: BaseBuilding[]): Uint8Array 
   const road = new Uint8Array(gridSize * gridSize);
 
   for (const b of buildings) {
-    if (b.status === 'destroyed' || b.type === 'spike_trap' || b.type === 'gate') continue;
+    if (b.status === 'destroyed' || b.type === 'spike_trap' || b.type === 'gate' || b.type === 'road') {
+      if (b.type === 'road' && b.status !== 'destroyed') {
+        for (let r = b.row; r < b.row + b.spanRows; r++) {
+          for (let c = b.col; c < b.col + b.spanCols; c++) {
+            if (r >= 0 && r < gridSize && c >= 0 && c < gridSize) {
+              road[r * gridSize + c] = 1;
+            }
+          }
+        }
+      }
+      continue;
+    }
     for (let r = b.row; r < b.row + b.spanRows; r++) {
       for (let c = b.col; c < b.col + b.spanCols; c++) {
         if (r >= 0 && r < gridSize && c >= 0 && c < gridSize) {
@@ -2881,6 +2892,11 @@ function getBuildingParts(
         push('bamboo', cone(0.08, 0.34 + tier * 0.04, 6, ox, 0.22, oz));
         push('iron', cone(0.05, 0.15, 6, ox, 0.42, oz));
       }
+      break;
+    }
+
+    case 'road': {
+      push('earth', createOrganicEarthMound(0.98, 0.98, 0.035, 17.3));
       break;
     }
   }
