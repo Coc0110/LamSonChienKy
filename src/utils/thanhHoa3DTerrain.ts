@@ -601,44 +601,79 @@ export function createThanhHoa3DWorld(
     fogTex.minFilter = THREE.LinearMipmapLinearFilter;
     const fogGeo = new THREE.PlaneGeometry(worldW, worldH);
     fogGeo.rotateX(-Math.PI / 2);
-    const fogMat = new THREE.MeshBasicMaterial({
+    const fogMat = new THREE.MeshStandardMaterial({
       map: fogTex,
+      roughness: 1,
+      metalness: 0,
       transparent: true,
+      opacity: 0.86,
       depthWrite: false,
       side: THREE.DoubleSide,
     });
-    const fogMesh = new THREE.Mesh(fogGeo, fogMat);
-    fogMesh.position.set(centerX, 6.8, centerZ);
-    group.add(fogMesh);
+    // 3 tầng sương mù từ sát mặt đất lên cao để không nhìn lọt xuống dưới
+    for (const fy of [0.65, 2.2, 3.9]) {
+      const fogMesh = new THREE.Mesh(fogGeo, fogMat);
+      fogMesh.position.set(centerX, fy, centerZ);
+      group.add(fogMesh);
+    }
     disposables.push(fogTex, fogGeo, fogMat);
 
+    // Tạo texture cụm mây mềm nhiều lớp radial gradient (không dùng khối đa giác cứng)
     if (fogPuffs.length > 0) {
-      const puffGeo = new THREE.IcosahedronGeometry(3.6, 1);
+      const puffCanvas = document.createElement('canvas');
+      puffCanvas.width = 128;
+      puffCanvas.height = 128;
+      const pCtx = puffCanvas.getContext('2d');
+      if (pCtx) {
+        pCtx.clearRect(0, 0, 128, 128);
+        const blobs: Array<[number, number, number, number]> = [
+          [64, 72, 48, 0.52],
+          [42, 76, 36, 0.44],
+          [86, 76, 36, 0.44],
+          [52, 54, 34, 0.46],
+          [76, 56, 32, 0.42],
+          [64, 46, 28, 0.36],
+        ];
+        for (const [bx, by, br, ba] of blobs) {
+          const grad = pCtx.createRadialGradient(bx, by, br * 0.12, bx, by, br);
+          grad.addColorStop(0, `rgba(242, 246, 243, ${ba})`);
+          grad.addColorStop(0.55, `rgba(232, 238, 234, ${ba * 0.55})`);
+          grad.addColorStop(1, 'rgba(232, 238, 234, 0)');
+          pCtx.fillStyle = grad;
+          pCtx.beginPath();
+          pCtx.arc(bx, by, br, 0, Math.PI * 2);
+          pCtx.fill();
+        }
+      }
+      const puffTex = new THREE.CanvasTexture(puffCanvas);
+      puffTex.colorSpace = THREE.SRGBColorSpace;
+      const puffGeo = new THREE.PlaneGeometry(11.5, 7.5);
       const puffMat = new THREE.MeshStandardMaterial({
-        color: 0xe6ede8,
-        roughness: 0.96,
+        map: puffTex,
+        roughness: 1,
         metalness: 0,
         transparent: true,
-        opacity: 0.72,
+        opacity: 0.78,
         depthWrite: false,
+        side: THREE.DoubleSide,
       });
       const puffInst = new THREE.InstancedMesh(puffGeo, puffMat, fogPuffs.length);
       const dummy = new THREE.Object3D();
       fogPuffs.forEach((p, i) => {
-        const s = 0.85 + hash2D(p.c + 3, p.r + 17) * 0.75;
+        const s = 0.85 + hash2D(p.c + 3, p.r + 17) * 0.65;
         dummy.position.set(
-          p.wx + (hash2D(p.c, p.r) - 0.5) * 2,
-          6.4 + hash2D(p.c + 9, p.r + 21) * 1.8,
-          p.wz + (hash2D(p.r, p.c) - 0.5) * 2
+          p.wx + (hash2D(p.c, p.r) - 0.5) * 2.4,
+          1.9 + hash2D(p.c + 9, p.r + 21) * 1.4,
+          p.wz + (hash2D(p.r, p.c) - 0.5) * 2.4
         );
-        dummy.scale.set(s * 1.35, s * 0.36, s * 1.25);
-        dummy.rotation.y = hash2D(p.c + 5, p.r + 11) * Math.PI * 2;
+        dummy.scale.set(s, s * 0.9, s);
+        dummy.rotation.set(-0.42, (hash2D(p.c + 5, p.r + 11) - 0.5) * 0.9, 0);
         dummy.updateMatrix();
         puffInst.setMatrixAt(i, dummy.matrix);
       });
       puffInst.instanceMatrix.needsUpdate = true;
       group.add(puffInst);
-      disposables.push(puffGeo, puffMat);
+      disposables.push(puffTex, puffGeo, puffMat);
     }
   }
 
