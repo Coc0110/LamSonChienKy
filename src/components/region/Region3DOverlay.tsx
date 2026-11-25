@@ -3,6 +3,7 @@ import { useGameStore } from '../../store/gameStore';
 import { useUIStore } from '../../store/uiStore';
 import { notify } from '../../store/dialogStore';
 import { BASE_BUILDING_CATALOG } from '../../data/regionBuildings';
+import districtPolygonsJson from '../../data/districtPolygons.json';
 import type { BaseBuilding, BaseBuildingType } from '../../types/region';
 import { canPlaceOnRegionGrid } from '../../utils/regionLayoutGenerator';
 import { Region3DCanvas } from './Region3DCanvas';
@@ -205,22 +206,39 @@ export const Region3DOverlay: React.FC = () => {
           }
         }
         onUpdateAutomation={(patch) => setBaseAutomation(activeRegion3D.cityId, patch)}
-        scoutableDistricts={cities
-          .filter((c) => c.faction !== 'lam_son' && !c.hasBase && !scoutedRegionIds?.[c.id])
+        scoutableDistricts={(
+          districtPolygonsJson as unknown as {
+            districts: Array<{ id: string; name: string; faction: string; center: [number, number] }>;
+          }
+        ).districts
+          .filter((d) => {
+            const ownedByPlayer = cities.some(
+              (c) => c.id === d.id && (c.faction === 'lam_son' || c.hasBase)
+            );
+            return !ownedByPlayer && d.faction !== 'lam_son' && !scoutedRegionIds?.[d.id];
+          })
           .sort((a, b) => {
             const bx = city?.x ?? 50.8;
             const by = city?.y ?? 47.6;
-            return Math.hypot(a.x - bx, a.y - by) - Math.hypot(b.x - bx, b.y - by);
+            return (
+              Math.hypot(a.center[0] - bx, a.center[1] - by) -
+              Math.hypot(b.center[0] - bx, b.center[1] - by)
+            );
           })
-          .map((c) => ({
-            id: c.id,
-            name: c.name,
-            isTayDo: c.id === 'tay_do' || c.name.toLowerCase().includes('tây đô'),
+          .map((d) => ({
+            id: d.id,
+            name: d.name,
+            isTayDo: d.id === 'tay_do' || d.name.toLowerCase().includes('tây đô'),
           }))}
         onScoutDistrict={(targetId) => {
           markRegionScouted(targetId);
-          const targetName = cities.find((c) => c.id === targetId)?.name || targetId;
-          notify.success(`Đã do thám ${targetName}! Sương mù đã được gỡ bỏ trên cả bản đồ 2D và 3D.`);
+          const allDistricts = (
+            districtPolygonsJson as unknown as {
+              districts: Array<{ id: string; name: string }>;
+            }
+          ).districts;
+          const targetName = allDistricts.find((d) => d.id === targetId)?.name || targetId;
+          notify.success(`Đã do thám huyện ${targetName}! Sương mù đã được gỡ bỏ trên cả bản đồ 2D và 3D.`);
         }}
         formations={formations.filter((f) => f.faction === 'lam_son')}
         defenseFormationIds={defenseFormationIdsMap?.[activeRegion3D.cityId] ?? []}
