@@ -301,6 +301,7 @@ export interface ThanhHoaWorldResult {
   findPlainsTreeAt: (wx: number, wz: number, maxDist?: number) => PlainsTreeHit | null;
   getForestCellAt: (wx: number, wz: number) => ForestCellHit | null;
   hideTreesByKey: (key: string) => void;
+  setFogTint: (color: THREE.Color) => void;
   dispose: () => void;
 }
 
@@ -526,6 +527,7 @@ export function createThanhHoa3DWorld(
   disposables.push(terrainGeo, terrainMat);
 
   // 3. Lớp mây sương 3D che phủ các huyện thành chưa do thám (không vẽ ranh giới huyện)
+  const fogTintMaterials: THREE.MeshBasicMaterial[] = [];
   if (exploredIds) {
     const fogField = new Float32Array(cols * rows);
     const fogPuffs: Array<{ wx: number; wz: number; c: number; r: number }> = [];
@@ -601,24 +603,24 @@ export function createThanhHoa3DWorld(
     fogTex.minFilter = THREE.LinearMipmapLinearFilter;
     const fogGeo = new THREE.PlaneGeometry(worldW, worldH);
     fogGeo.rotateX(-Math.PI / 2);
-    const fogMat = new THREE.MeshStandardMaterial({
+    const fogMat = new THREE.MeshBasicMaterial({
       map: fogTex,
-      roughness: 1,
-      metalness: 0,
+      color: 0xffffff,
       transparent: true,
-      opacity: 0.86,
+      opacity: 0.84,
       depthWrite: false,
       side: THREE.DoubleSide,
     });
-    // 3 tầng sương mù từ sát mặt đất lên cao để không nhìn lọt xuống dưới
-    for (const fy of [0.65, 2.2, 3.9]) {
+    fogTintMaterials.push(fogMat);
+    // 4 tầng sương mù từ sát mặt đất lên trên đỉnh núi cao nhất
+    for (const fy of [1.4, 4.0, 7.0, 10.2]) {
       const fogMesh = new THREE.Mesh(fogGeo, fogMat);
       fogMesh.position.set(centerX, fy, centerZ);
       group.add(fogMesh);
     }
     disposables.push(fogTex, fogGeo, fogMat);
 
-    // Tạo texture cụm mây mềm nhiều lớp radial gradient (không dùng khối đa giác cứng)
+    // Tạo texture cụm mây mềm nhiều lớp radial gradient (MeshBasicMaterial để nhìn 360° không bị vệt đen mặt sau)
     if (fogPuffs.length > 0) {
       const puffCanvas = document.createElement('canvas');
       puffCanvas.width = 128;
@@ -647,26 +649,26 @@ export function createThanhHoa3DWorld(
       }
       const puffTex = new THREE.CanvasTexture(puffCanvas);
       puffTex.colorSpace = THREE.SRGBColorSpace;
-      const puffGeo = new THREE.PlaneGeometry(11.5, 7.5);
-      const puffMat = new THREE.MeshStandardMaterial({
+      const puffGeo = new THREE.PlaneGeometry(13.5, 10.5);
+      const puffMat = new THREE.MeshBasicMaterial({
         map: puffTex,
-        roughness: 1,
-        metalness: 0,
+        color: 0xf4f7f5,
         transparent: true,
-        opacity: 0.78,
+        opacity: 0.72,
         depthWrite: false,
         side: THREE.DoubleSide,
       });
+      fogTintMaterials.push(puffMat);
       const puffInst = new THREE.InstancedMesh(puffGeo, puffMat, fogPuffs.length);
       const dummy = new THREE.Object3D();
       fogPuffs.forEach((p, i) => {
-        const s = 0.85 + hash2D(p.c + 3, p.r + 17) * 0.65;
+        const s = 0.9 + hash2D(p.c + 3, p.r + 17) * 0.7;
         dummy.position.set(
           p.wx + (hash2D(p.c, p.r) - 0.5) * 2.4,
-          1.9 + hash2D(p.c + 9, p.r + 21) * 1.4,
+          3.6 + hash2D(p.c + 9, p.r + 21) * 2.4,
           p.wz + (hash2D(p.r, p.c) - 0.5) * 2.4
         );
-        dummy.scale.set(s, s * 0.9, s);
+        dummy.scale.set(s, s * 0.95, s);
         dummy.rotation.set(-0.42, (hash2D(p.c + 5, p.r + 11) - 0.5) * 0.9, 0);
         dummy.updateMatrix();
         puffInst.setMatrixAt(i, dummy.matrix);
@@ -985,6 +987,11 @@ export function createThanhHoa3DWorld(
         item.crownInst.instanceMatrix.needsUpdate = true;
       }
       keyToInstances.delete(key);
+    },
+    setFogTint: (color: THREE.Color) => {
+      for (const m of fogTintMaterials) {
+        m.color.copy(color);
+      }
     },
     dispose: () => {
       for (const d of disposables) d.dispose();

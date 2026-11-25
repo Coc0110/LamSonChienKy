@@ -1837,6 +1837,7 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
       sun.color.copy(tmpLightColor);
       hemi.color.copy(tmpHemiSky);
       hemi.groundColor.copy(tmpHemiGround);
+      thanhHoaWorld.setFogTint(tmpHemiSky);
 
       if (sunHeight >= -0.05) {
         sun.position.set(Math.cos(sunAngle) * 20, Math.max(10, Math.sin(sunAngle) * 28), 14);
