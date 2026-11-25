@@ -19,6 +19,7 @@ import { INITIAL_CITIES } from '../../data/mapData';
 
 export interface RegionSlice {
   regionLayouts: Record<string, RegionLayout>;
+  clearedTerrainKeys: Record<string, string[]>; // cityId -> array of "col,row" cleared keys
   scoutedRegionIds: Record<string, number>; // cityId -> day last scouted
   activeSiegeBattle: SiegeBattleState | null;
   activeAmbushBattle: AmbushBattleState | null;
@@ -48,6 +49,7 @@ export interface RegionSlice {
   tickRegionConstruction: () => void;
   markRegionScouted: (cityId: string) => void;
   setRegionLayout: (cityId: string, layout: RegionLayout) => void;
+  completeTerrainClearing: (cityId: string, key: string, kind: 'chop_tree' | 'clear_forest') => void;
 
   startSiege3D: (targetCityId: string, formationId: string) => void;
   resolveSiege3D: (finalState: SiegeBattleState) => void;
@@ -74,6 +76,7 @@ function createInitialRegionLayouts(): Record<string, RegionLayout> {
 
 export const createRegionSlice: StateCreator<GameStore, [], [], RegionSlice> = (set, get) => ({
   regionLayouts: createInitialRegionLayouts(),
+  clearedTerrainKeys: {},
   scoutedRegionIds: {},
   activeSiegeBattle: null,
   activeAmbushBattle: null,
@@ -512,5 +515,25 @@ export const createRegionSlice: StateCreator<GameStore, [], [], RegionSlice> = (
     }));
     notify.success(`Đã đẩy lùi quân Minh, giữ vững căn cứ ${finalState.cityName}!`);
     state.exitAutoPause();
+  },
+
+  completeTerrainClearing: (cityId, key, kind) => {
+    const rewardGold = kind === 'clear_forest' ? 35 : 8;
+    const rewardFood = kind === 'clear_forest' ? 25 : 5;
+    set((s) => {
+      const prev = s.clearedTerrainKeys?.[cityId] ?? [];
+      if (prev.includes(key)) return s;
+      return {
+        clearedTerrainKeys: {
+          ...s.clearedTerrainKeys,
+          [cityId]: [...prev, key],
+        },
+        resources: {
+          ...s.resources,
+          gold: s.resources.gold + rewardGold,
+          food: s.resources.food + rewardFood,
+        },
+      };
+    });
   },
 });

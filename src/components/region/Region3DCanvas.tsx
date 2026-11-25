@@ -2,8 +2,9 @@ import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { useGameStore } from '../../store/gameStore';
+import { notify } from '../../store/dialogStore';
 import type { BaseBuilding, RegionCombatUnit, RegionLayout } from '../../types/region';
-import { createThanhHoa3DWorld, getThanhHoaElevationAtWorld } from '../../utils/thanhHoa3DTerrain';
+import { CELL_SCALE_3D, createThanhHoa3DWorld, getThanhHoaElevationAtWorld } from '../../utils/thanhHoa3DTerrain';
 import {
   DIORAMA_PALETTE,
   animateSoldierWalk,
@@ -205,8 +206,65 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
     // Toàn bộ địa hình 3D tỉnh Thanh Hóa bao quanh căn cứ (tối ưu bằng 1 mesh + InstancedMesh)
     const basePctX = cityCoord?.x ?? 50.8;
     const basePctY = cityCoord?.y ?? 47.6;
-    const thanhHoaWorld = createThanhHoa3DWorld(basePctX, basePctY);
+    const initialHiddenKeys = new Set(initStore.clearedTerrainKeys?.[layout.cityId] ?? []);
+    const thanhHoaWorld = createThanhHoa3DWorld(basePctX, basePctY, initialHiddenKeys);
     scene.add(thanhHoaWorld.group);
+
+    // Highlight ô rừng rậm (3x3) & cây đồng bằng khi di chuột
+    const forestHighlightGroup = new THREE.Group();
+    const forestFill = new THREE.Mesh(
+      new THREE.PlaneGeometry(CELL_SCALE_3D, CELL_SCALE_3D),
+      new THREE.MeshBasicMaterial({
+        color: 0x4ade80,
+        transparent: true,
+        opacity: 0.28,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      })
+    );
+    forestFill.rotation.x = -Math.PI / 2;
+    const forestEdge = new THREE.LineSegments(
+      new THREE.EdgesGeometry(new THREE.BoxGeometry(CELL_SCALE_3D, 0.08, CELL_SCALE_3D)),
+      new THREE.LineBasicMaterial({ color: 0xfacc15 })
+    );
+    forestHighlightGroup.add(forestFill, forestEdge);
+    forestHighlightGroup.visible = false;
+    scene.add(forestHighlightGroup);
+
+    const treeHighlightRing = new THREE.Mesh(
+      new THREE.RingGeometry(0.62, 0.92, 24),
+      new THREE.MeshBasicMaterial({
+        color: 0xfbbf24,
+        transparent: true,
+        opacity: 0.85,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      })
+    );
+    treeHighlightRing.rotation.x = -Math.PI / 2;
+    treeHighlightRing.visible = false;
+    scene.add(treeHighlightRing);
+
+    const workGroup = new THREE.Group();
+    scene.add(workGroup);
+
+    interface ForestWorkSquad {
+      key: string;
+      kind: 'chop_tree' | 'clear_forest';
+      targetX: number;
+      targetZ: number;
+      state: 'going' | 'working' | 'returning';
+      workElapsed: number;
+      workDuration: number;
+      soldiers: Array<{
+        group: THREE.Group;
+        offsetX: number;
+        offsetZ: number;
+        phase: number;
+      }>;
+    }
+    const workSquads: ForestWorkSquad[] = [];
+    const activeWorkKeys = new Set<string>();
 
     // Mặt phẳng vô hình phủ toàn Thanh Hóa dùng cho raycast đặt/chọn công trình trên địa hình 3D mới
     const groundGeo = new THREE.PlaneGeometry(1100, 1100);
@@ -794,12 +852,12 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
       const pt = hits[0].point;
       const col = Math.floor(pt.x + half);
       const row = Math.floor(pt.z + half);
-      return { col, row };
+      return { col, row, wx: pt.x, wz: pt.z };
     };
 
     const handlePointerMove = (e: PointerEvent) => {
       const cell = getCellFromPointer(e.clientX, e.clientY);
-      onHoverCellRef.current?.(cell);
+      onHoverCellRef.current?.(cell ? { col: cell.col, row: cell.row } : null);
 
       const preview = placementPreviewRef.current;
       if (preview && cell) {
@@ -811,14 +869,89 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
         previewBox.scale.set(preview.spanCols, 1, preview.spanRows);
         previewBox.position.set(px, py, pz);
         (previewBox.material as THREE.MeshBasicMaterial).color.setHex(valid ? 0x22c55e : 0xef4444);
+        forestHighlightGroup.visible = false;
+        treeHighlightRing.visible = false;
+        domEl.style.cursor = '';
       } else {
         previewBox.visible = false;
+        if (cell) {
+          const treeHit = thanhHoaWorld.findPlainsTreeAt(cell.wx, cell.wz, 1.75);
+          if (treeHit && !activeWorkKeys.has(treeHit.key)) {
+            treeHighlightRing.position.set(treeHit.wx, treeHit.elev + 0.18, treeHit.wz);
+            treeHighlightRing.visible = true;
+            forestHighlightGroup.visible = false;
+            domEl.style.cursor = 'pointer';
+            return;
+          }
+          const forestHit = thanhHoaWorld.getForestCellAt(cell.wx, cell.wz);
+          if (forestHit && !activeWorkKeys.has(forestHit.key)) {
+            forestHighlightGroup.position.set(forestHit.wx, forestHit.elev + 0.24, forestHit.wz);
+            forestHighlightGroup.visible = true;
+            treeHighlightRing.visible = false;
+            domEl.style.cursor = 'pointer';
+            return;
+          }
+        }
+        forestHighlightGroup.visible = false;
+        treeHighlightRing.visible = false;
+        domEl.style.cursor = '';
       }
     };
 
     const handlePointerDown = (e: PointerEvent) => {
       downX = e.clientX;
       downY = e.clientY;
+    };
+
+    const dispatchForestWork = (
+      kind: 'chop_tree' | 'clear_forest',
+      key: string,
+      targetX: number,
+      targetZ: number,
+    ) => {
+      if (activeWorkKeys.has(key)) return;
+      const needed = kind === 'clear_forest' ? 10 : 1;
+      const currentTroops = useGameStore.getState().resources.troops;
+      if (currentTroops < needed) {
+        notify.warning(
+          kind === 'clear_forest'
+            ? 'Cần ít nhất 10 lính để phái đi khai hoang ô rừng!'
+            : 'Cần ít nhất 1 lính để phái đi chặt cây!'
+        );
+        return;
+      }
+
+      activeWorkKeys.add(key);
+      const soldiers: ForestWorkSquad['soldiers'] = [];
+      for (let i = 0; i < needed; i++) {
+        const g = createUnitGroup('swordsman', 'lam_son');
+        const angle = (i / needed) * Math.PI * 2;
+        const radius = needed === 1 ? 0.35 : 0.65 + (i % 2) * 0.45;
+        const ox = Math.cos(angle) * radius;
+        const oz = Math.sin(angle) * radius;
+        g.position.set(ox * 0.4, 0, oz * 0.4);
+        workGroup.add(g);
+        soldiers.push({ group: g, offsetX: ox, offsetZ: oz, phase: i * 0.7 });
+      }
+
+      workSquads.push({
+        key,
+        kind,
+        targetX,
+        targetZ,
+        state: 'going',
+        workElapsed: 0,
+        workDuration: kind === 'clear_forest' ? 4.5 : 2.6,
+        soldiers,
+      });
+
+      forestHighlightGroup.visible = false;
+      treeHighlightRing.visible = false;
+      notify.info(
+        kind === 'clear_forest'
+          ? 'Đã phái 10 lính đi khai hoang ô rừng!'
+          : 'Đã phái 1 lính đi chặt cây!'
+      );
     };
 
     const handlePointerUp = (e: PointerEvent) => {
@@ -845,6 +978,19 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
             u.soldiers > 0 &&
             Math.hypot(u.x - (cell.col + 0.5), u.z - (cell.row + 0.5)) <= 0.9
         ) || null;
+
+      if (!placementPreviewRef.current && !hitBuilding && !hitUnit) {
+        const treeHit = thanhHoaWorld.findPlainsTreeAt(cell.wx, cell.wz, 1.75);
+        if (treeHit) {
+          dispatchForestWork('chop_tree', treeHit.key, treeHit.wx, treeHit.wz);
+          return;
+        }
+        const forestHit = thanhHoaWorld.getForestCellAt(cell.wx, cell.wz);
+        if (forestHit) {
+          dispatchForestWork('clear_forest', forestHit.key, forestHit.wx, forestHit.wz);
+          return;
+        }
+      }
 
       onClickCellRef.current?.(cell.col, cell.row, hitBuilding, hitUnit);
     };
@@ -1111,6 +1257,66 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
           vis.phase += ds / (0.68 * Math.max(0.3, vis.group.scale.x));
         }
         animateSoldierWalk(vis.group, vis.phase, moving);
+      }
+
+      // Cập nhật các toán lính đi chặt cây / khai hoang rừng
+      for (let wi = workSquads.length - 1; wi >= 0; wi--) {
+        const task = workSquads[wi];
+        const moveSpeed = 6.2 * dt;
+        let allArrived = true;
+
+        for (const s of task.soldiers) {
+          const destX = task.state === 'returning' ? s.offsetX * 0.4 : task.targetX + s.offsetX;
+          const destZ = task.state === 'returning' ? s.offsetZ * 0.4 : task.targetZ + s.offsetZ;
+          const dx = destX - s.group.position.x;
+          const dz = destZ - s.group.position.z;
+          const dist = Math.hypot(dx, dz);
+
+          if (task.state !== 'working' && dist > 0.12) {
+            allArrived = false;
+            const step = Math.min(dist, moveSpeed);
+            s.group.position.x += (dx / dist) * step;
+            s.group.position.z += (dz / dist) * step;
+            s.group.position.y = getThanhHoaElevationAtWorld(
+              s.group.position.x,
+              s.group.position.z,
+              basePctX,
+              basePctY
+            );
+            s.group.rotation.y = Math.atan2(dx, dz);
+            s.phase += step / 0.55;
+            animateSoldierWalk(s.group, s.phase, true);
+          } else if (task.state === 'working') {
+            s.group.rotation.y = Math.atan2(task.targetX - s.group.position.x, task.targetZ - s.group.position.z);
+            s.phase += dt * 7;
+            animateSoldierWalk(s.group, s.phase, true);
+          } else {
+            animateSoldierWalk(s.group, s.phase, false);
+          }
+        }
+
+        if (task.state === 'going' && allArrived) {
+          task.state = 'working';
+          task.workElapsed = 0;
+        } else if (task.state === 'working') {
+          task.workElapsed += dt;
+          if (task.workElapsed >= task.workDuration) {
+            thanhHoaWorld.hideTreesByKey(task.key);
+            useGameStore.getState().completeTerrainClearing(layoutRef.current.cityId, task.key, task.kind);
+            notify.success(
+              task.kind === 'clear_forest'
+                ? 'Đã khai hoang xong ô rừng (+35 vàng, +25 lương)!'
+                : 'Đã chặt xong cây (+8 vàng, +5 lương)!'
+            );
+            task.state = 'returning';
+          }
+        } else if (task.state === 'returning' && allArrived) {
+          for (const s of task.soldiers) {
+            workGroup.remove(s.group);
+          }
+          activeWorkKeys.delete(task.key);
+          workSquads.splice(wi, 1);
+        }
       }
 
       // Cập nhật Mặt trời, Mặt trăng & màu sắc bầu trời/ánh sáng mượt mà liên tục theo thời gian đang chạy

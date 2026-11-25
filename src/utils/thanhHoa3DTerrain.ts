@@ -278,14 +278,32 @@ function createSmoothTerrainTexture(
   return tex;
 }
 
+export interface PlainsTreeHit {
+  key: string;
+  wx: number;
+  wz: number;
+  elev: number;
+}
+
+export interface ForestCellHit {
+  key: string;
+  wx: number;
+  wz: number;
+  elev: number;
+}
+
 export interface ThanhHoaWorldResult {
   group: THREE.Group;
+  findPlainsTreeAt: (wx: number, wz: number, maxDist?: number) => PlainsTreeHit | null;
+  getForestCellAt: (wx: number, wz: number) => ForestCellHit | null;
+  hideTreesByKey: (key: string) => void;
   dispose: () => void;
 }
 
 export function createThanhHoa3DWorld(
   basePctX: number,
   basePctY: number,
+  initialHiddenKeys?: Set<string>,
 ): ThanhHoaWorldResult {
   const group = new THREE.Group();
   const disposables: Array<{ dispose: () => void }> = [];
@@ -314,7 +332,20 @@ export function createThanhHoa3DWorld(
 
   const insideMask = new Uint8Array(cols * rows);
   const rawElevations = new Float32Array(cols * rows);
-  const forestCells: Array<{ wx: number; wz: number; elev: number; c: number; r: number }> = [];
+
+  interface TreeSpawn {
+    key: string;
+    wx: number;
+    wz: number;
+    elev: number;
+    c: number;
+    r: number;
+    isPlains: boolean;
+  }
+
+  const treeSpawns: TreeSpawn[] = [];
+  const plainsTreeMap = new Map<string, PlainsTreeHit>();
+  const forestCellMap = new Map<string, ForestCellHit>();
   const mountainCells: Array<{ wx: number; wz: number; elev: number; c: number; r: number; isCliff: boolean }> = [];
 
   for (let iy = 0; iy < rows; iy++) {
@@ -340,21 +371,50 @@ export function createThanhHoa3DWorld(
       } else {
         const elev = baseElevationForTerrain(t, c, r);
         rawElevations[idx] = elev;
+        const cellKey = `${c},${r}`;
 
         if (t === 'forest') {
-          let forestNeighbors = 0;
-          for (let dr = -1; dr <= 1; dr++) {
-            for (let dc = -1; dc <= 1; dc++) {
-              if (dc === 0 && dr === 0) continue;
-              if (getGridTerrain(c + dc, r + dr) === 'forest') forestNeighbors++;
+          if (!initialHiddenKeys?.has(cellKey)) {
+            forestCellMap.set(cellKey, { key: cellKey, wx, wz, elev });
+            let forestNeighbors = 0;
+            for (let dr = -1; dr <= 1; dr++) {
+              for (let dc = -1; dc <= 1; dc++) {
+                if (dc === 0 && dr === 0) continue;
+                if (getGridTerrain(c + dc, r + dr) === 'forest') forestNeighbors++;
+              }
+            }
+            const treeCount =
+              forestNeighbors >= 6 ? 3 : forestNeighbors >= 3 ? 2 : hash2D(c + 17, r + 31) > 0.15 ? 1 : 0;
+            for (let k = 0; k < treeCount; k++) {
+              const ox = (hash2D(c * 7 + k * 13, r * 11 + k * 29) - 0.5) * 2.4;
+              const oz = (hash2D(c * 19 + k * 37, r * 5 + k * 41) - 0.5) * 2.4;
+              treeSpawns.push({
+                key: cellKey,
+                wx: wx + ox,
+                wz: wz + oz,
+                elev,
+                c: c * 5 + k,
+                r: r * 5 + k,
+                isPlains: false,
+              });
             }
           }
-          const treeCount =
-            forestNeighbors >= 6 ? 3 : forestNeighbors >= 3 ? 2 : hash2D(c + 17, r + 31) > 0.15 ? 1 : 0;
-          for (let k = 0; k < treeCount; k++) {
-            const ox = (hash2D(c * 7 + k * 13, r * 11 + k * 29) - 0.5) * 2.4;
-            const oz = (hash2D(c * 19 + k * 37, r * 5 + k * 41) - 0.5) * 2.4;
-            forestCells.push({ wx: wx + ox, wz: wz + oz, elev, c: c * 5 + k, r: r * 5 + k });
+        } else if (t === 'plains' && hash2D(c * 13 + 7, r * 17 + 23) > 0.88) {
+          if (!initialHiddenKeys?.has(cellKey)) {
+            const ox = (hash2D(c * 3 + 5, r * 7 + 11) - 0.5) * 1.8;
+            const oz = (hash2D(c * 11 + 17, r * 13 + 19) - 0.5) * 1.8;
+            const twx = wx + ox;
+            const twz = wz + oz;
+            plainsTreeMap.set(cellKey, { key: cellKey, wx: twx, wz: twz, elev });
+            treeSpawns.push({
+              key: cellKey,
+              wx: twx,
+              wz: twz,
+              elev,
+              c: c * 5,
+              r: r * 5,
+              isPlains: true,
+            });
           }
         } else if ((t === 'mountain' || t === 'cliff') && hash2D(c + 53, r + 11) > 0.36) {
           mountainCells.push({ wx, wz, elev, c, r, isCliff: t === 'cliff' });
@@ -482,15 +542,22 @@ export function createThanhHoa3DWorld(
   group.add(borderLines);
   disposables.push(borderGeo, borderMat);
 
-  // 4. 5 detailed Oak tree variants (buttress roots, multi-branched trunks, layered foliage puffs)
-  if (forestCells.length > 0) {
+  // Map from cellKey ("c,r") -> list of InstancedMesh instances to hide in O(1) when chopped/cleared
+  const keyToInstances = new Map<
+    string,
+    Array<{ trunkInst: THREE.InstancedMesh; crownInst: THREE.InstancedMesh; idx: number }>
+  >();
+
+  // 4. 5 high-detail Oak tree variants (buttress roots, multi-branched trunks, vertex-shaded layered foliage)
+  if (treeSpawns.length > 0) {
     const makeLimb = (rTop: number, rBot: number, h: number, x: number, y: number, z: number, rx = 0, rz = 0) => {
-      const g = new THREE.CylinderGeometry(rTop, rBot, h, 6).toNonIndexed();
+      const g = new THREE.CylinderGeometry(rTop, rBot, h, 7).toNonIndexed();
       if (rx !== 0) g.rotateX(rx);
       if (rz !== 0) g.rotateZ(rz);
       g.translate(x, y, z);
       return g;
     };
+
     const makeLobe = (
       radius: number,
       x: number,
@@ -500,11 +567,32 @@ export function createThanhHoa3DWorld(
       sy = 0.82,
       sz = 1,
       ry = 0,
+      baseHex = 0x3e6c30,
+      crownCenterY = 1.4,
     ) => {
       const g = new THREE.IcosahedronGeometry(radius, 1);
       if (ry !== 0) g.rotateY(ry);
       g.scale(sx, sy, sz);
       g.translate(x, y, z);
+
+      // Sunlit top vs shaded underside vertex coloring (0 extra draw calls)
+      const pos = g.attributes.position as THREE.BufferAttribute;
+      const colors = new Float32Array(pos.count * 3);
+      const baseColor = new THREE.Color(baseHex);
+      for (let i = 0; i < pos.count; i++) {
+        const vy = pos.getY(i);
+        const vx = pos.getX(i);
+        const vz = pos.getZ(i);
+        const radial = Math.hypot(vx, vz);
+        const shade = Math.max(
+          0.62,
+          Math.min(1.22, 0.84 + (vy - crownCenterY) * 0.24 + radial * 0.14),
+        );
+        colors[i * 3] = Math.min(1, baseColor.r * shade);
+        colors[i * 3 + 1] = Math.min(1, baseColor.g * shade);
+        colors[i * 3 + 2] = Math.min(1, baseColor.b * shade);
+      }
+      g.setAttribute('color', new THREE.BufferAttribute(colors, 3));
       return g;
     };
 
@@ -512,116 +600,130 @@ export function createThanhHoa3DWorld(
       // 0: Sồi cổ thụ tán rộng (Ancient Spreading Oak)
       {
         trunkGeo: mergeGeometries([
-          makeLimb(0.15, 0.25, 0.96, 0, 0.48, 0),
-          makeLimb(0.06, 0.14, 0.32, -0.16, 0.12, 0.08, 0.3, 0.72),
-          makeLimb(0.06, 0.14, 0.32, 0.16, 0.12, -0.08, -0.3, -0.72),
-          makeLimb(0.06, 0.13, 0.3, 0.04, 0.11, -0.17, -0.7, 0.15),
-          makeLimb(0.08, 0.13, 0.72, -0.26, 1.02, 0.1, 0.22, 0.62),
-          makeLimb(0.08, 0.13, 0.7, 0.28, 0.98, -0.09, -0.24, -0.58),
-          makeLimb(0.06, 0.1, 0.56, 0.06, 1.06, 0.24, 0.56, -0.18),
-          makeLimb(0.05, 0.08, 0.42, -0.44, 1.24, 0.16, 0.2, 0.85),
+          makeLimb(0.15, 0.27, 0.98, 0, 0.48, 0),
+          makeLimb(0.06, 0.15, 0.34, -0.17, 0.13, 0.08, 0.28, 0.72),
+          makeLimb(0.06, 0.15, 0.34, 0.17, 0.13, -0.08, -0.28, -0.72),
+          makeLimb(0.06, 0.14, 0.32, 0.04, 0.12, -0.18, -0.7, 0.15),
+          makeLimb(0.05, 0.13, 0.3, -0.05, 0.12, 0.18, 0.7, -0.15),
+          makeLimb(0.08, 0.14, 0.74, -0.27, 1.04, 0.1, 0.22, 0.62),
+          makeLimb(0.08, 0.14, 0.72, 0.29, 1.0, -0.09, -0.24, -0.58),
+          makeLimb(0.06, 0.11, 0.58, 0.06, 1.08, 0.25, 0.56, -0.18),
+          makeLimb(0.05, 0.09, 0.54, -0.06, 1.06, -0.24, -0.54, 0.2),
+          makeLimb(0.04, 0.08, 0.44, -0.46, 1.26, 0.16, 0.2, 0.85),
+          makeLimb(0.04, 0.08, 0.42, 0.46, 1.22, -0.15, -0.2, -0.82),
         ]),
         crownGeo: mergeGeometries([
-          makeLobe(0.66, 0, 1.56, 0, 1.18, 0.78, 1.12, 0.2),
-          makeLobe(0.54, -0.52, 1.32, 0.2, 1.08, 0.76, 1.04, 0.7),
-          makeLobe(0.52, 0.48, 1.34, -0.18, 1.04, 0.78, 1.08, 1.4),
-          makeLobe(0.46, 0.12, 1.3, 0.48, 1.04, 0.74, 1.0, 2.1),
-          makeLobe(0.45, -0.14, 1.32, -0.46, 1.0, 0.75, 1.04, 2.8),
-          makeLobe(0.38, -0.36, 1.66, -0.18, 1.02, 0.8, 0.98, 0.9),
-          makeLobe(0.38, 0.34, 1.64, 0.22, 1.0, 0.82, 1.02, 1.9),
-          makeLobe(0.4, 0.02, 1.88, -0.04, 1.06, 0.76, 1.0, 0.4),
+          makeLobe(0.64, 0, 1.58, 0, 1.18, 0.78, 1.12, 0.2, 0x3d6b2f, 1.48),
+          makeLobe(0.52, -0.54, 1.34, 0.2, 1.08, 0.76, 1.04, 0.7, 0x3d6b2f, 1.48),
+          makeLobe(0.5, 0.5, 1.36, -0.18, 1.04, 0.78, 1.08, 1.4, 0x3d6b2f, 1.48),
+          makeLobe(0.46, 0.12, 1.32, 0.5, 1.04, 0.74, 1.0, 2.1, 0x3d6b2f, 1.48),
+          makeLobe(0.45, -0.14, 1.34, -0.48, 1.0, 0.75, 1.04, 2.8, 0x3d6b2f, 1.48),
+          makeLobe(0.38, -0.36, 1.68, -0.18, 1.02, 0.8, 0.98, 0.9, 0x457636, 1.48),
+          makeLobe(0.38, 0.34, 1.66, 0.22, 1.0, 0.82, 1.02, 1.9, 0x457636, 1.48),
+          makeLobe(0.34, -0.66, 1.42, -0.12, 0.96, 0.74, 0.94, 0.5, 0x457636, 1.48),
+          makeLobe(0.34, 0.62, 1.4, 0.16, 0.96, 0.74, 0.94, 1.2, 0x457636, 1.48),
+          makeLobe(0.4, 0.02, 1.9, -0.04, 1.06, 0.76, 1.0, 0.4, 0x4c7e3b, 1.48),
         ]),
-        crownColor: 0x3e6c30,
       },
       // 1: Sồi cao vươn tán (Tall Forest Oak)
       {
         trunkGeo: mergeGeometries([
-          makeLimb(0.12, 0.22, 1.34, 0, 0.66, 0),
-          makeLimb(0.05, 0.12, 0.28, -0.14, 0.11, -0.05, -0.25, 0.68),
-          makeLimb(0.05, 0.12, 0.28, 0.14, 0.11, 0.08, 0.25, -0.68),
-          makeLimb(0.07, 0.11, 0.6, 0.22, 1.24, 0.12, 0.28, -0.52),
-          makeLimb(0.06, 0.1, 0.56, -0.2, 1.34, -0.1, -0.26, 0.48),
-          makeLimb(0.05, 0.08, 0.46, -0.06, 1.48, 0.18, 0.48, 0.12),
+          makeLimb(0.12, 0.23, 1.36, 0, 0.68, 0),
+          makeLimb(0.05, 0.13, 0.3, -0.14, 0.11, -0.05, -0.25, 0.68),
+          makeLimb(0.05, 0.13, 0.3, 0.14, 0.11, 0.08, 0.25, -0.68),
+          makeLimb(0.05, 0.12, 0.28, 0.02, 0.11, 0.15, 0.66, 0.1),
+          makeLimb(0.07, 0.11, 0.62, 0.23, 1.26, 0.12, 0.28, -0.52),
+          makeLimb(0.06, 0.11, 0.58, -0.21, 1.36, -0.1, -0.26, 0.48),
+          makeLimb(0.05, 0.09, 0.48, -0.06, 1.5, 0.18, 0.48, 0.12),
+          makeLimb(0.04, 0.07, 0.38, 0.38, 1.48, 0.2, 0.3, -0.78),
         ]),
         crownGeo: mergeGeometries([
-          makeLobe(0.56, 0, 1.92, 0, 1.04, 0.9, 1.04, 0.3),
-          makeLobe(0.46, 0.36, 1.56, 0.22, 1.06, 0.8, 1.02, 1.1),
-          makeLobe(0.45, -0.34, 1.6, -0.2, 1.02, 0.82, 1.06, 2.0),
-          makeLobe(0.38, -0.1, 1.72, 0.36, 1.0, 0.8, 0.96, 0.6),
-          makeLobe(0.36, 0.14, 1.74, -0.34, 0.98, 0.8, 1.0, 1.6),
-          makeLobe(0.42, 0.04, 2.28, -0.04, 0.96, 0.86, 0.96, 2.5),
-          makeLobe(0.32, 0.24, 2.04, 0.16, 0.94, 0.82, 0.94, 0.8),
+          makeLobe(0.56, 0, 1.94, 0, 1.04, 0.9, 1.04, 0.3, 0x467635, 1.85),
+          makeLobe(0.46, 0.38, 1.58, 0.22, 1.06, 0.8, 1.02, 1.1, 0x467635, 1.85),
+          makeLobe(0.45, -0.36, 1.62, -0.2, 1.02, 0.82, 1.06, 2.0, 0x467635, 1.85),
+          makeLobe(0.38, -0.1, 1.74, 0.38, 1.0, 0.8, 0.96, 0.6, 0x4e803b, 1.85),
+          makeLobe(0.36, 0.14, 1.76, -0.36, 0.98, 0.8, 1.0, 1.6, 0x4e803b, 1.85),
+          makeLobe(0.42, 0.04, 2.3, -0.04, 0.96, 0.86, 0.96, 2.5, 0x548840, 1.85),
+          makeLobe(0.32, 0.26, 2.06, 0.16, 0.94, 0.82, 0.94, 0.8, 0x548840, 1.85),
+          makeLobe(0.32, -0.26, 2.04, -0.14, 0.94, 0.82, 0.94, 1.8, 0x548840, 1.85),
         ]),
-        crownColor: 0x497938,
       },
       // 2: Sồi hai chạc (Twin-Bough Oak)
       {
         trunkGeo: mergeGeometries([
-          makeLimb(0.15, 0.23, 0.74, 0, 0.36, 0),
-          makeLimb(0.06, 0.13, 0.3, 0.15, 0.11, -0.06, -0.2, -0.7),
-          makeLimb(0.06, 0.13, 0.3, -0.14, 0.11, 0.1, 0.35, 0.65),
-          makeLimb(0.09, 0.14, 0.86, -0.24, 0.92, 0.06, 0.14, 0.48),
-          makeLimb(0.08, 0.13, 0.78, 0.26, 0.88, -0.1, -0.2, -0.54),
-          makeLimb(0.05, 0.08, 0.44, -0.44, 1.32, 0.18, 0.25, 0.7),
-          makeLimb(0.05, 0.08, 0.42, 0.44, 1.24, -0.22, -0.3, -0.68),
+          makeLimb(0.15, 0.24, 0.76, 0, 0.38, 0),
+          makeLimb(0.06, 0.14, 0.32, 0.15, 0.12, -0.06, -0.2, -0.7),
+          makeLimb(0.06, 0.14, 0.32, -0.14, 0.12, 0.1, 0.35, 0.65),
+          makeLimb(0.09, 0.14, 0.88, -0.25, 0.94, 0.06, 0.14, 0.48),
+          makeLimb(0.08, 0.13, 0.8, 0.27, 0.9, -0.1, -0.2, -0.54),
+          makeLimb(0.05, 0.08, 0.46, -0.45, 1.34, 0.18, 0.25, 0.7),
+          makeLimb(0.05, 0.08, 0.44, 0.45, 1.26, -0.22, -0.3, -0.68),
         ]),
         crownGeo: mergeGeometries([
-          makeLobe(0.54, -0.38, 1.48, 0.1, 1.08, 0.82, 1.05, 0.5),
-          makeLobe(0.48, 0.4, 1.36, -0.18, 1.06, 0.8, 1.04, 1.3),
-          makeLobe(0.44, 0.02, 1.66, 0.24, 1.02, 0.82, 1.0, 2.2),
-          makeLobe(0.36, -0.58, 1.28, 0.24, 0.98, 0.78, 0.98, 0.9),
-          makeLobe(0.36, 0.54, 1.22, -0.32, 0.96, 0.78, 0.98, 1.7),
-          makeLobe(0.38, -0.16, 1.74, -0.12, 1.0, 0.8, 0.98, 2.9),
-          makeLobe(0.34, 0.26, 1.64, 0.04, 0.98, 0.82, 0.96, 0.2),
+          makeLobe(0.54, -0.38, 1.5, 0.1, 1.08, 0.82, 1.05, 0.5, 0x355f2b, 1.45),
+          makeLobe(0.48, 0.42, 1.38, -0.18, 1.06, 0.8, 1.04, 1.3, 0x355f2b, 1.45),
+          makeLobe(0.44, 0.02, 1.68, 0.24, 1.02, 0.82, 1.0, 2.2, 0x3d6b31, 1.45),
+          makeLobe(0.36, -0.6, 1.3, 0.24, 0.98, 0.78, 0.98, 0.9, 0x3d6b31, 1.45),
+          makeLobe(0.36, 0.56, 1.24, -0.32, 0.96, 0.78, 0.98, 1.7, 0x3d6b31, 1.45),
+          makeLobe(0.38, -0.16, 1.76, -0.12, 1.0, 0.8, 0.98, 2.9, 0x457538, 1.45),
+          makeLobe(0.34, 0.26, 1.66, 0.04, 0.98, 0.82, 0.96, 0.2, 0x457538, 1.45),
+          makeLobe(0.32, -0.4, 1.82, 0.06, 0.94, 0.78, 0.94, 1.1, 0x457538, 1.45),
         ]),
-        crownColor: 0x355f2b,
       },
       // 3: Sồi nghiêng gió (Wind-Swept Oak)
       {
         trunkGeo: mergeGeometries([
-          makeLimb(0.12, 0.21, 0.86, 0.08, 0.42, 0.04, 0.08, -0.18),
-          makeLimb(0.06, 0.12, 0.28, -0.12, 0.1, -0.08, -0.3, 0.65),
-          makeLimb(0.07, 0.11, 0.66, 0.3, 0.96, 0.12, 0.18, -0.54),
-          makeLimb(0.06, 0.09, 0.54, -0.06, 0.94, -0.16, -0.42, 0.35),
+          makeLimb(0.12, 0.22, 0.88, 0.08, 0.44, 0.04, 0.08, -0.18),
+          makeLimb(0.06, 0.13, 0.3, -0.12, 0.11, -0.08, -0.3, 0.65),
+          makeLimb(0.05, 0.12, 0.28, 0.16, 0.11, 0.1, 0.32, -0.62),
+          makeLimb(0.07, 0.11, 0.68, 0.31, 0.98, 0.12, 0.18, -0.54),
+          makeLimb(0.06, 0.09, 0.56, -0.06, 0.96, -0.16, -0.42, 0.35),
+          makeLimb(0.04, 0.07, 0.4, 0.5, 1.2, 0.2, 0.2, -0.74),
         ]),
         crownGeo: mergeGeometries([
-          makeLobe(0.56, 0.3, 1.4, 0.12, 1.12, 0.78, 1.06, 0.4),
-          makeLobe(0.46, 0.64, 1.24, 0.24, 1.04, 0.76, 1.0, 1.5),
-          makeLobe(0.44, -0.08, 1.28, -0.24, 1.02, 0.8, 1.04, 2.4),
-          makeLobe(0.38, 0.22, 1.64, -0.06, 1.0, 0.78, 0.98, 0.8),
-          makeLobe(0.34, 0.46, 1.54, -0.18, 0.96, 0.78, 0.98, 1.9),
-          makeLobe(0.34, 0.06, 1.38, 0.38, 0.98, 0.76, 0.96, 2.7),
+          makeLobe(0.56, 0.32, 1.42, 0.12, 1.12, 0.78, 1.06, 0.4, 0x447334, 1.38),
+          makeLobe(0.46, 0.66, 1.26, 0.24, 1.04, 0.76, 1.0, 1.5, 0x447334, 1.38),
+          makeLobe(0.44, -0.08, 1.3, -0.24, 1.02, 0.8, 1.04, 2.4, 0x447334, 1.38),
+          makeLobe(0.38, 0.22, 1.66, -0.06, 1.0, 0.78, 0.98, 0.8, 0x4d7e3c, 1.38),
+          makeLobe(0.34, 0.48, 1.56, -0.18, 0.96, 0.78, 0.98, 1.9, 0x4d7e3c, 1.38),
+          makeLobe(0.34, 0.06, 1.4, 0.4, 0.98, 0.76, 0.96, 2.7, 0x4d7e3c, 1.38),
+          makeLobe(0.32, 0.44, 1.72, 0.18, 0.92, 0.76, 0.92, 0.9, 0x558842, 1.38),
         ]),
-        crownColor: 0x457435,
       },
       // 4: Sồi non sum suê (Dense Young Oak)
       {
         trunkGeo: mergeGeometries([
-          makeLimb(0.11, 0.19, 0.64, 0, 0.32, 0),
-          makeLimb(0.06, 0.09, 0.42, -0.16, 0.64, 0.08, 0.2, 0.5),
-          makeLimb(0.06, 0.09, 0.4, 0.16, 0.62, -0.08, -0.2, -0.5),
+          makeLimb(0.11, 0.2, 0.66, 0, 0.33, 0),
+          makeLimb(0.05, 0.11, 0.24, -0.11, 0.1, 0.06, 0.25, 0.6),
+          makeLimb(0.05, 0.11, 0.24, 0.11, 0.1, -0.06, -0.25, -0.6),
+          makeLimb(0.06, 0.09, 0.44, -0.16, 0.66, 0.08, 0.2, 0.5),
+          makeLimb(0.06, 0.09, 0.42, 0.16, 0.64, -0.08, -0.2, -0.5),
         ]),
         crownGeo: mergeGeometries([
-          makeLobe(0.54, 0, 1.04, 0, 1.12, 0.82, 1.12, 0.2),
-          makeLobe(0.42, -0.36, 0.9, -0.22, 1.05, 0.78, 1.0, 1.1),
-          makeLobe(0.42, 0.34, 0.92, 0.22, 1.0, 0.78, 1.05, 2.0),
-          makeLobe(0.36, 0.18, 0.94, -0.34, 0.98, 0.78, 0.98, 0.7),
-          makeLobe(0.36, -0.2, 0.96, 0.34, 0.98, 0.78, 0.98, 1.8),
-          makeLobe(0.36, 0.02, 1.3, 0.02, 1.0, 0.8, 1.0, 2.6),
+          makeLobe(0.54, 0, 1.06, 0, 1.12, 0.82, 1.12, 0.2, 0x50803d, 1.04),
+          makeLobe(0.42, -0.36, 0.92, -0.22, 1.05, 0.78, 1.0, 1.1, 0x50803d, 1.04),
+          makeLobe(0.42, 0.34, 0.94, 0.22, 1.0, 0.78, 1.05, 2.0, 0x50803d, 1.04),
+          makeLobe(0.36, 0.18, 0.96, -0.34, 0.98, 0.78, 0.98, 0.7, 0x588a43, 1.04),
+          makeLobe(0.36, -0.2, 0.98, 0.34, 0.98, 0.78, 0.98, 1.8, 0x588a43, 1.04),
+          makeLobe(0.38, 0.02, 1.32, 0.02, 1.0, 0.8, 1.0, 2.6, 0x5e9148, 1.04),
         ]),
-        crownColor: 0x52823f,
       },
     ];
 
     const trunkMat = new THREE.MeshStandardMaterial({
-      color: 0x593b22,
+      color: 0x583a22,
       roughness: 0.92,
       flatShading: true,
     });
-    disposables.push(trunkMat);
+    const crownMat = new THREE.MeshStandardMaterial({
+      vertexColors: true,
+      roughness: 0.84,
+      flatShading: true,
+    });
+    disposables.push(trunkMat, crownMat);
 
-    const bucketed: Array<typeof forestCells> = oakVariants.map(() => []);
-    for (const cell of forestCells) {
+    const bucketed: Array<TreeSpawn[]> = oakVariants.map(() => []);
+    for (const cell of treeSpawns) {
       const vIdx = Math.floor(hash2D(cell.c + 71, cell.r + 97) * oakVariants.length) % oakVariants.length;
       bucketed[vIdx].push(cell);
     }
@@ -635,11 +737,6 @@ export function createThanhHoa3DWorld(
         return;
       }
 
-      const crownMat = new THREE.MeshStandardMaterial({
-        color: variant.crownColor,
-        roughness: 0.86,
-        flatShading: true,
-      });
       const trunkInst = new THREE.InstancedMesh(variant.trunkGeo, trunkMat, cells.length);
       const crownInst = new THREE.InstancedMesh(variant.crownGeo, crownMat, cells.length);
       trunkInst.castShadow = true;
@@ -647,7 +744,9 @@ export function createThanhHoa3DWorld(
       crownInst.receiveShadow = true;
 
       cells.forEach((cell, i) => {
-        const s = 0.56 + hash2D(cell.c + 41, cell.r + 43) * 0.88;
+        const s = cell.isPlains
+          ? 0.72 + hash2D(cell.c + 41, cell.r + 43) * 0.56
+          : 0.56 + hash2D(cell.c + 41, cell.r + 43) * 0.88;
         const sy = s * (0.88 + hash2D(cell.c + 61, cell.r + 67) * 0.24);
 
         dummy.position.set(cell.wx, cell.elev - 0.04, cell.wz);
@@ -656,12 +755,16 @@ export function createThanhHoa3DWorld(
         dummy.updateMatrix();
         trunkInst.setMatrixAt(i, dummy.matrix);
         crownInst.setMatrixAt(i, dummy.matrix);
+
+        const list = keyToInstances.get(cell.key);
+        if (list) list.push({ trunkInst, crownInst, idx: i });
+        else keyToInstances.set(cell.key, [{ trunkInst, crownInst, idx: i }]);
       });
 
       trunkInst.instanceMatrix.needsUpdate = true;
       crownInst.instanceMatrix.needsUpdate = true;
       group.add(trunkInst, crownInst);
-      disposables.push(variant.trunkGeo, variant.crownGeo, crownMat);
+      disposables.push(variant.trunkGeo, variant.crownGeo);
     });
   }
 
@@ -693,8 +796,46 @@ export function createThanhHoa3DWorld(
     disposables.push(peakGeo, peakMat);
   }
 
+  const zeroMat = new THREE.Matrix4().makeScale(0, 0, 0);
+
   return {
     group,
+    findPlainsTreeAt: (wx: number, wz: number, maxDist = 1.65) => {
+      let best: PlainsTreeHit | null = null;
+      let bestDist = maxDist;
+      const cc = baseCell.col + Math.round(wx / CELL_SCALE_3D);
+      const rr = baseCell.row + Math.round(wz / CELL_SCALE_3D);
+      for (let dr = -1; dr <= 1; dr++) {
+        for (let dc = -1; dc <= 1; dc++) {
+          const hit = plainsTreeMap.get(`${cc + dc},${rr + dr}`);
+          if (!hit) continue;
+          const d = Math.hypot(hit.wx - wx, hit.wz - wz);
+          if (d < bestDist) {
+            bestDist = d;
+            best = hit;
+          }
+        }
+      }
+      return best;
+    },
+    getForestCellAt: (wx: number, wz: number) => {
+      const cc = baseCell.col + Math.round(wx / CELL_SCALE_3D);
+      const rr = baseCell.row + Math.round(wz / CELL_SCALE_3D);
+      return forestCellMap.get(`${cc},${rr}`) ?? null;
+    },
+    hideTreesByKey: (key: string) => {
+      plainsTreeMap.delete(key);
+      forestCellMap.delete(key);
+      const list = keyToInstances.get(key);
+      if (!list) return;
+      for (const item of list) {
+        item.trunkInst.setMatrixAt(item.idx, zeroMat);
+        item.crownInst.setMatrixAt(item.idx, zeroMat);
+        item.trunkInst.instanceMatrix.needsUpdate = true;
+        item.crownInst.instanceMatrix.needsUpdate = true;
+      }
+      keyToInstances.delete(key);
+    },
     dispose: () => {
       for (const d of disposables) d.dispose();
     },
