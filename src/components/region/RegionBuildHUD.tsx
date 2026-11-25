@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
 import {
   ArrowUpCircle,
+  CheckCircle2,
+  FileText,
   Hammer,
   Lock,
   Move,
+  ScrollText,
   Shield,
   Sparkles,
   Sun,
@@ -18,6 +21,7 @@ import type { BaseBuilding, BaseBuildingType, RegionLayout } from '../../types/r
 import type { BaseAutomationConfig } from '../../store/slices/regionSlice';
 import {
   BASE_BUILDING_CATALOG,
+  checkMainHallUpgradeRequirements,
   getBuildableHalfRadius,
   getUpgradeCost,
 } from '../../data/regionBuildings';
@@ -93,6 +97,7 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
 }) => {
   const isScout = mode === 'scout_view';
   const [activeTab, setActiveTab] = useState<BuildTabKey>('facility');
+  const [mainHallTab, setMainHallTab] = useState<'info' | 'commands'>('info');
   const mainHall = layout.buildings.find((b) => b.type === 'main_hall' && b.status !== 'destroyed');
   const mainLevel = mainHall?.level ?? 1;
   const buildSpan = getBuildableHalfRadius(mainLevel) * 2;
@@ -123,8 +128,351 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
         </button>
       </div>
 
-      {/* Cửa sổ chức năng công trình (mở giữa màn hình khi nhấn vào công trình) */}
-      {selectedBuilding && !isMovingBuilding && (
+      {/* Cửa sổ Nhà Chính kiểu Cuộn Thư (2 tab bên phải: Thông tin & Chỉ lệnh) */}
+      {selectedBuilding && !isMovingBuilding && selectedBuilding.type === 'main_hall' && (
+        <div className="pointer-events-auto fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 font-serif">
+          {(() => {
+            const spec = BASE_BUILDING_CATALOG.main_hall;
+            const lv = selectedBuilding.level;
+            const isMax = lv >= spec.maxLevel;
+            const isBusy =
+              selectedBuilding.status === 'building' || selectedBuilding.status === 'upgrading';
+            const upgradeCost = getUpgradeCost('main_hall', lv);
+            const reqChecks = !isMax ? checkMainHallUpgradeRequirements(layout.buildings, lv + 1) : [];
+            const allReqsMet = reqChecks.every((c) => c.met);
+            const nextSpan = !isMax ? getBuildableHalfRadius(lv + 1) * 2 : buildSpan;
+            const nextUnlocks = !isMax
+              ? Object.values(BASE_BUILDING_CATALOG).filter(
+                  (b) => b.requiredMainHallLevel === lv + 1
+                )
+              : [];
+
+            const commandCards = [
+              {
+                key: 'dayNight',
+                title: 'Ngày Đêm Luân Chuyển',
+                minLv: 2,
+                icon: <Sun className="h-5 w-5 text-amber-700" />,
+                desc: 'Giữ cố định ánh sáng ban ngày hoặc ban đêm trên bản đồ 3D.',
+                isOn: baseAutomation.dayNightLock !== 'auto',
+                onToggle: () =>
+                  onUpdateAutomation({
+                    dayNightLock: baseAutomation.dayNightLock === 'auto' ? 'day' : 'auto',
+                  }),
+                extra:
+                  lv >= 2 ? (
+                    <div className="mt-2 flex gap-1">
+                      {(
+                        [
+                          ['day', 'Ban Ngày'],
+                          ['night', 'Ban Đêm'],
+                          ['auto', 'Tự nhiên'],
+                        ] as const
+                      ).map(([val, label]) => (
+                        <button
+                          key={val}
+                          onClick={() => onUpdateAutomation({ dayNightLock: val })}
+                          className={`flex-1 rounded px-1.5 py-1 text-[10px] font-bold border cursor-pointer ${
+                            baseAutomation.dayNightLock === val
+                              ? 'bg-[#8b4513] text-amber-50 border-[#5c2c0c]'
+                              : 'bg-[#fff9eb] text-stone-700 border-amber-900/25 hover:bg-amber-100'
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null,
+              },
+              {
+                key: 'autoClean',
+                title: 'Tự Động Dọn Dẹp',
+                minLv: 3,
+                icon: <Sparkles className="h-5 w-5 text-emerald-700" />,
+                desc: 'Khi bụi cây mọc quanh căn cứ, quân dân sẽ tự động phát quang mỗi ngày.',
+                isOn: baseAutomation.autoClean,
+                onToggle: () => onUpdateAutomation({ autoClean: !baseAutomation.autoClean }),
+                extra: null,
+              },
+              {
+                key: 'autoRefugees',
+                title: 'Tự Động Thu Nhận Lưu Dân',
+                minLv: 4,
+                icon: <Users className="h-5 w-5 text-sky-700" />,
+                desc: 'Tự động tiếp nhận các đoàn lưu dân tìm đến căn cứ đầu quân.',
+                isOn: baseAutomation.autoRefugees,
+                onToggle: () => onUpdateAutomation({ autoRefugees: !baseAutomation.autoRefugees }),
+                extra: null,
+              },
+              {
+                key: 'autoTrain',
+                title: 'Tự Động Luyện Binh',
+                minLv: 4,
+                icon: <Swords className="h-5 w-5 text-red-700" />,
+                desc: 'Mỗi ngày tự động chiêu luyện +5 lính (15V, 10L) nếu có Trại Lính.',
+                isOn: baseAutomation.autoTrain,
+                onToggle: () => onUpdateAutomation({ autoTrain: !baseAutomation.autoTrain }),
+                extra: null,
+              },
+            ];
+
+            return (
+              <div className="relative flex items-stretch max-w-4xl w-full">
+                {/* Trục cuộn gỗ bên trái */}
+                <div className="w-5 shrink-0 rounded-full bg-gradient-to-r from-[#5a3515] via-[#9e6834] to-[#4a2a0e] border border-[#2a1708] shadow-xl z-20 -my-2" />
+
+                {/* Thân giấy dó của cuộn thư */}
+                <div className="relative flex-1 bg-[#f6ecd6] border-y-4 border-[#8b5a2b] px-6 py-5 shadow-2xl text-stone-900 max-h-[82vh] overflow-y-auto">
+                  {/* Nút đóng góc trên trái */}
+                  <button
+                    onClick={onClearSelection}
+                    className="absolute left-4 top-4 flex h-8 w-8 items-center justify-center rounded-full border-2 border-[#7c4d25] bg-[#e9d5b1] text-[#4b2b10] shadow hover:bg-[#dfb982] cursor-pointer"
+                    title="Đóng"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+
+                  {/* Tiêu đề cuộn thư */}
+                  <div className="flex flex-col items-center pb-3 border-b border-amber-900/20">
+                    <div className="rounded-full border border-[#8b5a2b]/50 bg-[#ead6b3] px-6 py-1 shadow-sm">
+                      <h3 className="text-base font-black text-[#4a260a] tracking-wide">
+                        {spec.name} · Cấp {lv}/{spec.maxLevel} ({cityName})
+                      </h3>
+                    </div>
+                  </div>
+
+                  {/* TAB 1: THÔNG TIN (Yêu cầu nâng cấp & Công trình mở khóa cấp tiếp theo) */}
+                  {mainHallTab === 'info' && (
+                    <div className="mt-4 space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 text-xs">
+                        <div className="rounded-lg border border-amber-900/20 bg-[#fbf4e4] p-3">
+                          <div className="text-stone-500">Độ bền thành lũy</div>
+                          <div className="mt-1 flex items-center gap-1.5 text-sm font-black text-stone-900">
+                            <Shield className="h-4 w-4 text-emerald-700" />
+                            {selectedBuilding.hp}/{selectedBuilding.maxHp}
+                          </div>
+                        </div>
+                        <div className="rounded-lg border border-amber-900/20 bg-[#fbf4e4] p-3">
+                          <div className="text-stone-500">Phạm vi xây dựng hiện tại</div>
+                          <div className="mt-1 text-sm font-black text-amber-900">
+                            {buildSpan} × {buildSpan} ô
+                          </div>
+                        </div>
+                        <div className="rounded-lg border border-amber-900/20 bg-[#fbf4e4] p-3">
+                          <div className="text-stone-500">Hiệu ứng hiện tại</div>
+                          <div className="mt-1 text-xs font-bold text-stone-800">
+                            {spec.effectLabel(lv)}
+                          </div>
+                        </div>
+                      </div>
+
+                      {!isMax ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {/* Khung Yêu cầu nâng cấp */}
+                          <div className="rounded-xl border border-amber-900/30 bg-[#fbf4e4] p-4">
+                            <h4 className="text-xs font-black uppercase tracking-wider text-[#6e380e] mb-2.5">
+                              Yêu cầu nâng lên Cấp {lv + 1}
+                            </h4>
+                            <div className="space-y-2">
+                              {reqChecks.map(({ req, current, met }) => (
+                                <div
+                                  key={req.type}
+                                  className={`flex items-center justify-between rounded-lg border px-3 py-1.5 text-xs ${
+                                    met
+                                      ? 'border-emerald-700/30 bg-emerald-50/70 text-emerald-900'
+                                      : 'border-red-700/30 bg-red-50/70 text-red-900'
+                                  }`}
+                                >
+                                  <span className="font-bold">
+                                    {BASE_BUILDING_CATALOG[req.type].name} (Lv.{req.minLevel}+)
+                                  </span>
+                                  <span className="flex items-center gap-1 font-black">
+                                    {current}/{req.count}
+                                    {met && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-700" />}
+                                  </span>
+                                </div>
+                              ))}
+                              <div className="flex items-center justify-between rounded-lg border border-amber-900/20 bg-amber-100/50 px-3 py-1.5 text-xs font-bold text-amber-950">
+                                <span>Tài nguyên thi công</span>
+                                <span>
+                                  {upgradeCost.gold} Vàng · {upgradeCost.food} Lương ({upgradeCost.days} ngày)
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Khung Mở khóa ở cấp tiếp theo */}
+                          <div className="rounded-xl border border-amber-900/30 bg-[#fbf4e4] p-4">
+                            <h4 className="text-xs font-black uppercase tracking-wider text-[#6e380e] mb-2.5">
+                              Mở khóa ở Cấp {lv + 1}
+                            </h4>
+                            <ul className="space-y-2 text-xs text-stone-800">
+                              <li className="rounded-lg border border-amber-900/15 bg-white/60 px-3 py-1.5">
+                                Mở rộng phạm vi xây dựng:{' '}
+                                <strong className="text-amber-900">
+                                  {nextSpan} × {nextSpan} ô
+                                </strong>
+                              </li>
+                              {lv + 1 === 2 && (
+                                <li className="rounded-lg border border-amber-900/15 bg-white/60 px-3 py-1.5">
+                                  Chỉ lệnh mới: <strong>Ngày Đêm Luân Chuyển</strong> (cố định ngày/đêm)
+                                </li>
+                              )}
+                              {lv + 1 === 3 && (
+                                <li className="rounded-lg border border-amber-900/15 bg-white/60 px-3 py-1.5">
+                                  Chỉ lệnh mới: <strong>Tự Động Dọn Dẹp</strong> bụi cây
+                                </li>
+                              )}
+                              {lv + 1 === 4 && (
+                                <>
+                                  <li className="rounded-lg border border-amber-900/15 bg-white/60 px-3 py-1.5">
+                                    Chỉ lệnh mới: <strong>Tự Động Thu Nhận Lưu Dân</strong>
+                                  </li>
+                                  <li className="rounded-lg border border-amber-900/15 bg-white/60 px-3 py-1.5">
+                                    Chỉ lệnh mới: <strong>Tự Động Luyện Binh</strong>
+                                  </li>
+                                </>
+                              )}
+                              {nextUnlocks.map((b) => (
+                                <li
+                                  key={b.type}
+                                  className="rounded-lg border border-amber-900/15 bg-white/60 px-3 py-1.5"
+                                >
+                                  Công trình mới: <strong>{b.name}</strong> — {b.description}
+                                </li>
+                              ))}
+                              {nextUnlocks.length === 0 && lv + 1 === 5 && (
+                                <li className="rounded-lg border border-amber-900/15 bg-white/60 px-3 py-1.5">
+                                  Đạt đỉnh cao quy mô Đại Bản Doanh Lam Sơn ({nextSpan}×{nextSpan} ô).
+                                </li>
+                              )}
+                            </ul>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="rounded-xl border border-emerald-700/30 bg-emerald-50/70 p-4 text-center text-xs font-bold text-emerald-900">
+                          Nhà Chính đã đạt cấp độ tối đa ({spec.maxLevel})!
+                        </div>
+                      )}
+
+                      {!isScout && (
+                        <div className="flex gap-2.5 pt-2 border-t border-amber-900/20">
+                          <button
+                            disabled={isMax || isBusy || !allReqsMet}
+                            onClick={() => onUpgradeBuilding(selectedBuilding.id)}
+                            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-amber-800 px-4 py-2.5 text-xs font-bold text-amber-50 hover:bg-amber-900 disabled:opacity-45 cursor-pointer"
+                          >
+                            <ArrowUpCircle className="h-4 w-4" />
+                            {isMax
+                              ? 'Đã đạt cấp tối đa'
+                              : isBusy
+                              ? `Đang nâng cấp (còn ${selectedBuilding.buildDaysRemaining} ngày)`
+                              : !allReqsMet
+                              ? 'Chưa đủ điều kiện nâng cấp'
+                              : `Nâng cấp lên Cấp ${lv + 1} (${upgradeCost.gold}V / ${upgradeCost.food}L)`}
+                          </button>
+                          <button
+                            onClick={onStartMoveBuilding}
+                            className="flex items-center justify-center gap-1 rounded-xl bg-stone-200 px-4 py-2.5 text-xs font-bold text-stone-800 hover:bg-stone-300 cursor-pointer"
+                          >
+                            <Move className="h-4 w-4" />
+                            Di dời
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* TAB 2: CHỈ LỆNH (Các thẻ bài giấy dó nằm ngang giống 2 ảnh mẫu) */}
+                  {mainHallTab === 'commands' && (
+                    <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                      {commandCards.map((card) => {
+                        const unlocked = lv >= card.minLv;
+                        return (
+                          <div
+                            key={card.key}
+                            className={`flex flex-col justify-between rounded-xl border-2 p-3 text-center shadow-sm ${
+                              unlocked
+                                ? 'border-[#d6a96e] bg-[#fbf3df]'
+                                : 'border-stone-400/40 bg-stone-200/70 opacity-75'
+                            }`}
+                          >
+                            <div>
+                              <div className="rounded-t-lg bg-gradient-to-b from-[#f4cf99] to-[#fae8c8] px-2 py-1.5 border-b border-[#d6a96e]/50">
+                                <h5 className="text-xs font-black text-[#4d270a] leading-tight">
+                                  {card.title}
+                                </h5>
+                              </div>
+                              <div className="mx-auto my-2.5 flex h-12 w-12 items-center justify-center rounded-full border-2 border-[#c89654] bg-[#fffaf0] shadow-inner">
+                                {card.icon}
+                              </div>
+                              <p className="text-[11px] text-stone-700 leading-snug px-1">
+                                {card.desc}
+                              </p>
+                              {card.extra}
+                            </div>
+
+                            <div className="mt-3 pt-2 border-t border-amber-900/15">
+                              {unlocked ? (
+                                <button
+                                  onClick={card.onToggle}
+                                  className={`w-full rounded-full py-1.5 text-xs font-black border cursor-pointer transition-colors ${
+                                    card.isOn
+                                      ? 'bg-[#e58935] text-white border-[#b45309] shadow-sm'
+                                      : 'bg-[#d8cbb5] text-stone-700 border-[#a89a84]'
+                                  }`}
+                                >
+                                  {card.isOn ? 'Mở' : 'Đóng'}
+                                </button>
+                              ) : (
+                                <div className="flex items-center justify-center gap-1 rounded-full bg-stone-300 py-1.5 text-[11px] font-bold text-stone-600">
+                                  <Lock className="h-3 w-3" /> Mở ở Cấp {card.minLv}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Trục cuộn gỗ bên phải */}
+                <div className="w-5 shrink-0 rounded-full bg-gradient-to-r from-[#5a3515] via-[#9e6834] to-[#4a2a0e] border border-[#2a1708] shadow-xl z-20 -my-2" />
+
+                {/* 2 thẻ tab giấy dó bên phải cuộn thư: Thông tin & Chỉ lệnh */}
+                <div className="flex flex-col gap-2 pt-8 -ml-1 z-10">
+                  <button
+                    onClick={() => setMainHallTab('info')}
+                    className={`flex flex-col items-center gap-1 rounded-r-xl border-2 border-l-0 px-2.5 py-3 text-[11px] font-black shadow-md cursor-pointer transition-all ${
+                      mainHallTab === 'info'
+                        ? 'border-[#8b5a2b] bg-[#f6ecd6] text-[#5c2c0c] translate-x-0.5'
+                        : 'border-[#a89a84] bg-[#ded2bc] text-stone-600 hover:bg-[#ece1cb]'
+                    }`}
+                  >
+                    <FileText className="h-4 w-4" />
+                    <span>Thông tin</span>
+                  </button>
+                  <button
+                    onClick={() => setMainHallTab('commands')}
+                    className={`flex flex-col items-center gap-1 rounded-r-xl border-2 border-l-0 px-2.5 py-3 text-[11px] font-black shadow-md cursor-pointer transition-all ${
+                      mainHallTab === 'commands'
+                        ? 'border-[#8b5a2b] bg-[#f6ecd6] text-[#5c2c0c] translate-x-0.5'
+                        : 'border-[#a89a84] bg-[#ded2bc] text-stone-600 hover:bg-[#ece1cb]'
+                    }`}
+                  >
+                    <ScrollText className="h-4 w-4" />
+                    <span>Chỉ lệnh</span>
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
+      {/* Cửa sổ chức năng các công trình khác (mở giữa màn hình khi nhấn vào công trình) */}
+      {selectedBuilding && !isMovingBuilding && selectedBuilding.type !== 'main_hall' && (
         <div className="pointer-events-auto fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
           <div className="w-full max-w-xl rounded-2xl border-2 border-amber-900/50 bg-[#f6ecd9] p-5 shadow-2xl text-stone-900 font-serif max-h-[85vh] overflow-y-auto">
             {(() => {
@@ -176,185 +524,6 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
                     )}
                   </div>
 
-                  {/* Chức năng chuyên biệt của Nhà Chính (4 thẻ bài dạng tờ giấy đơn giản) */}
-                  {!isScout && selectedBuilding.type === 'main_hall' && (
-                    <div className="mt-4">
-                      <h4 className="text-xs font-bold uppercase tracking-wider text-amber-900/80 mb-2">
-                        Chiếu chỉ & Tự động hóa (Thẻ bài điều hành)
-                      </h4>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                        {/* Thẻ 1: Cố định ngày đêm (Lv.2) */}
-                        <div
-                          className={`rounded-lg border p-3 shadow-sm ${
-                            lv >= 2
-                              ? 'border-amber-900/30 bg-[#fbf5e8]'
-                              : 'border-stone-400/40 bg-stone-200/60 opacity-75'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="flex items-center gap-1.5 text-xs font-bold text-stone-900">
-                              <Sun className="h-3.5 w-3.5 text-amber-700" />
-                              Cố định Ngày / Đêm
-                            </span>
-                            <span className="rounded bg-amber-900/10 px-1.5 py-0.5 text-[10px] font-bold text-amber-900">
-                              {lv >= 2 ? 'Đã mở' : 'Mở cấp 2'}
-                            </span>
-                          </div>
-                          <p className="mt-1 text-[11px] text-stone-600 leading-snug">
-                            Giữ cố định ánh sáng ban ngày hoặc ban đêm trên bản đồ 3D.
-                          </p>
-                          {lv >= 2 ? (
-                            <div className="mt-2 flex gap-1">
-                              {(
-                                [
-                                  ['auto', 'Tự nhiên'],
-                                  ['day', 'Ngày'],
-                                  ['night', 'Đêm'],
-                                ] as const
-                              ).map(([val, label]) => (
-                                <button
-                                  key={val}
-                                  onClick={() => onUpdateAutomation({ dayNightLock: val })}
-                                  className={`flex-1 rounded px-2 py-1 text-[11px] font-bold border cursor-pointer transition-colors ${
-                                    baseAutomation.dayNightLock === val
-                                      ? 'bg-amber-800 text-amber-50 border-amber-900'
-                                      : 'bg-white/70 text-stone-700 border-amber-900/20 hover:bg-amber-100'
-                                  }`}
-                                >
-                                  {label}
-                                </button>
-                              ))}
-                            </div>
-                          ) : (
-                            <div className="mt-2 flex items-center gap-1 text-[11px] text-stone-500">
-                              <Lock className="h-3 w-3" /> Cần nâng Nhà Chính lên cấp 2
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Thẻ 2: Tự động dọn dẹp bụi cây (Lv.3) */}
-                        <div
-                          className={`rounded-lg border p-3 shadow-sm ${
-                            lv >= 3
-                              ? 'border-amber-900/30 bg-[#fbf5e8]'
-                              : 'border-stone-400/40 bg-stone-200/60 opacity-75'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="flex items-center gap-1.5 text-xs font-bold text-stone-900">
-                              <Sparkles className="h-3.5 w-3.5 text-emerald-700" />
-                              Tự động Dọn Dẹp
-                            </span>
-                            <span className="rounded bg-amber-900/10 px-1.5 py-0.5 text-[10px] font-bold text-amber-900">
-                              {lv >= 3 ? 'Đã mở' : 'Mở cấp 3'}
-                            </span>
-                          </div>
-                          <p className="mt-1 text-[11px] text-stone-600 leading-snug">
-                            Tự động phát quang bụi cây mọc quanh căn cứ mỗi ngày.
-                          </p>
-                          {lv >= 3 ? (
-                            <button
-                              onClick={() =>
-                                onUpdateAutomation({ autoClean: !baseAutomation.autoClean })
-                              }
-                              className={`mt-2 w-full rounded px-2.5 py-1 text-[11px] font-bold border cursor-pointer transition-colors ${
-                                baseAutomation.autoClean
-                                  ? 'bg-emerald-700 text-white border-emerald-800'
-                                  : 'bg-white/70 text-stone-700 border-amber-900/20 hover:bg-amber-100'
-                              }`}
-                            >
-                              {baseAutomation.autoClean ? 'Đang bật' : 'Đang tắt'}
-                            </button>
-                          ) : (
-                            <div className="mt-2 flex items-center gap-1 text-[11px] text-stone-500">
-                              <Lock className="h-3 w-3" /> Cần nâng Nhà Chính lên cấp 3
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Thẻ 3: Tự động thu nhận lưu dân (Lv.4) */}
-                        <div
-                          className={`rounded-lg border p-3 shadow-sm ${
-                            lv >= 4
-                              ? 'border-amber-900/30 bg-[#fbf5e8]'
-                              : 'border-stone-400/40 bg-stone-200/60 opacity-75'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="flex items-center gap-1.5 text-xs font-bold text-stone-900">
-                              <Users className="h-3.5 w-3.5 text-sky-700" />
-                              Tự động Thu Nhận Lưu Dân
-                            </span>
-                            <span className="rounded bg-amber-900/10 px-1.5 py-0.5 text-[10px] font-bold text-amber-900">
-                              {lv >= 4 ? 'Đã mở' : 'Mở cấp 4'}
-                            </span>
-                          </div>
-                          <p className="mt-1 text-[11px] text-stone-600 leading-snug">
-                            Tự động tiếp nhận các đoàn lưu dân tìm đến đầu quân.
-                          </p>
-                          {lv >= 4 ? (
-                            <button
-                              onClick={() =>
-                                onUpdateAutomation({ autoRefugees: !baseAutomation.autoRefugees })
-                              }
-                              className={`mt-2 w-full rounded px-2.5 py-1 text-[11px] font-bold border cursor-pointer transition-colors ${
-                                baseAutomation.autoRefugees
-                                  ? 'bg-emerald-700 text-white border-emerald-800'
-                                  : 'bg-white/70 text-stone-700 border-amber-900/20 hover:bg-amber-100'
-                              }`}
-                            >
-                              {baseAutomation.autoRefugees ? 'Đang bật' : 'Đang tắt'}
-                            </button>
-                          ) : (
-                            <div className="mt-2 flex items-center gap-1 text-[11px] text-stone-500">
-                              <Lock className="h-3 w-3" /> Cần nâng Nhà Chính lên cấp 4
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Thẻ 4: Tự động luyện binh (Lv.4) */}
-                        <div
-                          className={`rounded-lg border p-3 shadow-sm ${
-                            lv >= 4
-                              ? 'border-amber-900/30 bg-[#fbf5e8]'
-                              : 'border-stone-400/40 bg-stone-200/60 opacity-75'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="flex items-center gap-1.5 text-xs font-bold text-stone-900">
-                              <Swords className="h-3.5 w-3.5 text-red-700" />
-                              Tự động Luyện Binh
-                            </span>
-                            <span className="rounded bg-amber-900/10 px-1.5 py-0.5 text-[10px] font-bold text-amber-900">
-                              {lv >= 4 ? 'Đã mở' : 'Mở cấp 4'}
-                            </span>
-                          </div>
-                          <p className="mt-1 text-[11px] text-stone-600 leading-snug">
-                            Mỗi ngày tự động chiêu luyện +5 lính (15V, 10L) nếu có trại lính.
-                          </p>
-                          {lv >= 4 ? (
-                            <button
-                              onClick={() =>
-                                onUpdateAutomation({ autoTrain: !baseAutomation.autoTrain })
-                              }
-                              className={`mt-2 w-full rounded px-2.5 py-1 text-[11px] font-bold border cursor-pointer transition-colors ${
-                                baseAutomation.autoTrain
-                                  ? 'bg-emerald-700 text-white border-emerald-800'
-                                  : 'bg-white/70 text-stone-700 border-amber-900/20 hover:bg-amber-100'
-                              }`}
-                            >
-                              {baseAutomation.autoTrain ? 'Đang bật' : 'Đang tắt'}
-                            </button>
-                          ) : (
-                            <div className="mt-2 flex items-center gap-1 text-[11px] text-stone-500">
-                              <Lock className="h-3 w-3" /> Cần nâng Nhà Chính lên cấp 4
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
                   {/* Các nút thao tác công trình */}
                   {!isScout && (
                     <div className="mt-4 flex flex-col gap-2 border-t border-amber-900/20 pt-3">
@@ -404,15 +573,13 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
                           <Move className="h-3.5 w-3.5" />
                           Di dời
                         </button>
-                        {selectedBuilding.type !== 'main_hall' && (
-                          <button
-                            onClick={() => onDemolishBuilding(selectedBuilding.id)}
-                            className="flex items-center justify-center rounded-lg bg-red-100 px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-200 cursor-pointer"
-                            title="Tháo dỡ"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        )}
+                        <button
+                          onClick={() => onDemolishBuilding(selectedBuilding.id)}
+                          className="flex items-center justify-center rounded-lg bg-red-100 px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-200 cursor-pointer"
+                          title="Tháo dỡ"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
                       </div>
                     </div>
                   )}

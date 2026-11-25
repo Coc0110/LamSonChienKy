@@ -236,6 +236,61 @@ export function getBuildableHalfRadius(mainHallLevel: number): number {
   return 16;
 }
 
+export interface MainHallUpgradeReq {
+  type: BaseBuildingType;
+  count: number;
+  minLevel: number;
+}
+
+export function getMainHallUpgradeRequirements(nextLevel: number): MainHallUpgradeReq[] {
+  switch (nextLevel) {
+    case 2:
+      return [
+        { type: 'house', count: 2, minLevel: 1 },
+        { type: 'farm', count: 1, minLevel: 1 },
+        { type: 'barracks', count: 1, minLevel: 1 },
+      ];
+    case 3:
+      return [
+        { type: 'house', count: 3, minLevel: 2 },
+        { type: 'farm', count: 2, minLevel: 2 },
+        { type: 'forge', count: 1, minLevel: 1 },
+        { type: 'barracks', count: 1, minLevel: 2 },
+      ];
+    case 4:
+      return [
+        { type: 'house', count: 4, minLevel: 2 },
+        { type: 'farm', count: 2, minLevel: 2 },
+        { type: 'forge', count: 2, minLevel: 2 },
+        { type: 'barracks', count: 1, minLevel: 3 },
+        { type: 'watchtower', count: 2, minLevel: 1 },
+      ];
+    case 5:
+      return [
+        { type: 'house', count: 6, minLevel: 3 },
+        { type: 'farm', count: 3, minLevel: 3 },
+        { type: 'forge', count: 2, minLevel: 3 },
+        { type: 'barracks', count: 1, minLevel: 4 },
+        { type: 'watchtower', count: 4, minLevel: 2 },
+      ];
+    default:
+      return [];
+  }
+}
+
+export function checkMainHallUpgradeRequirements(
+  buildings: Array<{ type: BaseBuildingType; level: number; status: string }>,
+  nextLevel: number
+): Array<{ req: MainHallUpgradeReq; current: number; met: boolean }> {
+  const reqs = getMainHallUpgradeRequirements(nextLevel);
+  return reqs.map((req) => {
+    const current = buildings.filter(
+      (b) => b.status !== 'destroyed' && b.type === req.type && b.level >= req.minLevel
+    ).length;
+    return { req, current, met: current >= req.count };
+  });
+}
+
 export const BUILDING_BUILD_ORDER: BaseBuildingType[] = [
   'farm',
   'forge',

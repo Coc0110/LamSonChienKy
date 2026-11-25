@@ -8,7 +8,7 @@ import type {
   RegionLayout,
   SiegeBattleState,
 } from '../../types/region';
-import { BASE_BUILDING_CATALOG, getBuildingMaxHp, getUpgradeCost } from '../../data/regionBuildings';
+import { BASE_BUILDING_CATALOG, checkMainHallUpgradeRequirements, getBuildingMaxHp, getUpgradeCost } from '../../data/regionBuildings';
 import { canPlaceOnRegionGrid, generateEnemyCityLayout, generateLamSonStarterLayout } from '../../utils/regionLayoutGenerator';
 import { isThanhHoaBuildable } from '../../utils/thanhHoa3DTerrain';
 import { coordToCell, getGridTerrain } from '../../data/terrainGrid';
@@ -225,6 +225,19 @@ export const createRegionSlice: StateCreator<GameStore, [], [], RegionSlice> = (
     const spec = BASE_BUILDING_CATALOG[target.type];
     if (target.level >= spec.maxLevel) {
       return { success: false, message: `${spec.name} đã đạt cấp tối đa (${spec.maxLevel})!` };
+    }
+
+    if (target.type === 'main_hall') {
+      const checks = checkMainHallUpgradeRequirements(layout.buildings, target.level + 1);
+      const missing = checks.filter((c) => !c.met);
+      if (missing.length > 0) {
+        const first = missing[0];
+        const reqName = BASE_BUILDING_CATALOG[first.req.type].name;
+        return {
+          success: false,
+          message: `Chưa đủ điều kiện lên Cấp ${target.level + 1}! Cần ${first.req.count} ${reqName} (Lv.${first.req.minLevel}+), hiện có ${first.current}.`,
+        };
+      }
     }
 
     const mainHall = layout.buildings.find((b) => b.type === 'main_hall' && b.status !== 'destroyed');

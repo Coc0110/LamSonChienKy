@@ -2896,7 +2896,9 @@ function getBuildingParts(
     }
 
     case 'road': {
-      push('earth', createOrganicEarthMound(0.98, 0.98, 0.035, 17.3));
+      // Mặt đường đất nện phẳng 1x1 nối liền mượt mà, không tạo ụ đất gồ ghề
+      push('earth', box(1.0, 0.022, 1.0, 0, 0.011, 0));
+      push('earthDark', box(0.92, 0.008, 0.92, 0, 0.024, 0));
       break;
     }
   }
