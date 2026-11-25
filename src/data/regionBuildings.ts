@@ -189,8 +189,11 @@ export const BASE_BUILDING_CATALOG: Record<BaseBuildingType, BaseBuildingSpec> =
     buildDays: 3,
     maxPerBase: 6,
     requiredMainHallLevel: 1,
-    description: 'Tự động bắn tên vào quân địch trong tầm khi phòng thủ căn cứ.',
-    effectLabel: (lvl) => `Tầm 6 ô · ${24 * lvl} sát thương/phát`,
+    description: 'Đài quan sát cao giúp do thám các huyện thành lân cận (Cấp 4 mở khóa do thám Thành Tây Đô).',
+    effectLabel: (lvl) =>
+      lvl >= 4
+        ? 'Do thám toàn Thanh Hóa (gồm Thành Tây Đô)'
+        : 'Do thám huyện thành lân cận (trừ Thành Tây Đô)',
   },
   spike_trap: {
     type: 'spike_trap',

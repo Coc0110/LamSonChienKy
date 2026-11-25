@@ -238,6 +238,21 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
     const thanhHoaWorld = createThanhHoa3DWorld(basePctX, basePctY, initialHiddenKeys, exploredIds);
     scene.add(thanhHoaWorld.group);
 
+    let prevScoutedRef = initStore.scoutedRegionIds;
+    const unsubScouted = useGameStore.subscribe((state) => {
+      if (state.scoutedRegionIds !== prevScoutedRef) {
+        prevScoutedRef = state.scoutedRegionIds;
+        const nextExplored = new Set<string>([layoutRef.current.cityId]);
+        for (const c of state.cities) {
+          if (c.faction === 'lam_son' || c.hasBase) nextExplored.add(c.id);
+        }
+        for (const sid of Object.keys(state.scoutedRegionIds ?? {})) {
+          nextExplored.add(sid);
+        }
+        thanhHoaWorld.refreshFog(nextExplored);
+      }
+    });
+
     // Highlight ô rừng rậm (3x3) & cây đồng bằng khi di chuột
     const forestHighlightGroup = new THREE.Group();
     const forestFill = new THREE.Mesh(
@@ -1863,6 +1878,7 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
       pathsMat.dispose();
       for (const m of previewModelMaterials) m.dispose();
       unsubBushes();
+      unsubScouted();
       unsubSoldierBase();
       cancelAnimationFrame(rafId);
       window.removeEventListener('resize', handleResize);

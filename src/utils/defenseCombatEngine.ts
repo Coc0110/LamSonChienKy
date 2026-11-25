@@ -129,19 +129,11 @@ export function stepDefenseBattle(state: DefenseBattleState, dt: number): Defens
   const buildings = state.layout.buildings.map((b) => ({ ...b }));
   const units = state.units.map((u) => ({ ...u, attackCooldown: Math.max(0, u.attackCooldown - dt) }));
 
-  // Chòi canh & bẫy chông của người chơi bắn quân Minh
+  // Bẫy chông của người chơi gây sát thương quân Minh (chòi canh chỉ dùng để do thám)
   for (const b of buildings) {
     if (b.status === 'destroyed') continue;
     const bc = bCenter(b);
-    if (b.type === 'watchtower') {
-      const target = units.find(
-        (u) => u.faction === 'ming' && u.hp > 0 && Math.hypot(u.x - bc.x, u.z - bc.z) <= 6.5
-      );
-      if (target) {
-        target.hp = Math.max(0, target.hp - (24 + b.level * 14) * dt);
-        target.soldiers = Math.ceil((target.hp / Math.max(1, target.maxHp)) * target.maxSoldiers);
-      }
-    } else if (b.type === 'spike_trap') {
+    if (b.type === 'spike_trap') {
       const victim = units.find(
         (u) => u.faction === 'ming' && u.hp > 0 && Math.hypot(u.x - bc.x, u.z - bc.z) <= 0.9
       );

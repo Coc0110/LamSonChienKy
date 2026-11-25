@@ -302,6 +302,7 @@ export interface ThanhHoaWorldResult {
   getForestCellAt: (wx: number, wz: number) => ForestCellHit | null;
   hideTreesByKey: (key: string) => void;
   setFogTint: (color: THREE.Color) => void;
+  refreshFog: (nextExplored: Set<string>) => void;
   dispose: () => void;
 }
 
@@ -332,7 +333,7 @@ export function createThanhHoa3DWorld(
   const centerZ = ((minRow + maxRow) / 2 - baseCell.row) * CELL_SCALE_3D;
 
   const insideMask = new Uint8Array(cols * rows);
-  const rawFogField = new Float32Array(cols * rows);
+  const districtIds: Array<string | null> = new Array(cols * rows).fill(null);
   const rawElevations = new Float32Array(cols * rows);
 
   interface TreeSpawn {
@@ -363,9 +364,7 @@ export function createThanhHoa3DWorld(
       const districtId = getDistrictIdAt(pctX, pctY);
       const inside = districtId !== null;
       insideMask[idx] = inside ? 1 : 0;
-      if (districtId && exploredIds && !exploredIds.has(districtId)) {
-        rawFogField[idx] = 1;
-      }
+      districtIds[idx] = districtId;
 
       const t = getGridTerrain(c, r);
       const inBasePlateau = Math.abs(wx) < 16.5 && Math.abs(wz) < 16.5;
@@ -526,9 +525,29 @@ export function createThanhHoa3DWorld(
   group.add(terrainMesh);
   disposables.push(terrainGeo, terrainMat);
 
-  // 3. Lớp mây sương 3D che phủ các huyện thành chưa do thám (không vẽ ranh giới huyện)
+  // 3. Lớp mây sương 3D che phủ các huyện thành chưa do thám (có thể refresh ngay khi vừa do thám xong)
+  const fogGroup = new THREE.Group();
+  group.add(fogGroup);
   const fogTintMaterials: THREE.MeshBasicMaterial[] = [];
-  if (exploredIds) {
+  const fogDisposables: Array<{ dispose: () => void }> = [];
+  const lastFogTint = new THREE.Color(0xffffff);
+
+  const rebuildFog = (nextExplored?: Set<string>) => {
+    while (fogGroup.children.length > 0) {
+      fogGroup.remove(fogGroup.children[0]);
+    }
+    for (const d of fogDisposables) d.dispose();
+    fogDisposables.length = 0;
+    fogTintMaterials.length = 0;
+
+    if (!nextExplored) return;
+
+    const rawFogField = new Float32Array(cols * rows);
+    for (let i = 0; i < districtIds.length; i++) {
+      const dId = districtIds[i];
+      if (dId && !nextExplored.has(dId)) rawFogField[i] = 1;
+    }
+
     const fogField = new Float32Array(cols * rows);
     const fogPuffs: Array<{ wx: number; wz: number; c: number; r: number }> = [];
     for (let iy = 0; iy < rows; iy++) {
@@ -605,22 +624,20 @@ export function createThanhHoa3DWorld(
     fogGeo.rotateX(-Math.PI / 2);
     const fogMat = new THREE.MeshBasicMaterial({
       map: fogTex,
-      color: 0xffffff,
+      color: lastFogTint,
       transparent: true,
       opacity: 0.84,
       depthWrite: false,
       side: THREE.DoubleSide,
     });
     fogTintMaterials.push(fogMat);
-    // 4 tầng sương mù từ sát mặt đất lên trên đỉnh núi cao nhất
     for (const fy of [1.4, 4.0, 7.0, 10.2]) {
       const fogMesh = new THREE.Mesh(fogGeo, fogMat);
       fogMesh.position.set(centerX, fy, centerZ);
-      group.add(fogMesh);
+      fogGroup.add(fogMesh);
     }
-    disposables.push(fogTex, fogGeo, fogMat);
+    fogDisposables.push(fogTex, fogGeo, fogMat);
 
-    // Tạo texture cụm mây mềm nhiều lớp radial gradient (MeshBasicMaterial để nhìn 360° không bị vệt đen mặt sau)
     if (fogPuffs.length > 0) {
       const puffCanvas = document.createElement('canvas');
       puffCanvas.width = 128;
@@ -652,7 +669,7 @@ export function createThanhHoa3DWorld(
       const puffGeo = new THREE.PlaneGeometry(13.5, 10.5);
       const puffMat = new THREE.MeshBasicMaterial({
         map: puffTex,
-        color: 0xf4f7f5,
+        color: lastFogTint,
         transparent: true,
         opacity: 0.72,
         depthWrite: false,
@@ -674,10 +691,12 @@ export function createThanhHoa3DWorld(
         puffInst.setMatrixAt(i, dummy.matrix);
       });
       puffInst.instanceMatrix.needsUpdate = true;
-      group.add(puffInst);
-      disposables.push(puffTex, puffGeo, puffMat);
+      fogGroup.add(puffInst);
+      fogDisposables.push(puffTex, puffGeo, puffMat);
     }
-  }
+  };
+
+  rebuildFog(exploredIds);
 
   // Map from cellKey ("c,r") -> list of InstancedMesh instances to hide in O(1) when chopped/cleared
   const keyToInstances = new Map<
@@ -989,11 +1008,16 @@ export function createThanhHoa3DWorld(
       keyToInstances.delete(key);
     },
     setFogTint: (color: THREE.Color) => {
+      lastFogTint.copy(color);
       for (const m of fogTintMaterials) {
         m.color.copy(color);
       }
     },
+    refreshFog: (nextExplored: Set<string>) => {
+      rebuildFog(nextExplored);
+    },
     dispose: () => {
+      for (const d of fogDisposables) d.dispose();
       for (const d of disposables) d.dispose();
     },
   };

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import {
   ArrowUpCircle,
   CheckCircle2,
+  Eye,
   FileText,
   Hammer,
   Lock,
@@ -17,6 +18,7 @@ import {
   X,
   ZoomOut,
 } from 'lucide-react';
+import type { TacticalFormation } from '../../types';
 import type { BaseBuilding, BaseBuildingType, RegionLayout } from '../../types/region';
 import type { BaseAutomationConfig } from '../../store/slices/regionSlice';
 import {
@@ -40,6 +42,13 @@ interface RegionBuildHUDProps {
   enemyTroops?: number;
   baseAutomation: BaseAutomationConfig;
   onUpdateAutomation: (patch: Partial<BaseAutomationConfig>) => void;
+  scoutableDistricts: Array<{ id: string; name: string; isTayDo: boolean }>;
+  onScoutDistrict: (targetId: string) => void;
+  formations: TacticalFormation[];
+  defenseFormationIds: string[];
+  onToggleDefenseFormation: (formationId: string) => void;
+  onDispatchMarch: (formationId: string) => void;
+  onOpenArmyModal: () => void;
   onSelectBuildType: (type: BaseBuildingType | null) => void;
   onCloseBuildPalette: () => void;
   onUpgradeBuilding: (buildingId: string) => void;
@@ -86,6 +95,13 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
   isMovingBuilding,
   baseAutomation,
   onUpdateAutomation,
+  scoutableDistricts,
+  onScoutDistrict,
+  formations,
+  defenseFormationIds,
+  onToggleDefenseFormation,
+  onDispatchMarch,
+  onOpenArmyModal,
   onSelectBuildType,
   onCloseBuildPalette,
   onUpgradeBuilding,
@@ -97,7 +113,7 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
 }) => {
   const isScout = mode === 'scout_view';
   const [activeTab, setActiveTab] = useState<BuildTabKey>('facility');
-  const [mainHallTab, setMainHallTab] = useState<'info' | 'commands'>('info');
+  const [mainHallTab, setMainHallTab] = useState<'info' | 'commands' | 'military'>('info');
   const mainHall = layout.buildings.find((b) => b.type === 'main_hall' && b.status !== 'destroyed');
   const mainLevel = mainHall?.level ?? 1;
   const buildSpan = getBuildableHalfRadius(mainLevel) * 2;
@@ -438,10 +454,95 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
                         })}
                       </div>
                     )}
+
+                    {/* TAB 3: QUÂN SỰ (Xếp đội hình phòng thủ & tiến quân) */}
+                    {mainHallTab === 'military' && (
+                      <div className="mt-4 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-xs font-black uppercase tracking-wider text-[#8c2d19]">
+                            Điều Động & Phòng Thủ Căn Cứ ({defenseFormationIds.length} đội thủ)
+                          </h4>
+                          <button
+                            onClick={onOpenArmyModal}
+                            className="flex items-center gap-1.5 rounded-lg bg-[#8c2d19] px-3 py-1.5 text-[11px] font-bold text-[#fff3db] hover:bg-[#6e1e0d] cursor-pointer shadow"
+                          >
+                            <Swords className="h-3.5 w-3.5" />
+                            Mở Bố Trận Sa Bàn
+                          </button>
+                        </div>
+
+                        {formations.length === 0 ? (
+                          <div className="rounded-lg border border-[#8c6b44]/30 bg-white/40 p-4 text-center text-xs text-[#5c3e23]">
+                            Chưa có đội hình nào. Hãy mở Bố Trận Sa Bàn để lập đội hình mới!
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[260px] overflow-y-auto pr-1">
+                            {formations.map((f) => {
+                              const isDefending = defenseFormationIds.includes(f.id);
+                              const isMarching = f.status === 'marching' || f.status === 'retreating';
+                              return (
+                                <div
+                                  key={f.id}
+                                  className={`rounded-lg border p-3 shadow-sm flex flex-col justify-between ${
+                                    isDefending
+                                      ? 'border-emerald-700/50 bg-emerald-900/10'
+                                      : 'border-[#8c6b44]/35 bg-white/45'
+                                  }`}
+                                >
+                                  <div>
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-xs font-black text-[#261304] truncate">
+                                        {f.name}
+                                      </span>
+                                      <span className="rounded bg-[#8c5828]/15 px-1.5 py-0.5 text-[10px] font-bold text-[#5c3e23]">
+                                        {f.totalTroops} quân
+                                      </span>
+                                    </div>
+                                    <div className="mt-1 text-[11px] text-[#5c3e23]">
+                                      Trạng thái:{' '}
+                                      <strong className={isDefending ? 'text-emerald-800' : ''}>
+                                        {isMarching
+                                          ? 'Đang hành quân'
+                                          : isDefending
+                                          ? 'Phòng thủ căn cứ'
+                                          : 'Sẵn sàng'}
+                                      </strong>
+                                    </div>
+                                  </div>
+
+                                  <div className="mt-2.5 flex gap-1.5">
+                                    <button
+                                      disabled={isMarching}
+                                      onClick={() => onToggleDefenseFormation(f.id)}
+                                      className={`flex-1 flex items-center justify-center gap-1 rounded py-1.5 text-[11px] font-bold border cursor-pointer disabled:opacity-45 ${
+                                        isDefending
+                                          ? 'bg-emerald-700 text-white border-emerald-800'
+                                          : 'bg-white/75 text-[#261304] border-[#8c6b44]/40 hover:bg-amber-100'
+                                      }`}
+                                    >
+                                      <Shield className="h-3 w-3" />
+                                      {isDefending ? 'Đang thủ' : 'Phòng thủ'}
+                                    </button>
+                                    <button
+                                      disabled={f.totalTroops <= 0 || isMarching}
+                                      onClick={() => onDispatchMarch(f.id)}
+                                      className="flex-1 flex items-center justify-center gap-1 rounded bg-[#8c2d19] py-1.5 text-[11px] font-bold text-[#fff3db] hover:bg-[#6e1e0d] disabled:opacity-45 cursor-pointer"
+                                    >
+                                      <Swords className="h-3 w-3" />
+                                      Tiến quân
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                {/* 2 thẻ tab giấy gió bên phải cuộn thư: Thông tin & Chỉ lệnh */}
+                {/* 3 thẻ tab giấy gió bên phải cuộn thư: Thông tin, Chỉ lệnh, Quân sự */}
                 <div className="flex flex-col gap-2 pt-10 -ml-2 z-10">
                   <button
                     onClick={() => setMainHallTab('info')}
@@ -466,6 +567,18 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
                   >
                     <ScrollText className="h-4 w-4 relative z-10" />
                     <span className="relative z-10">Chỉ lệnh</span>
+                  </button>
+                  <button
+                    onClick={() => setMainHallTab('military')}
+                    className={`relative flex flex-col items-center gap-1 rounded-r-xl border border-l-0 px-2.5 py-3 text-[11px] font-black shadow-md cursor-pointer transition-all overflow-hidden ${
+                      mainHallTab === 'military'
+                        ? 'border-[#8c6b44] text-[#8c2d19] translate-x-0.5'
+                        : 'border-[#8c6b44]/50 text-[#5c3e23] opacity-80 hover:opacity-100'
+                    }`}
+                    style={{ backgroundImage: "url('/parchment_clean.png')", backgroundSize: 'cover' }}
+                  >
+                    <Swords className="h-4 w-4 relative z-10" />
+                    <span className="relative z-10">Quân sự</span>
                   </button>
                 </div>
               </div>
@@ -563,6 +676,50 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
                           <Wheat className="h-4 w-4" />
                           Mở Quản Lý Ruộng Nương
                         </button>
+                      )}
+                      {selectedBuilding.type === 'watchtower' && (
+                        <div className="rounded-lg border border-[#8c6b44]/35 bg-white/45 p-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="flex items-center gap-1.5 text-xs font-black text-[#8c2d19]">
+                              <Eye className="h-4 w-4" />
+                              Do Thám Huyện Thành
+                            </span>
+                            <span className="text-[10px] font-bold text-[#5c3e23]">
+                              {selectedBuilding.level >= 4 ? 'Mở toàn bộ (gồm Tây Đô)' : 'Tây Đô cần Lv.4'}
+                            </span>
+                          </div>
+                          {scoutableDistricts.length === 0 ? (
+                            <p className="text-xs text-emerald-800 font-semibold text-center py-2">
+                              Tất cả huyện thành đã được do thám!
+                            </p>
+                          ) : (
+                            <div className="max-h-44 overflow-y-auto space-y-1.5 pr-1">
+                              {scoutableDistricts.map((d) => {
+                                const lockedTayDo = d.isTayDo && selectedBuilding.level < 4;
+                                return (
+                                  <div
+                                    key={d.id}
+                                    className="flex items-center justify-between rounded border border-[#8c6b44]/25 bg-white/65 px-2.5 py-1.5 text-xs"
+                                  >
+                                    <span className="font-bold text-[#261304]">{d.name}</span>
+                                    {lockedTayDo ? (
+                                      <span className="flex items-center gap-1 text-[10px] font-bold text-stone-500">
+                                        <Lock className="h-3 w-3" /> Cần Lv.4
+                                      </span>
+                                    ) : (
+                                      <button
+                                        onClick={() => onScoutDistrict(d.id)}
+                                        className="rounded bg-[#8c2d19] px-2.5 py-1 text-[11px] font-bold text-[#fff3db] hover:bg-[#6e1e0d] cursor-pointer"
+                                      >
+                                        Do thám
+                                      </button>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
                       )}
 
                       <div className="flex gap-2">

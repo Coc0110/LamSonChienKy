@@ -41,6 +41,7 @@ export interface RegionSlice {
   bushes: Record<string, SpawnedBush[]>;
   bushNextSpawnDay: Record<string, number>;
   scoutedRegionIds: Record<string, number>; // cityId -> day last scouted
+  defenseFormationIds: Record<string, string[]>; // cityId -> formationIds assigned to defense
   activeSiegeBattle: SiegeBattleState | null;
   activeAmbushBattle: AmbushBattleState | null;
   activeDefenseBattle: DefenseBattleState | null;
@@ -75,6 +76,7 @@ export interface RegionSlice {
   setBaseAutomation: (cityId: string, patch: Partial<BaseAutomationConfig>) => void;
   clearBush: (cityId: string, bushId: string) => void;
   tickBaseAutomationAndBushes: (day: number) => void;
+  toggleDefenseFormation: (cityId: string, formationId: string) => void;
 
   startSiege3D: (targetCityId: string, formationId: string) => void;
   resolveSiege3D: (finalState: SiegeBattleState) => void;
@@ -106,6 +108,7 @@ export const createRegionSlice: StateCreator<GameStore, [], [], RegionSlice> = (
   bushes: {},
   bushNextSpawnDay: {},
   scoutedRegionIds: {},
+  defenseFormationIds: {},
   activeSiegeBattle: null,
   activeAmbushBattle: null,
   activeDefenseBattle: null,
@@ -623,6 +626,21 @@ export const createRegionSlice: StateCreator<GameStore, [], [], RegionSlice> = (
           ...s.resources,
           gold: s.resources.gold + 3,
           food: s.resources.food + 3,
+        },
+      };
+    });
+  },
+
+  toggleDefenseFormation: (cityId, formationId) => {
+    set((s) => {
+      const prev = s.defenseFormationIds?.[cityId] ?? [];
+      const next = prev.includes(formationId)
+        ? prev.filter((id) => id !== formationId)
+        : [...prev, formationId];
+      return {
+        defenseFormationIds: {
+          ...s.defenseFormationIds,
+          [cityId]: next,
         },
       };
     });

@@ -14,12 +14,19 @@ export const Region3DOverlay: React.FC = () => {
   const setActiveModal = useUIStore((s) => s.setActiveModal);
   const is3DBuildPaletteOpen = useUIStore((s) => s.is3DBuildPaletteOpen);
   const set3DBuildPaletteOpen = useUIStore((s) => s.set3DBuildPaletteOpen);
+  const setMarchDrawMode = useUIStore((s) => s.setMarchDrawMode);
 
   const cities = useGameStore((s) => s.cities);
   const resources = useGameStore((s) => s.resources);
   const regionLayouts = useGameStore((s) => s.regionLayouts);
   const baseAutomationMap = useGameStore((s) => s.baseAutomation);
   const setBaseAutomation = useGameStore((s) => s.setBaseAutomation);
+  const scoutedRegionIds = useGameStore((s) => s.scoutedRegionIds);
+  const markRegionScouted = useGameStore((s) => s.markRegionScouted);
+  const formations = useGameStore((s) => s.formations);
+  const defenseFormationIdsMap = useGameStore((s) => s.defenseFormationIds);
+  const toggleDefenseFormation = useGameStore((s) => s.toggleDefenseFormation);
+  const setActiveFormationId = useGameStore((s) => s.setActiveFormationId);
   const getOrCreateRegionLayout = useGameStore((s) => s.getOrCreateRegionLayout);
   const placeBaseBuilding = useGameStore((s) => s.placeBaseBuilding);
   const upgradeBaseBuilding = useGameStore((s) => s.upgradeBaseBuilding);
@@ -198,6 +205,36 @@ export const Region3DOverlay: React.FC = () => {
           }
         }
         onUpdateAutomation={(patch) => setBaseAutomation(activeRegion3D.cityId, patch)}
+        scoutableDistricts={cities
+          .filter((c) => c.faction !== 'lam_son' && !c.hasBase && !scoutedRegionIds?.[c.id])
+          .sort((a, b) => {
+            const bx = city?.x ?? 50.8;
+            const by = city?.y ?? 47.6;
+            return Math.hypot(a.x - bx, a.y - by) - Math.hypot(b.x - bx, b.y - by);
+          })
+          .map((c) => ({
+            id: c.id,
+            name: c.name,
+            isTayDo: c.id === 'tay_do' || c.name.toLowerCase().includes('tây đô'),
+          }))}
+        onScoutDistrict={(targetId) => {
+          markRegionScouted(targetId);
+          const targetName = cities.find((c) => c.id === targetId)?.name || targetId;
+          notify.success(`Đã do thám ${targetName}! Sương mù đã được gỡ bỏ trên cả bản đồ 2D và 3D.`);
+        }}
+        formations={formations.filter((f) => f.faction === 'lam_son')}
+        defenseFormationIds={defenseFormationIdsMap?.[activeRegion3D.cityId] ?? []}
+        onToggleDefenseFormation={(formationId) => {
+          toggleDefenseFormation(activeRegion3D.cityId, formationId);
+        }}
+        onDispatchMarch={(formationId) => {
+          setActiveFormationId(formationId);
+          setMarchDrawMode({ formationId });
+          handleZoomOut();
+        }}
+        onOpenArmyModal={() => {
+          setActiveModal('army');
+        }}
         onSelectBuildType={(type) => {
           setIsMovingBuilding(false);
           setActiveBuildType(type);
