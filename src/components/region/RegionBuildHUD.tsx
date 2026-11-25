@@ -217,252 +217,255 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
             ];
 
             return (
-              <div className="relative flex items-stretch max-w-4xl w-full">
-                {/* Trục cuộn gỗ bên trái */}
-                <div className="w-5 shrink-0 rounded-full bg-gradient-to-r from-[#5a3515] via-[#9e6834] to-[#4a2a0e] border border-[#2a1708] shadow-xl z-20 -my-2" />
+              <div className="relative flex items-stretch max-w-4xl w-full filter drop-shadow-[0_18px_30px_rgba(0,0,0,0.7)] drop-shadow-[0_3px_8px_rgba(0,0,0,0.45)]">
+                {/* Thân giấy gió của cuộn thư */}
+                <div className="relative flex-1 px-8 py-7 text-[#261304] max-h-[82vh] flex flex-col min-h-0">
+                  <img
+                    src="/parchment_torn_horizontal.png"
+                    alt="Giấy gió Nhà Chính"
+                    className="absolute inset-0 w-full h-full object-fill pointer-events-none select-none z-0"
+                    draggable={false}
+                  />
 
-                {/* Thân giấy dó của cuộn thư */}
-                <div className="relative flex-1 bg-[#f6ecd6] border-y-4 border-[#8b5a2b] px-6 py-5 shadow-2xl text-stone-900 max-h-[82vh] overflow-y-auto">
-                  {/* Nút đóng góc trên trái */}
+                  {/* Nút đóng góc trên phải */}
                   <button
                     onClick={onClearSelection}
-                    className="absolute left-4 top-4 flex h-8 w-8 items-center justify-center rounded-full border-2 border-[#7c4d25] bg-[#e9d5b1] text-[#4b2b10] shadow hover:bg-[#dfb982] cursor-pointer"
+                    className="absolute right-7 top-6 z-20 p-1 rounded text-[#6e4927] hover:text-[#261304] hover:bg-[#8c6b44]/15 transition cursor-pointer"
                     title="Đóng"
                   >
-                    <X className="h-4 w-4" />
+                    <X className="h-5 w-5" />
                   </button>
 
                   {/* Tiêu đề cuộn thư */}
-                  <div className="flex flex-col items-center pb-3 border-b border-amber-900/20">
-                    <div className="rounded-full border border-[#8b5a2b]/50 bg-[#ead6b3] px-6 py-1 shadow-sm">
-                      <h3 className="text-base font-black text-[#4a260a] tracking-wide">
-                        {spec.name} · Cấp {lv}/{spec.maxLevel} ({cityName})
-                      </h3>
-                    </div>
+                  <div className="relative z-10 flex flex-col items-center pb-3 border-b border-[#8c6b44]/35 shrink-0">
+                    <h3 className="text-lg font-black text-[#4a260a] tracking-wide">
+                      {spec.name} · Cấp {lv}/{spec.maxLevel} ({cityName})
+                    </h3>
                   </div>
 
-                  {/* TAB 1: THÔNG TIN (Yêu cầu nâng cấp & Công trình mở khóa cấp tiếp theo) */}
-                  {mainHallTab === 'info' && (
-                    <div className="mt-4 space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 text-xs">
-                        <div className="rounded-lg border border-amber-900/20 bg-[#fbf4e4] p-3">
-                          <div className="text-stone-500">Độ bền thành lũy</div>
-                          <div className="mt-1 flex items-center gap-1.5 text-sm font-black text-stone-900">
-                            <Shield className="h-4 w-4 text-emerald-700" />
-                            {selectedBuilding.hp}/{selectedBuilding.maxHp}
+                  <div className="relative z-10 overflow-y-auto no-scrollbar pr-1">
+                    {/* TAB 1: THÔNG TIN (Yêu cầu nâng cấp & Công trình mở khóa cấp tiếp theo) */}
+                    {mainHallTab === 'info' && (
+                      <div className="mt-4 space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 text-xs">
+                          <div className="rounded-lg border border-[#8c6b44]/35 bg-black/[0.04] p-3">
+                            <div className="text-[#6b4423]">Độ bền thành lũy</div>
+                            <div className="mt-1 flex items-center gap-1.5 text-sm font-black text-[#261304]">
+                              <Shield className="h-4 w-4 text-emerald-700" />
+                              {selectedBuilding.hp}/{selectedBuilding.maxHp}
+                            </div>
+                          </div>
+                          <div className="rounded-lg border border-[#8c6b44]/35 bg-black/[0.04] p-3">
+                            <div className="text-[#6b4423]">Phạm vi xây dựng hiện tại</div>
+                            <div className="mt-1 text-sm font-black text-[#8c2d19]">
+                              {buildSpan} × {buildSpan} ô
+                            </div>
+                          </div>
+                          <div className="rounded-lg border border-[#8c6b44]/35 bg-black/[0.04] p-3">
+                            <div className="text-[#6b4423]">Hiệu ứng hiện tại</div>
+                            <div className="mt-1 text-xs font-bold text-[#261304]">
+                              {spec.effectLabel(lv)}
+                            </div>
                           </div>
                         </div>
-                        <div className="rounded-lg border border-amber-900/20 bg-[#fbf4e4] p-3">
-                          <div className="text-stone-500">Phạm vi xây dựng hiện tại</div>
-                          <div className="mt-1 text-sm font-black text-amber-900">
-                            {buildSpan} × {buildSpan} ô
+
+                        {!isMax ? (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {/* Khung Yêu cầu nâng cấp */}
+                            <div className="rounded-xl border border-[#8c6b44]/35 bg-black/[0.04] p-4">
+                              <h4 className="text-xs font-black uppercase tracking-wider text-[#6e380e] mb-2.5">
+                                Yêu cầu nâng lên Cấp {lv + 1}
+                              </h4>
+                              <div className="space-y-2">
+                                {reqChecks.map(({ req, current, met }) => (
+                                  <div
+                                    key={req.type}
+                                    className={`flex items-center justify-between rounded-lg border px-3 py-1.5 text-xs ${
+                                      met
+                                        ? 'border-emerald-700/35 bg-emerald-700/10 text-emerald-900'
+                                        : 'border-[#8c2d19]/35 bg-[#8c2d19]/10 text-[#8c2d19]'
+                                    }`}
+                                  >
+                                    <span className="font-bold">
+                                      {BASE_BUILDING_CATALOG[req.type].name} (Lv.{req.minLevel}+)
+                                    </span>
+                                    <span className="flex items-center gap-1 font-black">
+                                      {current}/{req.count}
+                                      {met && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-700" />}
+                                    </span>
+                                  </div>
+                                ))}
+                                <div className="flex items-center justify-between rounded-lg border border-[#8c6b44]/30 bg-[#8c6b44]/10 px-3 py-1.5 text-xs font-bold text-[#4a260a]">
+                                  <span>Tài nguyên thi công</span>
+                                  <span>
+                                    {upgradeCost.gold} Vàng · {upgradeCost.food} Lương ({upgradeCost.days} ngày)
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Khung Mở khóa ở cấp tiếp theo */}
+                            <div className="rounded-xl border border-[#8c6b44]/35 bg-black/[0.04] p-4">
+                              <h4 className="text-xs font-black uppercase tracking-wider text-[#6e380e] mb-2.5">
+                                Mở khóa ở Cấp {lv + 1}
+                              </h4>
+                              <ul className="space-y-2 text-xs text-[#261304]">
+                                <li className="rounded-lg border border-[#8c6b44]/25 bg-[#f7eed8]/60 px-3 py-1.5">
+                                  Mở rộng phạm vi xây dựng:{' '}
+                                  <strong className="text-[#8c2d19]">
+                                    {nextSpan} × {nextSpan} ô
+                                  </strong>
+                                </li>
+                                {lv + 1 === 2 && (
+                                  <li className="rounded-lg border border-[#8c6b44]/25 bg-[#f7eed8]/60 px-3 py-1.5">
+                                    Chỉ lệnh mới: <strong>Ngày Đêm Luân Chuyển</strong> (cố định ngày/đêm)
+                                  </li>
+                                )}
+                                {lv + 1 === 3 && (
+                                  <li className="rounded-lg border border-[#8c6b44]/25 bg-[#f7eed8]/60 px-3 py-1.5">
+                                    Chỉ lệnh mới: <strong>Tự Động Dọn Dẹp</strong> bụi cây
+                                  </li>
+                                )}
+                                {lv + 1 === 4 && (
+                                  <>
+                                    <li className="rounded-lg border border-[#8c6b44]/25 bg-[#f7eed8]/60 px-3 py-1.5">
+                                      Chỉ lệnh mới: <strong>Tự Động Thu Nhận Lưu Dân</strong>
+                                    </li>
+                                    <li className="rounded-lg border border-[#8c6b44]/25 bg-[#f7eed8]/60 px-3 py-1.5">
+                                      Chỉ lệnh mới: <strong>Tự Động Luyện Binh</strong>
+                                    </li>
+                                  </>
+                                )}
+                                {nextUnlocks.map((b) => (
+                                  <li
+                                    key={b.type}
+                                    className="rounded-lg border border-[#8c6b44]/25 bg-[#f7eed8]/60 px-3 py-1.5"
+                                  >
+                                    Công trình mới: <strong>{b.name}</strong> — {b.description}
+                                  </li>
+                                ))}
+                                {nextUnlocks.length === 0 && lv + 1 === 5 && (
+                                  <li className="rounded-lg border border-[#8c6b44]/25 bg-[#f7eed8]/60 px-3 py-1.5">
+                                    Đạt đỉnh cao quy mô Đại Bản Doanh Lam Sơn ({nextSpan}×{nextSpan} ô).
+                                  </li>
+                                )}
+                              </ul>
+                            </div>
                           </div>
-                        </div>
-                        <div className="rounded-lg border border-amber-900/20 bg-[#fbf4e4] p-3">
-                          <div className="text-stone-500">Hiệu ứng hiện tại</div>
-                          <div className="mt-1 text-xs font-bold text-stone-800">
-                            {spec.effectLabel(lv)}
+                        ) : (
+                          <div className="rounded-xl border border-emerald-700/35 bg-emerald-700/10 p-4 text-center text-xs font-bold text-emerald-900">
+                            Nhà Chính đã đạt cấp độ tối đa ({spec.maxLevel})!
                           </div>
-                        </div>
+                        )}
+
+                        {!isScout && (
+                          <div className="flex gap-2.5 pt-2 border-t border-[#8c6b44]/30">
+                            <button
+                              disabled={isMax || isBusy || !allReqsMet}
+                              onClick={() => onUpgradeBuilding(selectedBuilding.id)}
+                              className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#8c2d19] px-4 py-2.5 text-xs font-bold text-[#fff3db] hover:bg-[#6e1e0d] disabled:opacity-45 cursor-pointer shadow"
+                            >
+                              <ArrowUpCircle className="h-4 w-4" />
+                              {isMax
+                                ? 'Đã đạt cấp tối đa'
+                                : isBusy
+                                ? `Đang nâng cấp (còn ${selectedBuilding.buildDaysRemaining} ngày)`
+                                : !allReqsMet
+                                ? 'Chưa đủ điều kiện nâng cấp'
+                                : `Nâng cấp lên Cấp ${lv + 1} (${upgradeCost.gold}V / ${upgradeCost.food}L)`}
+                            </button>
+                            <button
+                              onClick={onStartMoveBuilding}
+                              className="flex items-center justify-center gap-1 rounded-xl border border-[#8c6b44]/50 bg-[#8c6b44]/15 px-4 py-2.5 text-xs font-bold text-[#261304] hover:bg-[#8c6b44]/25 cursor-pointer"
+                            >
+                              <Move className="h-4 w-4" />
+                              Di dời
+                            </button>
+                          </div>
+                        )}
                       </div>
+                    )}
 
-                      {!isMax ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          {/* Khung Yêu cầu nâng cấp */}
-                          <div className="rounded-xl border border-amber-900/30 bg-[#fbf4e4] p-4">
-                            <h4 className="text-xs font-black uppercase tracking-wider text-[#6e380e] mb-2.5">
-                              Yêu cầu nâng lên Cấp {lv + 1}
-                            </h4>
-                            <div className="space-y-2">
-                              {reqChecks.map(({ req, current, met }) => (
-                                <div
-                                  key={req.type}
-                                  className={`flex items-center justify-between rounded-lg border px-3 py-1.5 text-xs ${
-                                    met
-                                      ? 'border-emerald-700/30 bg-emerald-50/70 text-emerald-900'
-                                      : 'border-red-700/30 bg-red-50/70 text-red-900'
-                                  }`}
-                                >
-                                  <span className="font-bold">
-                                    {BASE_BUILDING_CATALOG[req.type].name} (Lv.{req.minLevel}+)
-                                  </span>
-                                  <span className="flex items-center gap-1 font-black">
-                                    {current}/{req.count}
-                                    {met && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-700" />}
-                                  </span>
+                    {/* TAB 2: CHỈ LỆNH */}
+                    {mainHallTab === 'commands' && (
+                      <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                        {commandCards.map((card) => {
+                          const unlocked = lv >= card.minLv;
+                          return (
+                            <div
+                              key={card.key}
+                              className={`flex flex-col justify-between rounded-xl border p-3 text-center shadow-sm ${
+                                unlocked
+                                  ? 'border-[#8c6b44]/45 bg-black/[0.04]'
+                                  : 'border-[#8c6b44]/25 bg-black/[0.06] opacity-70'
+                              }`}
+                            >
+                              <div>
+                                <div className="rounded-t-lg bg-[#8c6b44]/15 px-2 py-1.5 border-b border-[#8c6b44]/30">
+                                  <h5 className="text-xs font-black text-[#4d270a] leading-tight">
+                                    {card.title}
+                                  </h5>
                                 </div>
-                              ))}
-                              <div className="flex items-center justify-between rounded-lg border border-amber-900/20 bg-amber-100/50 px-3 py-1.5 text-xs font-bold text-amber-950">
-                                <span>Tài nguyên thi công</span>
-                                <span>
-                                  {upgradeCost.gold} Vàng · {upgradeCost.food} Lương ({upgradeCost.days} ngày)
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Khung Mở khóa ở cấp tiếp theo */}
-                          <div className="rounded-xl border border-amber-900/30 bg-[#fbf4e4] p-4">
-                            <h4 className="text-xs font-black uppercase tracking-wider text-[#6e380e] mb-2.5">
-                              Mở khóa ở Cấp {lv + 1}
-                            </h4>
-                            <ul className="space-y-2 text-xs text-stone-800">
-                              <li className="rounded-lg border border-amber-900/15 bg-white/60 px-3 py-1.5">
-                                Mở rộng phạm vi xây dựng:{' '}
-                                <strong className="text-amber-900">
-                                  {nextSpan} × {nextSpan} ô
-                                </strong>
-                              </li>
-                              {lv + 1 === 2 && (
-                                <li className="rounded-lg border border-amber-900/15 bg-white/60 px-3 py-1.5">
-                                  Chỉ lệnh mới: <strong>Ngày Đêm Luân Chuyển</strong> (cố định ngày/đêm)
-                                </li>
-                              )}
-                              {lv + 1 === 3 && (
-                                <li className="rounded-lg border border-amber-900/15 bg-white/60 px-3 py-1.5">
-                                  Chỉ lệnh mới: <strong>Tự Động Dọn Dẹp</strong> bụi cây
-                                </li>
-                              )}
-                              {lv + 1 === 4 && (
-                                <>
-                                  <li className="rounded-lg border border-amber-900/15 bg-white/60 px-3 py-1.5">
-                                    Chỉ lệnh mới: <strong>Tự Động Thu Nhận Lưu Dân</strong>
-                                  </li>
-                                  <li className="rounded-lg border border-amber-900/15 bg-white/60 px-3 py-1.5">
-                                    Chỉ lệnh mới: <strong>Tự Động Luyện Binh</strong>
-                                  </li>
-                                </>
-                              )}
-                              {nextUnlocks.map((b) => (
-                                <li
-                                  key={b.type}
-                                  className="rounded-lg border border-amber-900/15 bg-white/60 px-3 py-1.5"
-                                >
-                                  Công trình mới: <strong>{b.name}</strong> — {b.description}
-                                </li>
-                              ))}
-                              {nextUnlocks.length === 0 && lv + 1 === 5 && (
-                                <li className="rounded-lg border border-amber-900/15 bg-white/60 px-3 py-1.5">
-                                  Đạt đỉnh cao quy mô Đại Bản Doanh Lam Sơn ({nextSpan}×{nextSpan} ô).
-                                </li>
-                              )}
-                            </ul>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="rounded-xl border border-emerald-700/30 bg-emerald-50/70 p-4 text-center text-xs font-bold text-emerald-900">
-                          Nhà Chính đã đạt cấp độ tối đa ({spec.maxLevel})!
-                        </div>
-                      )}
-
-                      {!isScout && (
-                        <div className="flex gap-2.5 pt-2 border-t border-amber-900/20">
-                          <button
-                            disabled={isMax || isBusy || !allReqsMet}
-                            onClick={() => onUpgradeBuilding(selectedBuilding.id)}
-                            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-amber-800 px-4 py-2.5 text-xs font-bold text-amber-50 hover:bg-amber-900 disabled:opacity-45 cursor-pointer"
-                          >
-                            <ArrowUpCircle className="h-4 w-4" />
-                            {isMax
-                              ? 'Đã đạt cấp tối đa'
-                              : isBusy
-                              ? `Đang nâng cấp (còn ${selectedBuilding.buildDaysRemaining} ngày)`
-                              : !allReqsMet
-                              ? 'Chưa đủ điều kiện nâng cấp'
-                              : `Nâng cấp lên Cấp ${lv + 1} (${upgradeCost.gold}V / ${upgradeCost.food}L)`}
-                          </button>
-                          <button
-                            onClick={onStartMoveBuilding}
-                            className="flex items-center justify-center gap-1 rounded-xl bg-stone-200 px-4 py-2.5 text-xs font-bold text-stone-800 hover:bg-stone-300 cursor-pointer"
-                          >
-                            <Move className="h-4 w-4" />
-                            Di dời
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* TAB 2: CHỈ LỆNH (Các thẻ bài giấy dó nằm ngang giống 2 ảnh mẫu) */}
-                  {mainHallTab === 'commands' && (
-                    <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                      {commandCards.map((card) => {
-                        const unlocked = lv >= card.minLv;
-                        return (
-                          <div
-                            key={card.key}
-                            className={`flex flex-col justify-between rounded-xl border-2 p-3 text-center shadow-sm ${
-                              unlocked
-                                ? 'border-[#d6a96e] bg-[#fbf3df]'
-                                : 'border-stone-400/40 bg-stone-200/70 opacity-75'
-                            }`}
-                          >
-                            <div>
-                              <div className="rounded-t-lg bg-gradient-to-b from-[#f4cf99] to-[#fae8c8] px-2 py-1.5 border-b border-[#d6a96e]/50">
-                                <h5 className="text-xs font-black text-[#4d270a] leading-tight">
-                                  {card.title}
-                                </h5>
-                              </div>
-                              <div className="mx-auto my-2.5 flex h-12 w-12 items-center justify-center rounded-full border-2 border-[#c89654] bg-[#fffaf0] shadow-inner">
-                                {card.icon}
-                              </div>
-                              <p className="text-[11px] text-stone-700 leading-snug px-1">
-                                {card.desc}
-                              </p>
-                              {card.extra}
-                            </div>
-
-                            <div className="mt-3 pt-2 border-t border-amber-900/15">
-                              {unlocked ? (
-                                <button
-                                  onClick={card.onToggle}
-                                  className={`w-full rounded-full py-1.5 text-xs font-black border cursor-pointer transition-colors ${
-                                    card.isOn
-                                      ? 'bg-[#e58935] text-white border-[#b45309] shadow-sm'
-                                      : 'bg-[#d8cbb5] text-stone-700 border-[#a89a84]'
-                                  }`}
-                                >
-                                  {card.isOn ? 'Mở' : 'Đóng'}
-                                </button>
-                              ) : (
-                                <div className="flex items-center justify-center gap-1 rounded-full bg-stone-300 py-1.5 text-[11px] font-bold text-stone-600">
-                                  <Lock className="h-3 w-3" /> Mở ở Cấp {card.minLv}
+                                <div className="mx-auto my-2.5 flex h-12 w-12 items-center justify-center rounded-full border-2 border-[#8c6b44]/60 bg-[#f7eed8]/80 shadow-inner">
+                                  {card.icon}
                                 </div>
-                              )}
+                                <p className="text-[11px] text-[#5c3e23] leading-snug px-1">
+                                  {card.desc}
+                                </p>
+                                {card.extra}
+                              </div>
+
+                              <div className="mt-3 pt-2 border-t border-[#8c6b44]/25">
+                                {unlocked ? (
+                                  <button
+                                    onClick={card.onToggle}
+                                    className={`w-full rounded-full py-1.5 text-xs font-black border cursor-pointer transition-colors ${
+                                      card.isOn
+                                        ? 'bg-[#8c2d19] text-[#fff3db] border-[#6e1e0d] shadow-sm'
+                                        : 'bg-[#8c6b44]/20 text-[#261304] border-[#8c6b44]/40 hover:bg-[#8c6b44]/30'
+                                    }`}
+                                  >
+                                    {card.isOn ? 'Mở' : 'Đóng'}
+                                  </button>
+                                ) : (
+                                  <div className="flex items-center justify-center gap-1 rounded-full bg-black/10 py-1.5 text-[11px] font-bold text-[#5c3e23]">
+                                    <Lock className="h-3 w-3" /> Mở ở Cấp {card.minLv}
+                                  </div>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
-                {/* Trục cuộn gỗ bên phải */}
-                <div className="w-5 shrink-0 rounded-full bg-gradient-to-r from-[#5a3515] via-[#9e6834] to-[#4a2a0e] border border-[#2a1708] shadow-xl z-20 -my-2" />
-
-                {/* 2 thẻ tab giấy dó bên phải cuộn thư: Thông tin & Chỉ lệnh */}
-                <div className="flex flex-col gap-2 pt-8 -ml-1 z-10">
+                {/* 2 thẻ tab giấy gió bên phải cuộn thư: Thông tin & Chỉ lệnh */}
+                <div className="flex flex-col gap-2 pt-10 -ml-2 z-10">
                   <button
                     onClick={() => setMainHallTab('info')}
-                    className={`flex flex-col items-center gap-1 rounded-r-xl border-2 border-l-0 px-2.5 py-3 text-[11px] font-black shadow-md cursor-pointer transition-all ${
+                    className={`relative flex flex-col items-center gap-1 rounded-r-xl border border-l-0 px-2.5 py-3 text-[11px] font-black shadow-md cursor-pointer transition-all overflow-hidden ${
                       mainHallTab === 'info'
-                        ? 'border-[#8b5a2b] bg-[#f6ecd6] text-[#5c2c0c] translate-x-0.5'
-                        : 'border-[#a89a84] bg-[#ded2bc] text-stone-600 hover:bg-[#ece1cb]'
+                        ? 'border-[#8c6b44] text-[#8c2d19] translate-x-0.5'
+                        : 'border-[#8c6b44]/50 text-[#5c3e23] opacity-80 hover:opacity-100'
                     }`}
+                    style={{ backgroundImage: "url('/parchment_clean.png')", backgroundSize: 'cover' }}
                   >
-                    <FileText className="h-4 w-4" />
-                    <span>Thông tin</span>
+                    <FileText className="h-4 w-4 relative z-10" />
+                    <span className="relative z-10">Thông tin</span>
                   </button>
                   <button
                     onClick={() => setMainHallTab('commands')}
-                    className={`flex flex-col items-center gap-1 rounded-r-xl border-2 border-l-0 px-2.5 py-3 text-[11px] font-black shadow-md cursor-pointer transition-all ${
+                    className={`relative flex flex-col items-center gap-1 rounded-r-xl border border-l-0 px-2.5 py-3 text-[11px] font-black shadow-md cursor-pointer transition-all overflow-hidden ${
                       mainHallTab === 'commands'
-                        ? 'border-[#8b5a2b] bg-[#f6ecd6] text-[#5c2c0c] translate-x-0.5'
-                        : 'border-[#a89a84] bg-[#ded2bc] text-stone-600 hover:bg-[#ece1cb]'
+                        ? 'border-[#8c6b44] text-[#8c2d19] translate-x-0.5'
+                        : 'border-[#8c6b44]/50 text-[#5c3e23] opacity-80 hover:opacity-100'
                     }`}
+                    style={{ backgroundImage: "url('/parchment_clean.png')", backgroundSize: 'cover' }}
                   >
-                    <ScrollText className="h-4 w-4" />
-                    <span>Chỉ lệnh</span>
+                    <ScrollText className="h-4 w-4 relative z-10" />
+                    <span className="relative z-10">Chỉ lệnh</span>
                   </button>
                 </div>
               </div>
@@ -473,8 +476,15 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
 
       {/* Cửa sổ chức năng các công trình khác (mở giữa màn hình khi nhấn vào công trình) */}
       {selectedBuilding && !isMovingBuilding && selectedBuilding.type !== 'main_hall' && (
-        <div className="pointer-events-auto fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
-          <div className="w-full max-w-xl rounded-2xl border-2 border-amber-900/50 bg-[#f6ecd9] p-5 shadow-2xl text-stone-900 font-serif max-h-[85vh] overflow-y-auto">
+        <div className="pointer-events-auto fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="relative w-full max-w-xl text-[#261304] font-serif max-h-[85vh] flex flex-col filter drop-shadow-[0_18px_30px_rgba(0,0,0,0.7)] drop-shadow-[0_3px_8px_rgba(0,0,0,0.45)]">
+            <img
+              src="/parchment_torn_panel.png"
+              alt="Giấy gió công trình"
+              className="absolute inset-0 w-full h-full object-fill pointer-events-none select-none z-0"
+              draggable={false}
+            />
+            <div className="relative z-10 p-7 overflow-y-auto no-scrollbar">
             {(() => {
               const spec = BASE_BUILDING_CATALOG[selectedBuilding.type];
               const upgradeCost = getUpgradeCost(selectedBuilding.type, selectedBuilding.level);
@@ -486,31 +496,31 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
               return (
                 <>
                   {/* Header */}
-                  <div className="flex items-start justify-between border-b border-amber-900/20 pb-3">
+                  <div className="flex items-start justify-between border-b border-[#8c6b44]/35 pb-3">
                     <div>
                       <div className="flex items-center gap-2">
-                        <h3 className="text-lg font-black text-stone-900">{spec.name}</h3>
-                        <span className="rounded-full bg-amber-800/15 px-2.5 py-0.5 text-xs font-bold text-amber-900">
+                        <h3 className="text-lg font-black text-[#261304]">{spec.name}</h3>
+                        <span className="rounded-full bg-[#8c6b44]/15 border border-[#8c6b44]/30 px-2.5 py-0.5 text-xs font-bold text-[#6e380e]">
                           Cấp {lv}/{spec.maxLevel}
                         </span>
-                        <span className="text-xs text-stone-500">({cityName})</span>
+                        <span className="text-xs text-[#6b4423]">({cityName})</span>
                       </div>
-                      <p className="text-xs font-semibold text-amber-800 mt-1">
+                      <p className="text-xs font-semibold text-[#8c2d19] mt-1">
                         {spec.effectLabel(lv)}
                       </p>
                     </div>
                     <button
                       onClick={onClearSelection}
-                      className="rounded-lg p-1.5 text-stone-500 hover:bg-stone-900/10 cursor-pointer"
+                      className="rounded-lg p-1 text-[#6e4927] hover:text-[#261304] hover:bg-[#8c6b44]/15 cursor-pointer"
                     >
                       <X className="h-5 w-5" />
                     </button>
                   </div>
 
-                  <p className="mt-3 text-sm text-stone-700 leading-relaxed">{spec.description}</p>
+                  <p className="mt-3 text-sm text-[#3a220f] leading-relaxed">{spec.description}</p>
 
-                  <div className="mt-3 flex items-center justify-between rounded-lg border border-amber-900/15 bg-amber-950/5 px-3 py-2 text-xs">
-                    <span className="flex items-center gap-1.5 text-stone-700">
+                  <div className="mt-3 flex items-center justify-between rounded-lg border border-[#8c6b44]/30 bg-black/[0.04] px-3 py-2 text-xs">
+                    <span className="flex items-center gap-1.5 text-[#3a220f]">
                       <Shield className="h-4 w-4 text-emerald-700" />
                       Độ bền:{' '}
                       <strong>
@@ -518,7 +528,7 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
                       </strong>
                     </span>
                     {isBusy && (
-                      <span className="font-semibold text-amber-700">
+                      <span className="font-semibold text-[#8c2d19]">
                         Đang thi công: còn {selectedBuilding.buildDaysRemaining} ngày
                       </span>
                     )}
@@ -526,11 +536,11 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
 
                   {/* Các nút thao tác công trình */}
                   {!isScout && (
-                    <div className="mt-4 flex flex-col gap-2 border-t border-amber-900/20 pt-3">
+                    <div className="mt-4 flex flex-col gap-2 border-t border-[#8c6b44]/30 pt-3">
                       {selectedBuilding.type === 'barracks' && (
                         <button
                           onClick={() => onOpenBuildingAction('training')}
-                          className="flex w-full items-center justify-center gap-2 rounded-lg bg-red-700 px-3 py-2 text-xs font-bold text-white hover:bg-red-800 cursor-pointer"
+                          className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#8c2d19] px-3 py-2 text-xs font-bold text-[#fff3db] hover:bg-[#6e1e0d] cursor-pointer shadow"
                         >
                           <Swords className="h-4 w-4" />
                           Mở Thao Trường Luyện Binh
@@ -539,7 +549,7 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
                       {selectedBuilding.type === 'forge' && (
                         <button
                           onClick={() => onOpenBuildingAction('forges')}
-                          className="flex w-full items-center justify-center gap-2 rounded-lg bg-amber-800 px-3 py-2 text-xs font-bold text-white hover:bg-amber-900 cursor-pointer"
+                          className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#8c5828] px-3 py-2 text-xs font-bold text-[#fff3db] hover:bg-[#6e421a] cursor-pointer shadow"
                         >
                           <Hammer className="h-4 w-4" />
                           Mở Xưởng Rèn Vũ Khí
@@ -548,7 +558,7 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
                       {selectedBuilding.type === 'farm' && (
                         <button
                           onClick={() => onOpenBuildingAction('farms')}
-                          className="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-700 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-800 cursor-pointer"
+                          className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#15803d] px-3 py-2 text-xs font-bold text-[#fff3db] hover:bg-[#166534] cursor-pointer shadow"
                         >
                           <Wheat className="h-4 w-4" />
                           Mở Quản Lý Ruộng Nương
@@ -559,7 +569,7 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
                         <button
                           disabled={isMax || isBusy}
                           onClick={() => onUpgradeBuilding(selectedBuilding.id)}
-                          className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-amber-700 px-3 py-2 text-xs font-bold text-white hover:bg-amber-800 disabled:opacity-45 cursor-pointer"
+                          className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-[#8c5828] px-3 py-2 text-xs font-bold text-[#fff3db] hover:bg-[#6e421a] disabled:opacity-45 cursor-pointer shadow"
                         >
                           <ArrowUpCircle className="h-3.5 w-3.5" />
                           {isMax
@@ -568,14 +578,14 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
                         </button>
                         <button
                           onClick={onStartMoveBuilding}
-                          className="flex items-center justify-center gap-1 rounded-lg bg-stone-200 px-3 py-2 text-xs font-bold text-stone-800 hover:bg-stone-300 cursor-pointer"
+                          className="flex items-center justify-center gap-1 rounded-lg border border-[#8c6b44]/50 bg-[#8c6b44]/15 px-3 py-2 text-xs font-bold text-[#261304] hover:bg-[#8c6b44]/25 cursor-pointer"
                         >
                           <Move className="h-3.5 w-3.5" />
                           Di dời
                         </button>
                         <button
                           onClick={() => onDemolishBuilding(selectedBuilding.id)}
-                          className="flex items-center justify-center rounded-lg bg-red-100 px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-200 cursor-pointer"
+                          className="flex items-center justify-center rounded-lg border border-[#8c2d19]/40 bg-[#8c2d19]/15 px-3 py-2 text-xs font-bold text-[#8c2d19] hover:bg-[#8c2d19]/25 cursor-pointer"
                           title="Tháo dỡ"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -586,18 +596,23 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
                 </>
               );
             })()}
+            </div>
           </div>
         </div>
       )}
 
-      {/* Giao diện Xây dựng kiểu Bách Cảnh Đồ: Cuộn giấy phân loại bên trái + Thẻ bài công trình phía dưới */}
+      {/* Giao diện Xây dựng: Thẻ phân loại giấy gió bên trái + Thẻ bài công trình giấy gió phía dưới */}
       {!isScout && isBuildPaletteOpen && (
         <div className="pointer-events-none flex items-end justify-between gap-3 w-full">
-          {/* Cuộn giấy dọc chọn nhóm: Sản xuất / Cơ sở / Đường */}
-          <div className="pointer-events-auto relative flex flex-col items-center w-[124px] shrink-0 font-serif select-none">
-            {/* Thanh cuộn gỗ trên */}
-            <div className="h-3 w-[134px] rounded-full bg-gradient-to-b from-[#8b5a2b] via-[#5e3a18] to-[#3d240d] border border-[#2a1708] shadow-md z-10" />
-            <div className="w-full bg-[#faf1dd] border-x-2 border-[#7c4d25]/60 px-2 py-2.5 flex flex-col gap-1.5 shadow-xl">
+          {/* Cuộn giấy gió dọc chọn nhóm: Sản xuất / Cơ sở / Đường */}
+          <div className="pointer-events-auto relative flex flex-col items-center w-[136px] shrink-0 font-serif select-none filter drop-shadow-[0_12px_24px_rgba(0,0,0,0.65)]">
+            <img
+              src="/parchment_torn_panel.png"
+              alt="Giấy gió danh mục xây dựng"
+              className="absolute inset-0 w-full h-full object-fill pointer-events-none select-none z-0"
+              draggable={false}
+            />
+            <div className="relative z-10 w-full px-3.5 py-4 flex flex-col gap-1.5">
               {BUILD_TABS.map((tab) => {
                 const isActive = activeTab === tab.key;
                 return (
@@ -606,24 +621,22 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
                     onClick={() => setActiveTab(tab.key)}
                     className={`w-full rounded-lg py-2 px-2 text-center text-xs font-black tracking-wide transition-all cursor-pointer border ${
                       isActive
-                        ? 'bg-[#f3cfa4] text-[#5c2c0c] border-[#c88a4b] shadow-inner'
-                        : 'bg-transparent text-[#4b3523] border-transparent hover:bg-[#efe0c4]'
+                        ? 'bg-[#8c2d19]/15 text-[#8c2d19] border-[#8c2d19]/50 shadow-inner'
+                        : 'bg-transparent text-[#3a220f] border-transparent hover:bg-[#8c6b44]/15'
                     }`}
                   >
                     {tab.label}
                   </button>
                 );
               })}
-              <div className="mt-1 border-t border-[#8b5a2b]/20 pt-1.5 text-center text-[10px] font-bold text-[#7c5228]">
+              <div className="mt-1 border-t border-[#8c6b44]/30 pt-1.5 text-center text-[10px] font-bold text-[#5c3e23]">
                 Phạm vi: {buildSpan}×{buildSpan}
-                <div className="text-[9px] font-normal text-[#8d6b47]">Nhà Chính Lv.{mainLevel}</div>
+                <div className="text-[9px] font-normal text-[#704d2e]">Nhà Chính Lv.{mainLevel}</div>
               </div>
             </div>
-            {/* Thanh cuộn gỗ dưới */}
-            <div className="h-3 w-[134px] rounded-full bg-gradient-to-b from-[#8b5a2b] via-[#5e3a18] to-[#3d240d] border border-[#2a1708] shadow-md z-10" />
           </div>
 
-          {/* Hàng thẻ bài công trình nằm ngang phía dưới */}
+          {/* Hàng thẻ bài công trình giấy gió nằm ngang phía dưới */}
           <div className="pointer-events-auto flex-1 flex items-end gap-2.5 overflow-x-auto pb-1 pr-2">
             {currentTabItems.map((type) => {
               const spec = BASE_BUILDING_CATALOG[type];
@@ -643,21 +656,28 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
                   onClick={() => {
                     if (!disabled) onSelectBuildType(isSelected ? null : type);
                   }}
-                  className={`relative flex flex-col items-center justify-between w-[134px] h-[156px] shrink-0 rounded-xl border-2 p-2.5 font-serif transition-all select-none ${
+                  className={`relative flex flex-col items-center justify-between w-[142px] h-[164px] shrink-0 px-3.5 py-3.5 font-serif transition-all select-none filter ${
                     disabled
-                      ? 'border-[#a89a84] bg-[#e5dccb]/90 opacity-75 cursor-not-allowed'
+                      ? 'opacity-70 grayscale-[0.3] cursor-not-allowed drop-shadow-[0_6px_12px_rgba(0,0,0,0.45)]'
                       : isSelected
-                      ? 'border-[#b91c1c] bg-[#fff7e6] -translate-y-1.5 shadow-[0_10px_24px_rgba(185,28,28,0.35)] cursor-pointer'
-                      : 'border-[#c4a77d] bg-[#faf2e1]/95 hover:-translate-y-1 hover:border-[#8b5a2b] shadow-lg cursor-pointer'
+                      ? '-translate-y-2 drop-shadow-[0_12px_22px_rgba(140,45,25,0.65)] cursor-pointer'
+                      : 'hover:-translate-y-1 drop-shadow-[0_10px_18px_rgba(0,0,0,0.55)] cursor-pointer'
                   }`}
                 >
+                  <img
+                    src="/parchment_torn_panel.png"
+                    alt={spec.name}
+                    className="absolute inset-0 w-full h-full object-fill pointer-events-none select-none z-0"
+                    draggable={false}
+                  />
+
                   {/* Góc trên phải: số lượng hiện tại / tối đa */}
-                  <span className="self-end rounded bg-[#5c3a18]/10 px-1.5 py-0.5 text-[10px] font-black text-[#4b321a]">
+                  <span className="relative z-10 self-end rounded bg-[#5c3a18]/10 px-1.5 py-0.5 text-[10px] font-black text-[#4b321a]">
                     {count}/{spec.maxPerBase}
                   </span>
 
                   {/* Minh họa công trình ở giữa */}
-                  <div className="flex items-center justify-center h-14 w-full my-0.5">
+                  <div className="relative z-10 flex items-center justify-center h-14 w-full my-0.5">
                     <img
                       src={iconSrc}
                       alt={spec.name}
@@ -670,16 +690,16 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
 
                   {/* Nút trạng thái + chi phí */}
                   <div
-                    className={`w-full rounded-md py-1 px-1.5 text-center text-[11px] font-black border ${
+                    className={`relative z-10 w-full rounded-md py-1 px-1.5 text-center text-[11px] font-black border ${
                       isFull
-                        ? 'bg-[#d97736]/85 text-white border-[#b45309]'
+                        ? 'bg-[#8c5828]/85 text-[#fff3db] border-[#6e421a]'
                         : lockedByHall
-                        ? 'bg-stone-500 text-stone-100 border-stone-600'
+                        ? 'bg-stone-600/85 text-stone-100 border-stone-700'
                         : isSelected
-                        ? 'bg-[#b91c1c] text-amber-50 border-[#7f1d1d]'
+                        ? 'bg-[#8c2d19] text-[#fff3db] border-[#6e1e0d]'
                         : canAfford
-                        ? 'bg-[#e89d58] text-[#3d1c04] border-[#b46928]'
-                        : 'bg-stone-300 text-stone-600 border-stone-400'
+                        ? 'bg-[#8c6b44]/20 text-[#261304] border-[#8c6b44]/50'
+                        : 'bg-black/10 text-[#6e4927] border-[#8c6b44]/30'
                     }`}
                   >
                     {isFull
@@ -692,7 +712,7 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
                   </div>
 
                   {/* Tên công trình ở chân thẻ */}
-                  <span className="mt-1 text-xs font-black text-[#3b2511] text-center leading-tight truncate w-full">
+                  <span className="relative z-10 mt-1 text-xs font-black text-[#261304] text-center leading-tight truncate w-full">
                     {spec.name}
                   </span>
                 </div>
@@ -706,10 +726,16 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
               onSelectBuildType(null);
               onCloseBuildPalette();
             }}
-            className="pointer-events-auto self-end flex items-center gap-1.5 rounded-xl border-2 border-[#7c4d25] bg-[#faf1dd] px-3.5 py-2.5 text-xs font-black text-[#4b2b10] shadow-lg hover:bg-[#f3cfa4] cursor-pointer shrink-0 font-serif"
+            className="pointer-events-auto relative self-end flex items-center gap-1.5 px-5 py-3 text-xs font-black text-[#4b2b10] hover:text-[#8c2d19] cursor-pointer shrink-0 font-serif filter drop-shadow-[0_10px_18px_rgba(0,0,0,0.55)] transition-transform hover:scale-105 active:scale-95"
           >
-            <X className="h-4 w-4" />
-            Đóng
+            <img
+              src="/parchment_torn_panel.png"
+              alt="Đóng"
+              className="absolute inset-0 w-full h-full object-fill pointer-events-none select-none z-0"
+              draggable={false}
+            />
+            <X className="h-4 w-4 relative z-10" />
+            <span className="relative z-10">Đóng</span>
           </button>
         </div>
       )}
