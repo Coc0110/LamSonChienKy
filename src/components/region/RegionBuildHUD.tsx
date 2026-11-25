@@ -2,17 +2,21 @@ import React, { useState } from 'react';
 import {
   ArrowUpCircle,
   CheckCircle2,
+  Coins,
   Eye,
   FileText,
+  Gavel,
   Hammer,
   Lock,
   Move,
   ScrollText,
   Shield,
   Sparkles,
+  Store,
   Sun,
   Swords,
   Trash2,
+  Trees,
   Users,
   Wheat,
   X,
@@ -20,7 +24,7 @@ import {
 } from 'lucide-react';
 import type { TacticalFormation } from '../../types';
 import type { BaseBuilding, BaseBuildingType, RegionLayout } from '../../types/region';
-import type { BaseAutomationConfig } from '../../store/slices/regionSlice';
+import type { BaseAutomationConfig, ForagedInventoryItem } from '../../store/slices/regionSlice';
 import {
   BASE_BUILDING_CATALOG,
   checkMainHallUpgradeRequirements,
@@ -49,6 +53,11 @@ interface RegionBuildHUDProps {
   onToggleDefenseFormation: (formationId: string) => void;
   onDispatchMarch: (formationId: string) => void;
   onOpenArmyModal: () => void;
+  foragedInventory: ForagedInventoryItem[];
+  canAuctionThisMonth: boolean;
+  onForageWatchtower: (watchtowerId: string, level: number) => void;
+  onSellForagedItem: (uid: string) => void;
+  onAuctionForagedItem: (uid: string) => void;
   onSelectBuildType: (type: BaseBuildingType | null) => void;
   onCloseBuildPalette: () => void;
   onUpgradeBuilding: (buildingId: string) => void;
@@ -66,7 +75,7 @@ const BUILD_TABS: Array<{
   label: string;
   items: BaseBuildingType[];
 }> = [
-  { key: 'production', label: 'Sản xuất', items: ['farm', 'forge'] },
+  { key: 'production', label: 'Sản xuất', items: ['farm', 'forge', 'market'] },
   { key: 'facility', label: 'Cơ sở', items: ['house', 'barracks', 'watchtower', 'spike_trap'] },
   { key: 'road', label: 'Đường', items: ['road', 'wall', 'gate'] },
 ];
@@ -102,6 +111,11 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
   onToggleDefenseFormation,
   onDispatchMarch,
   onOpenArmyModal,
+  foragedInventory,
+  canAuctionThisMonth,
+  onForageWatchtower,
+  onSellForagedItem,
+  onAuctionForagedItem,
   onSelectBuildType,
   onCloseBuildPalette,
   onUpgradeBuilding,
@@ -678,42 +692,149 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
                         </button>
                       )}
                       {selectedBuilding.type === 'watchtower' && (
+                        <div className="space-y-2.5">
+                          {/* Săn bắt hái lượm (thu vật phẩm hiếm đem bán/đấu giá tại Chợ) */}
+                          <div className="rounded-lg border border-[#8c6b44]/35 bg-white/45 p-3">
+                            <div className="flex items-center justify-between mb-1.5">
+                              <span className="flex items-center gap-1.5 text-xs font-black text-emerald-900">
+                                <Trees className="h-4 w-4" />
+                                Săn Bắt & Hái Lượm
+                              </span>
+                              <span className="text-[10px] font-bold text-[#5c3e23]">
+                                Tỉ lệ đồ hiếm: {Math.min(65, 16 + selectedBuilding.level * 10)}%
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-[#5c3e23] mb-2">
+                              Cử người vào rừng thu thập lương thực và vật phẩm hiếm để bán hoặc đấu giá tại Chợ Phiên (1 lần/ngày).
+                            </p>
+                            <button
+                              onClick={() =>
+                                onForageWatchtower(selectedBuilding.id, selectedBuilding.level)
+                              }
+                              className="w-full rounded-lg bg-emerald-700 py-1.5 text-xs font-bold text-white hover:bg-emerald-800 cursor-pointer shadow"
+                            >
+                              Cử người đi săn bắt hái lượm
+                            </button>
+                          </div>
+
+                          {/* Do thám huyện thành */}
+                          <div className="rounded-lg border border-[#8c6b44]/35 bg-white/45 p-3">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="flex items-center gap-1.5 text-xs font-black text-[#8c2d19]">
+                                <Eye className="h-4 w-4" />
+                                Do Thám Huyện Thành
+                              </span>
+                              <span className="text-[10px] font-bold text-[#5c3e23]">
+                                {selectedBuilding.level >= 4 ? 'Mở toàn bộ (gồm Tây Đô)' : 'Tây Đô cần Lv.4'}
+                              </span>
+                            </div>
+                            {scoutableDistricts.length === 0 ? (
+                              <p className="text-xs text-emerald-800 font-semibold text-center py-2">
+                                Tất cả huyện thành đã được do thám!
+                              </p>
+                            ) : (
+                              <div className="max-h-36 overflow-y-auto space-y-1.5 pr-1">
+                                {scoutableDistricts.map((d) => {
+                                  const lockedTayDo = d.isTayDo && selectedBuilding.level < 4;
+                                  return (
+                                    <div
+                                      key={d.id}
+                                      className="flex items-center justify-between rounded border border-[#8c6b44]/25 bg-white/65 px-2.5 py-1.5 text-xs"
+                                    >
+                                      <span className="font-bold text-[#261304]">{d.name}</span>
+                                      {lockedTayDo ? (
+                                        <span className="flex items-center gap-1 text-[10px] font-bold text-stone-500">
+                                          <Lock className="h-3 w-3" /> Cần Lv.4
+                                        </span>
+                                      ) : (
+                                        <button
+                                          onClick={() => onScoutDistrict(d.id)}
+                                          className="rounded bg-[#8c2d19] px-2.5 py-1 text-[11px] font-bold text-[#fff3db] hover:bg-[#6e1e0d] cursor-pointer"
+                                        >
+                                          Do thám
+                                        </button>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {selectedBuilding.type === 'market' && (
                         <div className="rounded-lg border border-[#8c6b44]/35 bg-white/45 p-3">
                           <div className="flex items-center justify-between mb-2">
                             <span className="flex items-center gap-1.5 text-xs font-black text-[#8c2d19]">
-                              <Eye className="h-4 w-4" />
-                              Do Thám Huyện Thành
+                              <Store className="h-4 w-4" />
+                              Kho Vật Phẩm & Đấu Giá ({foragedInventory.length} món)
                             </span>
-                            <span className="text-[10px] font-bold text-[#5c3e23]">
-                              {selectedBuilding.level >= 4 ? 'Mở toàn bộ (gồm Tây Đô)' : 'Tây Đô cần Lv.4'}
+                            <span
+                              className={`rounded px-2 py-0.5 text-[10px] font-bold ${
+                                canAuctionThisMonth
+                                  ? 'bg-amber-200 text-amber-950'
+                                  : 'bg-stone-200 text-stone-600'
+                              }`}
+                            >
+                              {canAuctionThisMonth ? 'Đấu giá tháng: Còn 1 lượt' : 'Đấu giá tháng: Đã dùng'}
                             </span>
                           </div>
-                          {scoutableDistricts.length === 0 ? (
-                            <p className="text-xs text-emerald-800 font-semibold text-center py-2">
-                              Tất cả huyện thành đã được do thám!
+                          {foragedInventory.length === 0 ? (
+                            <p className="text-xs text-[#5c3e23] text-center py-3">
+                              Chưa có vật phẩm nào. Hãy bấm vào Chòi Canh để cử người đi săn bắt hái lượm!
                             </p>
                           ) : (
-                            <div className="max-h-44 overflow-y-auto space-y-1.5 pr-1">
-                              {scoutableDistricts.map((d) => {
-                                const lockedTayDo = d.isTayDo && selectedBuilding.level < 4;
+                            <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1">
+                              {foragedInventory.map((item) => {
+                                const bonus = 1 + (selectedBuilding.level - 1) * 0.15;
+                                const sellPrice = Math.round(item.basePrice * bonus);
                                 return (
                                   <div
-                                    key={d.id}
-                                    className="flex items-center justify-between rounded border border-[#8c6b44]/25 bg-white/65 px-2.5 py-1.5 text-xs"
+                                    key={item.uid}
+                                    className={`flex items-center justify-between rounded border px-2.5 py-1.5 text-xs ${
+                                      item.rare
+                                        ? 'border-amber-600/45 bg-amber-50/85'
+                                        : 'border-[#8c6b44]/25 bg-white/65'
+                                    }`}
                                   >
-                                    <span className="font-bold text-[#261304]">{d.name}</span>
-                                    {lockedTayDo ? (
-                                      <span className="flex items-center gap-1 text-[10px] font-bold text-stone-500">
-                                        <Lock className="h-3 w-3" /> Cần Lv.4
+                                    <div className="min-w-0 pr-2">
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="font-bold text-[#261304] truncate">
+                                          {item.name}
+                                        </span>
+                                        {item.rare && (
+                                          <span className="rounded bg-amber-600 px-1.5 py-0.5 text-[9px] font-black text-white">
+                                            HIẾM
+                                          </span>
+                                        )}
+                                      </div>
+                                      <span className="text-[10px] text-[#5c3e23]">
+                                        Giá bán: {sellPrice}V · Đấu giá: ~{Math.round(sellPrice * 2.2)}V
                                       </span>
-                                    ) : (
+                                    </div>
+                                    <div className="flex gap-1 shrink-0">
                                       <button
-                                        onClick={() => onScoutDistrict(d.id)}
-                                        className="rounded bg-[#8c2d19] px-2.5 py-1 text-[11px] font-bold text-[#fff3db] hover:bg-[#6e1e0d] cursor-pointer"
+                                        onClick={() => onSellForagedItem(item.uid)}
+                                        className="flex items-center gap-1 rounded bg-[#8c5828] px-2 py-1 text-[11px] font-bold text-[#fff3db] hover:bg-[#6e421a] cursor-pointer"
                                       >
-                                        Do thám
+                                        <Coins className="h-3 w-3" />
+                                        Bán
                                       </button>
-                                    )}
+                                      <button
+                                        disabled={!canAuctionThisMonth}
+                                        onClick={() => onAuctionForagedItem(item.uid)}
+                                        className="flex items-center gap-1 rounded bg-[#8c2d19] px-2 py-1 text-[11px] font-bold text-[#fff3db] hover:bg-[#6e1e0d] disabled:opacity-40 cursor-pointer"
+                                        title={
+                                          canAuctionThisMonth
+                                            ? 'Đấu giá thu lợi nhuận cao (1 lần/tháng)'
+                                            : 'Tháng này đã đấu giá rồi'
+                                        }
+                                      >
+                                        <Gavel className="h-3 w-3" />
+                                        Đấu giá
+                                      </button>
+                                    </div>
                                   </div>
                                 );
                               })}

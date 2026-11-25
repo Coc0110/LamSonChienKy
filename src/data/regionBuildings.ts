@@ -229,7 +229,42 @@ export const BASE_BUILDING_CATALOG: Record<BaseBuildingType, BaseBuildingSpec> =
     description: 'Lối đi đất nện nối liền các công trình trong căn cứ.',
     effectLabel: () => 'Kết nối giao thông nội thành',
   },
+  market: {
+    type: 'market',
+    name: 'Chợ Phiên',
+    shortName: 'Chợ',
+    category: 'economy',
+    spanCols: 3,
+    spanRows: 3,
+    maxLevel: 3,
+    baseHp: 520,
+    goldCost: 45,
+    foodCost: 15,
+    buildDays: 2,
+    maxPerBase: 1,
+    requiredMainHallLevel: 1,
+    description: 'Nơi giao thương vật phẩm săn bắt hái lượm và tổ chức đấu giá bảo vật (mỗi tháng 1 lần).',
+    effectLabel: (lvl) => `+${(lvl - 1) * 15}% giá trị bán & đấu giá vật phẩm`,
+  },
 };
+
+export interface ForagedItemSpec {
+  id: string;
+  name: string;
+  rare: boolean;
+  basePrice: number;
+  description: string;
+}
+
+export const FORAGED_ITEM_CATALOG: ForagedItemSpec[] = [
+  { id: 'thao_duoc', name: 'Thảo Dược Rừng Sâu', rare: false, basePrice: 18, description: 'Cây thuốc quý hái trên sườn núi Thanh Hóa.' },
+  { id: 'mat_ong_rung', name: 'Mật Ong Rừng', rare: false, basePrice: 24, description: 'Mật ong rừng nguyên chất ngọt thanh.' },
+  { id: 'da_thu', name: 'Da Thú Rừng', rare: false, basePrice: 32, description: 'Da thú săn được dùng làm giáp da hoặc trao đổi.' },
+  { id: 'nhung_huou', name: 'Nhung Hươu Lam Sơn', rare: true, basePrice: 90, description: 'Vật phẩm hiếm rất được giới thương nhân săn đón.' },
+  { id: 'nhan_sam', name: 'Nhân Sâm Cổ Thụ', rare: true, basePrice: 130, description: 'Nhân sâm trăm năm mọc sâu trong đại ngàn.' },
+  { id: 'ngoc_bich', name: 'Ngọc Bích Cổ Vật', rare: true, basePrice: 175, description: 'Bảo vật cổ lưu lạc trong rừng rậm.' },
+  { id: 'tram_huong', name: 'Trầm Hương Kỳ Nam', rare: true, basePrice: 220, description: 'Cực phẩm quý hiếm có giá trị đấu giá cực cao.' },
+];
 
 export function getBuildableHalfRadius(mainHallLevel: number): number {
   if (mainHallLevel >= 5) return 44;

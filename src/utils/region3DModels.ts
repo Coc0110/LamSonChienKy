@@ -2902,6 +2902,41 @@ function getBuildingParts(
       push('earthDark', box(0.92, 0.008, 0.92, 0, 0.024, 0));
       break;
     }
+
+    case 'market': {
+      // 3x3 Chợ Phiên: sân gạch đất nện, 3 gian hàng mái lá + bạt vải màu, sạp hàng & chum vại
+      push('earthDark', createOrganicEarthMound(2.86, 2.86, 0.12, 41.2));
+      push('stonePale', box(1.5, 0.05, 1.5, 0, 0.12, 0.1));
+
+      const addStall = (sx: number, sz: number, rotY: number, awningMat: MaterialKey) => {
+        const g = (geo: THREE.BufferGeometry) => {
+          geo.rotateY(rotY);
+          geo.translate(sx, 0, sz);
+          return geo;
+        };
+        // 4 cột tre/gỗ
+        for (const [px, pz] of [[-0.42, -0.3], [0.42, -0.3], [-0.42, 0.3], [0.42, 0.3]]) {
+          push('woodDark', g(cyl(0.032, 0.038, 0.72, 6, px, 0.46, pz)));
+        }
+        // Mái lá dốc & bạt vải màu phía trước
+        push('thatch', g(box(1.05, 0.08, 0.82, 0, 0.86, 0).rotateX(0.18)));
+        push(awningMat, g(box(0.98, 0.04, 0.32, 0, 0.78, 0.42).rotateX(0.32)));
+        // Quầy sạp gỗ + hàng hóa (chum, thúng)
+        push('wood', g(box(0.88, 0.24, 0.34, 0, 0.24, 0.14)));
+        push('gold', g(cyl(0.065, 0.08, 0.16, 7, -0.24, 0.42, 0.14)));
+        push('bambooDry', g(cyl(0.09, 0.07, 0.12, 7, 0.2, 0.4, 0.14)));
+      };
+
+      addStall(-0.78, -0.78, 0, bannerMat);
+      addStall(0.78, -0.78, 0, 'gold');
+      addStall(-0.82, 0.65, Math.PI / 2, 'bamboo');
+
+      // Cột cờ hiệu Chợ Phiên ở góc phải phía trước
+      push('woodDark', cyl(0.04, 0.05, 1.65, 6, 0.92, 0.92, 0.72));
+      push(bannerMat, box(0.46, 0.32, 0.04, 0.92, 1.56, 0.72));
+      push('gold', sphere(0.07, 0.92, 1.78, 0.72));
+      break;
+    }
   }
 
   const result: Array<{ matKey: MaterialKey; geo: THREE.BufferGeometry }> = [];

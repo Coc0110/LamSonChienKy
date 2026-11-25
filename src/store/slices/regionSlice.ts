@@ -8,7 +8,7 @@ import type {
   RegionLayout,
   SiegeBattleState,
 } from '../../types/region';
-import { BASE_BUILDING_CATALOG, checkMainHallUpgradeRequirements, getBuildingMaxHp, getUpgradeCost } from '../../data/regionBuildings';
+import { BASE_BUILDING_CATALOG, FORAGED_ITEM_CATALOG, checkMainHallUpgradeRequirements, getBuildingMaxHp, getUpgradeCost } from '../../data/regionBuildings';
 import { canPlaceOnRegionGrid, generateEnemyCityLayout, generateLamSonStarterLayout } from '../../utils/regionLayoutGenerator';
 import { isThanhHoaBuildable } from '../../utils/thanhHoa3DTerrain';
 import { coordToCell, getGridTerrain } from '../../data/terrainGrid';
@@ -34,6 +34,14 @@ export interface SpawnedBush {
   wz: number;
 }
 
+export interface ForagedInventoryItem {
+  uid: string;
+  itemId: string;
+  name: string;
+  rare: boolean;
+  basePrice: number;
+}
+
 export interface RegionSlice {
   regionLayouts: Record<string, RegionLayout>;
   clearedTerrainKeys: Record<string, string[]>; // cityId -> array of "col,row" cleared keys
@@ -42,6 +50,9 @@ export interface RegionSlice {
   bushNextSpawnDay: Record<string, number>;
   scoutedRegionIds: Record<string, number>; // cityId -> day last scouted
   defenseFormationIds: Record<string, string[]>; // cityId -> formationIds assigned to defense
+  foragedInventory: ForagedInventoryItem[];
+  watchtowerLastForageDay: Record<string, number>;
+  lastAuctionMonthKey: string | null;
   activeSiegeBattle: SiegeBattleState | null;
   activeAmbushBattle: AmbushBattleState | null;
   activeDefenseBattle: DefenseBattleState | null;
@@ -77,6 +88,12 @@ export interface RegionSlice {
   clearBush: (cityId: string, bushId: string) => void;
   tickBaseAutomationAndBushes: (day: number) => void;
   toggleDefenseFormation: (cityId: string, formationId: string) => void;
+  forageFromWatchtower: (
+    watchtowerId: string,
+    watchtowerLevel: number
+  ) => { success: boolean; message: string; item?: ForagedInventoryItem };
+  sellForagedItem: (uid: string, cityId: string) => { success: boolean; message: string };
+  auctionForagedItem: (uid: string, cityId: string) => { success: boolean; message: string };
 
   startSiege3D: (targetCityId: string, formationId: string) => void;
   resolveSiege3D: (finalState: SiegeBattleState) => void;
@@ -109,6 +126,9 @@ export const createRegionSlice: StateCreator<GameStore, [], [], RegionSlice> = (
   bushNextSpawnDay: {},
   scoutedRegionIds: {},
   defenseFormationIds: {},
+  foragedInventory: [],
+  watchtowerLastForageDay: {},
+  lastAuctionMonthKey: null,
   activeSiegeBattle: null,
   activeAmbushBattle: null,
   activeDefenseBattle: null,
@@ -644,6 +664,109 @@ export const createRegionSlice: StateCreator<GameStore, [], [], RegionSlice> = (
         },
       };
     });
+  },
+
+  forageFromWatchtower: (watchtowerId, watchtowerLevel) => {
+    const state = get();
+    const absDay = (state.year - 1418) * 365 + (state.month - 1) * 30 + state.day;
+    const lastDay = state.watchtowerLastForageDay?.[watchtowerId] ?? -1;
+    if (lastDay >= absDay) {
+      return {
+        success: false,
+        message: 'Chòi canh này hôm nay đã cử người đi săn bắt hái lượm rồi! Hãy quay lại vào ngày mai.',
+      };
+    }
+
+    const rareChance = Math.min(0.65, 0.16 + watchtowerLevel * 0.1);
+    const isRareRoll = Math.random() < rareChance;
+    const pool = FORAGED_ITEM_CATALOG.filter((it) => it.rare === isRareRoll);
+    const picked = pool[Math.floor(Math.random() * pool.length)] ?? FORAGED_ITEM_CATALOG[0];
+
+    const newItem: ForagedInventoryItem = {
+      uid: `item_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      itemId: picked.id,
+      name: picked.name,
+      rare: picked.rare,
+      basePrice: picked.basePrice,
+    };
+
+    const foodGain = 6 + watchtowerLevel * 2;
+    set((s) => ({
+      watchtowerLastForageDay: {
+        ...s.watchtowerLastForageDay,
+        [watchtowerId]: absDay,
+      },
+      foragedInventory: [newItem, ...(s.foragedInventory ?? [])],
+      resources: {
+        ...s.resources,
+        food: s.resources.food + foodGain,
+      },
+    }));
+
+    return {
+      success: true,
+      message: picked.rare
+        ? `Thu được VẬT PHẨM HIẾM [${picked.name}] và +${foodGain} lương thực! Có thể đem bán hoặc đấu giá tại Chợ.`
+        : `Săn bắt hái lượm thu được [${picked.name}] và +${foodGain} lương thực!`,
+      item: newItem,
+    };
+  },
+
+  sellForagedItem: (uid, cityId) => {
+    const state = get();
+    const item = (state.foragedInventory ?? []).find((it) => it.uid === uid);
+    if (!item) return { success: false, message: 'Không tìm thấy vật phẩm!' };
+    const layout = state.getOrCreateRegionLayout(cityId);
+    const market = layout.buildings.find((b) => b.type === 'market' && b.status === 'active');
+    const marketLvl = market?.level ?? 1;
+    const price = Math.round(item.basePrice * (1 + (marketLvl - 1) * 0.15));
+
+    set((s) => ({
+      foragedInventory: (s.foragedInventory ?? []).filter((it) => it.uid !== uid),
+      resources: {
+        ...s.resources,
+        gold: s.resources.gold + price,
+      },
+    }));
+
+    return {
+      success: true,
+      message: `Đã bán [${item.name}] tại Chợ Phiên thu về +${price} vàng!`,
+    };
+  },
+
+  auctionForagedItem: (uid, cityId) => {
+    const state = get();
+    const monthKey = `${state.year}-${state.month}`;
+    if (state.lastAuctionMonthKey === monthKey) {
+      return {
+        success: false,
+        message: 'Mỗi tháng chỉ được tổ chức đấu giá vật phẩm 1 lần! Hãy chờ sang tháng sau.',
+      };
+    }
+
+    const item = (state.foragedInventory ?? []).find((it) => it.uid === uid);
+    if (!item) return { success: false, message: 'Không tìm thấy vật phẩm để đấu giá!' };
+
+    const layout = state.getOrCreateRegionLayout(cityId);
+    const market = layout.buildings.find((b) => b.type === 'market' && b.status === 'active');
+    const marketLvl = market?.level ?? 1;
+    const multiplier = 1.85 + Math.random() * 0.95;
+    const price = Math.round(item.basePrice * multiplier * (1 + (marketLvl - 1) * 0.15));
+
+    set((s) => ({
+      lastAuctionMonthKey: monthKey,
+      foragedInventory: (s.foragedInventory ?? []).filter((it) => it.uid !== uid),
+      resources: {
+        ...s.resources,
+        gold: s.resources.gold + price,
+      },
+    }));
+
+    return {
+      success: true,
+      message: `Đấu giá thành công [${item.name}] thu về +${price} vàng!`,
+    };
   },
 
   tickBaseAutomationAndBushes: (day) => {

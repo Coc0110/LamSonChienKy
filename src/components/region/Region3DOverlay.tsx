@@ -28,6 +28,13 @@ export const Region3DOverlay: React.FC = () => {
   const defenseFormationIdsMap = useGameStore((s) => s.defenseFormationIds);
   const toggleDefenseFormation = useGameStore((s) => s.toggleDefenseFormation);
   const setActiveFormationId = useGameStore((s) => s.setActiveFormationId);
+  const foragedInventory = useGameStore((s) => s.foragedInventory);
+  const lastAuctionMonthKey = useGameStore((s) => s.lastAuctionMonthKey);
+  const year = useGameStore((s) => s.year);
+  const month = useGameStore((s) => s.month);
+  const forageFromWatchtower = useGameStore((s) => s.forageFromWatchtower);
+  const sellForagedItem = useGameStore((s) => s.sellForagedItem);
+  const auctionForagedItem = useGameStore((s) => s.auctionForagedItem);
   const getOrCreateRegionLayout = useGameStore((s) => s.getOrCreateRegionLayout);
   const placeBaseBuilding = useGameStore((s) => s.placeBaseBuilding);
   const upgradeBaseBuilding = useGameStore((s) => s.upgradeBaseBuilding);
@@ -252,6 +259,23 @@ export const Region3DOverlay: React.FC = () => {
         }}
         onOpenArmyModal={() => {
           setActiveModal('army');
+        }}
+        foragedInventory={foragedInventory ?? []}
+        canAuctionThisMonth={lastAuctionMonthKey !== `${year}-${month}`}
+        onForageWatchtower={(watchtowerId, level) => {
+          const res = forageFromWatchtower(watchtowerId, level);
+          if (res.success) notify.success(res.message);
+          else notify.warning(res.message);
+        }}
+        onSellForagedItem={(uid) => {
+          const res = sellForagedItem(uid, activeRegion3D.cityId);
+          if (res.success) notify.success(res.message);
+          else notify.warning(res.message);
+        }}
+        onAuctionForagedItem={(uid) => {
+          const res = auctionForagedItem(uid, activeRegion3D.cityId);
+          if (res.success) notify.success(res.message);
+          else notify.warning(res.message);
         }}
         onSelectBuildType={(type) => {
           setIsMovingBuilding(false);

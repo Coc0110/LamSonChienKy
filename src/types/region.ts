@@ -8,9 +8,10 @@ export type BaseBuildingType =
   | 'barracks'      // Trại luyện binh
   | 'wall'          // Tường rào / Lũy tre
   | 'gate'          // Cổng thành
-  | 'watchtower'    // Chòi canh cung
+  | 'watchtower'    // Chòi canh
   | 'spike_trap'    // Bẫy chông
-  | 'road';         // Đường đất
+  | 'road'          // Đường đất
+  | 'market';       // Chợ phiên
 
 export type BaseBuildingCategory = 'core' | 'economy' | 'military' | 'defense';
 
