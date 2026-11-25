@@ -742,10 +742,11 @@ function getGroundNoiseLUTs() {
  */
 export function createDetailedGroundTexture(
   gridSize: number,
-  buildings: BaseBuilding[]
+  buildings: BaseBuilding[],
+  pathsOnly = false
 ): THREE.CanvasTexture {
   const layoutKey =
-    `${gridSize}|` +
+    `${pathsOnly ? 'P' : 'G'}|${gridSize}|` +
     buildings
       .filter((b) => b.status !== 'destroyed')
       .map((b) => `${b.type}:${b.col},${b.row},${b.spanCols},${b.spanRows}`)
@@ -877,20 +878,23 @@ export function createDetailedGroundTexture(
       const med = medLUT[lIdx];
       const fine = fineLUT[fIdx];
 
-      // 1. Màu đồng cỏ tự nhiên
+      // 1. Màu đồng cỏ tự nhiên (nếu pathsOnly = true thì để trong suốt hoàn toàn, chỉ giữ đường đất)
       let r = 72 + macro * 42 + (med - 0.5) * 26;
       let g = 100 + macro * 44 + (med - 0.5) * 24;
       let b = 44 + macro * 20 + (med - 0.5) * 14;
+      let alpha = pathsOnly ? 0 : 255;
 
-      const dryMask = Math.max(0, (med - 0.58) * 2.2) * (1 - macro * 0.5);
-      r = r * (1 - dryMask * 0.35) + 124 * (dryMask * 0.35);
-      g = g * (1 - dryMask * 0.35) + 112 * (dryMask * 0.35);
-      b = b * (1 - dryMask * 0.35) + 64 * (dryMask * 0.35);
+      if (!pathsOnly) {
+        const dryMask = Math.max(0, (med - 0.58) * 2.2) * (1 - macro * 0.5);
+        r = r * (1 - dryMask * 0.35) + 124 * (dryMask * 0.35);
+        g = g * (1 - dryMask * 0.35) + 112 * (dryMask * 0.35);
+        b = b * (1 - dryMask * 0.35) + 64 * (dryMask * 0.35);
 
-      const grain = (fine - 0.5) * 24;
-      r += grain * 0.95;
-      g += grain * 1.1;
-      b += grain * 0.55;
+        const grain = (fine - 0.5) * 24;
+        r += grain * 0.95;
+        g += grain * 1.1;
+        b += grain * 0.55;
+      }
 
       // 2. Đường đất theo ô lưới nối liền mạch
       const rDistCells = roadDist[pIdx] * invPxPerCell;
@@ -903,34 +907,43 @@ export function createDetailedGroundTexture(
           const rr = 118 + centerBright * 34 + (fine - 0.5) * 20 + pebble;
           const rg = 95 + centerBright * 28 + (fine - 0.5) * 16 + pebble * 0.85;
           const rb = 63 + centerBright * 20 + (fine - 0.5) * 12 + pebble * 0.65;
-          r += (rr - r) * roadAlpha;
-          g += (rg - g) * roadAlpha;
-          b += (rb - b) * roadAlpha;
+          if (pathsOnly) {
+            r = rr;
+            g = rg;
+            b = rb;
+            alpha = Math.round(roadAlpha * 240);
+          } else {
+            r += (rr - r) * roadAlpha;
+            g += (rg - g) * roadAlpha;
+            b += (rb - b) * roadAlpha;
+          }
         }
       }
 
-      // 3. Giao giữa thảm cỏ và chân ụ đất
-      const mDirt = moundDirtArr[pIdx];
-      if (mDirt > 0.001) {
-        const dr = 104 + (fine - 0.5) * 22 + (med - 0.5) * 16;
-        const dg = 83 + (fine - 0.5) * 18 + (med - 0.5) * 12;
-        const db = 54 + (fine - 0.5) * 14 + (med - 0.5) * 8;
-        r += (dr - r) * mDirt * 0.85;
-        g += (dg - g) * mDirt * 0.85;
-        b += (db - b) * mDirt * 0.85;
-      }
-      const mAO = moundAOArr[pIdx];
-      if (mAO > 0.001) {
-        r *= 1 - mAO;
-        g *= 1 - mAO;
-        b *= 1 - mAO;
+      // 3. Giao giữa thảm cỏ và chân ụ đất (bỏ qua nếu chỉ vẽ đường đất trong suốt)
+      if (!pathsOnly) {
+        const mDirt = moundDirtArr[pIdx];
+        if (mDirt > 0.001) {
+          const dr = 104 + (fine - 0.5) * 22 + (med - 0.5) * 16;
+          const dg = 83 + (fine - 0.5) * 18 + (med - 0.5) * 12;
+          const db = 54 + (fine - 0.5) * 14 + (med - 0.5) * 8;
+          r += (dr - r) * mDirt * 0.85;
+          g += (dg - g) * mDirt * 0.85;
+          b += (db - b) * mDirt * 0.85;
+        }
+        const mAO = moundAOArr[pIdx];
+        if (mAO > 0.001) {
+          r *= 1 - mAO;
+          g *= 1 - mAO;
+          b *= 1 - mAO;
+        }
       }
 
       const idx = pIdx * 4;
       data[idx] = r < 0 ? 0 : r > 255 ? 255 : r;
       data[idx + 1] = g < 0 ? 0 : g > 255 ? 255 : g;
       data[idx + 2] = b < 0 ? 0 : b > 255 ? 255 : b;
-      data[idx + 3] = 255;
+      data[idx + 3] = pathsOnly ? alpha : 255;
     }
   }
   ctx.putImageData(img, 0, 0);
@@ -3111,9 +3124,36 @@ export function createVietnameseTree(kind: VietnameseTreeKind): THREE.Group {
   return group;
 }
 
-/**
- * Vật dụng trang trí làng quê / doanh trại cổ: đống củi, giá phơi quân phục, hàng rào tre, vại nước mưa
- */
+export function createBushGroup(seed = 1): THREE.Group {
+  const bush = new THREE.Group();
+  const leafMatA = new THREE.MeshStandardMaterial({ color: 0x3b6e2f, roughness: 0.88, flatShading: true });
+  const leafMatB = new THREE.MeshStandardMaterial({ color: 0x4c8238, roughness: 0.85, flatShading: true });
+  const twigMat = new THREE.MeshStandardMaterial({ color: 0x5c3e24, roughness: 0.92, flatShading: true });
+
+  const puffs: Array<[number, number, number, number, boolean]> = [
+    [0.34, 0, 0.24, 0, false],
+    [0.26, -0.22, 0.18, 0.12, true],
+    [0.25, 0.22, 0.19, -0.1, true],
+    [0.22, 0.08, 0.2, 0.22, false],
+    [0.21, -0.1, 0.28, -0.16, true],
+  ];
+  puffs.forEach(([r, x, y, z, light], idx) => {
+    const g = new THREE.IcosahedronGeometry(r, 1);
+    g.scale(1.12, 0.82, 1.08);
+    const m = new THREE.Mesh(g, light ? leafMatB : leafMatA);
+    m.position.set(x, y, z);
+    m.rotation.y = (seed + idx) * 1.1;
+    m.castShadow = true;
+    m.receiveShadow = true;
+    bush.add(m);
+  });
+
+  const twig = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.05, 0.22, 5), twigMat);
+  twig.position.set(0, 0.1, 0);
+  bush.add(twig);
+  return bush;
+}
+
 export function createDecorProp(kind: 'woodpile' | 'drying_rack' | 'bamboo_fence' | 'rain_jar'): THREE.Group {
   const g = new THREE.Group();
   if (kind === 'woodpile') {

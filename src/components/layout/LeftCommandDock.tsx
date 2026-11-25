@@ -9,10 +9,14 @@ type DockTarget = 'army' | 'training' | 'scout' | 'farms' | 'forges' | 'build' |
 export const LeftCommandDock: React.FC = React.memo(() => {
   const activeModal = useUIStore(state => state.activeModal);
   const setActiveModal = useUIStore(state => state.setActiveModal);
-  const isBuildPaperOpen = useUIStore(state => state.isBuildPaperOpen);
   const setBuildPaperOpen = useUIStore(state => state.setBuildPaperOpen);
+  const activeRegion3D = useUIStore(state => state.activeRegion3D);
+  const setActiveRegion3D = useUIStore(state => state.setActiveRegion3D);
+  const is3DBuildPaletteOpen = useUIStore(state => state.is3DBuildPaletteOpen);
+  const set3DBuildPaletteOpen = useUIStore(state => state.set3DBuildPaletteOpen);
 
   const selectCity = useUIStore(state => state.selectCity);
+  const cities = useGameStore(state => state.cities);
   
   const pendingRefugees = useGameStore(state => state.pendingRefugees || []);
   const openRefugeeModal = useGameStore(state => state.openRefugeeModal);
@@ -26,16 +30,15 @@ export const LeftCommandDock: React.FC = React.memo(() => {
       (target === 'army' && activeModal === 'army') ||
       (target === 'training' && activeModal === 'training') ||
       (target === 'scout' && activeModal === 'scout') ||
-      (target === 'farms' && activeModal === 'farms') ||
-      (target === 'forges' && activeModal === 'forges') ||
       (target === 'market' && activeModal === 'market') ||
-      (target === 'build' && isBuildPaperOpen) ||
+      (target === 'build' && is3DBuildPaletteOpen && activeRegion3D?.mode === 'base_build') ||
       (target === 'refugees' && isRefugeeModalOpen) ||
       (target === 'generals' && activeModal === 'generals');
 
     // 1. Đóng sạch toàn bộ các cửa sổ đang mở
     setActiveModal(null);
     setBuildPaperOpen(false);
+    set3DBuildPaletteOpen(false);
     if (isRefugeeModalOpen) {
       closeRefugeeModal();
     }
@@ -44,7 +47,11 @@ export const LeftCommandDock: React.FC = React.memo(() => {
     // 2. Nếu mục đó chưa mở thì kích hoạt mở mục đó
     if (!isTargetOpen) {
       if (target === 'build') {
-        setBuildPaperOpen(true);
+        if (!activeRegion3D || activeRegion3D.mode !== 'base_build') {
+          const baseCity = cities.find(c => c.faction === 'lam_son' && c.hasBase) || cities.find(c => c.id === 'lam_son');
+          setActiveRegion3D({ cityId: baseCity?.id || 'lam_son', mode: 'base_build' });
+        }
+        set3DBuildPaletteOpen(true);
       } else if (target === 'refugees') {
         openRefugeeModal();
 
@@ -169,82 +176,22 @@ export const LeftCommandDock: React.FC = React.memo(() => {
         <div className="w-12 h-px bg-[#8c6b44]/40 my-0.5 shrink-0" />
 
         {/* ========================================================================= */}
-        {/* NHÓM 2: NỘI CHÍNH (ĐỒN ĐIỀN, LÒ RÈN, XÂY DỰNG)                           */}
+        {/* NHÓM 2: NỘI CHÍNH (XÂY DỰNG 3D)                                            */}
         {/* ========================================================================= */}
         <span className="text-[9px] font-serif font-black uppercase tracking-widest text-[#8c5828]/80 pb-0.5">
           {UI_TEXT.leftDock.groups.domestic}
         </span>
 
-        {/* 2.1. ĐỒN ĐIỀN */}
-        <button
-          type="button"
-          onClick={() => handleDockClick('farms')}
-          className={`relative w-[74px] py-1 px-1 rounded flex flex-col items-center justify-center transition-all cursor-pointer ${
-            activeModal === 'farms' ? 'scale-105' : 'hover:bg-black/[0.05] active:scale-95'
-          }`}
-          title={UI_TEXT.leftDock.buttons.farms.tooltip}
-        >
-          {activeModal === 'farms' && (
-            <img
-              src="/ink_stroke_red.png"
-              alt="Vết mực đỏ"
-              className="absolute inset-0 w-full h-full object-fill pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]"
-            />
-          )}
-          <img
-            src="/icons/structure_farm.png"
-            alt={UI_TEXT.leftDock.buttons.farms.label}
-            className="relative z-10 w-6 h-6 object-contain filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]"
-          />
-          <span className={`relative z-10 font-serif font-black text-[11px] mt-0.5 leading-tight ${
-            activeModal === 'farms'
-              ? 'text-[#fcf4e4] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]'
-              : 'text-[#2a1708]'
-          }`}>
-            {UI_TEXT.leftDock.buttons.farms.label}
-          </span>
-        </button>
-
-        {/* 2.2. LÒ RÈN */}
-        <button
-          type="button"
-          onClick={() => handleDockClick('forges')}
-          className={`relative w-[74px] py-1 px-1 rounded flex flex-col items-center justify-center transition-all cursor-pointer ${
-            activeModal === 'forges' ? 'scale-105' : 'hover:bg-black/[0.05] active:scale-95'
-          }`}
-          title={UI_TEXT.leftDock.buttons.forges.tooltip}
-        >
-          {activeModal === 'forges' && (
-            <img
-              src="/ink_stroke_red.png"
-              alt="Vết mực đỏ"
-              className="absolute inset-0 w-full h-full object-fill pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]"
-            />
-          )}
-          <img
-            src="/icons/structure_forge.png"
-            alt={UI_TEXT.leftDock.buttons.forges.label}
-            className="relative z-10 w-6 h-6 object-contain filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]"
-          />
-          <span className={`relative z-10 font-serif font-black text-[11px] mt-0.5 leading-tight ${
-            activeModal === 'forges'
-              ? 'text-[#fcf4e4] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]'
-              : 'text-[#2a1708]'
-          }`}>
-            {UI_TEXT.leftDock.buttons.forges.label}
-          </span>
-        </button>
-
-        {/* 2.3. XÂY DỰNG */}
+        {/* 2.1. XÂY DỰNG 3D */}
         <button
           type="button"
           onClick={() => handleDockClick('build')}
           className={`relative w-[74px] py-1 px-1 rounded flex flex-col items-center justify-center transition-all cursor-pointer ${
-            isBuildPaperOpen ? 'scale-105' : 'hover:bg-black/[0.05] active:scale-95'
+            is3DBuildPaletteOpen ? 'scale-105' : 'hover:bg-black/[0.05] active:scale-95'
           }`}
-          title={UI_TEXT.leftDock.buttons.build.tooltip}
+          title="Xây dựng công trình trực tiếp trên bản đồ 3D"
         >
-          {isBuildPaperOpen && (
+          {is3DBuildPaletteOpen && (
             <img
               src="/ink_stroke_red.png"
               alt="Vết mực đỏ"
@@ -257,7 +204,7 @@ export const LeftCommandDock: React.FC = React.memo(() => {
             className="relative z-10 w-6 h-6 object-contain filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]"
           />
           <span className={`relative z-10 font-serif font-black text-[11px] mt-0.5 leading-tight ${
-            isBuildPaperOpen
+            is3DBuildPaletteOpen
               ? 'text-[#fcf4e4] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]'
               : 'text-[#2a1708]'
           }`}>

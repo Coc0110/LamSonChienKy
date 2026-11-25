@@ -10,7 +10,9 @@ import {
   animateSoldierChop,
   animateSoldierWalk,
   createBuildingGroup,
+  createBushGroup,
   createDecorProp,
+  createDetailedGroundTexture,
   createNaturalBoulder,
   createNpcGroup,
   createUnitGroup,
@@ -249,9 +251,52 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
     const workGroup = new THREE.Group();
     scene.add(workGroup);
 
+    // Con đường đất nện trong căn cứ (chỉ vẽ phần đường trong suốt, nằm khít lên địa hình 3D mới)
+    const pathsGeo = new THREE.PlaneGeometry(gridSize, gridSize);
+    pathsGeo.rotateX(-Math.PI / 2);
+    const pathsMat = new THREE.MeshStandardMaterial({
+      transparent: true,
+      depthWrite: false,
+      roughness: 0.96,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+    });
+    const pathsPlane = new THREE.Mesh(pathsGeo, pathsMat);
+    pathsPlane.position.y = 0.015;
+    pathsPlane.receiveShadow = true;
+    scene.add(pathsPlane);
+
+    // Bụi cây mọc quanh công trình (nhân dân/lính có thể dọn hoặc tự động dọn ở Nhà Chính Lv.3)
+    const bushesGroup = new THREE.Group();
+    scene.add(bushesGroup);
+    const syncBushes = () => {
+      while (bushesGroup.children.length > 0) {
+        bushesGroup.remove(bushesGroup.children[0]);
+      }
+      const list = useGameStore.getState().bushes?.[layoutRef.current.cityId] ?? [];
+      list.forEach((b, idx) => {
+        const bushMesh = createBushGroup(idx + b.col * 7 + b.row * 13);
+        const by = getThanhHoaElevationAtWorld(b.wx, b.wz, basePctX, basePctY);
+        bushMesh.position.set(b.wx, by, b.wz);
+        bushesGroup.add(bushMesh);
+      });
+    };
+    syncBushes();
+    let prevBushesRef = initStore.bushes?.[layout.cityId];
+    const unsubBushes = useGameStore.subscribe((state) => {
+      const next = state.bushes?.[layoutRef.current.cityId];
+      if (next !== prevBushesRef) {
+        prevBushesRef = next;
+        syncBushes();
+      }
+    });
+
     interface ForestWorkSquad {
       key: string;
-      kind: 'chop_tree' | 'clear_forest';
+      kind: 'chop_tree' | 'clear_forest' | 'clear_bush';
+      bushId?: string;
+      spawnX: number;
+      spawnZ: number;
       targetX: number;
       targetZ: number;
       gateIndex: number;
@@ -259,6 +304,8 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
       gateInnerZ: number;
       gateOuterX: number;
       gateOuterZ: number;
+      pathToGate: Array<{ x: number; z: number }>;
+      pathToBase: Array<{ x: number; z: number }>;
       state:
         | 'to_gate'
         | 'wait_gate'
@@ -274,6 +321,7 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
         offsetX: number;
         offsetZ: number;
         phase: number;
+        pathIdx: number;
       }>;
     }
     const workSquads: ForestWorkSquad[] = [];
@@ -449,6 +497,13 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
       const currentLayout = layoutRef.current;
       const enemy = isEnemyRef.current;
       const selId = selectedBuildingIdRef.current;
+
+      // Khôi phục lối mòn đất nện trong suốt kết nối các công trình căn cứ
+      const nextPathsTex = createDetailedGroundTexture(gridSize, currentLayout.buildings, true);
+      if (pathsMat.map !== nextPathsTex) {
+        pathsMat.map = nextPathsTex;
+        pathsMat.needsUpdate = true;
+      }
 
       // Xây map ô tường/cổng để tự động nối liền tường rào
       const wallOccupied = new Set<string>();
@@ -903,6 +958,16 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
       } else {
         previewBox.visible = false;
         if (cell) {
+          const currentBushes = useGameStore.getState().bushes?.[layoutRef.current.cityId] ?? [];
+          const bushHit = currentBushes.find((b) => Math.hypot(b.wx - cell.wx, b.wz - cell.wz) < 1.25);
+          if (bushHit && !activeWorkKeys.has(bushHit.id)) {
+            const by = getThanhHoaElevationAtWorld(bushHit.wx, bushHit.wz, basePctX, basePctY);
+            treeHighlightRing.position.set(bushHit.wx, by + 0.16, bushHit.wz);
+            treeHighlightRing.visible = true;
+            forestHighlightGroup.visible = false;
+            domEl.style.cursor = 'pointer';
+            return;
+          }
           const treeHit = thanhHoaWorld.findPlainsTreeAt(cell.wx, cell.wz, 1.75);
           if (treeHit && !activeWorkKeys.has(treeHit.key)) {
             treeHighlightRing.position.set(treeHit.wx, treeHit.elev + 0.18, treeHit.wz);
@@ -932,10 +997,11 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
     };
 
     const dispatchForestWork = (
-      kind: 'chop_tree' | 'clear_forest',
+      kind: 'chop_tree' | 'clear_forest' | 'clear_bush',
       key: string,
       targetX: number,
       targetZ: number,
+      bushId?: string,
     ) => {
       if (activeWorkKeys.has(key)) return;
       const needed = kind === 'clear_forest' ? 5 : 1;
@@ -949,48 +1015,68 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
         return;
       }
 
-      // Tìm cổng thành gần hướng mục tiêu nhất để lính đi qua cổng
-      let gateIndex = -1;
-      let bestGateScore = Infinity;
-      animatedGates.forEach((g, idx) => {
-        const d = Math.hypot(g.wx, g.wz) + Math.hypot(targetX - g.wx, targetZ - g.wz);
-        if (d < bestGateScore) {
-          bestGateScore = d;
-          gateIndex = idx;
-        }
-      });
+      // Lính xuất phát từ Nhà Dân thay vì Nhà Chính
+      const house = layoutRef.current.buildings.find(
+        (b) => b.type === 'house' && b.status !== 'destroyed'
+      );
+      const spawnX = house ? house.col + house.spanCols / 2 - half : 0;
+      const spawnZ = house ? house.row + house.spanRows / 2 - half + (house.spanRows / 2 + 0.6) : 0;
 
-      let gateInnerX = 0;
-      let gateInnerZ = 0;
-      let gateOuterX = 0;
-      let gateOuterZ = 0;
+      // Tìm cổng thành gần hướng mục tiêu nhất để lính đi qua cổng (nếu mục tiêu ở ngoài thành)
+      const isOutsideBase = Math.abs(targetX) > 13.5 || Math.abs(targetZ) > 13.5;
+      let gateIndex = -1;
+      if (isOutsideBase) {
+        let bestGateScore = Infinity;
+        animatedGates.forEach((g, idx) => {
+          const d = Math.hypot(g.wx - spawnX, g.wz - spawnZ) + Math.hypot(targetX - g.wx, targetZ - g.wz);
+          if (d < bestGateScore) {
+            bestGateScore = d;
+            gateIndex = idx;
+          }
+        });
+      }
+
+      let gateInnerX = spawnX;
+      let gateInnerZ = spawnZ;
+      let gateOuterX = spawnX;
+      let gateOuterZ = spawnZ;
       if (gateIndex >= 0) {
         const g = animatedGates[gateIndex];
         const gl = Math.max(0.01, Math.hypot(g.wx, g.wz));
         const nx = g.wx / gl;
         const nz = g.wz / gl;
-        gateInnerX = g.wx - nx * 1.15;
-        gateInnerZ = g.wz - nz * 1.15;
-        gateOuterX = g.wx + nx * 1.25;
-        gateOuterZ = g.wz + nz * 1.25;
+        gateInnerX = g.wx - nx * 1.25;
+        gateInnerZ = g.wz - nz * 1.25;
+        gateOuterX = g.wx + nx * 1.35;
+        gateOuterZ = g.wz + nz * 1.35;
       }
+
+      const pathToGate =
+        gateIndex >= 0 ? findWorldPath(spawnX, spawnZ, gateInnerX, gateInnerZ) : [];
+      const pathToBase =
+        gateIndex >= 0 ? findWorldPath(gateInnerX, gateInnerZ, spawnX, spawnZ) : [];
 
       activeWorkKeys.add(key);
       const soldiers: ForestWorkSquad['soldiers'] = [];
       for (let i = 0; i < needed; i++) {
         const g = createUnitGroup('swordsman', 'lam_son');
         const angle = (i / needed) * Math.PI * 2;
-        const radius = needed === 1 ? 0.42 : 0.65 + (i % 2) * 0.38;
+        const radius = needed === 1 ? 0.38 : 0.65 + (i % 2) * 0.35;
         const ox = Math.cos(angle) * radius;
         const oz = Math.sin(angle) * radius;
-        g.position.set(ox * 0.4, 0, oz * 0.4);
+        const sx = spawnX + ox * 0.3;
+        const sz = spawnZ + oz * 0.3;
+        g.position.set(sx, getThanhHoaElevationAtWorld(sx, sz, basePctX, basePctY), sz);
         workGroup.add(g);
-        soldiers.push({ group: g, offsetX: ox, offsetZ: oz, phase: i * 0.7 });
+        soldiers.push({ group: g, offsetX: ox, offsetZ: oz, phase: i * 0.7, pathIdx: 0 });
       }
 
       workSquads.push({
         key,
         kind,
+        bushId,
+        spawnX,
+        spawnZ,
         targetX,
         targetZ,
         gateIndex,
@@ -998,9 +1084,11 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
         gateInnerZ,
         gateOuterX,
         gateOuterZ,
+        pathToGate,
+        pathToBase,
         state: gateIndex >= 0 ? 'to_gate' : 'to_target',
         workElapsed: 0,
-        workDuration: kind === 'clear_forest' ? 4.8 : 2.8,
+        workDuration: kind === 'clear_forest' ? 4.8 : kind === 'clear_bush' ? 2.0 : 2.8,
         soldiers,
       });
 
@@ -1008,8 +1096,10 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
       treeHighlightRing.visible = false;
       notify.info(
         kind === 'clear_forest'
-          ? 'Đã phái 5 lính đi khai hoang ô rừng!'
-          : 'Đã phái 1 lính đi chặt cây!'
+          ? 'Đã phái 5 lính từ nhà dân đi khai hoang ô rừng!'
+          : kind === 'clear_bush'
+          ? 'Đã phái 1 lính đi dọn bụi cây!'
+          : 'Đã phái 1 lính từ nhà dân đi chặt cây!'
       );
     };
 
@@ -1039,6 +1129,12 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
         ) || null;
 
       if (!placementPreviewRef.current && !hitBuilding && !hitUnit) {
+        const currentBushes = useGameStore.getState().bushes?.[layoutRef.current.cityId] ?? [];
+        const bushHit = currentBushes.find((b) => Math.hypot(b.wx - cell.wx, b.wz - cell.wz) < 1.25);
+        if (bushHit) {
+          dispatchForestWork('clear_bush', bushHit.id, bushHit.wx, bushHit.wz, bushHit.id);
+          return;
+        }
         const treeHit = thanhHoaWorld.findPlainsTreeAt(cell.wx, cell.wz, 1.75);
         if (treeHit) {
           dispatchForestWork('chop_tree', treeHit.key, treeHit.wx, treeHit.wz);
@@ -1337,7 +1433,7 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
         gate.rightDoor.rotation.y = gate.openAmount * 1.35;
       }
 
-      // Cập nhật các toán lính đi chặt cây / khai hoang rừng (tốc độ hành quân bình thường, chờ mở cổng)
+      // Cập nhật các toán lính đi chặt cây / khai hoang rừng (xuất phát từ nhà dân, né tường/nhà, chờ mở cổng)
       for (let wi = workSquads.length - 1; wi >= 0; wi--) {
         const task = workSquads[wi];
         const moveSpeed = 1.15 * dt;
@@ -1346,21 +1442,8 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
 
         for (let si = 0; si < task.soldiers.length; si++) {
           const s = task.soldiers[si];
-          const spreadX = s.offsetX * 0.35;
-          const spreadZ = s.offsetZ * 0.35;
-
-          let destX = s.offsetX * 0.4;
-          let destZ = s.offsetZ * 0.4;
-          if (task.state === 'to_gate' || task.state === 'wait_gate') {
-            destX = task.gateInnerX + spreadX;
-            destZ = task.gateInnerZ + spreadZ;
-          } else if (task.state === 'to_target') {
-            destX = task.targetX + s.offsetX;
-            destZ = task.targetZ + s.offsetZ;
-          } else if (task.state === 'to_gate_return' || task.state === 'wait_gate_return') {
-            destX = task.gateOuterX + spreadX;
-            destZ = task.gateOuterZ + spreadZ;
-          }
+          const spreadX = s.offsetX * 0.3;
+          const spreadZ = s.offsetZ * 0.3;
 
           if (task.state === 'working') {
             s.group.rotation.y = Math.atan2(task.targetX - s.group.position.x, task.targetZ - s.group.position.z);
@@ -1378,15 +1461,44 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
             continue;
           }
 
+          let destX = task.spawnX + spreadX;
+          let destZ = task.spawnZ + spreadZ;
+          if (task.state === 'to_gate') {
+            if (s.pathIdx < task.pathToGate.length) {
+              const wp = task.pathToGate[s.pathIdx];
+              destX = wp.x;
+              destZ = wp.z;
+            } else {
+              destX = task.gateInnerX + spreadX;
+              destZ = task.gateInnerZ + spreadZ;
+            }
+          } else if (task.state === 'to_target') {
+            destX = task.targetX + s.offsetX;
+            destZ = task.targetZ + s.offsetZ;
+          } else if (task.state === 'to_gate_return') {
+            destX = task.gateOuterX + spreadX;
+            destZ = task.gateOuterZ + spreadZ;
+          } else if (task.state === 'to_base') {
+            if (s.pathIdx < task.pathToBase.length) {
+              const wp = task.pathToBase[s.pathIdx];
+              destX = wp.x;
+              destZ = wp.z;
+            } else {
+              destX = task.spawnX + spreadX;
+              destZ = task.spawnZ + spreadZ;
+            }
+          }
+
           const dx = destX - s.group.position.x;
           const dz = destZ - s.group.position.z;
           const dist = Math.hypot(dx, dz);
 
-          if (dist > 0.14) {
+          if (dist > 0.16) {
             allArrived = false;
             const step = Math.min(dist, moveSpeed);
             s.group.position.x += (dx / dist) * step;
             s.group.position.z += (dz / dist) * step;
+            pushOutOfBuildings(s.group.position, 0.34);
             s.group.position.y = getThanhHoaElevationAtWorld(
               s.group.position.x,
               s.group.position.z,
@@ -1396,6 +1508,12 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
             s.group.rotation.y = Math.atan2(dx, dz);
             s.phase += step / 0.32;
             animateSoldierWalk(s.group, s.phase, true);
+          } else if (task.state === 'to_gate' && s.pathIdx < task.pathToGate.length) {
+            s.pathIdx++;
+            allArrived = false;
+          } else if (task.state === 'to_base' && s.pathIdx < task.pathToBase.length) {
+            s.pathIdx++;
+            allArrived = false;
           } else {
             animateSoldierWalk(s.group, s.phase, false);
           }
@@ -1413,19 +1531,26 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
         } else if (task.state === 'working') {
           task.workElapsed += dt;
           if (task.workElapsed >= task.workDuration) {
-            thanhHoaWorld.hideTreesByKey(task.key);
-            useGameStore.getState().completeTerrainClearing(layoutRef.current.cityId, task.key, task.kind);
-            notify.success(
-              task.kind === 'clear_forest'
-                ? 'Đã khai hoang xong ô rừng (+35 vàng, +25 lương)!'
-                : 'Đã chặt xong cây (+8 vàng, +5 lương)!'
-            );
+            if (task.kind === 'clear_bush' && task.bushId) {
+              useGameStore.getState().clearBush(layoutRef.current.cityId, task.bushId);
+              notify.success('Đã dọn sạch bụi cây (+3 vàng, +3 lương)!');
+            } else if (task.kind === 'chop_tree' || task.kind === 'clear_forest') {
+              thanhHoaWorld.hideTreesByKey(task.key);
+              useGameStore.getState().completeTerrainClearing(layoutRef.current.cityId, task.key, task.kind);
+              notify.success(
+                task.kind === 'clear_forest'
+                  ? 'Đã khai hoang xong ô rừng (+35 vàng, +25 lương)!'
+                  : 'Đã chặt xong cây (+8 vàng, +5 lương)!'
+              );
+            }
+            for (const s of task.soldiers) s.pathIdx = 0;
             task.state = gate ? 'to_gate_return' : 'to_base';
           }
         } else if (task.state === 'to_gate_return' && allArrived) {
           task.state = gate && gate.openAmount < 0.88 ? 'wait_gate_return' : 'to_base';
         } else if (task.state === 'wait_gate_return') {
           if (!gate || gate.openAmount >= 0.88) {
+            for (const s of task.soldiers) s.pathIdx = 0;
             task.state = 'to_base';
           }
         } else if (task.state === 'to_base' && allArrived) {
@@ -1437,8 +1562,9 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
         }
       }
 
-      // Cập nhật Mặt trời, Mặt trăng & màu sắc bầu trời/ánh sáng mượt mà liên tục theo thời gian đang chạy
-      const { canhHour, timeMode, isPaused, isWarMode } = useGameStore.getState();
+      // Cập nhật Mặt trời, Mặt trăng & màu sắc bầu trời/ánh sáng mượt mà liên tục (tôn trọng cố định ngày/đêm ở Nhà Chính Lv.2+)
+      const { canhHour, timeMode, isPaused, isWarMode, baseAutomation } = useGameStore.getState();
+      const dayNightLock = baseAutomation?.[layoutRef.current.cityId]?.dayNightLock ?? 'auto';
       const isHourRunning = (timeMode === 'hour' || isWarMode) && !isPaused;
       if (canhHour !== lastCanhHour) {
         lastCanhHour = canhHour;
@@ -1447,7 +1573,13 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
         elapsedInCanhMs = Math.min(4995, elapsedInCanhMs + dt * 1000);
       }
       const targetHour =
-        timeMode === 'day' && !isWarMode ? 6 : (canhHour + elapsedInCanhMs / 5000) % 12;
+        dayNightLock === 'day'
+          ? 6
+          : dayNightLock === 'night'
+          ? 0
+          : timeMode === 'day' && !isWarMode
+          ? 6
+          : (canhHour + elapsedInCanhMs / 5000) % 12;
       let hourDiff = targetHour - smoothCanhHour;
       if (hourDiff > 6) hourDiff -= 12;
       if (hourDiff < -6) hourDiff += 12;
@@ -1527,6 +1659,9 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
 
     return () => {
       thanhHoaWorld.dispose();
+      pathsGeo.dispose();
+      pathsMat.dispose();
+      unsubBushes();
       unsubSoldierBase();
       cancelAnimationFrame(rafId);
       window.removeEventListener('resize', handleResize);

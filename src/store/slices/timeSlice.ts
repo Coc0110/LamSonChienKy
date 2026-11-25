@@ -1065,5 +1065,6 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
 
 
     get().tickRegionConstruction();
+    get().tickBaseAutomationAndBushes(get().day);
   },
 });

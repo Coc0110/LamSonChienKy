@@ -39,6 +39,7 @@ interface UIState {
   marketDistrictId: string | null;
   isMilitaryBookOpen: boolean;
   isBuildPaperOpen: boolean;
+  is3DBuildPaletteOpen: boolean;
   isTimelineWheelOpen: boolean;
   isBattleTesterOpen: boolean;
   activeDropdown: 'troops' | 'weapons' | null;
@@ -55,6 +56,7 @@ interface UIState {
 
   setActiveModal: (modal: ModalType) => void;
   setActiveRegion3D: (region: Region3DViewState | null) => void;
+  set3DBuildPaletteOpen: (open: boolean) => void;
   openDistrictMarket: (districtId: string) => void;
   setFlyToTarget: (target: { x: number; y: number } | null) => void;
   toggleEditMode: () => void;
@@ -100,6 +102,7 @@ export const useUIStore = create<UIState>((set) => ({
   marketDistrictId: null,
   isMilitaryBookOpen: false,
   isBuildPaperOpen: false,
+  is3DBuildPaletteOpen: false,
   isTimelineWheelOpen: false,
   isBattleTesterOpen: false,
   activeDropdown: null,
@@ -133,7 +136,8 @@ export const useUIStore = create<UIState>((set) => ({
     } : {}),
   }),
   setFlyToTarget: (target) => set({ flyToTarget: target }),
-  setActiveRegion3D: (region) => set({ activeRegion3D: region }),
+  setActiveRegion3D: (region) => set({ activeRegion3D: region, ...(!region ? { is3DBuildPaletteOpen: false } : {}) }),
+  set3DBuildPaletteOpen: (open) => set({ is3DBuildPaletteOpen: open }),
   toggleEditMode: () => set((state) => ({ 
     isEditMode: !state.isEditMode, 
     terrainEditMode: false,

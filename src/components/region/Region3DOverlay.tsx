@@ -12,10 +12,14 @@ export const Region3DOverlay: React.FC = () => {
   const activeRegion3D = useUIStore((s) => s.activeRegion3D);
   const setActiveRegion3D = useUIStore((s) => s.setActiveRegion3D);
   const setActiveModal = useUIStore((s) => s.setActiveModal);
+  const is3DBuildPaletteOpen = useUIStore((s) => s.is3DBuildPaletteOpen);
+  const set3DBuildPaletteOpen = useUIStore((s) => s.set3DBuildPaletteOpen);
 
   const cities = useGameStore((s) => s.cities);
   const resources = useGameStore((s) => s.resources);
   const regionLayouts = useGameStore((s) => s.regionLayouts);
+  const baseAutomationMap = useGameStore((s) => s.baseAutomation);
+  const setBaseAutomation = useGameStore((s) => s.setBaseAutomation);
   const getOrCreateRegionLayout = useGameStore((s) => s.getOrCreateRegionLayout);
   const placeBaseBuilding = useGameStore((s) => s.placeBaseBuilding);
   const upgradeBaseBuilding = useGameStore((s) => s.upgradeBaseBuilding);
@@ -108,16 +112,6 @@ export const Region3DOverlay: React.FC = () => {
 
     setSelectedBuildingId(building ? building.id : null);
     setIsMovingBuilding(false);
-
-    if (building && activeRegion3D.mode === 'base_build') {
-      if (building.type === 'barracks') {
-        setActiveModal('training');
-      } else if (building.type === 'forge') {
-        setActiveModal('forges');
-      } else if (building.type === 'farm') {
-        setActiveModal('farms');
-      }
-    }
   };
 
   const handleUpgrade = (buildingId: string) => {
@@ -163,22 +157,33 @@ export const Region3DOverlay: React.FC = () => {
         food={resources.food}
         selectedBuilding={selectedBuilding}
         activeBuildType={activeBuildType}
+        isBuildPaletteOpen={is3DBuildPaletteOpen}
         isMovingBuilding={isMovingBuilding}
         hoveredCell={hoveredCell}
         enemyTroops={city?.troops}
+        baseAutomation={
+          baseAutomationMap?.[activeRegion3D.cityId] ?? {
+            dayNightLock: 'auto',
+            autoClean: false,
+            autoRefugees: false,
+            autoTrain: false,
+          }
+        }
+        onUpdateAutomation={(patch) => setBaseAutomation(activeRegion3D.cityId, patch)}
         onSelectBuildType={(type) => {
           setIsMovingBuilding(false);
           setActiveBuildType(type);
           if (type) setSelectedBuildingId(null);
         }}
+        onCloseBuildPalette={() => set3DBuildPaletteOpen(false)}
         onUpgradeBuilding={handleUpgrade}
         onStartMoveBuilding={() => {
           setActiveBuildType(null);
           setIsMovingBuilding((v) => !v);
         }}
         onDemolishBuilding={handleDemolish}
-        onOpenBarracks={() => {
-          setActiveModal('army');
+        onOpenBuildingAction={(modal) => {
+          setActiveModal(modal);
         }}
         onClearSelection={() => {
           setSelectedBuildingId(null);

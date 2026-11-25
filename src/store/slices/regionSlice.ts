@@ -10,6 +10,8 @@ import type {
 } from '../../types/region';
 import { BASE_BUILDING_CATALOG, getBuildingMaxHp, getUpgradeCost } from '../../data/regionBuildings';
 import { canPlaceOnRegionGrid, generateEnemyCityLayout, generateLamSonStarterLayout } from '../../utils/regionLayoutGenerator';
+import { isThanhHoaBuildable } from '../../utils/thanhHoa3DTerrain';
+import { coordToCell, getGridTerrain } from '../../data/terrainGrid';
 import { createSiegeBattle } from '../../utils/siegeCombatEngine';
 import { createAmbushBattle } from '../../utils/ambushCombatEngine';
 import { createDefenseBattle } from '../../utils/defenseCombatEngine';
@@ -17,9 +19,27 @@ import { useUIStore } from '../uiStore';
 import { notify } from '../dialogStore';
 import { INITIAL_CITIES } from '../../data/mapData';
 
+export interface BaseAutomationConfig {
+  dayNightLock: 'auto' | 'day' | 'night';
+  autoClean: boolean;
+  autoRefugees: boolean;
+  autoTrain: boolean;
+}
+
+export interface SpawnedBush {
+  id: string;
+  col: number;
+  row: number;
+  wx: number;
+  wz: number;
+}
+
 export interface RegionSlice {
   regionLayouts: Record<string, RegionLayout>;
   clearedTerrainKeys: Record<string, string[]>; // cityId -> array of "col,row" cleared keys
+  baseAutomation: Record<string, BaseAutomationConfig>;
+  bushes: Record<string, SpawnedBush[]>;
+  bushNextSpawnDay: Record<string, number>;
   scoutedRegionIds: Record<string, number>; // cityId -> day last scouted
   activeSiegeBattle: SiegeBattleState | null;
   activeAmbushBattle: AmbushBattleState | null;
@@ -50,6 +70,9 @@ export interface RegionSlice {
   markRegionScouted: (cityId: string) => void;
   setRegionLayout: (cityId: string, layout: RegionLayout) => void;
   completeTerrainClearing: (cityId: string, key: string, kind: 'chop_tree' | 'clear_forest') => void;
+  setBaseAutomation: (cityId: string, patch: Partial<BaseAutomationConfig>) => void;
+  clearBush: (cityId: string, bushId: string) => void;
+  tickBaseAutomationAndBushes: (day: number) => void;
 
   startSiege3D: (targetCityId: string, formationId: string) => void;
   resolveSiege3D: (finalState: SiegeBattleState) => void;
@@ -77,6 +100,9 @@ function createInitialRegionLayouts(): Record<string, RegionLayout> {
 export const createRegionSlice: StateCreator<GameStore, [], [], RegionSlice> = (set, get) => ({
   regionLayouts: createInitialRegionLayouts(),
   clearedTerrainKeys: {},
+  baseAutomation: {},
+  bushes: {},
+  bushNextSpawnDay: {},
   scoutedRegionIds: {},
   activeSiegeBattle: null,
   activeAmbushBattle: null,
@@ -535,5 +561,150 @@ export const createRegionSlice: StateCreator<GameStore, [], [], RegionSlice> = (
         },
       };
     });
+  },
+
+  setBaseAutomation: (cityId, patch) => {
+    set((s) => {
+      const prev = s.baseAutomation?.[cityId] ?? {
+        dayNightLock: 'auto',
+        autoClean: false,
+        autoRefugees: false,
+        autoTrain: false,
+      };
+      return {
+        baseAutomation: {
+          ...s.baseAutomation,
+          [cityId]: { ...prev, ...patch },
+        },
+      };
+    });
+  },
+
+  clearBush: (cityId, bushId) => {
+    set((s) => {
+      const list = s.bushes?.[cityId] ?? [];
+      if (!list.some((b) => b.id === bushId)) return s;
+      return {
+        bushes: {
+          ...s.bushes,
+          [cityId]: list.filter((b) => b.id !== bushId),
+        },
+        resources: {
+          ...s.resources,
+          gold: s.resources.gold + 3,
+          food: s.resources.food + 3,
+        },
+      };
+    });
+  },
+
+  tickBaseAutomationAndBushes: (day) => {
+    const state = get();
+    const lamSonBases = state.cities.filter((c) => c.faction === 'lam_son' && c.hasBase);
+
+    for (const base of lamSonBases) {
+      const layout = state.getOrCreateRegionLayout(base.id);
+      const mainHall = layout.buildings.find((b) => b.type === 'main_hall' && b.status === 'active');
+      const mainLevel = mainHall?.level ?? 1;
+      const auto = state.baseAutomation?.[base.id];
+      const nextSpawn = state.bushNextSpawnDay?.[base.id] ?? 3;
+      const currentBushes = state.bushes?.[base.id] ?? [];
+
+      // 1. Spawn bụi cây mới ở vùng đồng bằng xung quanh các công trình đã xây (3-4 ngày / bụi)
+      if (day >= nextSpawn && currentBushes.length < 12 && layout.buildings.length > 0) {
+        const half = (layout.gridSize || 32) / 2;
+        const baseCell = coordToCell(base.x, base.y);
+        let spawned: SpawnedBush | null = null;
+
+        for (let attempt = 0; attempt < 12; attempt++) {
+          const anchor = layout.buildings[Math.floor(Math.random() * layout.buildings.length)];
+          const angle = Math.random() * Math.PI * 2;
+          const dist = 4 + Math.random() * 6;
+          const col = Math.round(anchor.col + anchor.spanCols / 2 + Math.cos(angle) * dist);
+          const row = Math.round(anchor.row + anchor.spanRows / 2 + Math.sin(angle) * dist);
+          const wx = col + 0.5 - half;
+          const wz = row + 0.5 - half;
+
+          const overlap = layout.buildings.some(
+            (b) =>
+              b.status !== 'destroyed' &&
+              col >= b.col - 1 &&
+              col <= b.col + b.spanCols &&
+              row >= b.row - 1 &&
+              row <= b.row + b.spanRows
+          );
+          if (overlap) continue;
+
+          if (!isThanhHoaBuildable(base.x, base.y, col, row, 1, 1, layout.gridSize || 32)) continue;
+          const c2d = baseCell.col + Math.round(wx / 3);
+          const r2d = baseCell.row + Math.round(wz / 3);
+          if (getGridTerrain(c2d, r2d) !== 'plains') continue;
+
+          spawned = {
+            id: `bush_${day}_${col}_${row}_${Math.floor(Math.random() * 1000)}`,
+            col,
+            row,
+            wx,
+            wz,
+          };
+          break;
+        }
+
+        set((s) => ({
+          bushes: {
+            ...s.bushes,
+            [base.id]: spawned ? [...(s.bushes?.[base.id] ?? []), spawned] : s.bushes?.[base.id] ?? [],
+          },
+          bushNextSpawnDay: {
+            ...s.bushNextSpawnDay,
+            [base.id]: day + 3 + Math.floor(Math.random() * 2),
+          },
+        }));
+      }
+
+      // 2. Tự động dọn dẹp (Nhà Chính Lv.3+)
+      if (mainLevel >= 3 && auto?.autoClean) {
+        const latestBushes = get().bushes?.[base.id] ?? [];
+        if (latestBushes.length > 0) {
+          const count = latestBushes.length;
+          set((s) => ({
+            bushes: { ...s.bushes, [base.id]: [] },
+            resources: {
+              ...s.resources,
+              gold: s.resources.gold + count * 3,
+              food: s.resources.food + count * 3,
+            },
+          }));
+        }
+      }
+
+      // 3. Tự động thu nhận lưu dân (Nhà Chính Lv.4+)
+      if (mainLevel >= 4 && auto?.autoRefugees) {
+        const pending = (get().pendingRefugees ?? []).filter(
+          (w) => !w.departed && (w.daysRemaining ?? 0) > 0
+        );
+        for (const wave of pending) {
+          get().acceptRefugeeWave(wave.id, 'full');
+        }
+      }
+
+      // 4. Tự động luyện binh (Nhà Chính Lv.4+)
+      if (mainLevel >= 4 && auto?.autoTrain) {
+        const hasBarracks = layout.buildings.some(
+          (b) => b.type === 'barracks' && b.status === 'active'
+        );
+        const res = get().resources;
+        if (hasBarracks && res.gold >= 15 && res.food >= 10) {
+          set((s) => ({
+            resources: {
+              ...s.resources,
+              gold: s.resources.gold - 15,
+              food: s.resources.food - 10,
+              troops: s.resources.troops + 5,
+            },
+          }));
+        }
+      }
+    }
   },
 });
