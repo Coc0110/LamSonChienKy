@@ -23,10 +23,10 @@ const DISTRICTS = (districtPolygonsJson as unknown as { districts: DistrictPolyD
 /** 1 2D terrain cell = 3 x 3 3D units. */
 export const CELL_SCALE_3D = 3;
 
-const MIN_PCT_X = 37.5;
-const MAX_PCT_X = 71.0;
-const MIN_PCT_Y = 42.0;
-const MAX_PCT_Y = 56.0;
+const MIN_PCT_X = 34.0;
+const MAX_PCT_X = 74.5;
+const MIN_PCT_Y = 39.0;
+const MAX_PCT_Y = 59.5;
 
 const TERRAIN_COLORS: Record<TerrainType, [number, number, number]> = {
   plains: [115, 145, 59],
@@ -147,7 +147,6 @@ function createSmoothTerrainTexture(
   minRow: number,
   cols: number,
   rows: number,
-  insideMask: Uint8Array,
 ): THREE.CanvasTexture {
   const pxPerCell = 8;
   const canvas = document.createElement('canvas');
@@ -170,9 +169,8 @@ function createSmoothTerrainTexture(
     for (let ix = 0; ix < cols; ix++) {
       const c = Math.max(0, Math.min(GRID_COLS - 1, minCol + ix));
       const idx = iy * cols + ix;
-      const inside = insideMask[idx] === 1;
       const t = getGridTerrain(c, r);
-      const isWater = !inside || t === 'water';
+      const isWater = t === 'water';
       rawWaterField[idx] = isWater ? 1 : 0;
       const rgb = isWater ? TERRAIN_COLORS.plains : TERRAIN_COLORS[t];
       const jitter = (hash2D(c, r) - 0.5) * 10;
@@ -298,6 +296,7 @@ export interface ForestCellHit {
 
 export interface ThanhHoaWorldResult {
   group: THREE.Group;
+  bounds: { minX: number; maxX: number; minZ: number; maxZ: number };
   findPlainsTreeAt: (wx: number, wz: number, maxDist?: number) => PlainsTreeHit | null;
   getForestCellAt: (wx: number, wz: number) => ForestCellHit | null;
   hideTreesByKey: (key: string) => void;
@@ -332,9 +331,13 @@ export function createThanhHoa3DWorld(
   const centerX = ((minCol + maxCol) / 2 - baseCell.col) * CELL_SCALE_3D;
   const centerZ = ((minRow + maxRow) / 2 - baseCell.row) * CELL_SCALE_3D;
 
-  const insideMask = new Uint8Array(cols * rows);
+  const waterMask = new Uint8Array(cols * rows);
   const districtIds: Array<string | null> = new Array(cols * rows).fill(null);
   const rawElevations = new Float32Array(cols * rows);
+  let minBoundX = Infinity;
+  let maxBoundX = -Infinity;
+  let minBoundZ = Infinity;
+  let maxBoundZ = -Infinity;
 
   interface TreeSpawn {
     key: string;
@@ -363,15 +366,19 @@ export function createThanhHoa3DWorld(
 
       const districtId = getDistrictIdAt(pctX, pctY);
       const inside = districtId !== null;
-      insideMask[idx] = inside ? 1 : 0;
       districtIds[idx] = districtId;
+      if (inside) {
+        if (wx < minBoundX) minBoundX = wx;
+        if (wx > maxBoundX) maxBoundX = wx;
+        if (wz < minBoundZ) minBoundZ = wz;
+        if (wz > maxBoundZ) maxBoundZ = wz;
+      }
 
       const t = getGridTerrain(c, r);
+      waterMask[idx] = t === 'water' ? 1 : 0;
       const inBasePlateau = Math.abs(wx) < 16.5 && Math.abs(wz) < 16.5;
 
-      if (!inside) {
-        rawElevations[idx] = -1.45;
-      } else if (inBasePlateau) {
+      if (inBasePlateau) {
         rawElevations[idx] = 0;
       } else {
         const elev = baseElevationForTerrain(t, c, r);
@@ -471,7 +478,7 @@ export function createThanhHoa3DWorld(
   disposables.push(seaGeo, seaMat);
 
   // 2. Single displaced terrain mesh with smooth grass & flowing rivers (no grid lines)
-  const terrainTex = createSmoothTerrainTexture(minCol, minRow, cols, rows, insideMask);
+  const terrainTex = createSmoothTerrainTexture(minCol, minRow, cols, rows);
   disposables.push(terrainTex);
 
   const terrainGeo = new THREE.PlaneGeometry(worldW, worldH, cols, rows);
@@ -545,7 +552,9 @@ export function createThanhHoa3DWorld(
     const rawFogField = new Float32Array(cols * rows);
     for (let i = 0; i < districtIds.length; i++) {
       const dId = districtIds[i];
-      if (dId && !nextExplored.has(dId)) rawFogField[i] = 1;
+      if ((dId && !nextExplored.has(dId)) || (!dId && waterMask[i] === 0)) {
+        rawFogField[i] = 1;
+      }
     }
 
     const fogField = new Float32Array(cols * rows);
@@ -971,6 +980,12 @@ export function createThanhHoa3DWorld(
 
   return {
     group,
+    bounds: {
+      minX: Number.isFinite(minBoundX) ? minBoundX : -220,
+      maxX: Number.isFinite(maxBoundX) ? maxBoundX : 220,
+      minZ: Number.isFinite(minBoundZ) ? minBoundZ : -140,
+      maxZ: Number.isFinite(maxBoundZ) ? maxBoundZ : 140,
+    },
     findPlainsTreeAt: (wx: number, wz: number, maxDist = 1.65) => {
       let best: PlainsTreeHit | null = null;
       let bestDist = maxDist;

@@ -1373,6 +1373,17 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
       lastTime = now;
       controls.update();
 
+      // Giới hạn camera chỉ di chuyển trong phạm vi khu vực Thanh Hóa
+      const b = thanhHoaWorld.bounds;
+      const clampedX = Math.max(b.minX, Math.min(b.maxX, controls.target.x));
+      const clampedZ = Math.max(b.minZ, Math.min(b.maxZ, controls.target.z));
+      if (clampedX !== controls.target.x || clampedZ !== controls.target.z) {
+        camera.position.x += clampedX - controls.target.x;
+        camera.position.z += clampedZ - controls.target.z;
+        controls.target.x = clampedX;
+        controls.target.z = clampedZ;
+      }
+
       const t = now * 0.002;
       for (const flag of animatedFlags) {
         const pos = flag.geometry.getAttribute('position');
