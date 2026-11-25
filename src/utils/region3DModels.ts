@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import type { BaseBuilding, BaseBuildingType, RegionCombatUnit } from '../types/region';
+import { BASE_BUILDING_CATALOG } from '../data/regionBuildings';
 import {
   animateRiggedSoldierWalk,
   createRiggedLeSoldier,
@@ -2983,6 +2984,54 @@ export function createBuildingGroup(
     panelR.castShadow = true;
     doorRight.add(panelR, barR);
     group.add(doorRight);
+  }
+
+  // Khung giàn giáo tre bọc quanh công trình khi đang xây dựng hoặc nâng cấp
+  if (isConstructing) {
+    const spec = BASE_BUILDING_CATALOG[type];
+    const bounds = new THREE.Box3().setFromObject(group);
+    const scW = Math.max(spec.spanCols * 0.96, bounds.max.x - bounds.min.x + 0.24);
+    const scD = Math.max(spec.spanRows * 0.96, bounds.max.z - bounds.min.z + 0.24);
+    const scH = Math.max(1.35, bounds.max.y + 0.22);
+    const hx = scW / 2;
+    const hz = scD / 2;
+
+    const bambooParts: THREE.BufferGeometry[] = [];
+    const plankParts: THREE.BufferGeometry[] = [];
+
+    const xCols = spec.spanCols >= 3 ? [-hx, 0, hx] : [-hx, hx];
+    const zRows = spec.spanRows >= 3 ? [-hz, 0, hz] : [-hz, hz];
+    for (const px of xCols) {
+      for (const pz of zRows) {
+        if (Math.abs(px) < hx - 0.01 && Math.abs(pz) < hz - 0.01) continue;
+        bambooParts.push(cyl(0.032, 0.04, scH, 5, px, scH / 2, pz));
+      }
+    }
+
+    const tiers = scH > 2.2 ? [0.65, 1.4, scH - 0.12] : [0.6, scH - 0.12];
+    for (const ty of tiers) {
+      bambooParts.push(cyl(0.026, 0.026, scW + 0.14, 5, 0, ty, hz).rotateZ(Math.PI / 2));
+      bambooParts.push(cyl(0.026, 0.026, scW + 0.14, 5, 0, ty, -hz).rotateZ(Math.PI / 2));
+      bambooParts.push(cyl(0.026, 0.026, scD + 0.14, 5, hx, ty, 0).rotateX(Math.PI / 2));
+      bambooParts.push(cyl(0.026, 0.026, scD + 0.14, 5, -hx, ty, 0).rotateX(Math.PI / 2));
+    }
+
+    // Thanh giằng chéo & ván sàn tre
+    const diagLenX = Math.hypot(scW, scH * 0.65);
+    const diagAngX = Math.atan2(scW, scH * 0.65);
+    bambooParts.push(cyl(0.022, 0.022, diagLenX, 5, 0, 0, 0).rotateZ(diagAngX).translate(0, scH * 0.45, hz));
+    bambooParts.push(cyl(0.022, 0.022, diagLenX, 5, 0, 0, 0).rotateZ(-diagAngX).translate(0, scH * 0.45, -hz));
+
+    plankParts.push(box(scW * 0.85, 0.04, 0.24, 0, tiers[0] + 0.02, hz - 0.12));
+    plankParts.push(box(0.24, 0.04, scD * 0.85, hx - 0.12, tiers[0] + 0.02, 0));
+
+    const bambooMat = getSharedMaterial('bamboo', false, 1);
+    const plankMat = getSharedMaterial('bambooDry', false, 1);
+    const scaffoldMesh = new THREE.Mesh(safeMerge(bambooParts), bambooMat);
+    scaffoldMesh.castShadow = true;
+    const plankMesh = new THREE.Mesh(safeMerge(plankParts), plankMat);
+    plankMesh.castShadow = true;
+    group.add(scaffoldMesh, plankMesh);
   }
 
   return group;

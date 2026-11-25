@@ -5,7 +5,7 @@ import { useGameStore } from '../../store/gameStore';
 import { notify } from '../../store/dialogStore';
 import type { BaseBuilding, RegionCombatUnit, RegionLayout } from '../../types/region';
 import { CELL_SCALE_3D, createThanhHoa3DWorld, getThanhHoaElevationAtWorld } from '../../utils/thanhHoa3DTerrain';
-import { getBuildableHalfRadius } from '../../data/regionBuildings';
+import { BASE_BUILDING_CATALOG, getBuildableHalfRadius, getUpgradeCost } from '../../data/regionBuildings';
 import {
   DIORAMA_PALETTE,
   animateSoldierChop,
@@ -483,6 +483,7 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
     let findWorldPath: (sx: number, sz: number, gx: number, gz: number) => Array<{ x: number; z: number }> = () => [];
     const animatedFlags: THREE.Mesh[] = [];
     const animatedWaters: THREE.Mesh[] = [];
+    const animatedBillboards: THREE.Object3D[] = [];
     const animatedGates: Array<{
       wx: number;
       wz: number;
@@ -504,6 +505,7 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
       walkableSpots = [];
       animatedFlags.length = 0;
       animatedWaters.length = 0;
+      animatedBillboards.length = 0;
       animatedGates.length = 0;
 
       const currentLayout = layoutRef.current;
@@ -591,6 +593,69 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
           }
         }
         buildingsGroup.add(group);
+
+        // Vòng tròn tiến độ phía trên công trình khi đang xây dựng hoặc nâng cấp
+        if (isConstructing) {
+          const totalDays =
+            b.status === 'building'
+              ? BASE_BUILDING_CATALOG[b.type].buildDays
+              : getUpgradeCost(b.type, b.level).days;
+          const daysLeft = Math.max(0, b.buildDaysRemaining ?? totalDays);
+          const progress = totalDays > 0 ? Math.max(0.08, Math.min(1, 1 - daysLeft / totalDays)) : 0.9;
+          const box = new THREE.Box3().setFromObject(group);
+          const ringY = elevY + Math.max(1.8, box.max.y - elevY) + 0.85;
+
+          const ringGroup = new THREE.Group();
+          ringGroup.position.set(cx, ringY, cz);
+
+          const bgCircle = new THREE.Mesh(
+            new THREE.CircleGeometry(0.56, 24),
+            new THREE.MeshBasicMaterial({ color: 0x1c1917, transparent: true, opacity: 0.82, side: THREE.DoubleSide })
+          );
+          const outerRim = new THREE.Mesh(
+            new THREE.RingGeometry(0.53, 0.58, 28),
+            new THREE.MeshBasicMaterial({ color: 0xfde68a, side: THREE.DoubleSide })
+          );
+          outerRim.position.z = 0.005;
+          const trackRing = new THREE.Mesh(
+            new THREE.RingGeometry(0.35, 0.5, 28),
+            new THREE.MeshBasicMaterial({ color: 0x44403c, side: THREE.DoubleSide })
+          );
+          trackRing.position.z = 0.01;
+          const arcMesh = new THREE.Mesh(
+            new THREE.RingGeometry(0.35, 0.5, 28, 1, Math.PI / 2, -progress * Math.PI * 2),
+            new THREE.MeshBasicMaterial({
+              color: b.status === 'upgrading' ? 0x22c55e : 0xf59e0b,
+              side: THREE.DoubleSide,
+            })
+          );
+          arcMesh.position.z = 0.015;
+
+          const lblCanvas = document.createElement('canvas');
+          lblCanvas.width = 64;
+          lblCanvas.height = 64;
+          const lCtx = lblCanvas.getContext('2d');
+          if (lCtx) {
+            lCtx.clearRect(0, 0, 64, 64);
+            lCtx.fillStyle = '#fef3c7';
+            lCtx.font = 'bold 26px serif';
+            lCtx.textAlign = 'center';
+            lCtx.textBaseline = 'middle';
+            lCtx.fillText(`${daysLeft}n`, 32, 34);
+          }
+          const lblTex = new THREE.CanvasTexture(lblCanvas);
+          lblTex.colorSpace = THREE.SRGBColorSpace;
+          const lblMesh = new THREE.Mesh(
+            new THREE.PlaneGeometry(0.62, 0.62),
+            new THREE.MeshBasicMaterial({ map: lblTex, transparent: true, side: THREE.DoubleSide })
+          );
+          lblMesh.position.z = 0.02;
+
+          ringGroup.add(bgCircle, outerRim, trackRing, arcMesh, lblMesh);
+          ringGroup.lookAt(camera.position);
+          buildingsGroup.add(ringGroup);
+          animatedBillboards.push(ringGroup);
+        }
 
         // Vật dụng trang trí & NPC hoạt động quanh công trình (chỉ sinh khi model người .glb đã sẵn sàng để tránh hiện dáng cũ)
         if (!isConstructing && isSoldierBaseReady()) {
@@ -1234,6 +1299,10 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
           pos.setZ(i, Math.sin(r * 28 - t * 3.2) * 0.009);
         }
         pos.needsUpdate = true;
+      }
+
+      for (const bb of animatedBillboards) {
+        bb.lookAt(camera.position);
       }
 
       const pushOutOfBuildings = (pos: THREE.Vector3, radius: number) => {
