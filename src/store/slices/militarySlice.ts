@@ -112,6 +112,9 @@ export const createMilitarySlice: StateCreator<GameStore, [], [], MilitarySlice>
     horses: 0,            // Chưa có kỵ binh
     elephants: 0,         // Chưa có tượng binh
     food: 3500,           // Thóc lúa hào trưởng Lê Lợi tích trữ
+    wood: 180,            // Gỗ rừng xây dựng & sửa chữa công trình
+    ironOre: 60,          // Quặng thô để Lò Rèn đúc binh khí
+    eliteTroops: 0,       // Binh sĩ tinh nhuệ (mở khóa huấn luyện ở Trại Lính Lv.3+)
     weapons: 150,         // Tổng vũ khí tự rèn bí mật ban đầu (52 kiếm + 38 cung + 60 giáo)
     swords: 52,
     bows: 38,

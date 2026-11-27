@@ -5,6 +5,9 @@ export interface Resources {
   horses: number;
   elephants: number;
   food: number;
+  wood?: number;
+  ironOre?: number;
+  eliteTroops?: number;
   weapons: number;
   swords: number;
   bows: number;

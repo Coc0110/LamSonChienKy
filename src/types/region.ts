@@ -30,6 +30,7 @@ export interface BaseBuilding {
   status: BaseBuildingStatus;
   buildDaysRemaining?: number;
   rotation?: 0 | 1 | 2 | 3;
+  supervisorGeneralId?: string | null;
 }
 
 export interface RegionLayout {

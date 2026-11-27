@@ -20,6 +20,7 @@ export const Region3DOverlay: React.FC = () => {
 
   const cities = useGameStore((s) => s.cities);
   const resources = useGameStore((s) => s.resources);
+  const generals = useGameStore((s) => s.generals);
   const regionLayouts = useGameStore((s) => s.regionLayouts);
   const baseAutomationMap = useGameStore((s) => s.baseAutomation);
   const setBaseAutomation = useGameStore((s) => s.setBaseAutomation);
@@ -42,6 +43,9 @@ export const Region3DOverlay: React.FC = () => {
   const upgradeBaseBuilding = useGameStore((s) => s.upgradeBaseBuilding);
   const moveBaseBuilding = useGameStore((s) => s.moveBaseBuilding);
   const demolishBaseBuilding = useGameStore((s) => s.demolishBaseBuilding);
+  const assignBuildingSupervisor = useGameStore((s) => s.assignBuildingSupervisor);
+  const repairBaseBuilding = useGameStore((s) => s.repairBaseBuilding);
+  const promoteToEliteTroops = useGameStore((s) => s.promoteToEliteTroops);
 
   const [selectedBuildingId, setSelectedBuildingId] = useState<string | null>(null);
   const [activeBuildType, setActiveBuildType] = useState<BaseBuildingType | null>(null);
@@ -199,7 +203,26 @@ export const Region3DOverlay: React.FC = () => {
         mode={activeRegion3D.mode}
         layout={layout}
         gold={resources.gold}
+        wood={resources.wood ?? 0}
         food={resources.food}
+        regularTroopsCount={Math.max(0, Math.floor(resources.troops - (resources.eliteTroops ?? 0)))}
+        eliteTroopsCount={Math.floor(resources.eliteTroops ?? 0)}
+        generals={generals.filter((g) => g.unlocked)}
+        onAssignSupervisor={(buildingId, generalId) => {
+          const res = assignBuildingSupervisor(activeRegion3D.cityId, buildingId, generalId);
+          if (res.success) notify.success(res.message);
+          else notify.warning(res.message);
+        }}
+        onRepairBuilding={(buildingId) => {
+          const res = repairBaseBuilding(activeRegion3D.cityId, buildingId);
+          if (res.success) notify.success(res.message);
+          else notify.warning(res.message);
+        }}
+        onPromoteElite={(count) => {
+          const res = promoteToEliteTroops(activeRegion3D.cityId, count);
+          if (res.success) notify.success(res.message);
+          else notify.warning(res.message);
+        }}
         selectedBuilding={selectedBuilding}
         activeBuildType={activeBuildType}
         isBuildPaletteOpen={is3DBuildPaletteOpen}

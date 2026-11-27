@@ -41,7 +41,14 @@ interface RegionBuildHUDProps {
   mode: 'base_build' | 'scout_view';
   layout: RegionLayout;
   gold: number;
+  wood: number;
   food: number;
+  regularTroopsCount: number;
+  eliteTroopsCount: number;
+  generals: Array<{ id: string; name: string; title: string; stats: { intellect: number; command: number; martial: number } }>;
+  onAssignSupervisor: (buildingId: string, generalId: string | null) => void;
+  onRepairBuilding: (buildingId: string) => void;
+  onPromoteElite: (count: number) => void;
   selectedBuilding: BaseBuilding | null;
   activeBuildType: BaseBuildingType | null;
   isBuildPaletteOpen: boolean;
@@ -125,7 +132,14 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
   mode,
   layout,
   gold,
+  wood,
   food,
+  regularTroopsCount,
+  eliteTroopsCount,
+  generals,
+  onAssignSupervisor,
+  onRepairBuilding,
+  onPromoteElite,
   selectedBuilding,
   activeBuildType,
   isBuildPaletteOpen,
@@ -369,7 +383,7 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
                                 <div className="flex items-center justify-between rounded-lg border border-[#8c6b44]/30 bg-[#8c6b44]/10 px-3 py-1.5 text-xs font-bold text-[#4a260a]">
                                   <span>Tài nguyên thi công</span>
                                   <span>
-                                    {upgradeCost.gold} Vàng · {upgradeCost.food} Lương ({upgradeCost.days} ngày)
+                                    {upgradeCost.gold} Vàng · {upgradeCost.wood} Gỗ ({upgradeCost.days} ngày)
                                   </span>
                                 </div>
                               </div>
@@ -688,13 +702,42 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
                   {!isScout && (
                     <div className="mt-3 flex flex-col gap-2.5">
                       {selectedBuilding.type === 'barracks' && (
-                        <button
-                          onClick={() => onOpenBuildingAction('training')}
-                          className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#8c2d19] px-3 py-2 text-xs font-bold text-[#fff3db] hover:bg-[#6e1e0d] cursor-pointer shadow"
-                        >
-                          <Swords className="h-4 w-4" />
-                          Mở Thao Trường Luyện Binh
-                        </button>
+                        <div className="space-y-2">
+                          <button
+                            onClick={() => onOpenBuildingAction('training')}
+                            className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#8c2d19] px-3 py-2 text-xs font-bold text-[#fff3db] hover:bg-[#6e1e0d] cursor-pointer shadow"
+                          >
+                            <Swords className="h-4 w-4" />
+                            Mở Thao Trường Luyện Binh
+                          </button>
+                          <div className="rounded-lg border border-[#8c6b44]/35 bg-white/50 p-2.5 text-xs">
+                            <div className="flex items-center justify-between font-bold text-[#261304]">
+                              <span>Quân số: {regularTroopsCount} Binh sĩ · {eliteTroopsCount} Tinh nhuệ</span>
+                            </div>
+                            {selectedBuilding.level >= 3 ? (
+                              <div className="mt-2 flex items-center gap-2">
+                                <button
+                                  disabled={regularTroopsCount < 5}
+                                  onClick={() => onPromoteElite(5)}
+                                  className="flex-1 rounded bg-amber-800 px-2.5 py-1.5 text-[11px] font-bold text-amber-50 hover:bg-amber-900 disabled:opacity-40 cursor-pointer"
+                                >
+                                  Tinh tuyển +5 Tinh Nhuệ (75V · 5 khí giới)
+                                </button>
+                                <button
+                                  disabled={regularTroopsCount < 10}
+                                  onClick={() => onPromoteElite(10)}
+                                  className="flex-1 rounded bg-[#8c2d19] px-2.5 py-1.5 text-[11px] font-bold text-[#fff3db] hover:bg-[#6e1e0d] disabled:opacity-40 cursor-pointer"
+                                >
+                                  +10 Tinh Nhuệ (150V · 10 khí giới)
+                                </button>
+                              </div>
+                            ) : (
+                              <p className="mt-1 text-[11px] text-[#6e4927]">
+                                Nâng Trại Luyện Binh lên Cấp 3 để mở khóa tinh tuyển quân Tinh Nhuệ.
+                              </p>
+                            )}
+                          </div>
+                        </div>
                       )}
                       {selectedBuilding.type === 'forge' && (
                         <button
@@ -1212,6 +1255,39 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
                         );
                       })()}
 
+                      {/* Cắt cử Tướng Giám Sát công trình */}
+                      {selectedBuilding.type !== 'wall' &&
+                        selectedBuilding.type !== 'gate' &&
+                        selectedBuilding.type !== 'spike_trap' &&
+                        selectedBuilding.type !== 'road' && (
+                          <div className="rounded-lg border border-[#8c6b44]/35 bg-white/50 p-2.5">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-xs font-black text-[#5c3e23]">Tướng Giám Sát:</span>
+                              <select
+                                value={selectedBuilding.supervisorGeneralId || ''}
+                                onChange={(e) => onAssignSupervisor(selectedBuilding.id, e.target.value || null)}
+                                className="flex-1 rounded border border-[#8c6b44]/40 bg-white px-2 py-1 text-xs font-bold text-[#261304]"
+                              >
+                                <option value="">-- Chưa cắt cử --</option>
+                                {generals.map((g) => (
+                                  <option key={g.id} value={g.id}>
+                                    {g.name} (TL:{g.stats.command} · VN:{g.stats.martial} · TR:{g.stats.intellect})
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                        )}
+
+                      {selectedBuilding.hp < selectedBuilding.maxHp && (
+                        <button
+                          onClick={() => onRepairBuilding(selectedBuilding.id)}
+                          className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-emerald-700 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-800 cursor-pointer shadow"
+                        >
+                          Sửa chữa công trình ({selectedBuilding.hp}/{selectedBuilding.maxHp} HP)
+                        </button>
+                      )}
+
                       <div className="flex gap-2">
                         <button
                           disabled={isMax || isBusy}
@@ -1221,7 +1297,7 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
                           <ArrowUpCircle className="h-3.5 w-3.5" />
                           {isMax
                             ? 'Đã đạt cấp tối đa'
-                            : `Nâng cấp (${upgradeCost.gold}V / ${upgradeCost.food}L)`}
+                            : `Nâng cấp (${upgradeCost.gold}V / ${upgradeCost.wood}G)`}
                         </button>
                         <button
                           onClick={onStartMoveBuilding}
@@ -1292,7 +1368,7 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
               ).length;
               const isFull = count >= spec.maxPerBase;
               const isSelected = activeBuildType === type;
-              const canAfford = gold >= spec.goldCost && food >= spec.foodCost;
+              const canAfford = gold >= spec.goldCost && wood >= spec.woodCost && food >= spec.foodCost;
               const lockedByHall = mainLevel < spec.requiredMainHallLevel;
               const disabled = isFull || lockedByHall;
               const iconSrc = BUILDING_ICON[type] || '/icons/structure_camp.png';
@@ -1355,7 +1431,7 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
                       ? `Mở Lv.${spec.requiredMainHallLevel}`
                       : isSelected
                       ? 'Đang chọn'
-                      : `${spec.goldCost}V · ${spec.foodCost}L`}
+                      : `${spec.goldCost}V · ${spec.woodCost}G`}
                   </div>
 
                   {/* Tên công trình ở chân thẻ */}

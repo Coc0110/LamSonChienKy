@@ -10,6 +10,7 @@ export interface BaseBuildingSpec {
   maxLevel: number;
   baseHp: number;
   goldCost: number;
+  woodCost: number;
   foodCost: number;
   buildDays: number;
   maxPerBase: number;
@@ -29,15 +30,19 @@ export const BASE_BUILDING_CATALOG: Record<BaseBuildingType, BaseBuildingSpec> =
     category: 'core',
     spanCols: 5,
     spanRows: 5,
-    maxLevel: 5,
+    maxLevel: 4,
     baseHp: 2200,
     goldCost: 0,
+    woodCost: 0,
     foodCost: 0,
     buildDays: 0,
     maxPerBase: 1,
     requiredMainHallLevel: 1,
     description: 'Nhà sàn gỗ lớn mái tranh, treo cờ lệnh "Lê", có trống cái và giá binh khí trước sân.',
-    effectLabel: (lvl) => `Mở khóa công trình cấp ${lvl}`,
+    effectLabel: (lvl) =>
+      lvl >= 4
+        ? 'Mở khóa công trình Lv.4 & Phất Cờ Khởi Nghĩa'
+        : `Mở khóa công trình cấp ${lvl}`,
   },
   farm: {
     type: 'farm',
@@ -46,15 +51,20 @@ export const BASE_BUILDING_CATALOG: Record<BaseBuildingType, BaseBuildingSpec> =
     category: 'economy',
     spanCols: 5,
     spanRows: 5,
-    maxLevel: 5,
+    maxLevel: 4,
     baseHp: 480,
-    goldCost: 25,
-    foodCost: 10,
+    goldCost: 35,
+    woodCost: 25,
+    foodCost: 0,
     buildDays: 3,
-    maxPerBase: 6,
+    maxPerBase: 5,
     requiredMainHallLevel: 1,
-    description: 'Ruộng lúa nước bậc thang kèm chòi canh điền, lu nước và nông cụ.',
-    effectLabel: (lvl) => `+${18 * lvl} lương/ngày`,
+    description: 'Ruộng lúa nước bậc thang sử dụng binh sĩ canh tác theo kế sách "Ngụ binh ư nông".',
+    effectLabel: (lvl) => {
+      const yields = [450, 750, 1150, 1650];
+      const y = yields[Math.min(3, Math.max(0, lvl - 1))];
+      return `${y} lương/vụ 15 ngày (~${Math.round(y / 15)}/ngày)`;
+    },
   },
   forge: {
     type: 'forge',
@@ -63,15 +73,19 @@ export const BASE_BUILDING_CATALOG: Record<BaseBuildingType, BaseBuildingSpec> =
     category: 'economy',
     spanCols: 3,
     spanRows: 3,
-    maxLevel: 5,
+    maxLevel: 4,
     baseHp: 540,
-    goldCost: 35,
-    foodCost: 15,
+    goldCost: 45,
+    woodCost: 30,
+    foodCost: 0,
     buildDays: 4,
-    maxPerBase: 4,
+    maxPerBase: 3,
     requiredMainHallLevel: 1,
-    description: 'Nhà mái tranh vách hở thoát nhiệt, bếp lò đỏ lửa, đe sắt, búa tạ và giá vũ khí.',
-    effectLabel: (lvl) => `+${6 * lvl} binh khí/ngày`,
+    description: 'Lò rèn bí mật đúc kiếm, cung, giáo từ quặng thô và vàng.',
+    effectLabel: (lvl) => {
+      const rates = [10, 18, 28, 42];
+      return `${rates[Math.min(3, Math.max(0, lvl - 1))]} binh khí / 4 ngày`;
+    },
   },
   food_storage: {
     type: 'food_storage',
@@ -80,15 +94,19 @@ export const BASE_BUILDING_CATALOG: Record<BaseBuildingType, BaseBuildingSpec> =
     category: 'economy',
     spanCols: 3,
     spanRows: 3,
-    maxLevel: 5,
+    maxLevel: 3,
     baseHp: 800,
     goldCost: 30,
+    woodCost: 30,
     foodCost: 0,
     buildDays: 2,
     maxPerBase: 4,
     requiredMainHallLevel: 1,
-    description: 'Nhà kho sàn cao chống ẩm, vách gỗ kín, thang gỗ và bao tải lương thực.',
-    effectLabel: (lvl) => `+${1500 * lvl} sức chứa lương`,
+    description: 'Nhà kho sàn cao chống ẩm, bảo quản lương thực tránh hư hao.',
+    effectLabel: (lvl) => {
+      const caps = [2000, 4500, 8000];
+      return `+${caps[Math.min(2, Math.max(0, lvl - 1))].toLocaleString()} sức chứa lương`;
+    },
   },
   armory: {
     type: 'armory',
@@ -97,15 +115,19 @@ export const BASE_BUILDING_CATALOG: Record<BaseBuildingType, BaseBuildingSpec> =
     category: 'economy',
     spanCols: 3,
     spanRows: 3,
-    maxLevel: 5,
+    maxLevel: 3,
     baseHp: 900,
-    goldCost: 35,
+    goldCost: 40,
+    woodCost: 35,
     foodCost: 0,
     buildDays: 2,
-    maxPerBase: 4,
+    maxPerBase: 3,
     requiredMainHallLevel: 1,
-    description: 'Kho tàng kiên cố nhất, cửa gỗ lim gia cố đai sắt có lính canh gác.',
-    effectLabel: (lvl) => `+${400 * lvl} sức chứa khí giới`,
+    description: 'Kho chứa gỗ, quặng thô và binh khí dự phòng.',
+    effectLabel: (lvl) => {
+      const caps = [300, 700, 1400];
+      return `+${caps[Math.min(2, Math.max(0, lvl - 1))]} sức chứa gỗ/quặng/khí giới`;
+    },
   },
   house: {
     type: 'house',
@@ -114,15 +136,19 @@ export const BASE_BUILDING_CATALOG: Record<BaseBuildingType, BaseBuildingSpec> =
     category: 'economy',
     spanCols: 2,
     spanRows: 2,
-    maxLevel: 5,
+    maxLevel: 3,
     baseHp: 350,
-    goldCost: 20,
-    foodCost: 20,
+    goldCost: 25,
+    woodCost: 25,
+    foodCost: 0,
     buildDays: 2,
     maxPerBase: 8,
     requiredMainHallLevel: 1,
-    description: 'Tăng dân số tráng đinh và tốc độ chiêu mộ nhân lực.',
-    effectLabel: (lvl) => `+${35 * lvl} dân số tối đa`,
+    description: 'Mở rộng chỗ ở để tiếp nhận lưu dân và tăng trần quân số.',
+    effectLabel: (lvl) => {
+      const pops = [40, 85, 140];
+      return `+${pops[Math.min(2, Math.max(0, lvl - 1))]} dân số tối đa`;
+    },
   },
   barracks: {
     type: 'barracks',
@@ -131,15 +157,21 @@ export const BASE_BUILDING_CATALOG: Record<BaseBuildingType, BaseBuildingSpec> =
     category: 'military',
     spanCols: 5,
     spanRows: 5,
-    maxLevel: 5,
+    maxLevel: 4,
     baseHp: 900,
-    goldCost: 45,
-    foodCost: 30,
+    goldCost: 60,
+    woodCost: 40,
+    foodCost: 15,
     buildDays: 4,
-    maxPerBase: 3,
+    maxPerBase: 2,
     requiredMainHallLevel: 1,
-    description: 'Huấn luyện nghĩa quân và quản lý đội hình theo cấp lính. Bấm vào để mở bảng luyện binh.',
-    effectLabel: (lvl) => `Mở khóa luyện lính cấp ${lvl}`,
+    description: 'Huấn luyện Binh sĩ và nâng cấp thành quân Tinh nhuệ (từ Cấp 3).',
+    effectLabel: (lvl) => {
+      if (lvl >= 4) return 'Luyện 75 Binh sĩ / 30 Tinh nhuệ mỗi đợt';
+      if (lvl === 3) return 'Luyện 50 Binh sĩ / mở khóa Tinh nhuệ (15/đợt)';
+      if (lvl === 2) return 'Luyện tối đa 35 Binh sĩ / 9 ngày';
+      return 'Luyện tối đa 20 Binh sĩ / 10 ngày';
+    },
   },
   wall: {
     type: 'wall',
@@ -148,15 +180,16 @@ export const BASE_BUILDING_CATALOG: Record<BaseBuildingType, BaseBuildingSpec> =
     category: 'defense',
     spanCols: 1,
     spanRows: 1,
-    maxLevel: 5,
+    maxLevel: 3,
     baseHp: 550,
-    goldCost: 4,
-    foodCost: 2,
+    goldCost: 3,
+    woodCost: 4,
+    foodCost: 0,
     buildDays: 0,
     maxPerBase: 60,
     requiredMainHallLevel: 1,
-    description: 'Chặn bước tiến quân địch khi thủ thành.',
-    effectLabel: (lvl) => `${550 * lvl} HP chắn địch`,
+    description: 'Chặn bước tiến quân địch khi cố thủ trong căn cứ 3D.',
+    effectLabel: (lvl) => `${[550, 1000, 1600][Math.min(2, Math.max(0, lvl - 1))]} HP chắn địch`,
   },
   gate: {
     type: 'gate',
@@ -165,35 +198,39 @@ export const BASE_BUILDING_CATALOG: Record<BaseBuildingType, BaseBuildingSpec> =
     category: 'defense',
     spanCols: 3,
     spanRows: 1,
-    maxLevel: 5,
+    maxLevel: 3,
     baseHp: 850,
     goldCost: 15,
-    foodCost: 5,
+    woodCost: 18,
+    foodCost: 0,
     buildDays: 1,
     maxPerBase: 4,
     requiredMainHallLevel: 1,
     description: 'Vọng lâu gỗ có mái che bên trên cổng, cánh cổng gỗ dày có then cài lớn.',
-    effectLabel: (lvl) => `${850 * lvl} HP cửa thành`,
+    effectLabel: (lvl) => `${[850, 1500, 2400][Math.min(2, Math.max(0, lvl - 1))]} HP cửa thành`,
   },
   watchtower: {
     type: 'watchtower',
-    name: 'Chòi Canh Cung',
+    name: 'Chòi Canh',
     shortName: 'Chòi Canh',
     category: 'defense',
     spanCols: 2,
     spanRows: 2,
-    maxLevel: 5,
+    maxLevel: 4,
     baseHp: 680,
-    goldCost: 40,
-    foodCost: 15,
+    goldCost: 50,
+    woodCost: 35,
+    foodCost: 0,
     buildDays: 3,
-    maxPerBase: 6,
+    maxPerBase: 4,
     requiredMainHallLevel: 1,
-    description: 'Đài quan sát cao giúp do thám các huyện thành lân cận (Cấp 4 mở khóa do thám Thành Tây Đô).',
-    effectLabel: (lvl) =>
-      lvl >= 4
-        ? 'Do thám toàn Thanh Hóa (gồm Thành Tây Đô)'
-        : 'Do thám huyện thành lân cận (trừ Thành Tây Đô)',
+    description: 'Do thám huyện thành và điều phối các đội đi săn cấp 1–4.',
+    effectLabel: (lvl) => {
+      if (lvl >= 4) return 'Do thám Tây Đô & Săn Cấp 4 (Vật phẩm hiếm)';
+      if (lvl === 3) return 'Do thám 3 bước & Săn Cấp 3 (Lương + Gỗ + Quặng)';
+      if (lvl === 2) return 'Do thám 2 bước & Săn Cấp 2 (Lương + Gỗ)';
+      return 'Do thám giáp ranh & Săn Cấp 1 (Lương)';
+    },
   },
   spike_trap: {
     type: 'spike_trap',
@@ -204,13 +241,14 @@ export const BASE_BUILDING_CATALOG: Record<BaseBuildingType, BaseBuildingSpec> =
     spanRows: 1,
     maxLevel: 3,
     baseHp: 180,
-    goldCost: 10,
+    goldCost: 8,
+    woodCost: 10,
     foodCost: 0,
     buildDays: 0,
     maxPerBase: 12,
     requiredMainHallLevel: 1,
     description: 'Gây sát thương lớn khi quân địch giẫm phải.',
-    effectLabel: (lvl) => `${90 * lvl} sát thương nổ bẫy`,
+    effectLabel: (lvl) => `${[90, 170, 280][Math.min(2, Math.max(0, lvl - 1))]} sát thương nổ bẫy`,
   },
   road: {
     type: 'road',
@@ -222,6 +260,7 @@ export const BASE_BUILDING_CATALOG: Record<BaseBuildingType, BaseBuildingSpec> =
     maxLevel: 1,
     baseHp: 120,
     goldCost: 2,
+    woodCost: 1,
     foodCost: 0,
     buildDays: 0,
     maxPerBase: 80,
@@ -238,13 +277,19 @@ export const BASE_BUILDING_CATALOG: Record<BaseBuildingType, BaseBuildingSpec> =
     spanRows: 3,
     maxLevel: 3,
     baseHp: 520,
-    goldCost: 45,
-    foodCost: 15,
-    buildDays: 2,
+    goldCost: 50,
+    woodCost: 40,
+    foodCost: 0,
+    buildDays: 3,
     maxPerBase: 1,
     requiredMainHallLevel: 1,
-    description: 'Nơi giao thương vật phẩm săn bắt hái lượm và tổ chức đấu giá bảo vật (mỗi tháng 1 lần).',
-    effectLabel: (lvl) => `+${(lvl - 1) * 15}% giá trị bán & đấu giá vật phẩm`,
+    description: 'Bán ra lương thực, binh khí, sản vật săn bắt và tổ chức đấu giá hàng tháng.',
+    effectLabel: (lvl) =>
+      lvl >= 3
+        ? '+25% giá bán & giảm 30% nghi ngờ giao dịch'
+        : lvl === 2
+        ? '+12% giá bán & mở bán binh khí'
+        : 'Bán sản vật & Đấu giá 1 lần/tháng',
   },
 };
 
@@ -267,8 +312,7 @@ export const FORAGED_ITEM_CATALOG: ForagedItemSpec[] = [
 ];
 
 export function getBuildableHalfRadius(mainHallLevel: number): number {
-  if (mainHallLevel >= 5) return 44;
-  if (mainHallLevel === 4) return 35;
+  if (mainHallLevel >= 4) return 36;
   if (mainHallLevel === 3) return 28;
   if (mainHallLevel === 2) return 22;
   return 16;
@@ -301,15 +345,7 @@ export function getMainHallUpgradeRequirements(nextLevel: number): MainHallUpgra
         { type: 'farm', count: 2, minLevel: 2 },
         { type: 'forge', count: 2, minLevel: 2 },
         { type: 'barracks', count: 1, minLevel: 3 },
-        { type: 'watchtower', count: 2, minLevel: 1 },
-      ];
-    case 5:
-      return [
-        { type: 'house', count: 6, minLevel: 3 },
-        { type: 'farm', count: 3, minLevel: 3 },
-        { type: 'forge', count: 2, minLevel: 3 },
-        { type: 'barracks', count: 1, minLevel: 4 },
-        { type: 'watchtower', count: 4, minLevel: 2 },
+        { type: 'watchtower', count: 2, minLevel: 2 },
       ];
     default:
       return [];
@@ -347,19 +383,24 @@ export function getBuildingMaxHp(type: BaseBuildingType, level: number): number 
   return Math.round(spec.baseHp * (1 + (level - 1) * 0.45));
 }
 
-export function getUpgradeCost(type: BaseBuildingType, currentLevel: number): { gold: number; food: number; days: number } {
+export function getUpgradeCost(
+  type: BaseBuildingType,
+  currentLevel: number
+): { gold: number; wood: number; food: number; days: number } {
   const spec = BASE_BUILDING_CATALOG[type];
   const factor = Math.max(1, currentLevel);
   if (type === 'main_hall') {
-    return {
-      gold: 80 * factor,
-      food: 60 * factor,
-      days: 4 + factor * 2,
+    const table: Record<number, { gold: number; wood: number; food: number; days: number }> = {
+      1: { gold: 120, wood: 80, food: 0, days: 8 },
+      2: { gold: 260, wood: 180, food: 0, days: 14 },
+      3: { gold: 450, wood: 320, food: 0, days: 20 },
     };
+    return table[currentLevel] ?? { gold: 120 * factor, wood: 80 * factor, food: 0, days: 8 + factor * 4 };
   }
   return {
-    gold: Math.round(spec.goldCost * (1 + factor * 0.6)),
+    gold: Math.round(spec.goldCost * (1 + factor * 0.75)),
+    wood: Math.round(spec.woodCost * (1 + factor * 0.75)),
     food: Math.round(spec.foodCost * (1 + factor * 0.5)),
-    days: Math.max(1, Math.round(spec.buildDays * (1 + factor * 0.4))),
+    days: Math.max(1, Math.round(spec.buildDays * (1 + factor * 0.45))),
   };
 }

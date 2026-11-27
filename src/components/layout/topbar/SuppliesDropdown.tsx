@@ -9,6 +9,8 @@ export const SuppliesDropdown: React.FC = React.memo(() => {
   const bows = useGameStore(state => state.resources.bows);
   const spears = useGameStore(state => state.resources.spears);
   const clothes = useGameStore(state => state.resources.clothes);
+  const wood = useGameStore(state => state.resources.wood ?? 0);
+  const ironOre = useGameStore(state => state.resources.ironOre ?? 0);
 
   const activeDropdown = useUIStore(state => state.activeDropdown);
   const toggleDropdown = useUIStore(state => state.toggleDropdown);
@@ -177,6 +179,18 @@ export const SuppliesDropdown: React.FC = React.memo(() => {
                 <span className="font-serif font-black text-base text-[#8c2d19]">
                   {Math.floor(clothes).toLocaleString()}
                 </span>
+              </div>
+
+              {/* 5. Gỗ & Quặng thô */}
+              <div className="mt-1 pt-1.5 border-t border-[#8c6b44]/30 grid grid-cols-2 gap-1.5 text-xs">
+                <div className="flex items-center justify-between rounded bg-amber-900/10 px-2 py-1">
+                  <span className="font-bold text-[#4a2f18]">🪵 Gỗ</span>
+                  <span className="font-black text-[#8c2d19]">{Math.floor(wood).toLocaleString()}</span>
+                </div>
+                <div className="flex items-center justify-between rounded bg-stone-700/10 px-2 py-1">
+                  <span className="font-bold text-[#4a2f18]">⛏️ Quặng</span>
+                  <span className="font-black text-[#8c2d19]">{Math.floor(ironOre).toLocaleString()}</span>
+                </div>
               </div>
             </div>
 

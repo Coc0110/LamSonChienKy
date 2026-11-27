@@ -88,6 +88,19 @@ export interface RegionSlice {
     cityId: string,
     buildingId: string
   ) => { success: boolean; message: string };
+  assignBuildingSupervisor: (
+    cityId: string,
+    buildingId: string,
+    generalId: string | null
+  ) => { success: boolean; message: string };
+  repairBaseBuilding: (
+    cityId: string,
+    buildingId: string
+  ) => { success: boolean; message: string };
+  promoteToEliteTroops: (
+    cityId: string,
+    count: number
+  ) => { success: boolean; message: string };
   tickRegionConstruction: () => void;
   markRegionScouted: (cityId: string) => void;
   startWatchtowerScout: (
@@ -232,10 +245,14 @@ export const createRegionSlice: StateCreator<GameStore, [], [], RegionSlice> = (
       };
     }
 
-    if (state.resources.gold < spec.goldCost || state.resources.food < spec.foodCost) {
+    if (
+      state.resources.gold < spec.goldCost ||
+      (state.resources.wood ?? 0) < spec.woodCost ||
+      state.resources.food < spec.foodCost
+    ) {
       return {
         success: false,
-        message: `Không đủ tài nguyên! Cần ${spec.goldCost} vàng và ${spec.foodCost} lương.`,
+        message: `Không đủ tài nguyên! Cần ${spec.goldCost} vàng, ${spec.woodCost} gỗ${spec.foodCost > 0 ? ` và ${spec.foodCost} lương` : ''}.`,
       };
     }
 
@@ -260,6 +277,7 @@ export const createRegionSlice: StateCreator<GameStore, [], [], RegionSlice> = (
       resources: {
         ...s.resources,
         gold: s.resources.gold - spec.goldCost,
+        wood: Math.max(0, (s.resources.wood ?? 0) - spec.woodCost),
         food: s.resources.food - spec.foodCost,
       },
       regionLayouts: {
@@ -319,10 +337,14 @@ export const createRegionSlice: StateCreator<GameStore, [], [], RegionSlice> = (
     }
 
     const cost = getUpgradeCost(target.type, target.level);
-    if (state.resources.gold < cost.gold || state.resources.food < cost.food) {
+    if (
+      state.resources.gold < cost.gold ||
+      (state.resources.wood ?? 0) < cost.wood ||
+      state.resources.food < cost.food
+    ) {
       return {
         success: false,
-        message: `Không đủ tài nguyên nâng cấp! Cần ${cost.gold} vàng và ${cost.food} lương.`,
+        message: `Không đủ tài nguyên nâng cấp! Cần ${cost.gold} vàng, ${cost.wood} gỗ${cost.food > 0 ? ` và ${cost.food} lương` : ''}.`,
       };
     }
 
@@ -330,6 +352,7 @@ export const createRegionSlice: StateCreator<GameStore, [], [], RegionSlice> = (
       resources: {
         ...s.resources,
         gold: s.resources.gold - cost.gold,
+        wood: Math.max(0, (s.resources.wood ?? 0) - cost.wood),
         food: s.resources.food - cost.food,
       },
       regionLayouts: {
@@ -415,6 +438,140 @@ export const createRegionSlice: StateCreator<GameStore, [], [], RegionSlice> = (
       },
     }));
     return { success: true, message: `Đã tháo dỡ ${BASE_BUILDING_CATALOG[target.type].name}.` };
+  },
+
+  assignBuildingSupervisor: (cityId, buildingId, generalId) => {
+    const state = get();
+    const layout = state.getOrCreateRegionLayout(cityId);
+    const target = layout.buildings.find((b) => b.id === buildingId);
+    if (!target) return { success: false, message: 'Không tìm thấy công trình!' };
+
+    if (generalId) {
+      const gen = state.generals.find((g) => g.id === generalId && g.unlocked);
+      if (!gen) return { success: false, message: 'Vị tướng này chưa sẵn sàng!' };
+
+      // Đảm bảo 1 tướng chỉ giám sát 1 công trình tại một thời điểm
+      const nextLayouts: Record<string, RegionLayout> = {};
+      for (const [cid, lay] of Object.entries(state.regionLayouts)) {
+        nextLayouts[cid] = {
+          ...lay,
+          buildings: lay.buildings.map((b) => {
+            if (cid === cityId && b.id === buildingId) {
+              return { ...b, supervisorGeneralId: generalId };
+            }
+            if (b.supervisorGeneralId === generalId) {
+              return { ...b, supervisorGeneralId: null };
+            }
+            return b;
+          }),
+        };
+      }
+      set({ regionLayouts: nextLayouts });
+      return {
+        success: true,
+        message: `Đã cắt cử ${gen.name} giám sát ${BASE_BUILDING_CATALOG[target.type].name}.`,
+      };
+    }
+
+    set((s) => ({
+      regionLayouts: {
+        ...s.regionLayouts,
+        [cityId]: {
+          ...layout,
+          buildings: layout.buildings.map((b) =>
+            b.id === buildingId ? { ...b, supervisorGeneralId: null } : b
+          ),
+        },
+      },
+    }));
+    return { success: true, message: 'Đã rút tướng giám sát khỏi công trình.' };
+  },
+
+  repairBaseBuilding: (cityId, buildingId) => {
+    const state = get();
+    const layout = state.getOrCreateRegionLayout(cityId);
+    const target = layout.buildings.find((b) => b.id === buildingId);
+    if (!target) return { success: false, message: 'Không tìm thấy công trình!' };
+    if (target.hp >= target.maxHp) {
+      return { success: false, message: 'Công trình vẫn đang nguyên vẹn!' };
+    }
+
+    const spec = BASE_BUILDING_CATALOG[target.type];
+    const missingRatio = Math.max(0.05, (target.maxHp - target.hp) / Math.max(1, target.maxHp));
+    const goldCost = Math.max(2, Math.ceil(spec.goldCost * 0.5 * missingRatio));
+    const woodCost = Math.max(2, Math.ceil(spec.woodCost * 0.5 * missingRatio));
+
+    if (state.resources.gold < goldCost || (state.resources.wood ?? 0) < woodCost) {
+      return {
+        success: false,
+        message: `Không đủ tài nguyên sửa chữa! Cần ${goldCost} vàng và ${woodCost} gỗ.`,
+      };
+    }
+
+    set((s) => ({
+      resources: {
+        ...s.resources,
+        gold: s.resources.gold - goldCost,
+        wood: Math.max(0, (s.resources.wood ?? 0) - woodCost),
+      },
+      regionLayouts: {
+        ...s.regionLayouts,
+        [cityId]: {
+          ...layout,
+          buildings: layout.buildings.map((b) =>
+            b.id === buildingId
+              ? { ...b, hp: b.maxHp, status: b.status === 'destroyed' ? 'active' : b.status }
+              : b
+          ),
+        },
+      },
+    }));
+
+    return {
+      success: true,
+      message: `Đã sửa chữa xong ${spec.name} (-${goldCost}V, -${woodCost} gỗ).`,
+    };
+  },
+
+  promoteToEliteTroops: (cityId, count) => {
+    const state = get();
+    const layout = state.getOrCreateRegionLayout(cityId);
+    const maxBarracksLvl = layout.buildings
+      .filter((b) => b.type === 'barracks' && b.status === 'active')
+      .reduce((m, b) => Math.max(m, b.level), 0);
+
+    if (maxBarracksLvl < 3) {
+      return { success: false, message: 'Cần Trại Luyện Binh Cấp 3 trở lên để huấn luyện quân Tinh Nhuệ!' };
+    }
+
+    const batchLimit = maxBarracksLvl >= 4 ? 30 : 15;
+    const req = Math.min(batchLimit, Math.max(1, Math.floor(count)));
+    const availRegular = Math.max(0, Math.floor(state.resources.troops - (state.resources.eliteTroops ?? 0)));
+    if (availRegular < req) {
+      return { success: false, message: `Không đủ Binh sĩ thường để thăng cấp (hiện có ${availRegular})!` };
+    }
+
+    const goldCost = req * 15;
+    const weaponCost = req;
+    if (state.resources.gold < goldCost || state.resources.weapons < weaponCost) {
+      return {
+        success: false,
+        message: `Cần ${goldCost} vàng và ${weaponCost} khí giới để trang bị cho ${req} Tinh Nhuệ!`,
+      };
+    }
+
+    set((s) => ({
+      resources: {
+        ...s.resources,
+        gold: s.resources.gold - goldCost,
+        eliteTroops: (s.resources.eliteTroops ?? 0) + req,
+      },
+    }));
+
+    return {
+      success: true,
+      message: `Đã tinh tuyển thành công ${req} quân Tinh Nhuệ!`,
+    };
   },
 
   tickRegionConstruction: () => {
