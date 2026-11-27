@@ -62,6 +62,25 @@ export interface WatchtowerRareHuntTask {
   daysRemaining: number;
 }
 
+export interface PendingMingRaid {
+  cityId: string;
+  cityName: string;
+  sourceName: string;
+  enemyTroops: number;
+}
+
+export interface UprisingResult {
+  rank: 'S' | 'A' | 'B' | 'C';
+  title: string;
+  score: number;
+  troops: number;
+  eliteTroops: number;
+  food: number;
+  weapons: number;
+  scoutedCount: number;
+  dateStr: string;
+}
+
 export interface RegionSlice {
   regionLayouts: Record<string, RegionLayout>;
   clearedTerrainKeys: Record<string, string[]>; // cityId -> array of "col,row" cleared keys
@@ -131,6 +150,18 @@ export interface RegionSlice {
   activeNormalHunt: Record<string, WatchtowerNormalHuntTask>;
   activeRareHunt: Record<string, WatchtowerRareHuntTask>;
   watchtowerLastRareHuntDay: Record<string, number>;
+  pendingMingRaid: PendingMingRaid | null;
+  suspicionRateMultiplier: number;
+  evacuationDaysRemaining: number;
+  evacuationLastActionDay: number;
+  zeroFoodDays: number;
+  lowMoraleDays: number;
+  defeatReason: string | null;
+  uprisingResult: UprisingResult | null;
+  chooseMingRaidResponse: (choice: 'ambush' | 'defense' | 'evacuate') => void;
+  retreatAmbushToDefense: () => void;
+  performEvacuationAction: (action: 'forage' | 'skirmish' | 'rest') => { success: boolean; message: string };
+  triggerPreUprisingVictory: () => { success: boolean; message: string };
   startWatchtowerNormalHunt: (
     cityId: string,
     watchtowerId: string,
@@ -213,6 +244,14 @@ export const createRegionSlice: StateCreator<GameStore, [], [], RegionSlice> = (
   activeNormalHunt: {},
   activeRareHunt: {},
   watchtowerLastRareHuntDay: {},
+  pendingMingRaid: null,
+  suspicionRateMultiplier: 1,
+  evacuationDaysRemaining: 0,
+  evacuationLastActionDay: -1,
+  zeroFoodDays: 0,
+  lowMoraleDays: 0,
+  defeatReason: null,
+  uprisingResult: null,
   defenseFormationIds: {},
   foragedInventory: [],
   watchtowerLastForageDay: {},
@@ -769,9 +808,191 @@ export const createRegionSlice: StateCreator<GameStore, [], [], RegionSlice> = (
     if (finalState.status === 'defeat') {
       notify.error(`Đạo quân bị đánh tan trong ổ phục kích tại ${finalState.districtName}!`);
     } else {
-      notify.success(`Đã vượt qua phục kích tại ${finalState.districtName}, tiếp tục hành quân!`);
+      set((s) => ({
+        suspicionRateMultiplier: Number((s.suspicionRateMultiplier + 0.35).toFixed(2)),
+      }));
+      notify.success(`Đã đánh lui quân Minh tại ${finalState.districtName}! (Tốc độ nghi ngờ về sau tăng nhanh hơn)`);
     }
     state.exitAutoPause();
+  },
+
+  chooseMingRaidResponse: (choice) => {
+    const state = get();
+    const raid = state.pendingMingRaid;
+    if (!raid) return;
+    set({ pendingMingRaid: null });
+
+    if (choice === 'evacuate') {
+      const layout = state.getOrCreateRegionLayout(raid.cityId);
+      const damagedBuildings = layout.buildings.map((b) =>
+        b.type === 'road' || b.status === 'destroyed'
+          ? b
+          : { ...b, hp: Math.max(1, Math.round(b.maxHp * 0.35)) }
+      );
+      set((s) => ({
+        evacuationDaysRemaining: 10,
+        resources: {
+          ...s.resources,
+          food: Math.round(s.resources.food * 0.6),
+          morale: Math.max(20, s.resources.morale - 8),
+        },
+        regionLayouts: {
+          ...s.regionLayouts,
+          [raid.cityId]: { ...layout, buildings: damagedBuildings },
+        },
+      }));
+      state.exitAutoPause();
+      notify.warning(
+        `Đã sơ tán lên Trại Dã Chiến Chí Linh (10 ngày)! Căn cứ bị giặc tàn phá và mất 40% lương thực.`
+      );
+      return;
+    }
+
+    if (choice === 'ambush') {
+      const formation =
+        state.formations.find((f) => f.faction === 'lam_son' && f.totalTroops > 0) ||
+        state.formations.find((f) => f.faction === 'lam_son');
+      if (formation) {
+        state.startAmbush3D(formation.id, raid.sourceName, raid.enemyTroops);
+        return;
+      }
+    }
+
+    state.startDefense3D(raid.cityId, raid.enemyTroops);
+  },
+
+  retreatAmbushToDefense: () => {
+    const state = get();
+    const ambush = state.activeAmbushBattle;
+    if (!ambush) return;
+    const baseCity =
+      state.cities.find((c) => c.id === 'lam_son' && c.faction === 'lam_son') ||
+      state.cities.find((c) => c.faction === 'lam_son' && c.hasBase);
+    const remainingEnemy = ambush.units
+      .filter((u) => u.faction === 'ming' && u.hp > 0)
+      .reduce((sum, u) => sum + u.soldiers, 0);
+
+    set((s) => ({
+      activeAmbushBattle: null,
+      resources: {
+        ...s.resources,
+        troops: Math.max(10, Math.round(s.resources.troops * 0.85)),
+        morale: Math.max(15, s.resources.morale - 10),
+      },
+    }));
+
+    if (baseCity) {
+      notify.warning('Nghĩa quân rút về cố thủ trong căn cứ!');
+      state.startDefense3D(baseCity.id, Math.max(20, remainingEnemy));
+    } else {
+      state.exitAutoPause();
+    }
+  },
+
+  performEvacuationAction: (action) => {
+    const state = get();
+    if (state.evacuationDaysRemaining <= 0) {
+      return { success: false, message: 'Không còn trong thời gian sơ tán!' };
+    }
+    const absDay = (state.year - 1416) * 365 + (state.month - 1) * 30 + state.day;
+    if (state.evacuationLastActionDay >= absDay) {
+      return { success: false, message: 'Hôm nay đã thực hiện hoạt động dã chiến rồi!' };
+    }
+
+    if (action === 'forage') {
+      set((s) => ({
+        evacuationLastActionDay: absDay,
+        resources: {
+          ...s.resources,
+          food: s.resources.food + 75,
+          morale: Math.min(100, s.resources.morale + 3),
+        },
+      }));
+      return { success: true, message: 'Săn bắt dã chiến thu được +75 Lương và +3% Sĩ khí!' };
+    }
+
+    if (action === 'skirmish') {
+      const loss = Math.min(4, Math.max(0, state.resources.troops - 10));
+      set((s) => ({
+        evacuationLastActionDay: absDay,
+        resources: {
+          ...s.resources,
+          troops: Math.max(10, s.resources.troops - loss),
+          gold: s.resources.gold + 30,
+          swords: s.resources.swords + 8,
+          weapons: s.resources.weapons + 8,
+          morale: Math.min(100, s.resources.morale + 4),
+        },
+      }));
+      return {
+        success: true,
+        message: `Tập kích toán tuần tra Minh: +30 Vàng, +8 Kiếm, +4% Sĩ khí${loss > 0 ? ` (-${loss} quân)` : ''}!`,
+      };
+    }
+
+    set((s) => ({
+      evacuationLastActionDay: absDay,
+      resources: {
+        ...s.resources,
+        morale: Math.min(100, s.resources.morale + 10),
+      },
+    }));
+    return { success: true, message: 'Nghỉ ngơi chỉnh đốn hàng ngũ: +10% Sĩ khí!' };
+  },
+
+  triggerPreUprisingVictory: () => {
+    const state = get();
+    const { troops, food, weapons, morale } = state.resources;
+    const eliteTroops = state.resources.eliteTroops ?? 0;
+
+    if (troops < 120 || food < 1500 || weapons < 100 || morale < 50) {
+      return {
+        success: false,
+        message: 'Chưa đủ điều kiện tối thiểu để Phất Cờ Khởi Nghĩa (cần >= 120 quân, 1.500 lương, 100 khí giới, 50% sĩ khí)!',
+      };
+    }
+
+    const scoutedCount = Object.keys(state.scoutedRegionIds ?? {}).length;
+    const score =
+      troops * 2 +
+      eliteTroops * 5 +
+      Math.round(food / 10) +
+      weapons * 2 +
+      scoutedCount * 40 +
+      morale * 3;
+
+    let rank: UprisingResult['rank'] = 'C';
+    let title = 'Khởi Nghĩa Gian Nan';
+    if (score >= 2200 && eliteTroops >= 20) {
+      rank = 'S';
+      title = 'Vạn Toàn Đại Nghĩa — Thế Như Chẻ Tre';
+    } else if (score >= 1400) {
+      rank = 'A';
+      title = 'Bình Định Vương Xuất Chinh';
+    } else if (score >= 850) {
+      rank = 'B';
+      title = 'Tụ Nghĩa Lam Sơn';
+    }
+
+    const result: UprisingResult = {
+      rank,
+      title,
+      score,
+      troops,
+      eliteTroops,
+      food: Math.round(food),
+      weapons: Math.round(weapons),
+      scoutedCount,
+      dateStr: `${state.day}/${state.month}/${state.year}`,
+    };
+
+    set({
+      uprisingResult: result,
+      gameStatus: 'victory',
+      isPaused: true,
+    });
+    notify.success(`Bình Định Vương Phất Cờ Khởi Nghĩa! Đạt bậc [${rank}] — ${title}`);
+    return { success: true, message: `Phất cờ khởi nghĩa thành công (${rank})!` };
   },
 
   startDefense3D: (cityId, mingAttackTroops) => {
@@ -819,12 +1040,13 @@ export const createRegionSlice: StateCreator<GameStore, [], [], RegionSlice> = (
 
     set((s) => ({
       activeDefenseBattle: null,
+      suspicionRateMultiplier: Number((s.suspicionRateMultiplier + 0.35).toFixed(2)),
       regionLayouts: {
         ...s.regionLayouts,
         [finalState.cityId]: finalState.layout,
       },
     }));
-    notify.success(`Đã đẩy lùi quân Minh, giữ vững căn cứ ${finalState.cityName}!`);
+    notify.success(`Đã đẩy lùi quân Minh, giữ vững căn cứ ${finalState.cityName}! (Lưu ý: Độ nghi ngờ về sau sẽ tăng nhanh hơn)`);
     state.exitAutoPause();
   },
 
@@ -1594,6 +1816,16 @@ export const createRegionSlice: StateCreator<GameStore, [], [], RegionSlice> = (
         notify.success(
           `${done.leaderName} hoàn tất săn Cấp 4, thu được BẢO VẬT HIẾM [${picked.name}]!`
         );
+      }
+    }
+
+    // 8. Đếm ngược thời gian sơ tán (nếu đang ở Trại Dã Chiến)
+    const evacDays = get().evacuationDaysRemaining ?? 0;
+    if (evacDays > 0) {
+      const nextEvac = evacDays - 1;
+      set({ evacuationDaysRemaining: nextEvac });
+      if (nextEvac === 0) {
+        notify.success('Quân Minh đã rút khỏi vùng Lam Sơn! Nghĩa quân có thể trở về tái thiết căn cứ.');
       }
     }
   },

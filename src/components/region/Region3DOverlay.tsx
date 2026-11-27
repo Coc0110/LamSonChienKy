@@ -33,6 +33,7 @@ export const Region3DOverlay: React.FC = () => {
   const startWatchtowerNormalHunt = useGameStore((s) => s.startWatchtowerNormalHunt);
   const startWatchtowerRareHunt = useGameStore((s) => s.startWatchtowerRareHunt);
   const buyFromDistrictMarket = useGameStore((s) => s.buyFromDistrictMarket);
+  const triggerPreUprisingVictory = useGameStore((s) => s.triggerPreUprisingVictory);
   const day = useGameStore((s) => s.day);
   const formations = useGameStore((s) => s.formations);
   const defenseFormationIdsMap = useGameStore((s) => s.defenseFormationIds);
@@ -318,6 +319,10 @@ export const Region3DOverlay: React.FC = () => {
           const res = buyFromDistrictMarket(activeRegion3D.cityId, good, amount);
           if (res.success) notify.success(res.message);
           else notify.warning(res.message);
+        }}
+        onRaiseUprisingFlag={() => {
+          const res = triggerPreUprisingVictory();
+          if (!res.success) notify.warning(res.message);
         }}
         canAuctionThisMonth={lastAuctionMonthKey !== `${year}-${month}`}
         onForageWatchtower={(watchtowerId, level, forageMode) => {

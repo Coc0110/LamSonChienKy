@@ -35,6 +35,11 @@ function App() {
   const resolveAmbush3D = useGameStore(state => state.resolveAmbush3D);
   const activeDefenseBattle = useGameStore(state => state.activeDefenseBattle);
   const resolveDefense3D = useGameStore(state => state.resolveDefense3D);
+  const pendingMingRaid = useGameStore(state => state.pendingMingRaid);
+  const chooseMingRaidResponse = useGameStore(state => state.chooseMingRaidResponse);
+  const retreatAmbushToDefense = useGameStore(state => state.retreatAmbushToDefense);
+  const evacuationDaysRemaining = useGameStore(state => state.evacuationDaysRemaining);
+  const performEvacuationAction = useGameStore(state => state.performEvacuationAction);
 
   // Trạng thái các giao diện "không trên dòng thời gian"
   const activeModal = useUIStore(state => state.activeModal);
@@ -142,10 +147,73 @@ function App() {
       <RefugeeIntakeModal />
       <EndgameModal />
       <Region3DOverlay />
+      {evacuationDaysRemaining > 0 && (
+        <div className="pointer-events-auto fixed bottom-4 left-1/2 -translate-x-1/2 z-[2600] rounded-2xl border-2 border-[#8c2d19] bg-[#f4ecd8]/95 px-4 py-3 shadow-2xl font-serif text-[#2a1708] flex flex-col sm:flex-row items-center gap-3">
+          <div className="text-xs font-bold">
+            <span className="text-[#8c2d19] font-black">Trại Dã Chiến Chí Linh</span> · Còn {evacuationDaysRemaining} ngày trước khi trở về căn cứ
+          </div>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => performEvacuationAction('forage')}
+              className="rounded bg-emerald-700 px-2.5 py-1.5 text-[11px] font-bold text-white hover:bg-emerald-800 cursor-pointer"
+            >
+              Săn bắt (+75 Lương)
+            </button>
+            <button
+              onClick={() => performEvacuationAction('skirmish')}
+              className="rounded bg-[#8c2d19] px-2.5 py-1.5 text-[11px] font-bold text-[#fff3db] hover:bg-[#6e1e0d] cursor-pointer"
+            >
+              Tập kích (+30V, +8 Kiếm)
+            </button>
+            <button
+              onClick={() => performEvacuationAction('rest')}
+              className="rounded bg-[#8c5828] px-2.5 py-1.5 text-[11px] font-bold text-[#fff3db] hover:bg-[#6e421a] cursor-pointer"
+            >
+              Chỉnh đốn (+10% Sĩ khí)
+            </button>
+          </div>
+        </div>
+      )}
+      {pendingMingRaid && (
+        <div className="fixed inset-0 z-[2700] flex items-center justify-center bg-black/65 p-4 font-serif">
+          <div className="w-full max-w-lg rounded-2xl border-4 border-[#8c2d19] bg-[#f4ecd8] p-6 text-[#2a1708] shadow-2xl">
+            <h3 className="text-xl font-black text-[#8c2d19]">
+              Giặc Minh Xuất Binh Dẹp Loạn!
+            </h3>
+            <p className="mt-2 text-xs leading-relaxed text-stone-800">
+              Độ nghi ngờ đã chạm ngưỡng báo động! <strong>{pendingMingRaid.enemyTroops.toLocaleString()} quân Minh</strong> từ <strong>{pendingMingRaid.sourceName}</strong> đang kéo tới đánh <strong>{pendingMingRaid.cityName}</strong>. Hãy chọn đối sách:
+            </p>
+            <div className="mt-4 space-y-2">
+              <button
+                onClick={() => chooseMingRaidResponse('ambush')}
+                className="w-full rounded-xl border border-[#8c2d19]/40 bg-[#8c2d19] p-3 text-left text-[#fff3db] hover:bg-[#6e1e0d] cursor-pointer shadow"
+              >
+                <div className="text-sm font-black">1. Nghênh Chiến Ngoài Thành (3D)</div>
+                <div className="text-[11px] opacity-90">Đánh chặn từ xa để giữ nguyên vẹn công trình. Có thể rút về cố thủ nếu thất thế.</div>
+              </button>
+              <button
+                onClick={() => chooseMingRaidResponse('defense')}
+                className="w-full rounded-xl border border-[#8c5828]/40 bg-[#8c5828] p-3 text-left text-[#fff3db] hover:bg-[#6e421a] cursor-pointer shadow"
+              >
+                <div className="text-sm font-black">2. Cố Thủ Trong Căn Cứ (3D)</div>
+                <div className="text-[11px] opacity-90">Tận dụng Tường, Cổng, Chông bẫy. Công trình bị đánh sẽ hư hại cần sửa chữa &amp; nghi ngờ về sau tăng nhanh hơn.</div>
+              </button>
+              <button
+                onClick={() => chooseMingRaidResponse('evacuate')}
+                className="w-full rounded-xl border border-stone-700/40 bg-stone-800 p-3 text-left text-stone-100 hover:bg-stone-900 cursor-pointer shadow"
+              >
+                <div className="text-sm font-black">3. Rút Lui Bỏ Căn Cứ (Sơ tán 10 ngày lên Chí Linh)</div>
+                <div className="text-[11px] opacity-90">Bảo toàn quân lực, chịu phá hủy nặng công trình &amp; mất 40% lương thực. Hoạt động du kích trong lúc chờ trở về.</div>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {activeAmbushBattle && (
         <Ambush3DModal
           initialState={activeAmbushBattle}
           onComplete={resolveAmbush3D}
+          onRetreatToDefense={retreatAmbushToDefense}
         />
       )}
       {activeDefenseBattle && (

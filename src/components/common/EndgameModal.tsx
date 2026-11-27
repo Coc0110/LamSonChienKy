@@ -9,6 +9,8 @@ export const EndgameModal: React.FC = () => {
   const loadGame = useGameStore(state => state.loadGame);
   const checkpoints = useGameStore(state => state.checkpoints);
   const loadCheckpoint = useGameStore(state => state.loadCheckpoint);
+  const uprisingResult = useGameStore(state => state.uprisingResult);
+  const defeatReason = useGameStore(state => state.defeatReason);
 
   if (gameStatus === 'playing') return null;
 
@@ -37,8 +39,23 @@ export const EndgameModal: React.FC = () => {
 
           {/* Tiêu đề */}
           <h2 className="text-2xl md:text-3xl font-serif font-black tracking-wide text-[#701a14] mb-2 drop-shadow-sm">
-            {isVictory ? 'ĐẠI THẮNG TÂY ĐÔ - PHỦ THANH HÓA GIẢI PHÓNG' : 'CHÍ LỚN LAM SƠN DỞ DANG'}
+            {isVictory
+              ? uprisingResult
+                ? `PHẤT CỜ KHỞI NGHĨA — BẬC ${uprisingResult.rank}`
+                : 'ĐẠI THẮNG TÂY ĐÔ - PHỦ THANH HÓA GIẢI PHÓNG'
+              : 'CHÍ LỚN LAM SƠN DỞ DANG'}
           </h2>
+
+          {isVictory && uprisingResult && (
+            <div className="mb-4 w-full max-w-md rounded-lg border border-amber-700/35 bg-amber-50/80 px-4 py-2.5 text-xs text-[#2a1708]">
+              <p className="font-black text-sm text-[#8c2d19] mb-1">
+                {uprisingResult.title} ({uprisingResult.dateStr})
+              </p>
+              <p className="font-semibold">
+                Quân số: {uprisingResult.troops} (Tinh nhuệ: {uprisingResult.eliteTroops}) · Lương: {uprisingResult.food.toLocaleString()} · Khí giới: {uprisingResult.weapons} · Huyện đã do thám: {uprisingResult.scoutedCount}
+              </p>
+            </div>
+          )}
 
           <p className="text-sm md:text-base font-serif italic text-stone-700 mb-6 max-w-md leading-relaxed">
             {isVictory ? (
@@ -50,7 +67,8 @@ export const EndgameModal: React.FC = () => {
               </>
             ) : (
               <>
-                Toàn bộ căn cứ địa nghĩa quân đã thất thủ, sĩ khí tiêu tan. Cuộc khởi nghĩa tạm gác lại đợi ngày hào kiệt muôn phương tái khởi...
+                {defeatReason ||
+                  'Toàn bộ căn cứ địa nghĩa quân đã thất thủ, sĩ khí tiêu tan. Cuộc khởi nghĩa tạm gác lại đợi ngày hào kiệt muôn phương tái khởi...'}
               </>
             )}
           </p>

@@ -80,6 +80,7 @@ interface RegionBuildHUDProps {
   onStartNormalHunt: (watchtowerId: string, tier: 1 | 2 | 3) => void;
   onStartRareHunt: (watchtowerId: string, leaderGeneralId: string) => void;
   onBuyDistrictGood: (good: 'wood' | 'ironOre' | 'food', amount: number) => void;
+  onRaiseUprisingFlag: () => void;
   canAuctionThisMonth: boolean;
   onForageWatchtower: (
     watchtowerId: string,
@@ -172,6 +173,7 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
   onStartNormalHunt,
   onStartRareHunt,
   onBuyDistrictGood,
+  onRaiseUprisingFlag,
   canAuctionThisMonth,
   onForageWatchtower: _onForageWatchtower,
   onSellMarketGoods,
@@ -221,6 +223,15 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
               Hủy
             </button>
           </div>
+        )}
+        {!isScout && (
+          <button
+            onClick={onRaiseUprisingFlag}
+            className="pointer-events-auto flex items-center gap-2 rounded-xl border border-[#8c2d19]/50 bg-[#8c2d19] px-4 py-2.5 text-sm font-black text-[#fff3db] shadow-md hover:bg-[#6e1e0d] cursor-pointer"
+            title="Cần >= 120 quân, 1.500 lương, 100 khí giới, 50% sĩ khí"
+          >
+            Phất Cờ Khởi Nghĩa
+          </button>
         )}
         <button
           onClick={onZoomOut}

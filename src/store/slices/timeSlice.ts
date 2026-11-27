@@ -6,7 +6,6 @@ import type { MilitaryNotice, PendingRefugeeWave } from '../../types';
 import { notify } from '../dialogStore';
 import type { TimeSlice, GameStore } from './types';
 import { calculateTrainingWeaponReturn } from './militarySlice';
-import { deployMingForce } from './armySlice';
 import { roundRemainingDays } from '../../utils/formatters';
 import { addTrainedTroopsToRoster } from '../../utils/armyCompositionUtils';
 import { recalculateFarmWorkers } from '../../utils/farmLaborUtils';
@@ -892,7 +891,9 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
       suspicionGain += (totalCombatTroops - 60) * 0.0015;
     }
 
-    let nextSuspicion = Math.min(100, Math.max(0, state.suspicion + suspicionGain - 0.06));
+    const rateMult = state.suspicionRateMultiplier ?? 1;
+    let nextSuspicion = Math.min(100, Math.max(0, state.suspicion + suspicionGain * rateMult - 0.06));
+    let nextPendingMingRaid = state.pendingMingRaid;
 
     if (nextSuspicion >= 100) {
       // Độ nghi ngờ đạt 100%: Giặc Minh xuất thành tiến đánh căn cứ Lam Sơn trên bản đồ chiến dịch
@@ -917,109 +918,58 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
           sourceCity.troops,
           Math.max(80, Math.round(Math.max(70, totalCombatTroops) * 1.15))
         );
-        const dep = deployMingForce(updatedCities, sourceCity.id, { x: baseCity.x, y: baseCity.y }, enemyRaiders);
-        if (dep.spawned.length > 0) {
-          updatedCities = dep.cities;
-          citiesChanged = true;
-          updatedFormations = [...updatedFormations, ...dep.spawned];
-          formationsChanged = true;
-          triggerWarModeOnSuspicion = true;
-
-          newNotices.push({
-            id: `ming_expedition_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-            type: 'combat',
-            title: 'Giặc Minh Xuất Binh Càn Quét!',
-            dateStr: `Ngày ${newDay}/${newMonth}/${newYear}`,
-            description: `Độ nghi ngờ đạt 100%! ${enemyRaiders.toLocaleString()} quân Minh từ [${sourceCity.name}] đang hành quân tiến đánh [${baseCity.name}]! Hãy điều quân đánh chặn, phục kích hoặc cắt đường lương của địch.`,
-            read: false,
-            timestamp: Date.now(),
-          });
-          notify.warning(
-            `⚔️ CẢNH BÁO QUÂN CƠ: Độ nghi ngờ 100%! ${enemyRaiders} quân Minh từ [${sourceCity.name}] đang tiến đánh [${baseCity.name}]!`
-          );
-        }
+        nextPendingMingRaid = {
+          cityId: baseCity.id,
+          cityName: baseCity.name,
+          sourceName: sourceCity.name,
+          enemyTroops: enemyRaiders,
+        };
+        newNotices.push({
+          id: `ming_expedition_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+          type: 'combat',
+          title: 'Giặc Minh Xuất Binh Dẹp Loạn!',
+          dateStr: `Ngày ${newDay}/${newMonth}/${newYear}`,
+          description: `Độ nghi ngờ đạt 100%! ${enemyRaiders.toLocaleString()} quân Minh từ [${sourceCity.name}] đang kéo tới [${baseCity.name}]. Hãy chọn Nghênh Chiến, Cố Thủ hoặc Sơ Tán!`,
+          read: false,
+          timestamp: Date.now(),
+        });
       }
     } else if (nextSuspicion >= 85 && Math.random() < 0.06) {
       notify.warning('CẢNH BÁO QUÂN CƠ: Mật thám Tây Đô phát giác khói lửa lò rèn Lam Sơn! Nghi ngờ dâng cao, mau lo vàng đút lót trước khi giặc kéo quân càn quét!');
     }
 
-    // 5. Kiểm tra tướng gia nhập
-    const newlyJoined = state.generals.filter(
-      g => !g.unlocked && g.joinYear === newYear && g.joinMonth === newMonth && g.joinDay === newDay
-    );
-
-    let updatedGenerals = state.generals;
-    let newNotice = state.recruitmentNotice;
+    // 5. Giai đoạn tiền khởi nghĩa (1416-1418): Cố định 18 tướng Hội Thề Lũng Nhai
+    const updatedGenerals = state.generals;
+    const newNotice = state.recruitmentNotice;
     let shouldPause = false;
-    let bonusTroops = 0;
-    let bonusElephants = 0;
-
-    if (newlyJoined.length > 0) {
-      const joinedIds = new Set(newlyJoined.map(g => g.id));
-      updatedGenerals = state.generals.map(g =>
-        joinedIds.has(g.id) ? { ...g, unlocked: true } : g
-      );
-
-      const generalNames = newlyJoined.map(g => g.name).join(', ');
-      
-      // Mở khóa các đơn vị đặc biệt tương ứng với từng tướng:
-      if (newlyJoined.some(g => g.id === 'cam_lan')) {
-        bonusTroops += 500;
-        bonusElephants += 2;
-      } else if (newlyJoined.some(g => g.id === 'cam_banh')) {
-        bonusTroops += 300;
-      }
-
-      // Cộng quân tiếp viện thực tế vào bản doanh Lam Sơn để người chơi có thể điều động
-      if (bonusTroops > 0) {
-        const baseIdx = updatedCities.findIndex(c => c.id === 'lam_son' && c.faction === 'lam_son' && c.population) !== -1
-          ? updatedCities.findIndex(c => c.id === 'lam_son' && c.faction === 'lam_son' && c.population)
-          : updatedCities.findIndex(c => c.faction === 'lam_son' && c.population);
-
-        if (baseIdx !== -1) {
-          citiesChanged = true;
-          const baseCity = updatedCities[baseIdx];
-          updatedCities[baseIdx] = {
-            ...baseCity,
-            troops: baseCity.troops + bonusTroops,
-            population: {
-              ...baseCity.population!,
-              ...addTrainedTroopsToRoster(baseCity.population!, bonusTroops),
-            },
-          };
-        }
-      }
-
-      newNotice = {
-        id: `notice_${Date.now()}`,
-        title: 'Tụ Nghĩa Lam Sơn!',
-        dateStr: `Ngày ${newDay}/${newMonth}/${newYear}`,
-        description: `Danh tướng ${generalNames} đã quy tụ về cờ nghĩa Lam Sơn! Bắt đầu mở khóa và có thể điều động trong hàng ngũ chỉ huy.`,
-        generalIds: newlyJoined.map(g => g.id),
-      };
-      shouldPause = true;
-
-      newNotices.push({
-        id: `general_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-        type: 'general',
-        title: 'Danh Tướng Tụ Nghĩa',
-        dateStr: `Ngày ${newDay}/${newMonth}/${newYear}`,
-        description: `Danh tướng ${generalNames} đã quy tụ về cờ nghĩa Lam Sơn!`,
-        read: false,
-        timestamp: Date.now(),
-      });
-    }
+    const bonusTroops = 0;
+    const bonusElephants = 0;
 
     // 6. Kiểm tra Thắng / Bại (Victory & Defeat Conditions)
     let nextGameStatus = state.gameStatus;
-    const tayDoCity = updatedCities.find(c => c.id === 'tay_do');
+    let nextDefeatReason = state.defeatReason;
+    const nextZeroFoodDays = newFood <= 0 ? (state.zeroFoodDays ?? 0) + 1 : 0;
+    const nextLowMoraleDays = newMorale < 15 ? (state.lowMoraleDays ?? 0) + 1 : 0;
+    const desertionLoss = newMorale < 35 && state.resources.troops > 10 ? Math.min(3, state.resources.troops - 10) : 0;
+    if (nextPendingMingRaid) shouldPause = true;
     const hasLamSonBase = updatedCities.some(c => c.faction === 'lam_son' && (c.hasBase || c.type === 'camp'));
 
     if (nextGameStatus === 'playing') {
-      if (tayDoCity && tayDoCity.faction === 'lam_son') {
-        nextGameStatus = 'victory';
+      if (nextZeroFoodDays >= 7) {
+        nextGameStatus = 'defeat';
+        nextDefeatReason = 'Kho lương cạn kiệt suốt 7 ngày liên tiếp, nghĩa quân đói kém tan rã.';
         shouldPause = true;
-        notify.success('🎉 ĐẠI THẮNG LỊCH SỬ: Nghĩa quân đã hạ thành Tây Đô, quét sạch giặc Minh khỏi phủ Thanh Hóa!');
+        notify.error(`💀 KHỞI NGHĨA THẤT BẠI: ${nextDefeatReason}`);
+      } else if (nextLowMoraleDays >= 7) {
+        nextGameStatus = 'defeat';
+        nextDefeatReason = 'Sĩ khí suy sụp dưới 15% quá 7 ngày, binh biến nổ ra khiến đại nghiệp tan vỡ.';
+        shouldPause = true;
+        notify.error(`💀 KHỞI NGHĨA THẤT BẠI: ${nextDefeatReason}`);
+      } else if (newYear >= 1419) {
+        nextGameStatus = 'defeat';
+        nextDefeatReason = 'Đã qua năm 1418 nhưng chưa kịp Phất Cờ Khởi Nghĩa, nhà Minh hoàn tất bình định toàn phủ Thanh Hóa.';
+        shouldPause = true;
+        notify.error(`💀 KHỞI NGHĨA THẤT BẠI: ${nextDefeatReason}`);
       } else if (!hasLamSonBase || (newMorale <= 0 && state.resources.troops <= 0 && newFood <= 0)) {
         nextGameStatus = 'defeat';
         shouldPause = true;
@@ -1045,7 +995,7 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
         clothes: newClothes,
         gold: newGold,
         morale: newMorale,
-        troops: state.resources.troops + trainedTroopsAdded + bonusTroops,
+        troops: Math.max(0, state.resources.troops + trainedTroopsAdded + bonusTroops - desertionLoss),
         elephants: state.resources.elephants + bonusElephants,
       },
       cities: citiesChanged ? updatedCities : state.cities,
@@ -1058,6 +1008,10 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
         ? [...newNotices, ...state.militaryNotices].slice(0, 100)
         : state.militaryNotices,
       suspicion: nextSuspicion,
+      pendingMingRaid: nextPendingMingRaid,
+      zeroFoodDays: nextZeroFoodDays,
+      lowMoraleDays: nextLowMoraleDays,
+      defeatReason: nextDefeatReason,
       marketUsedThisMonth: newMonth !== state.month ? {} : state.marketUsedThisMonth,
       gameStatus: nextGameStatus,
     };

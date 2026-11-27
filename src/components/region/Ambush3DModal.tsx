@@ -7,9 +7,10 @@ import { Region3DCanvas } from './Region3DCanvas';
 interface Ambush3DModalProps {
   initialState: AmbushBattleState;
   onComplete: (finalState: AmbushBattleState) => void;
+  onRetreatToDefense?: () => void;
 }
 
-export const Ambush3DModal: React.FC<Ambush3DModalProps> = ({ initialState, onComplete }) => {
+export const Ambush3DModal: React.FC<Ambush3DModalProps> = ({ initialState, onComplete, onRetreatToDefense }) => {
   const [battle, setBattle] = useState<AmbushBattleState>(initialState);
 
   const emptyLayout: RegionLayout = useMemo(
@@ -75,6 +76,14 @@ export const Ambush3DModal: React.FC<Ambush3DModalProps> = ({ initialState, onCo
             Click chọn cánh quân Lam Sơn rồi click lên đường mòn để điều quân phá vây tới vùng xanh phía Bắc hoặc tiêu diệt hết quân Minh.
           </p>
         </div>
+        {!isEnded && onRetreatToDefense && (
+          <button
+            onClick={onRetreatToDefense}
+            className="pointer-events-auto self-start rounded-xl border border-red-900/40 bg-[#8c2d19] px-4 py-2 text-xs font-bold text-[#fff3db] shadow-lg hover:bg-[#6e1e0d] cursor-pointer"
+          >
+            Rút về Cố Thủ trong thành
+          </button>
+        )}
       </div>
 
       {isEnded && (
