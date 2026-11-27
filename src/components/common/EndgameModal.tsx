@@ -1,5 +1,5 @@
 import React from 'react';
-import { Trophy, Skull, RotateCcw, Play, Save } from 'lucide-react';
+import { Trophy, Skull, RotateCcw, Play, Save, History } from 'lucide-react';
 import { useGameStore } from '../../store/gameStore';
 
 export const EndgameModal: React.FC = () => {
@@ -7,10 +7,13 @@ export const EndgameModal: React.FC = () => {
   const setGameStatus = useGameStore(state => state.setGameStatus);
   const resetGame = useGameStore(state => state.resetGame);
   const loadGame = useGameStore(state => state.loadGame);
+  const checkpoints = useGameStore(state => state.checkpoints);
+  const loadCheckpoint = useGameStore(state => state.loadCheckpoint);
 
   if (gameStatus === 'playing') return null;
 
   const isVictory = gameStatus === 'victory';
+  const latestCheckpoint = checkpoints[0] ?? null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in select-none">
@@ -61,6 +64,16 @@ export const EndgameModal: React.FC = () => {
               >
                 <Play className="w-4 h-4" />
                 Tiếp tục thống lĩnh
+              </button>
+            )}
+
+            {!isVictory && latestCheckpoint && (
+              <button
+                onClick={() => loadCheckpoint(latestCheckpoint.id)}
+                className="w-full sm:w-auto px-5 py-2.5 rounded bg-emerald-800 hover:bg-emerald-900 active:scale-95 text-emerald-50 font-serif font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2"
+              >
+                <History className="w-4 h-4" />
+                Quay lại mốc {latestCheckpoint.day}/{latestCheckpoint.month}/{latestCheckpoint.year}
               </button>
             )}
 

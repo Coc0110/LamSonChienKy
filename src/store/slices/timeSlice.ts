@@ -1066,5 +1066,14 @@ export const createTimeSlice: StateCreator<GameStore, [], [], TimeSlice> = (set,
 
     get().tickRegionConstruction();
     get().tickBaseAutomationAndBushes(get().day);
+
+    const afterState = get();
+    if (
+      afterState.gameStatus === 'playing' &&
+      afterState.day === 1 &&
+      (afterState.month === 2 || afterState.month === 5 || afterState.month === 8 || afterState.month === 11)
+    ) {
+      afterState.createAutoCheckpoint(`Đầu Quý (${afterState.day}/${afterState.month}/${afterState.year})`);
+    }
   },
 });

@@ -1,10 +1,10 @@
 import React from 'react';
-import { Eye, Store, Users } from 'lucide-react';
+import { Users } from 'lucide-react';
 import { useGameStore } from '../../store/gameStore';
 import { useUIStore } from '../../store/uiStore';
 import { UI_TEXT } from '../../data/uiText';
 
-type DockTarget = 'army' | 'training' | 'scout' | 'farms' | 'forges' | 'build' | 'market' | 'refugees' | 'generals';
+type DockTarget = 'training' | 'build' | 'refugees' | 'generals';
 
 export const LeftCommandDock: React.FC = React.memo(() => {
   const activeModal = useUIStore(state => state.activeModal);
@@ -27,10 +27,7 @@ export const LeftCommandDock: React.FC = React.memo(() => {
   // Xử lý chuyển đổi độc quyền: Đóng toàn bộ các mục khác khi bấm vào 1 mục, không bao giờ mở chồng chéo
   const handleDockClick = (target: DockTarget) => {
     const isTargetOpen = 
-      (target === 'army' && activeModal === 'army') ||
       (target === 'training' && activeModal === 'training') ||
-      (target === 'scout' && activeModal === 'scout') ||
-      (target === 'market' && activeModal === 'market') ||
       (target === 'build' && is3DBuildPaletteOpen && activeRegion3D?.mode === 'base_build') ||
       (target === 'refugees' && isRefugeeModalOpen) ||
       (target === 'generals' && activeModal === 'generals');
@@ -84,36 +81,6 @@ export const LeftCommandDock: React.FC = React.memo(() => {
           {UI_TEXT.leftDock.groups.military}
         </span>
 
-        {/* 1.1. BỐ TRẬN SA BÀN */}
-        <button
-          type="button"
-          onClick={() => handleDockClick('army')}
-          className={`relative w-[74px] py-1 px-1 rounded flex flex-col items-center justify-center transition-all cursor-pointer ${
-            activeModal === 'army' ? 'scale-105' : 'hover:bg-black/[0.05] active:scale-95'
-          }`}
-          title={UI_TEXT.leftDock.buttons.army.tooltip}
-        >
-          {activeModal === 'army' && (
-            <img
-              src="/ink_stroke_red.png"
-              alt="Vết mực đỏ"
-              className="absolute inset-0 w-full h-full object-fill pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]"
-            />
-          )}
-          <img
-            src="/icons/flag.png"
-            alt={UI_TEXT.leftDock.buttons.army.label}
-            className="relative z-10 w-6 h-6 object-contain filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]"
-          />
-          <span className={`relative z-10 font-serif font-black text-[11px] mt-0.5 leading-tight ${
-            activeModal === 'army'
-              ? 'text-[#fcf4e4] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]'
-              : 'text-[#2a1708]'
-          }`}>
-            {UI_TEXT.leftDock.buttons.army.label}
-          </span>
-        </button>
-
         {/* 1.2. THAO LUYỆN */}
         <button
           type="button"
@@ -141,34 +108,6 @@ export const LeftCommandDock: React.FC = React.memo(() => {
               : 'text-[#2a1708]'
           }`}>
             {UI_TEXT.leftDock.buttons.training.label}
-          </span>
-        </button>
-
-        {/* 1.3. DO THÁM (THAY THẾ HÀNH QUÂN THEO YÊU CẦU) */}
-        <button
-          type="button"
-          onClick={() => handleDockClick('scout')}
-          className={`relative w-[74px] py-1 px-1 rounded flex flex-col items-center justify-center transition-all cursor-pointer ${
-            activeModal === 'scout' ? 'scale-105' : 'hover:bg-black/[0.05] active:scale-95'
-          }`}
-          title={UI_TEXT.leftDock.buttons.scout.tooltip}
-        >
-          {activeModal === 'scout' && (
-            <img
-              src="/ink_stroke_red.png"
-              alt="Vết mực đỏ"
-              className="absolute inset-0 w-full h-full object-fill pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]"
-            />
-          )}
-          <div className="relative z-10 w-6 h-6 flex items-center justify-center">
-            <Eye size={20} className={activeModal === 'scout' ? 'text-[#fff3db]' : 'text-[#8c2d19]'} />
-          </div>
-          <span className={`relative z-10 font-serif font-black text-[11px] mt-0.5 leading-tight ${
-            activeModal === 'scout'
-              ? 'text-[#fcf4e4] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]'
-              : 'text-[#2a1708]'
-          }`}>
-            {UI_TEXT.leftDock.buttons.scout.label}
           </span>
         </button>
 
@@ -209,34 +148,6 @@ export const LeftCommandDock: React.FC = React.memo(() => {
               : 'text-[#2a1708]'
           }`}>
             {UI_TEXT.leftDock.buttons.build.label}
-          </span>
-        </button>
-
-        {/* 2.4. CHỢ HUYỆN */}
-        <button
-          type="button"
-          onClick={() => handleDockClick('market')}
-          className={`relative w-[74px] py-1 px-1 rounded flex flex-col items-center justify-center transition-all cursor-pointer ${
-            activeModal === 'market' ? 'scale-105' : 'hover:bg-black/[0.05] active:scale-95'
-          }`}
-          title={UI_TEXT.leftDock.buttons.market.tooltip}
-        >
-          {activeModal === 'market' && (
-            <img
-              src="/ink_stroke_red.png"
-              alt="Vết mực đỏ"
-              className="absolute inset-0 w-full h-full object-fill pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]"
-            />
-          )}
-          <div className="relative z-10 w-6 h-6 flex items-center justify-center">
-            <Store size={20} className={activeModal === 'market' ? 'text-[#fff3db]' : 'text-[#8c2d19]'} />
-          </div>
-          <span className={`relative z-10 font-serif font-black text-[11px] mt-0.5 leading-tight ${
-            activeModal === 'market'
-              ? 'text-[#fcf4e4] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]'
-              : 'text-[#2a1708]'
-          }`}>
-            {UI_TEXT.leftDock.buttons.market.label}
           </span>
         </button>
 

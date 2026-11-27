@@ -8,25 +8,15 @@ import { EndgameModal } from './components/common/EndgameModal';
 import { RefugeeIntakeModal } from './components/common/RefugeeIntakeModal';
 import { TimelineWheelScrubber } from './components/layout/topbar/TimelineWheelScrubber';
 import { LeftCommandDock } from './components/layout/LeftCommandDock';
-import { ArmyOverviewPanel } from './components/layout/panel/ArmyOverviewPanel';
-import { FarmsOverviewModal } from './components/layout/panel/FarmsOverviewModal';
-import { ForgesOverviewModal } from './components/layout/panel/ForgesOverviewModal';
-import { ScoutOverviewModal } from './components/layout/panel/ScoutOverviewModal';
-import { MarketModal } from './components/layout/panel/MarketModal';
 import { MilitaryBookPanel } from './components/layout/panel/MilitaryBookPanel';
-import { BattlefieldModal } from './components/battle/BattlefieldModal';
-import { BattleTesterModal } from './components/battle/BattleTesterModal';
-import { BattleResultModal } from './components/battle/BattleResultModal';
 import { Region3DOverlay } from './components/region/Region3DOverlay';
-import { Siege3DModal } from './components/region/Siege3DModal';
 import { Ambush3DModal } from './components/region/Ambush3DModal';
 import { Defense3DModal } from './components/region/Defense3DModal';
 import { useGameStore } from './store/gameStore';
 import { useUIStore } from './store/uiStore';
 
-// Code-splitting các modal chiến thuật & danh tướng có kích thước lớn để tăng tốc tải trang
+// Code-splitting modal danh tướng có kích thước lớn để tăng tốc tải trang
 const GeneralsModal = lazy(() => import('./components/generals/GeneralsModal').then(m => ({ default: m.GeneralsModal })));
-const ArmyRosterModal = lazy(() => import('./components/army/ArmyRosterModal').then(m => ({ default: m.ArmyRosterModal })));
 
 function App() {
   const isPaused = useGameStore(state => state.isPaused);
@@ -41,18 +31,6 @@ function App() {
   const stepArmies = useGameStore(state => state.stepArmies);
   const stepScoutMissions = useGameStore(state => state.stepScoutMissions);
   const formations = useGameStore(state => state.formations);
-  const isBattleModalOpen = useGameStore(state => state.isBattleModalOpen);
-  const currentBattle = useGameStore(state => state.currentBattle);
-  const battleResultToReport = useGameStore(state => state.battleResultToReport);
-  const tickBattle = useGameStore(state => state.tickBattle);
-  const retreatBattle = useGameStore(state => state.retreatBattle);
-  const restartBattle = useGameStore(state => state.restartBattle);
-  const closeBattleModal = useGameStore(state => state.closeBattleModal);
-  const closeBattleResultModal = useGameStore(state => state.closeBattleResultModal);
-  const setBattleStance = useGameStore(state => state.setBattleStance);
-  const activeSiegeBattle = useGameStore(state => state.activeSiegeBattle);
-  const resolveSiege3D = useGameStore(state => state.resolveSiege3D);
-  const closeSiege3D = useGameStore(state => state.closeSiege3D);
   const activeAmbushBattle = useGameStore(state => state.activeAmbushBattle);
   const resolveAmbush3D = useGameStore(state => state.resolveAmbush3D);
   const activeDefenseBattle = useGameStore(state => state.activeDefenseBattle);
@@ -155,29 +133,15 @@ function App() {
       <TimelineWheelScrubber />
       <LeftPanel />
       {activeRegion3D && <LeftCommandDock />}
-      <ArmyOverviewPanel />
       <Suspense fallback={null}>
         <GeneralsModal />
-        <ArmyRosterModal />
       </Suspense>
-      <FarmsOverviewModal />
-      <ForgesOverviewModal />
-      <ScoutOverviewModal />
-      <MarketModal />
       {isMilitaryBookOpen && <MilitaryBookPanel />}
       <ParchmentToastContainer />
       <ParchmentConfirmModal />
       <RefugeeIntakeModal />
       <EndgameModal />
-      <BattleTesterModal />
       <Region3DOverlay />
-      {activeSiegeBattle && (
-        <Siege3DModal
-          initialState={activeSiegeBattle}
-          onComplete={resolveSiege3D}
-          onClose={closeSiege3D}
-        />
-      )}
       {activeAmbushBattle && (
         <Ambush3DModal
           initialState={activeAmbushBattle}
@@ -188,22 +152,6 @@ function App() {
         <Defense3DModal
           initialState={activeDefenseBattle}
           onComplete={resolveDefense3D}
-        />
-      )}
-      {isBattleModalOpen && currentBattle && (
-        <BattlefieldModal
-          battleState={currentBattle}
-          onTick={tickBattle}
-          onRetreat={retreatBattle}
-          onClose={closeBattleModal}
-          onToggleStance={setBattleStance}
-          onRestart={restartBattle}
-        />
-      )}
-      {battleResultToReport && (
-        <BattleResultModal
-          battleState={battleResultToReport}
-          onClose={closeBattleResultModal}
         />
       )}
     </div>
