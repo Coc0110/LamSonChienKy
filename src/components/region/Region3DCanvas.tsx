@@ -566,6 +566,10 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
       rightDoor: THREE.Object3D;
       openAmount: number;
     }> = [];
+    const refugeeCrowdGroup = new THREE.Group();
+    scene.add(refugeeCrowdGroup);
+    let refugeeCrowdPos: { x: number; z: number } | null = null;
+    let lastRefugeeCount = -1;
 
     const syncBuildings = () => {
       while (buildingsGroup.children.length > 0) {
@@ -1322,6 +1326,13 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
         ) || null;
 
       if (!placementPreviewRef.current && !hitBuilding && !hitUnit) {
+        if (!isEnemyRef.current && refugeeCrowdPos) {
+          const dRef = Math.hypot(cell.wx - refugeeCrowdPos.x, cell.wz - refugeeCrowdPos.z);
+          if (dRef <= 2.6) {
+            useGameStore.getState().openRefugeeModal();
+            return;
+          }
+        }
         const currentBushes = useGameStore.getState().bushes?.[layoutRef.current.cityId] ?? [];
         const bushHit = currentBushes.find((b) => Math.hypot(b.wx - cell.wx, b.wz - cell.wz) < 1.25);
         if (bushHit) {
@@ -1656,6 +1667,43 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
           : Math.max(0, gate.openAmount - dt * 1.05);
         gate.leftDoor.rotation.y = -gate.openAmount * 1.35;
         gate.rightDoor.rotation.y = gate.openAmount * 1.35;
+      }
+
+      // Đồng bộ đoàn lưu dân đứng ngoài cổng căn cứ
+      if (!isEnemyRef.current) {
+        const pendingWaves = (useGameStore.getState().pendingRefugees ?? []).filter(
+          (w) => !w.departed && (w.daysRemaining ?? 0) > 0
+        );
+        const waveCount = pendingWaves.length;
+        if (waveCount !== lastRefugeeCount) {
+          lastRefugeeCount = waveCount;
+          while (refugeeCrowdGroup.children.length > 0) {
+            refugeeCrowdGroup.remove(refugeeCrowdGroup.children[0]);
+          }
+          if (waveCount > 0) {
+            const g0 = animatedGates[0];
+            const rx = g0 ? g0.wx : 0;
+            const rz = g0 ? g0.wz + 3.2 : 10.5;
+            refugeeCrowdPos = { x: rx, z: rz };
+            const offsets = [
+              [-0.8, 0],
+              [0.8, 0.2],
+              [0, 1.0],
+              [-1.1, 1.1],
+              [1.0, 1.2],
+            ];
+            for (let i = 0; i < Math.min(5, waveCount + 2); i++) {
+              const [ox, oz] = offsets[i];
+              const npc = createNpcGroup(i % 2 === 0 ? 'farmer' : 'soldier_unarmed');
+              const ey = getThanhHoaElevationAtWorld(rx + ox, rz + oz, basePctX, basePctY);
+              npc.position.set(rx + ox, ey, rz + oz);
+              npc.rotation.y = Math.PI;
+              refugeeCrowdGroup.add(npc);
+            }
+          } else {
+            refugeeCrowdPos = null;
+          }
+        }
       }
 
       // Cập nhật các toán lính đi chặt cây / khai hoang rừng (xuất phát từ nhà dân, né tường/nhà, chờ mở cổng)

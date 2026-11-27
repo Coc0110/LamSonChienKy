@@ -162,6 +162,11 @@ export interface RegionSlice {
   retreatAmbushToDefense: () => void;
   performEvacuationAction: (action: 'forage' | 'skirmish' | 'rest') => { success: boolean; message: string };
   triggerPreUprisingVictory: () => { success: boolean; message: string };
+  craftWeaponAtForge3D: (
+    cityId: string,
+    forgeId: string,
+    weaponType: 'sword' | 'bow' | 'spear'
+  ) => { success: boolean; message: string };
   startWatchtowerNormalHunt: (
     cityId: string,
     watchtowerId: string,
@@ -993,6 +998,48 @@ export const createRegionSlice: StateCreator<GameStore, [], [], RegionSlice> = (
     });
     notify.success(`Bình Định Vương Phất Cờ Khởi Nghĩa! Đạt bậc [${rank}] — ${title}`);
     return { success: true, message: `Phất cờ khởi nghĩa thành công (${rank})!` };
+  },
+
+  craftWeaponAtForge3D: (cityId, forgeId, weaponType) => {
+    const state = get();
+    const layout = state.getOrCreateRegionLayout(cityId);
+    const forge = layout.buildings.find((b) => b.id === forgeId && b.type === 'forge' && b.status === 'active');
+    if (!forge) return { success: false, message: 'Lò rèn chưa sẵn sàng!' };
+    if ((weaponType === 'bow' || weaponType === 'spear') && forge.level < 2) {
+      return { success: false, message: 'Cần Lò Rèn Cấp 2 trở lên để đúc Cung và Giáo!' };
+    }
+    const batch = [10, 18, 28, 42][Math.min(3, Math.max(0, forge.level - 1))];
+    const costMult = forge.level >= 4 ? 0.75 : forge.level >= 2 ? 0.9 : 1;
+    const oreCost = Math.max(1, Math.round(batch * costMult));
+    const goldCost = Math.max(1, Math.round(batch * 1.5 * costMult));
+
+    if ((state.resources.ironOre ?? 0) < oreCost || state.resources.gold < goldCost) {
+      return {
+        success: false,
+        message: `Không đủ nguyên liệu! Cần ${oreCost} Quặng thô và ${goldCost} Vàng.`,
+      };
+    }
+
+    const suspMult = forge.level >= 3 ? 0.8 : 1;
+    const suspGain = Number((1.2 * suspMult).toFixed(2));
+    const key = weaponType === 'sword' ? 'swords' : weaponType === 'bow' ? 'bows' : 'spears';
+    const label = weaponType === 'sword' ? 'Kiếm' : weaponType === 'bow' ? 'Cung' : 'Giáo';
+
+    set((s) => ({
+      resources: {
+        ...s.resources,
+        ironOre: Math.max(0, (s.resources.ironOre ?? 0) - oreCost),
+        gold: s.resources.gold - goldCost,
+        [key]: s.resources[key] + batch,
+        weapons: s.resources.weapons + batch,
+      },
+      suspicion: Math.min(100, s.suspicion + suspGain),
+    }));
+
+    return {
+      success: true,
+      message: `Lò Rèn Lv.${forge.level} đã đúc +${batch} ${label} (-${oreCost} Quặng, -${goldCost}V, +${suspGain}% nghi ngờ).`,
+    };
   },
 
   startDefense3D: (cityId, mingAttackTroops) => {

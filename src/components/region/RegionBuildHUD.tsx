@@ -6,7 +6,6 @@ import {
   Eye,
   FileText,
   Gavel,
-  Hammer,
   Lock,
   Move,
   ScrollText,
@@ -18,7 +17,6 @@ import {
   Trash2,
   Trees,
   Users,
-  Wheat,
   X,
   ZoomOut,
 } from 'lucide-react';
@@ -71,7 +69,7 @@ interface RegionBuildHUDProps {
   onDispatchMarch: (formationId: string) => void;
   onOpenArmyModal: () => void;
   foragedInventory: ForagedInventoryItem[];
-  resourcesSummary: { food: number; wood: number; ironOre: number; swords: number; spears: number; bows: number };
+  resourcesSummary: { food: number; wood: number; ironOre: number; gold: number; clothes: number; swords: number; spears: number; bows: number };
   isDistrictScouted: boolean;
   activeNormalHunt: Record<string, { tier: 1 | 2 | 3; totalDays: number; daysRemaining: number }>;
   activeRareHunt: Record<string, { leaderGeneralId: string; leaderName: string; totalDays: number; daysRemaining: number }>;
@@ -81,6 +79,8 @@ interface RegionBuildHUDProps {
   onStartRareHunt: (watchtowerId: string, leaderGeneralId: string) => void;
   onBuyDistrictGood: (good: 'wood' | 'ironOre' | 'food', amount: number) => void;
   onRaiseUprisingFlag: () => void;
+  onCraftForgeWeapon: (forgeId: string, weaponType: 'sword' | 'bow' | 'spear') => void;
+  onOpenGeneralsModal: () => void;
   canAuctionThisMonth: boolean;
   onForageWatchtower: (
     watchtowerId: string,
@@ -174,6 +174,8 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
   onStartRareHunt,
   onBuyDistrictGood,
   onRaiseUprisingFlag,
+  onCraftForgeWeapon,
+  onOpenGeneralsModal,
   canAuctionThisMonth,
   onForageWatchtower: _onForageWatchtower,
   onSellMarketGoods,
@@ -189,7 +191,7 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
 }) => {
   const isScout = mode === 'scout_view';
   const [activeTab, setActiveTab] = useState<BuildTabKey>('facility');
-  const [mainHallTab, setMainHallTab] = useState<'info' | 'commands' | 'military'>('info');
+  const [mainHallTab, setMainHallTab] = useState<'info' | 'commands' | 'military' | 'generals'>('info');
   const [watchtowerTab, setWatchtowerTab] = useState<'scout' | 'hunt'>('scout');
   const [rareLeaderId, setRareLeaderId] = useState<string>('');
   const [districtBuyGood, setDistrictBuyGood] = useState<'wood' | 'ironOre' | 'food'>('wood');
@@ -714,6 +716,50 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
                         )}
                       </div>
                     )}
+
+                    {/* TAB 4: DANH TƯỚNG (18 Tướng Hội Thề Lũng Nhai) */}
+                    {mainHallTab === 'generals' && (
+                      <div className="mt-4 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-xs font-black uppercase tracking-wider text-[#8c2d19]">
+                            18 Tướng Hội Thề Lũng Nhai ({generals.length})
+                          </h4>
+                          <button
+                            onClick={onOpenGeneralsModal}
+                            className="rounded-lg bg-[#8c2d19] px-3 py-1.5 text-[11px] font-bold text-[#fff3db] hover:bg-[#6e1e0d] cursor-pointer shadow"
+                          >
+                            Mở Thẻ Đồng 3D
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto pr-1">
+                          {generals.map((g) => {
+                            const supervised = layout.buildings.find((b) => b.supervisorGeneralId === g.id);
+                            return (
+                              <div
+                                key={g.id}
+                                className="rounded-lg border border-[#8c6b44]/35 bg-[#f7eed8]/75 p-2 text-xs flex items-center justify-between gap-2"
+                              >
+                                <div className="min-w-0">
+                                  <div className="font-black text-[#261304] truncate">{g.name}</div>
+                                  <div className="text-[10px] text-[#5c3e23]">
+                                    TL:{g.stats.command} · VN:{g.stats.martial} · TR:{g.stats.intellect}
+                                  </div>
+                                </div>
+                                <span
+                                  className={`shrink-0 rounded px-2 py-0.5 text-[10px] font-bold ${
+                                    supervised
+                                      ? 'bg-emerald-700/15 text-emerald-900 border border-emerald-700/30'
+                                      : 'bg-stone-500/15 text-stone-700'
+                                  }`}
+                                >
+                                  {supervised ? BASE_BUILDING_CATALOG[supervised.type].shortName : 'Rảnh'}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -754,6 +800,18 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
                   >
                     <Swords className="h-4 w-4 relative z-10" />
                     <span className="relative z-10">Quân sự</span>
+                  </button>
+                  <button
+                    onClick={() => setMainHallTab('generals')}
+                    className={`relative flex flex-col items-center gap-1 rounded-r-xl border border-l-0 px-2.5 py-3 text-[11px] font-black shadow-md cursor-pointer transition-all overflow-hidden ${
+                      mainHallTab === 'generals'
+                        ? 'border-[#8c6b44] text-[#8c2d19] translate-x-0.5'
+                        : 'border-[#8c6b44]/50 text-[#5c3e23] opacity-80 hover:opacity-100'
+                    }`}
+                    style={{ backgroundImage: "url('/parchment_clean.png')", backgroundSize: 'cover' }}
+                  >
+                    <Shield className="h-4 w-4 relative z-10" />
+                    <span className="relative z-10">Danh tướng</span>
                   </button>
                 </div>
               </div>
@@ -845,24 +903,156 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
                           </div>
                         </div>
                       )}
-                      {selectedBuilding.type === 'forge' && (
-                        <button
-                          onClick={() => onOpenBuildingAction('forges')}
-                          className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#8c5828] px-3 py-2 text-xs font-bold text-[#fff3db] hover:bg-[#6e421a] cursor-pointer shadow"
-                        >
-                          <Hammer className="h-4 w-4" />
-                          Mở Xưởng Rèn Vũ Khí
-                        </button>
-                      )}
+                      {selectedBuilding.type === 'forge' && (() => {
+                        const batch = [10, 18, 28, 42][Math.min(3, Math.max(0, lv - 1))];
+                        const costMult = lv >= 4 ? 0.75 : lv >= 2 ? 0.9 : 1;
+                        const oreCost = Math.max(1, Math.round(batch * costMult));
+                        const goldCost = Math.max(1, Math.round(batch * 1.5 * costMult));
+                        return (
+                          <div className="rounded-lg border border-[#8c6b44]/35 bg-white/50 p-3 space-y-2">
+                            <div className="flex items-center justify-between text-xs font-bold text-[#261304]">
+                              <span>Xưởng Rèn 3D (Lv.{lv})</span>
+                              <span className="text-[#8c2d19]">
+                                Quặng: {resourcesSummary.ironOre} · Vàng: {resourcesSummary.gold}
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-3 gap-1.5">
+                              <button
+                                onClick={() => onCraftForgeWeapon(selectedBuilding.id, 'sword')}
+                                className="rounded bg-[#8c5828] py-2 px-1 text-[11px] font-bold text-[#fff3db] hover:bg-[#6e421a] cursor-pointer"
+                              >
+                                Đúc +{batch} Kiếm
+                                <div className="text-[9px] opacity-90">{oreCost} Quặng · {goldCost}V</div>
+                              </button>
+                              <button
+                                disabled={lv < 2}
+                                onClick={() => onCraftForgeWeapon(selectedBuilding.id, 'bow')}
+                                className="rounded bg-[#8c5828] py-2 px-1 text-[11px] font-bold text-[#fff3db] hover:bg-[#6e421a] disabled:opacity-40 cursor-pointer"
+                              >
+                                {lv < 2 ? 'Cung (Mở Lv.2)' : `Đúc +${batch} Cung`}
+                                <div className="text-[9px] opacity-90">{oreCost} Quặng · {goldCost}V</div>
+                              </button>
+                              <button
+                                disabled={lv < 2}
+                                onClick={() => onCraftForgeWeapon(selectedBuilding.id, 'spear')}
+                                className="rounded bg-[#8c5828] py-2 px-1 text-[11px] font-bold text-[#fff3db] hover:bg-[#6e421a] disabled:opacity-40 cursor-pointer"
+                              >
+                                {lv < 2 ? 'Giáo (Mở Lv.2)' : `Đúc +${batch} Giáo`}
+                                <div className="text-[9px] opacity-90">{oreCost} Quặng · {goldCost}V</div>
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })()}
                       {selectedBuilding.type === 'farm' && (
-                        <button
-                          onClick={() => onOpenBuildingAction('farms')}
-                          className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#15803d] px-3 py-2 text-xs font-bold text-[#fff3db] hover:bg-[#166534] cursor-pointer shadow"
-                        >
-                          <Wheat className="h-4 w-4" />
-                          Mở Quản Lý Ruộng Nương
-                        </button>
+                        <div className="rounded-lg border border-emerald-700/35 bg-emerald-50/70 p-3 text-xs space-y-1">
+                          <div className="font-black text-emerald-950 flex items-center justify-between">
+                            <span>Đồn Điền 3D (Lv.{lv})</span>
+                            <span>{BASE_BUILDING_CATALOG.farm.effectLabel(lv)}</span>
+                          </div>
+                          <p className="text-[11px] text-emerald-900">
+                            Binh sĩ &amp; Tinh nhuệ tự động luân phiên canh tác theo kế sách &ldquo;Ngụ binh ư nông&rdquo;. Cắt cử Tướng Giám Sát để tăng sản lượng vụ mùa.
+                          </p>
+                        </div>
                       )}
+                      {selectedBuilding.type === 'food_storage' && (() => {
+                        const grouped = new Map<string, { name: string; count: number; rare: boolean }>();
+                        for (const it of foragedInventory) {
+                          if (it.itemId === 'thao_duoc' || it.itemId === 'mat_ong_rung' || it.itemId === 'nhung_huou' || it.itemId === 'nhan_sam') {
+                            const prev = grouped.get(it.itemId);
+                            if (prev) prev.count += 1;
+                            else grouped.set(it.itemId, { name: it.name, count: 1, rare: it.rare });
+                          }
+                        }
+                        const slots = [
+                          { icon: '🌾', name: 'Lương thực', count: Math.floor(resourcesSummary.food), rare: false },
+                          ...Array.from(grouped.values()).map((g) => ({
+                            icon: g.rare ? '🌿' : '🍯',
+                            name: g.name,
+                            count: g.count,
+                            rare: g.rare,
+                          })),
+                        ];
+                        return (
+                          <div className="rounded-lg border border-[#8c6b44]/35 bg-white/55 p-3">
+                            <div className="text-xs font-black text-[#261304] mb-2">
+                              Vật phẩm tồn trong Kho Lương
+                            </div>
+                            <div className="grid grid-cols-4 gap-2">
+                              {slots.map((slot, idx) => (
+                                <div
+                                  key={idx}
+                                  className={`rounded-lg border p-2 text-center ${
+                                    slot.rare
+                                      ? 'border-amber-600/50 bg-amber-50'
+                                      : 'border-[#8c6b44]/30 bg-[#f7eed8]/70'
+                                  }`}
+                                >
+                                  <div className="text-xl leading-none">{slot.icon}</div>
+                                  <div className="mt-1 text-[10px] font-bold text-[#261304] truncate" title={slot.name}>
+                                    {slot.name}
+                                  </div>
+                                  <div className="text-[11px] font-black text-[#8c2d19]">
+                                    ×{slot.count.toLocaleString()}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
+                      {selectedBuilding.type === 'armory' && (() => {
+                        const grouped = new Map<string, { name: string; count: number; rare: boolean }>();
+                        for (const it of foragedInventory) {
+                          if (it.itemId === 'da_thu' || it.itemId === 'ngoc_bich' || it.itemId === 'tram_huong') {
+                            const prev = grouped.get(it.itemId);
+                            if (prev) prev.count += 1;
+                            else grouped.set(it.itemId, { name: it.name, count: 1, rare: it.rare });
+                          }
+                        }
+                        const slots = [
+                          { icon: '🪙', name: 'Vàng', count: Math.floor(resourcesSummary.gold), rare: false },
+                          { icon: '🪵', name: 'Gỗ', count: Math.floor(resourcesSummary.wood), rare: false },
+                          { icon: '⛏️', name: 'Quặng thô', count: Math.floor(resourcesSummary.ironOre), rare: false },
+                          { icon: '⚔️', name: 'Kiếm', count: Math.floor(resourcesSummary.swords), rare: false },
+                          { icon: '🔱', name: 'Giáo', count: Math.floor(resourcesSummary.spears), rare: false },
+                          { icon: '🏹', name: 'Cung', count: Math.floor(resourcesSummary.bows), rare: false },
+                          { icon: '🛡️', name: 'Giáp', count: Math.floor(resourcesSummary.clothes), rare: false },
+                          ...Array.from(grouped.values()).map((g) => ({
+                            icon: g.rare ? '💎' : '🦊',
+                            name: g.name,
+                            count: g.count,
+                            rare: g.rare,
+                          })),
+                        ];
+                        return (
+                          <div className="rounded-lg border border-[#8c6b44]/35 bg-white/55 p-3">
+                            <div className="text-xs font-black text-[#261304] mb-2">
+                              Vật phẩm tồn trong Kho Bạc &amp; Quân Nhu
+                            </div>
+                            <div className="grid grid-cols-4 gap-2">
+                              {slots.map((slot, idx) => (
+                                <div
+                                  key={idx}
+                                  className={`rounded-lg border p-2 text-center ${
+                                    slot.rare
+                                      ? 'border-amber-600/50 bg-amber-50'
+                                      : 'border-[#8c6b44]/30 bg-[#f7eed8]/70'
+                                  }`}
+                                >
+                                  <div className="text-xl leading-none">{slot.icon}</div>
+                                  <div className="mt-1 text-[10px] font-bold text-[#261304] truncate" title={slot.name}>
+                                    {slot.name}
+                                  </div>
+                                  <div className="text-[11px] font-black text-[#8c2d19]">
+                                    ×{slot.count.toLocaleString()}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
                       {selectedBuilding.type === 'watchtower' && (
                         <div className="rounded-lg border border-[#8c6b44]/35 bg-white/45 p-3">
                           <div className="flex gap-1.5 border-b border-[#8c6b44]/25 pb-2 mb-2.5">
@@ -1420,8 +1610,9 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
                         );
                       })()}
 
-                      {/* Cắt cử Tướng Giám Sát công trình */}
-                      {selectedBuilding.type !== 'wall' &&
+                      {/* Cắt cử Tướng Giám Sát công trình (không áp dụng cho Nhà Dân & tường/bẫy/đường) */}
+                      {selectedBuilding.type !== 'house' &&
+                        selectedBuilding.type !== 'wall' &&
                         selectedBuilding.type !== 'gate' &&
                         selectedBuilding.type !== 'spike_trap' &&
                         selectedBuilding.type !== 'road' && (

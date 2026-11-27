@@ -34,6 +34,7 @@ export const Region3DOverlay: React.FC = () => {
   const startWatchtowerRareHunt = useGameStore((s) => s.startWatchtowerRareHunt);
   const buyFromDistrictMarket = useGameStore((s) => s.buyFromDistrictMarket);
   const triggerPreUprisingVictory = useGameStore((s) => s.triggerPreUprisingVictory);
+  const craftWeaponAtForge3D = useGameStore((s) => s.craftWeaponAtForge3D);
   const day = useGameStore((s) => s.day);
   const formations = useGameStore((s) => s.formations);
   const defenseFormationIdsMap = useGameStore((s) => s.defenseFormationIds);
@@ -296,6 +297,8 @@ export const Region3DOverlay: React.FC = () => {
           food: resources.food,
           wood: resources.wood ?? 0,
           ironOre: resources.ironOre ?? 0,
+          gold: resources.gold,
+          clothes: resources.clothes,
           swords: resources.swords,
           spears: resources.spears,
           bows: resources.bows,
@@ -324,6 +327,12 @@ export const Region3DOverlay: React.FC = () => {
           const res = triggerPreUprisingVictory();
           if (!res.success) notify.warning(res.message);
         }}
+        onCraftForgeWeapon={(forgeId, weaponType) => {
+          const res = craftWeaponAtForge3D(activeRegion3D.cityId, forgeId, weaponType);
+          if (res.success) notify.success(res.message);
+          else notify.warning(res.message);
+        }}
+        onOpenGeneralsModal={() => setActiveModal('generals')}
         canAuctionThisMonth={lastAuctionMonthKey !== `${year}-${month}`}
         onForageWatchtower={(watchtowerId, level, forageMode) => {
           const res = forageFromWatchtower(watchtowerId, level, forageMode);

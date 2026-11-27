@@ -1,10 +1,9 @@
 import React from 'react';
-import { Users } from 'lucide-react';
 import { useGameStore } from '../../store/gameStore';
 import { useUIStore } from '../../store/uiStore';
 import { UI_TEXT } from '../../data/uiText';
 
-type DockTarget = 'training' | 'build' | 'refugees' | 'generals';
+type DockTarget = 'training' | 'build';
 
 export const LeftCommandDock: React.FC = React.memo(() => {
   const activeModal = useUIStore(state => state.activeModal);
@@ -17,31 +16,17 @@ export const LeftCommandDock: React.FC = React.memo(() => {
 
   const selectCity = useUIStore(state => state.selectCity);
   const cities = useGameStore(state => state.cities);
-  
-  const pendingRefugees = useGameStore(state => state.pendingRefugees || []);
-  const openRefugeeModal = useGameStore(state => state.openRefugeeModal);
-  const closeRefugeeModal = useGameStore(state => state.closeRefugeeModal);
-  const isRefugeeModalOpen = useGameStore(state => state.isRefugeeModalOpen);
-  const pendingRefugeesCount = pendingRefugees.filter(w => !w.departed && (w.daysRemaining ?? 0) > 0).length;
 
-  // Xử lý chuyển đổi độc quyền: Đóng toàn bộ các mục khác khi bấm vào 1 mục, không bao giờ mở chồng chéo
   const handleDockClick = (target: DockTarget) => {
     const isTargetOpen = 
       (target === 'training' && activeModal === 'training') ||
-      (target === 'build' && is3DBuildPaletteOpen && activeRegion3D?.mode === 'base_build') ||
-      (target === 'refugees' && isRefugeeModalOpen) ||
-      (target === 'generals' && activeModal === 'generals');
+      (target === 'build' && is3DBuildPaletteOpen && activeRegion3D?.mode === 'base_build');
 
-    // 1. Đóng sạch toàn bộ các cửa sổ đang mở
     setActiveModal(null);
     setBuildPaperOpen(false);
     set3DBuildPaletteOpen(false);
-    if (isRefugeeModalOpen) {
-      closeRefugeeModal();
-    }
     selectCity(null);
 
-    // 2. Nếu mục đó chưa mở thì kích hoạt mở mục đó
     if (!isTargetOpen) {
       if (target === 'build') {
         if (!activeRegion3D || activeRegion3D.mode !== 'base_build') {
@@ -49,9 +34,6 @@ export const LeftCommandDock: React.FC = React.memo(() => {
           setActiveRegion3D({ cityId: baseCity?.id || 'lam_son', mode: 'base_build' });
         }
         set3DBuildPaletteOpen(true);
-      } else if (target === 'refugees') {
-        openRefugeeModal();
-
       } else {
         setActiveModal(target);
       }
@@ -151,81 +133,7 @@ export const LeftCommandDock: React.FC = React.memo(() => {
           </span>
         </button>
 
-        {/* Phân cách */}
-        <div className="w-12 h-px bg-[#8c6b44]/40 my-0.5 shrink-0" />
-
-        {/* ========================================================================= */}
-        {/* NHÓM 3: NHÂN SỰ & QUÂN CƠ                                                  */}
-        {/* ========================================================================= */}
-        <span className="text-[9px] font-serif font-black uppercase tracking-widest text-[#8c5828]/80 pb-0.5">
-          {UI_TEXT.leftDock.groups.intelligence}
-        </span>
-
-        {/* 3.1. LƯU DÂN */}
-        <button
-          type="button"
-          onClick={() => handleDockClick('refugees')}
-          className={`relative w-[74px] py-1 px-1 rounded flex flex-col items-center justify-center transition-all cursor-pointer ${
-            isRefugeeModalOpen ? 'scale-105' : 'hover:bg-black/[0.05] active:scale-95'
-          }`}
-          title={UI_TEXT.leftDock.buttons.refugees.tooltip}
-        >
-          {isRefugeeModalOpen && (
-            <img
-              src="/ink_stroke_red.png"
-              alt="Vết mực đỏ"
-              className="absolute inset-0 w-full h-full object-fill pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]"
-            />
-          )}
-          <div className="relative z-10 w-6 h-6 flex items-center justify-center">
-            <Users size={20} className={isRefugeeModalOpen ? 'text-[#fff3db]' : 'text-[#8c2d19]'} />
-            {pendingRefugeesCount > 0 && (
-              <span className="absolute -top-1 -right-2 min-w-4 h-4 px-1 bg-[#8c2d19] text-[#fff3db] border border-[#fef08a] rounded-full text-[9px] font-mono font-bold flex items-center justify-center shadow-md animate-pulse">
-                {pendingRefugeesCount}
-              </span>
-            )}
-          </div>
-          <span className={`relative z-10 font-serif font-black text-[11px] mt-0.5 leading-tight ${
-            isRefugeeModalOpen
-              ? 'text-[#fcf4e4] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]'
-              : 'text-[#2a1708]'
-          }`}>
-            {UI_TEXT.leftDock.buttons.refugees.label}
-          </span>
-        </button>
-
-        {/* 3.2. THẺ TƯỚNG */}
-        <button
-          type="button"
-          onClick={() => handleDockClick('generals')}
-          className={`relative w-[74px] py-1 px-1 rounded flex flex-col items-center justify-center transition-all cursor-pointer ${
-            activeModal === 'generals' ? 'scale-105' : 'hover:bg-black/[0.05] active:scale-95'
-          }`}
-          title={UI_TEXT.leftDock.buttons.generals.tooltip}
-        >
-          {activeModal === 'generals' && (
-            <img
-              src="/ink_stroke_red.png"
-              alt="Vết mực đỏ"
-              className="absolute inset-0 w-full h-full object-fill pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]"
-            />
-          )}
-          <img
-            src="/icons/general_token.png"
-            alt={UI_TEXT.leftDock.buttons.generals.label}
-            className="relative z-10 w-6 h-6 object-contain filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]"
-          />
-          <span className={`relative z-10 font-serif font-black text-[11px] mt-0.5 leading-tight ${
-            activeModal === 'generals'
-              ? 'text-[#fcf4e4] drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]'
-              : 'text-[#2a1708]'
-          }`}>
-            {UI_TEXT.leftDock.buttons.generals.label}
-          </span>
-        </button>
-
-
-
+        {/* Đã chuyển Lưu dân ra cổng 3D và Thẻ tướng vào Nhà Chính */}
       </div>
     </nav>
   );
