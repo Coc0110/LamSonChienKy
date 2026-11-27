@@ -71,7 +71,15 @@ interface RegionBuildHUDProps {
   onDispatchMarch: (formationId: string) => void;
   onOpenArmyModal: () => void;
   foragedInventory: ForagedInventoryItem[];
-  resourcesSummary: { food: number; swords: number; spears: number; bows: number };
+  resourcesSummary: { food: number; wood: number; ironOre: number; swords: number; spears: number; bows: number };
+  isDistrictScouted: boolean;
+  activeNormalHunt: Record<string, { tier: 1 | 2 | 3; totalDays: number; daysRemaining: number }>;
+  activeRareHunt: Record<string, { leaderGeneralId: string; leaderName: string; totalDays: number; daysRemaining: number }>;
+  watchtowerLastRareHuntDay: Record<string, number>;
+  currentAbsDay: number;
+  onStartNormalHunt: (watchtowerId: string, tier: 1 | 2 | 3) => void;
+  onStartRareHunt: (watchtowerId: string, leaderGeneralId: string) => void;
+  onBuyDistrictGood: (good: 'wood' | 'ironOre' | 'food', amount: number) => void;
   canAuctionThisMonth: boolean;
   onForageWatchtower: (
     watchtowerId: string,
@@ -79,13 +87,13 @@ interface RegionBuildHUDProps {
     mode: 'gather' | 'hunt' | 'treasure'
   ) => void;
   onSellMarketGoods: (payload: {
-    kind: 'item' | 'food' | 'swords' | 'spears' | 'bows';
+    kind: 'item' | 'food' | 'wood' | 'ironOre' | 'swords' | 'spears' | 'bows';
     itemId?: string;
     amount: number;
     askPrice: number;
   }) => void;
   onRunMarketAuction: (payload: {
-    kind: 'item' | 'food' | 'swords' | 'spears' | 'bows';
+    kind: 'item' | 'food' | 'wood' | 'ironOre' | 'swords' | 'spears' | 'bows';
     uid?: string;
     itemId?: string;
     amount?: number;
@@ -156,8 +164,16 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
   onOpenArmyModal,
   foragedInventory,
   resourcesSummary,
+  isDistrictScouted,
+  activeNormalHunt,
+  activeRareHunt,
+  watchtowerLastRareHuntDay,
+  currentAbsDay,
+  onStartNormalHunt,
+  onStartRareHunt,
+  onBuyDistrictGood,
   canAuctionThisMonth,
-  onForageWatchtower,
+  onForageWatchtower: _onForageWatchtower,
   onSellMarketGoods,
   onRunMarketAuction,
   onSelectBuildType,
@@ -173,7 +189,9 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
   const [activeTab, setActiveTab] = useState<BuildTabKey>('facility');
   const [mainHallTab, setMainHallTab] = useState<'info' | 'commands' | 'military'>('info');
   const [watchtowerTab, setWatchtowerTab] = useState<'scout' | 'hunt'>('scout');
-  const [forageMode, setForageMode] = useState<'gather' | 'hunt' | 'treasure'>('gather');
+  const [rareLeaderId, setRareLeaderId] = useState<string>('');
+  const [districtBuyGood, setDistrictBuyGood] = useState<'wood' | 'ironOre' | 'food'>('wood');
+  const [districtBuyAmount, setDistrictBuyAmount] = useState<number>(30);
   const [marketTab, setMarketTab] = useState<'trade' | 'auction'>('trade');
   const [tradeSelection, setTradeSelection] = useState<string>('food');
   const [tradeAmount, setTradeAmount] = useState<number>(100);
@@ -212,6 +230,83 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
           Thu nhỏ ra bản đồ
         </button>
       </div>
+
+      {/* Chợ Huyện tại thành trì lân cận (chỉ Mua vào nguyên liệu) */}
+      {isScout && (
+        <div className="pointer-events-auto self-end w-72 rounded-xl border border-[#8c6b44]/60 bg-[#f6ecd9]/95 p-3.5 text-[#261304] font-serif shadow-xl">
+          <div className="flex items-center justify-between border-b border-[#8c6b44]/30 pb-1.5 mb-2">
+            <h4 className="text-xs font-black text-[#8c2d19]">
+              Chợ Huyện {cityName} (Mua Nguyên Liệu)
+            </h4>
+          </div>
+          {!isDistrictScouted ? (
+            <p className="text-[11px] text-[#6e4927]">
+              Cần cử Chòi Canh do thám mở huyện thành này trước mới có thể giao thương.
+            </p>
+          ) : (
+            <div className="space-y-2 text-xs">
+              <div className="grid grid-cols-3 gap-1">
+                {(
+                  [
+                    { key: 'wood', label: '🪵 Gỗ (1.4V)' },
+                    { key: 'ironOre', label: '⛏️ Quặng (2.2V)' },
+                    { key: 'food', label: '🌾 Lương (0.35V)' },
+                  ] as const
+                ).map((g) => (
+                  <button
+                    key={g.key}
+                    onClick={() => setDistrictBuyGood(g.key)}
+                    className={`rounded border px-1.5 py-1 text-[10px] font-bold cursor-pointer ${
+                      districtBuyGood === g.key
+                        ? 'border-[#8c2d19] bg-[#8c2d19] text-[#fff3db]'
+                        : 'border-[#8c6b44]/35 bg-white/70 text-[#261304]'
+                    }`}
+                  >
+                    {g.label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setDistrictBuyAmount(Math.max(5, districtBuyAmount - 10))}
+                  className="rounded border border-[#8c6b44]/40 bg-white px-2 py-1 font-black hover:bg-amber-100 cursor-pointer"
+                >
+                  -
+                </button>
+                <input
+                  type="number"
+                  min={1}
+                  value={districtBuyAmount}
+                  onChange={(e) => setDistrictBuyAmount(Math.max(1, Number(e.target.value) || 1))}
+                  className="w-full rounded border border-[#8c6b44]/40 bg-white px-2 py-1 text-center font-bold"
+                />
+                <button
+                  type="button"
+                  onClick={() => setDistrictBuyAmount(districtBuyAmount + 10)}
+                  className="rounded border border-[#8c6b44]/40 bg-white px-2 py-1 font-black hover:bg-amber-100 cursor-pointer"
+                >
+                  +
+                </button>
+              </div>
+              {(() => {
+                const unitCost = districtBuyGood === 'wood' ? 1.4 : districtBuyGood === 'ironOre' ? 2.2 : 0.35;
+                const totalGold = Math.max(1, Math.round(districtBuyAmount * unitCost));
+                const suspGain = Math.min(8, Math.max(0.5, Number((districtBuyAmount * 0.04).toFixed(2))));
+                return (
+                  <button
+                    disabled={gold < totalGold}
+                    onClick={() => onBuyDistrictGood(districtBuyGood, districtBuyAmount)}
+                    className="w-full rounded-lg bg-[#8c5828] py-1.5 text-xs font-bold text-[#fff3db] hover:bg-[#6e421a] disabled:opacity-40 cursor-pointer shadow"
+                  >
+                    Mua ngay (-{totalGold}V · +{suspGain}% nghi ngờ)
+                  </button>
+                );
+              })()}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Cửa sổ Nhà Chính kiểu Cuộn Thư (2 tab bên phải: Thông tin & Chỉ lệnh) */}
       {selectedBuilding && !isMovingBuilding && selectedBuilding.type === 'main_hall' && (
@@ -824,52 +919,109 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
                                 ))}
                               </div>
                             )
-                          ) : (
-                            <div className="space-y-2">
-                              <div className="grid grid-cols-1 gap-1.5">
-                                {(
-                                  [
-                                    {
-                                      key: 'gather',
-                                      title: 'Hái Lượm Thảo Dược',
-                                      desc: `+${8 + lv * 2} lương · Thảo dược, Mật ong (${Math.min(65, 14 + lv * 10)}% đồ hiếm)`,
-                                    },
-                                    {
-                                      key: 'hunt',
-                                      title: 'Săn Bắn Rừng Sâu',
-                                      desc: `+${12 + lv * 3} lương · Da thú, Nhung hươu (${Math.min(70, Math.round((14 + lv * 10) * 1.15))}% đồ hiếm)`,
-                                    },
-                                    {
-                                      key: 'treasure',
-                                      title: 'Thám Bảo Cổ Tích (-10 lương)',
-                                      desc: `Tỉ lệ đồ hiếm cực cao (${Math.min(85, Math.round((14 + lv * 10) * 1.9))}% Ngọc bích, Kỳ nam)`,
-                                    },
-                                  ] as const
-                                ).map((m) => (
-                                  <button
-                                    key={m.key}
-                                    onClick={() => setForageMode(m.key)}
-                                    className={`rounded-lg border p-2 text-left cursor-pointer transition-all ${
-                                      forageMode === m.key
-                                        ? 'border-emerald-700 bg-emerald-50/90 shadow-sm'
-                                        : 'border-[#8c6b44]/25 bg-white/60 hover:bg-amber-50'
-                                    }`}
-                                  >
-                                    <div className="text-xs font-black text-[#261304]">{m.title}</div>
-                                    <div className="text-[10px] text-[#5c3e23]">{m.desc}</div>
-                                  </button>
-                                ))}
+                          ) : (() => {
+                            const normalTask = activeNormalHunt[selectedBuilding.id];
+                            const rareTask = activeRareHunt[selectedBuilding.id];
+                            const lastRare = watchtowerLastRareHuntDay[selectedBuilding.id] ?? -99;
+                            const rareCooldown = Math.max(0, 7 - (currentAbsDay - lastRare));
+                            const chosenLeader = rareLeaderId || selectedBuilding.supervisorGeneralId || generals[0]?.id || '';
+                            const hasSupervisor = Boolean(selectedBuilding.supervisorGeneralId);
+
+                            return (
+                              <div className="space-y-2.5">
+                                {/* Luồng 1: Đi săn thường Cấp 1-3 */}
+                                <div className="rounded-lg border border-[#8c6b44]/30 bg-white/65 p-2.5">
+                                  <div className="flex items-center justify-between mb-1.5">
+                                    <span className="text-[11px] font-black text-[#261304]">
+                                      Luồng Thường (Cấp 1–3 · 1 đội/lần)
+                                    </span>
+                                    {!hasSupervisor && (
+                                      <span className="text-[10px] font-bold text-[#8c2d19]">
+                                        Cần Tướng Giám Sát
+                                      </span>
+                                    )}
+                                  </div>
+                                  {normalTask ? (
+                                    <div className="rounded bg-emerald-50 border border-emerald-700/30 p-2 text-center text-xs">
+                                      <strong className="text-emerald-900">
+                                        Đang đi săn Cấp {normalTask.tier}
+                                      </strong>{' '}
+                                      · Còn {normalTask.daysRemaining}/{normalTask.totalDays} ngày
+                                    </div>
+                                  ) : (
+                                    <div className="grid grid-cols-3 gap-1.5">
+                                      {(
+                                        [
+                                          { tier: 1 as const, label: 'Cấp 1 (3N)', loot: 'Lương' },
+                                          { tier: 2 as const, label: 'Cấp 2 (4N)', loot: 'Lương+Gỗ' },
+                                          { tier: 3 as const, label: 'Cấp 3 (5N)', loot: 'Lương+Gỗ+Quặng' },
+                                        ]
+                                      ).map((t) => (
+                                        <button
+                                          key={t.tier}
+                                          disabled={!hasSupervisor || lv < t.tier}
+                                          onClick={() => onStartNormalHunt(selectedBuilding.id, t.tier)}
+                                          className="rounded border border-emerald-700/40 bg-emerald-50/70 p-1.5 text-center hover:bg-emerald-100 disabled:opacity-40 cursor-pointer"
+                                        >
+                                          <div className="text-[11px] font-black text-emerald-950">{t.label}</div>
+                                          <div className="text-[9px] text-emerald-800">{t.loot}</div>
+                                        </button>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Luồng 2: Đi săn Cấp 4 (Vật phẩm hiếm, tách riêng, 1 tuần/lần) */}
+                                <div className="rounded-lg border border-amber-700/35 bg-amber-50/65 p-2.5">
+                                  <div className="flex items-center justify-between mb-1.5">
+                                    <span className="text-[11px] font-black text-[#8c2d19]">
+                                      Cấp 4: Săn Bảo Vật Hiếm (1 tuần/lần)
+                                    </span>
+                                    {lv < 4 && (
+                                      <span className="text-[10px] font-bold text-[#6e4927]">
+                                        Mở ở Chòi Lv.4
+                                      </span>
+                                    )}
+                                  </div>
+                                  {rareTask ? (
+                                    <div className="rounded bg-amber-100/80 border border-amber-700/30 p-2 text-center text-xs">
+                                      <strong className="text-[#8c2d19]">
+                                        {rareTask.leaderName} đang săn Cấp 4
+                                      </strong>{' '}
+                                      · Còn {rareTask.daysRemaining}/{rareTask.totalDays} ngày
+                                    </div>
+                                  ) : (
+                                    <div className="space-y-1.5">
+                                      <select
+                                        disabled={lv < 4 || rareCooldown > 0}
+                                        value={chosenLeader}
+                                        onChange={(e) => setRareLeaderId(e.target.value)}
+                                        className="w-full rounded border border-[#8c6b44]/40 bg-white px-2 py-1 text-xs font-bold text-[#261304]"
+                                      >
+                                        {generals.map((g) => (
+                                          <option key={g.id} value={g.id}>
+                                            {g.name}
+                                            {g.id === selectedBuilding.supervisorGeneralId
+                                              ? ' (Đang giám sát chòi này)'
+                                              : ''}
+                                          </option>
+                                        ))}
+                                      </select>
+                                      <button
+                                        disabled={lv < 4 || rareCooldown > 0 || !chosenLeader}
+                                        onClick={() => onStartRareHunt(selectedBuilding.id, chosenLeader)}
+                                        className="w-full rounded-lg bg-[#8c2d19] py-1.5 text-xs font-bold text-[#fff3db] hover:bg-[#6e1e0d] disabled:opacity-40 cursor-pointer shadow"
+                                      >
+                                        {rareCooldown > 0
+                                          ? `Đang hồi (còn ${rareCooldown} ngày)`
+                                          : 'Phái Tướng Đi Săn Cấp 4 (6 ngày)'}
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
                               </div>
-                              <button
-                                onClick={() =>
-                                  onForageWatchtower(selectedBuilding.id, selectedBuilding.level, forageMode)
-                                }
-                                className="w-full rounded-lg bg-emerald-700 py-2 text-xs font-bold text-white hover:bg-emerald-800 cursor-pointer shadow"
-                              >
-                                Xuất phát đi săn (1 lần/ngày)
-                              </button>
-                            </div>
-                          )}
+                            );
+                          })()}
                         </div>
                       )}
 
@@ -896,7 +1048,7 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
 
                         const marketCards: Array<{
                           id: string;
-                          kind: 'item' | 'food' | 'swords' | 'spears' | 'bows';
+                          kind: 'item' | 'food' | 'wood' | 'ironOre' | 'swords' | 'spears' | 'bows';
                           itemId?: string;
                           name: string;
                           avail: number;
@@ -906,6 +1058,8 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
                           isRare: boolean;
                         }> = [
                           { id: 'food', kind: 'food', name: 'Lương thực', avail: resourcesSummary.food, unitBase: 0.2, step: 10, defaultAmt: Math.min(100, Math.max(10, resourcesSummary.food)), isRare: false },
+                          { id: 'wood', kind: 'wood', name: 'Gỗ', avail: resourcesSummary.wood, unitBase: 0.8, step: 5, defaultAmt: Math.min(20, Math.max(1, resourcesSummary.wood)), isRare: false },
+                          { id: 'ironOre', kind: 'ironOre', name: 'Quặng thô', avail: resourcesSummary.ironOre, unitBase: 1.2, step: 5, defaultAmt: Math.min(20, Math.max(1, resourcesSummary.ironOre)), isRare: false },
                           { id: 'swords', kind: 'swords', name: 'Kiếm', avail: resourcesSummary.swords, unitBase: 3, step: 1, defaultAmt: Math.min(10, Math.max(1, resourcesSummary.swords)), isRare: false },
                           { id: 'spears', kind: 'spears', name: 'Giáo', avail: resourcesSummary.spears, unitBase: 3.2, step: 1, defaultAmt: Math.min(10, Math.max(1, resourcesSummary.spears)), isRare: false },
                           { id: 'bows', kind: 'bows', name: 'Cung', avail: resourcesSummary.bows, unitBase: 3.5, step: 1, defaultAmt: Math.min(10, Math.max(1, resourcesSummary.bows)), isRare: false },

@@ -49,6 +49,19 @@ export interface WatchtowerScoutTask {
   daysRemaining: number;
 }
 
+export interface WatchtowerNormalHuntTask {
+  tier: 1 | 2 | 3;
+  totalDays: number;
+  daysRemaining: number;
+}
+
+export interface WatchtowerRareHuntTask {
+  leaderGeneralId: string;
+  leaderName: string;
+  totalDays: number;
+  daysRemaining: number;
+}
+
 export interface RegionSlice {
   regionLayouts: Record<string, RegionLayout>;
   clearedTerrainKeys: Record<string, string[]>; // cityId -> array of "col,row" cleared keys
@@ -115,6 +128,24 @@ export interface RegionSlice {
   clearBush: (cityId: string, bushId: string) => void;
   tickBaseAutomationAndBushes: (day: number) => void;
   toggleDefenseFormation: (cityId: string, formationId: string) => void;
+  activeNormalHunt: Record<string, WatchtowerNormalHuntTask>;
+  activeRareHunt: Record<string, WatchtowerRareHuntTask>;
+  watchtowerLastRareHuntDay: Record<string, number>;
+  startWatchtowerNormalHunt: (
+    cityId: string,
+    watchtowerId: string,
+    tier: 1 | 2 | 3
+  ) => { success: boolean; message: string };
+  startWatchtowerRareHunt: (
+    cityId: string,
+    watchtowerId: string,
+    leaderGeneralId: string
+  ) => { success: boolean; message: string };
+  buyFromDistrictMarket: (
+    cityId: string,
+    good: 'wood' | 'ironOre' | 'food',
+    amount: number
+  ) => { success: boolean; message: string };
   forageFromWatchtower: (
     watchtowerId: string,
     watchtowerLevel: number,
@@ -129,7 +160,7 @@ export interface RegionSlice {
   sellMarketGoods: (
     cityId: string,
     payload: {
-      kind: 'item' | 'food' | 'swords' | 'spears' | 'bows';
+      kind: 'item' | 'food' | 'wood' | 'ironOre' | 'swords' | 'spears' | 'bows';
       itemId?: string;
       amount: number;
       askPrice: number;
@@ -138,7 +169,7 @@ export interface RegionSlice {
   runMarketAuction: (
     cityId: string,
     payload: {
-      kind: 'item' | 'food' | 'swords' | 'spears' | 'bows';
+      kind: 'item' | 'food' | 'wood' | 'ironOre' | 'swords' | 'spears' | 'bows';
       uid?: string;
       itemId?: string;
       amount?: number;
@@ -179,6 +210,9 @@ export const createRegionSlice: StateCreator<GameStore, [], [], RegionSlice> = (
   bushNextSpawnDay: {},
   scoutedRegionIds: {},
   activeWatchtowerScouts: {},
+  activeNormalHunt: {},
+  activeRareHunt: {},
+  watchtowerLastRareHuntDay: {},
   defenseFormationIds: {},
   foragedInventory: [],
   watchtowerLastForageDay: {},
@@ -896,6 +930,118 @@ export const createRegionSlice: StateCreator<GameStore, [], [], RegionSlice> = (
     };
   },
 
+  startWatchtowerNormalHunt: (cityId, watchtowerId, tier) => {
+    const state = get();
+    const layout = state.getOrCreateRegionLayout(cityId);
+    const wt = layout.buildings.find((b) => b.id === watchtowerId && b.type === 'watchtower' && b.status === 'active');
+    if (!wt) return { success: false, message: 'Chòi canh chưa sẵn sàng!' };
+    if (wt.level < tier) {
+      return { success: false, message: `Cần Chòi Canh Cấp ${tier} để đi săn Cấp ${tier}!` };
+    }
+    if (!wt.supervisorGeneralId) {
+      return { success: false, message: 'Chòi canh cần có Tướng Giám Sát mới có thể phái đội đi săn Cấp 1–3!' };
+    }
+    if (state.activeNormalHunt?.[watchtowerId]) {
+      return { success: false, message: 'Chòi canh đang có 1 đội đi săn Cấp 1–3 chưa trở về!' };
+    }
+    const days = tier === 1 ? 3 : tier === 2 ? 4 : 5;
+    set((s) => ({
+      activeNormalHunt: {
+        ...s.activeNormalHunt,
+        [watchtowerId]: { tier, totalDays: days, daysRemaining: days },
+      },
+    }));
+    return {
+      success: true,
+      message: `Đã phái đội đi săn Cấp ${tier} (${days} ngày).`,
+    };
+  },
+
+  startWatchtowerRareHunt: (cityId, watchtowerId, leaderGeneralId) => {
+    const state = get();
+    const layout = state.getOrCreateRegionLayout(cityId);
+    const wt = layout.buildings.find((b) => b.id === watchtowerId && b.type === 'watchtower' && b.status === 'active');
+    if (!wt) return { success: false, message: 'Chòi canh chưa sẵn sàng!' };
+    if (wt.level < 4) {
+      return { success: false, message: 'Cần Chòi Canh Cấp 4 để mở khóa Săn Bảo Vật Hiếm (Cấp 4)!' };
+    }
+    if (state.activeRareHunt?.[watchtowerId]) {
+      return { success: false, message: 'Đội săn Cấp 4 đang trên đường trở về!' };
+    }
+    const absDay = (state.year - 1416) * 365 + (state.month - 1) * 30 + state.day;
+    const lastRareDay = state.watchtowerLastRareHuntDay?.[watchtowerId] ?? -99;
+    const daysSince = absDay - lastRareDay;
+    if (daysSince < 7) {
+      return {
+        success: false,
+        message: `Săn Cấp 4 chỉ được thực hiện 1 tuần/lần (còn ${7 - daysSince} ngày hồi)!`,
+      };
+    }
+    const gen = state.generals.find((g) => g.id === leaderGeneralId && g.unlocked);
+    if (!gen) return { success: false, message: 'Vui lòng chọn 1 vị tướng hợp lệ dẫn đội Cấp 4!' };
+
+    // Nếu dùng chính tướng đang giám sát Chòi Canh đi Cấp 4 -> rút khỏi ghế giám sát
+    const nextBuildings =
+      wt.supervisorGeneralId === leaderGeneralId
+        ? layout.buildings.map((b) => (b.id === watchtowerId ? { ...b, supervisorGeneralId: null } : b))
+        : layout.buildings;
+
+    set((s) => ({
+      watchtowerLastRareHuntDay: {
+        ...s.watchtowerLastRareHuntDay,
+        [watchtowerId]: absDay,
+      },
+      activeRareHunt: {
+        ...s.activeRareHunt,
+        [watchtowerId]: {
+          leaderGeneralId,
+          leaderName: gen.name,
+          totalDays: 6,
+          daysRemaining: 6,
+        },
+      },
+      regionLayouts: {
+        ...s.regionLayouts,
+        [cityId]: { ...layout, buildings: nextBuildings },
+      },
+    }));
+
+    return {
+      success: true,
+      message: `${gen.name} đã dẫn đội xuất phát săn Bảo Vật Hiếm (Cấp 4 · 6 ngày)!`,
+    };
+  },
+
+  buyFromDistrictMarket: (cityId, good, amount) => {
+    const state = get();
+    const qty = Math.max(1, Math.round(amount));
+    const isLamSon = state.cities.find((c) => c.id === cityId)?.faction === 'lam_son';
+    if (!isLamSon && !state.scoutedRegionIds?.[cityId]) {
+      return { success: false, message: 'Cần do thám mở huyện thành này trước khi giao thương!' };
+    }
+    const unitPrice = good === 'wood' ? 1.4 : good === 'ironOre' ? 2.2 : 0.35;
+    const totalGold = Math.max(1, Math.round(qty * unitPrice));
+    if (state.resources.gold < totalGold) {
+      return { success: false, message: `Không đủ vàng! Cần ${totalGold}V.` };
+    }
+    const suspicionGain = Math.min(8, Math.max(0.5, Number((qty * 0.04).toFixed(2))));
+    const label = good === 'wood' ? 'Gỗ' : good === 'ironOre' ? 'Quặng thô' : 'Lương thực';
+
+    set((s) => ({
+      resources: {
+        ...s.resources,
+        gold: s.resources.gold - totalGold,
+        [good]: (s.resources[good] ?? 0) + qty,
+      },
+      suspicion: Math.min(100, s.suspicion + suspicionGain),
+    }));
+
+    return {
+      success: true,
+      message: `Đã mua ${qty} ${label} (-${totalGold}V, +${suspicionGain}% nghi ngờ).`,
+    };
+  },
+
   forageFromWatchtower: (watchtowerId, watchtowerLevel, mode = 'gather') => {
     const state = get();
     const absDay = (state.year - 1418) * 365 + (state.month - 1) * 30 + state.day;
@@ -1049,11 +1195,25 @@ export const createRegionSlice: StateCreator<GameStore, [], [], RegionSlice> = (
         return { success: false, message: 'Không đủ số lượng trong kho để bán!' };
       }
       const unitBase =
-        payload.kind === 'food' ? 0.2 : payload.kind === 'swords' ? 3 : payload.kind === 'spears' ? 3.2 : 3.5;
+        payload.kind === 'food'
+          ? 0.2
+          : payload.kind === 'wood'
+          ? 0.8
+          : payload.kind === 'ironOre'
+          ? 1.2
+          : payload.kind === 'swords'
+          ? 3
+          : payload.kind === 'spears'
+          ? 3.2
+          : 3.5;
       fairTotal = Math.max(1, Math.round(amount * unitBase * bonus));
       const label =
         payload.kind === 'food'
           ? 'Lương thực'
+          : payload.kind === 'wood'
+          ? 'Gỗ'
+          : payload.kind === 'ironOre'
+          ? 'Quặng thô'
           : payload.kind === 'swords'
           ? 'Kiếm'
           : payload.kind === 'spears'
@@ -1091,7 +1251,7 @@ export const createRegionSlice: StateCreator<GameStore, [], [], RegionSlice> = (
       return {
         resources: {
           ...s.resources,
-          [payload.kind]: Math.max(0, s.resources[payload.kind] - amount),
+          [payload.kind]: Math.max(0, (s.resources[payload.kind] ?? 0) - amount),
           gold: s.resources.gold + askPrice,
         },
       };
@@ -1147,11 +1307,25 @@ export const createRegionSlice: StateCreator<GameStore, [], [], RegionSlice> = (
         return { success: false, message: 'Không đủ số lượng hàng hóa để đưa lên sàn đấu giá!' };
       }
       const unitBase =
-        payload.kind === 'food' ? 0.2 : payload.kind === 'swords' ? 3 : payload.kind === 'spears' ? 3.2 : 3.5;
+        payload.kind === 'food'
+          ? 0.2
+          : payload.kind === 'wood'
+          ? 0.8
+          : payload.kind === 'ironOre'
+          ? 1.2
+          : payload.kind === 'swords'
+          ? 3
+          : payload.kind === 'spears'
+          ? 3.2
+          : 3.5;
       fairValue = Math.max(5, Math.round(amt * unitBase * bonus));
       const label =
         payload.kind === 'food'
           ? 'Lương thực'
+          : payload.kind === 'wood'
+          ? 'Gỗ'
+          : payload.kind === 'ironOre'
+          ? 'Quặng thô'
           : payload.kind === 'swords'
           ? 'Kiếm'
           : payload.kind === 'spears'
@@ -1215,7 +1389,7 @@ export const createRegionSlice: StateCreator<GameStore, [], [], RegionSlice> = (
         lastAuctionMonthKey: monthKey,
         resources: {
           ...s.resources,
-          [payload.kind]: Math.max(0, s.resources[payload.kind] - amt),
+          [payload.kind]: Math.max(0, (s.resources[payload.kind] ?? 0) - amt),
           gold: s.resources.gold + finalBid,
         },
       };
@@ -1359,6 +1533,67 @@ export const createRegionSlice: StateCreator<GameStore, [], [], RegionSlice> = (
       for (const done of completed) {
         get().markRegionScouted(done.targetId);
         notify.success(`Trinh sát đã hoàn tất do thám ${done.targetName}! Sương mù đã được vén mở.`);
+      }
+    }
+
+    // 6. Cập nhật tiến độ Đi Săn Thường (Cấp 1-3)
+    const normalHunts = get().activeNormalHunt ?? {};
+    const normalEntries = Object.entries(normalHunts);
+    if (normalEntries.length > 0) {
+      const nextNormal: Record<string, WatchtowerNormalHuntTask> = {};
+      const doneNormal: WatchtowerNormalHuntTask[] = [];
+      for (const [wtId, task] of normalEntries) {
+        const rem = task.daysRemaining - 1;
+        if (rem <= 0) doneNormal.push(task);
+        else nextNormal[wtId] = { ...task, daysRemaining: rem };
+      }
+      set({ activeNormalHunt: nextNormal });
+      for (const done of doneNormal) {
+        const foodGain = done.tier === 1 ? 110 : done.tier === 2 ? 135 : 160;
+        const woodGain = done.tier >= 2 ? (done.tier === 2 ? 35 : 48) : 0;
+        const oreGain = done.tier === 3 ? 24 : 0;
+        set((s) => ({
+          resources: {
+            ...s.resources,
+            food: s.resources.food + foodGain,
+            wood: (s.resources.wood ?? 0) + woodGain,
+            ironOre: (s.resources.ironOre ?? 0) + oreGain,
+          },
+        }));
+        notify.success(
+          `Đội săn Cấp ${done.tier} trở về: +${foodGain} Lương${woodGain ? `, +${woodGain} Gỗ` : ''}${oreGain ? `, +${oreGain} Quặng thô` : ''}!`
+        );
+      }
+    }
+
+    // 7. Cập nhật tiến độ Đi Săn Bảo Vật Hiếm (Cấp 4)
+    const rareHunts = get().activeRareHunt ?? {};
+    const rareEntries = Object.entries(rareHunts);
+    if (rareEntries.length > 0) {
+      const nextRare: Record<string, WatchtowerRareHuntTask> = {};
+      const doneRare: WatchtowerRareHuntTask[] = [];
+      for (const [wtId, task] of rareEntries) {
+        const rem = task.daysRemaining - 1;
+        if (rem <= 0) doneRare.push(task);
+        else nextRare[wtId] = { ...task, daysRemaining: rem };
+      }
+      set({ activeRareHunt: nextRare });
+      const rarePool = FORAGED_ITEM_CATALOG.filter((it) => it.rare);
+      for (const done of doneRare) {
+        const picked = rarePool[Math.floor(Math.random() * rarePool.length)] ?? FORAGED_ITEM_CATALOG[3];
+        const newItem: ForagedInventoryItem = {
+          uid: `item_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          itemId: picked.id,
+          name: picked.name,
+          rare: true,
+          basePrice: picked.basePrice,
+        };
+        set((s) => ({
+          foragedInventory: [newItem, ...(s.foragedInventory ?? [])],
+        }));
+        notify.success(
+          `${done.leaderName} hoàn tất săn Cấp 4, thu được BẢO VẬT HIẾM [${picked.name}]!`
+        );
       }
     }
   },

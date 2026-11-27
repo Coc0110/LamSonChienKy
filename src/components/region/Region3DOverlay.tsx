@@ -27,6 +27,13 @@ export const Region3DOverlay: React.FC = () => {
   const scoutedRegionIds = useGameStore((s) => s.scoutedRegionIds);
   const activeWatchtowerScouts = useGameStore((s) => s.activeWatchtowerScouts);
   const startWatchtowerScout = useGameStore((s) => s.startWatchtowerScout);
+  const activeNormalHunt = useGameStore((s) => s.activeNormalHunt);
+  const activeRareHunt = useGameStore((s) => s.activeRareHunt);
+  const watchtowerLastRareHuntDay = useGameStore((s) => s.watchtowerLastRareHuntDay);
+  const startWatchtowerNormalHunt = useGameStore((s) => s.startWatchtowerNormalHunt);
+  const startWatchtowerRareHunt = useGameStore((s) => s.startWatchtowerRareHunt);
+  const buyFromDistrictMarket = useGameStore((s) => s.buyFromDistrictMarket);
+  const day = useGameStore((s) => s.day);
   const formations = useGameStore((s) => s.formations);
   const defenseFormationIdsMap = useGameStore((s) => s.defenseFormationIds);
   const toggleDefenseFormation = useGameStore((s) => s.toggleDefenseFormation);
@@ -286,9 +293,31 @@ export const Region3DOverlay: React.FC = () => {
         foragedInventory={foragedInventory ?? []}
         resourcesSummary={{
           food: resources.food,
+          wood: resources.wood ?? 0,
+          ironOre: resources.ironOre ?? 0,
           swords: resources.swords,
           spears: resources.spears,
           bows: resources.bows,
+        }}
+        isDistrictScouted={Boolean(scoutedRegionIds?.[activeRegion3D.cityId])}
+        activeNormalHunt={activeNormalHunt ?? {}}
+        activeRareHunt={activeRareHunt ?? {}}
+        watchtowerLastRareHuntDay={watchtowerLastRareHuntDay ?? {}}
+        currentAbsDay={(year - 1416) * 365 + (month - 1) * 30 + day}
+        onStartNormalHunt={(watchtowerId, tier) => {
+          const res = startWatchtowerNormalHunt(activeRegion3D.cityId, watchtowerId, tier);
+          if (res.success) notify.success(res.message);
+          else notify.warning(res.message);
+        }}
+        onStartRareHunt={(watchtowerId, leaderGeneralId) => {
+          const res = startWatchtowerRareHunt(activeRegion3D.cityId, watchtowerId, leaderGeneralId);
+          if (res.success) notify.success(res.message);
+          else notify.warning(res.message);
+        }}
+        onBuyDistrictGood={(good, amount) => {
+          const res = buyFromDistrictMarket(activeRegion3D.cityId, good, amount);
+          if (res.success) notify.success(res.message);
+          else notify.warning(res.message);
         }}
         canAuctionThisMonth={lastAuctionMonthKey !== `${year}-${month}`}
         onForageWatchtower={(watchtowerId, level, forageMode) => {
