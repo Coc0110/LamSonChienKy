@@ -2553,22 +2553,48 @@ function getBuildingParts(
             const pz = rz + jz;
 
             const clumpH = 0.30 + tier * 0.032 + (hash01(s + 3.7) - 0.5) * 0.07;
-            // Dựng khóm lúa mảnh & vươn thẳng hơn (tránh xòe rộng giống bụi cỏ)
+            // Dựng khóm lúa mảnh & uốn cong mềm mại (2 đốt cong rủ tự nhiên, không bị cứng như que thẳng)
             const isYoung = (r + k) % 2 === 0 ? hash01(s + 6.1) > 0.2 : hash01(s + 6.1) > 0.78;
             const riceMat: MaterialKey = isYoung ? 'riceYoung' : 'riceLush';
-            const bladeOffsets = [
-              { dx: -0.018, dz: -0.012, rx: -0.08, rz: 0.11, h: clumpH },
-              { dx: 0.018, dz: 0.01, rx: 0.09, rz: -0.1, h: clumpH * 0.95 },
-              { dx: -0.008, dz: 0.018, rx: 0.12, rz: 0.05, h: clumpH * 1.03 },
-              { dx: 0.01, dz: -0.018, rx: -0.11, rz: -0.04, h: clumpH * 0.9 },
-            ];
-            for (const b of bladeOffsets) {
-              const blade = cyl(0.005, 0.009, b.h, 4, 0, b.h / 2, 0);
-              blade.rotateX(b.rx);
-              blade.rotateZ(b.rz);
-              blade.translate(px + b.dx, 0.13, pz + b.dz);
-              push(riceMat, blade);
+            const posArr: number[] = [];
+            const blades = 5;
+            for (let bi = 0; bi < blades; bi++) {
+              const yaw = (bi / blades) * Math.PI * 2 + (hash01(s + bi * 7.1) - 0.5) * 0.55;
+              const cosY = Math.cos(yaw);
+              const sinY = Math.sin(yaw);
+              const perpX = -sinY;
+              const perpZ = cosY;
+              const bh = clumpH * (0.82 + hash01(s + bi * 11.3) * 0.28);
+              const archOut = 0.045 + hash01(s + bi * 17.9) * 0.035;
+              const w0 = 0.009;
+              const w1 = 0.006;
+
+              const x0 = cosY * 0.008;
+              const z0 = sinY * 0.008;
+              const xMid = cosY * (0.008 + archOut * 0.45);
+              const yMid = bh * 0.58;
+              const zMid = sinY * (0.008 + archOut * 0.45);
+              const xTip = cosY * (0.008 + archOut);
+              const yTip = bh * 0.92;
+              const zTip = sinY * (0.008 + archOut);
+
+              const bL = [x0 - perpX * w0, 0, z0 - perpZ * w0];
+              const bR = [x0 + perpX * w0, 0, z0 + perpZ * w0];
+              const mL = [xMid - perpX * w1, yMid, zMid - perpZ * w1];
+              const mR = [xMid + perpX * w1, yMid, zMid + perpZ * w1];
+              const tip = [xTip, yTip, zTip];
+
+              posArr.push(
+                bL[0], bL[1], bL[2], bR[0], bR[1], bR[2], mR[0], mR[1], mR[2],
+                bL[0], bL[1], bL[2], mR[0], mR[1], mR[2], mL[0], mL[1], mL[2],
+                mL[0], mL[1], mL[2], mR[0], mR[1], mR[2], tip[0], tip[1], tip[2]
+              );
             }
+            const clumpGeo = new THREE.BufferGeometry();
+            clumpGeo.setAttribute('position', new THREE.Float32BufferAttribute(posArr, 3));
+            clumpGeo.computeVertexNormals();
+            clumpGeo.translate(px, 0.13, pz);
+            push(riceMat, clumpGeo);
 
             // Bông lúa vàng trĩu hạt ở cấp cao (tăng mật độ rõ rệt từ cấp 2 -> cấp 4)
             const ripeChance = tier >= 4 ? 0.72 : tier === 3 ? 0.52 : tier === 2 ? 0.24 : 0;
@@ -2698,25 +2724,68 @@ function getBuildingParts(
         push('bambooDry', eaveS);
       }
 
-      // Mái tranh nhà chòi dùng đúng kiểu Tranh Nhà Chính (createThatchBundle + ['thatch', 'thatchWarm', 'thatchSoft'])
+      // Mái tranh nhà chòi dùng đúng công thức Nhà Chính (createThatchBundle + sợi tranh rủ mép + sống nóc bện rơm)
+      const farmRoofSlope = 0.62;
       const farmThatchTones: MaterialKey[] = ['thatch', 'thatchWarm', 'thatchSoft'];
-      for (const side of [-1, 1]) {
-        for (let row = 0; row < 3; row++) {
-          const t = row / 2;
-          const ry = eaveY + 0.04 + t * 0.32;
-          const rz = hz + side * (0.52 - t * 0.38);
-          for (let col = 0; col < 4; col++) {
-            const rx = hx - 0.42 + col * 0.28;
-            const bundle = createThatchBundle(0.32, 0.34, 0.07);
-            if (side > 0) bundle.rotateY(Math.PI);
-            bundle.rotateX(side * 0.52);
-            bundle.translate(rx, ry, rz);
-            push(farmThatchTones[(row + col) % farmThatchTones.length], bundle);
+      const pickFarmThatch = (seed: number): MaterialKey =>
+        farmThatchTones[Math.floor(hash01(seed) * farmThatchTones.length) % farmThatchTones.length];
+
+      for (let layer = 0; layer < 4; layer++) {
+        const t = layer / 3;
+        const yPos = eaveY + 0.03 + t * 0.36;
+        const zOff = 0.44 - t * 0.34;
+        const cols = 6;
+        const totalW = 1.24 - t * 0.04;
+        const bundleW = totalW / cols + 0.03;
+
+        for (let c = 0; c < cols; c++) {
+          const seedF = layer * 101 + c * 17.3;
+          const seedB = layer * 137 + c * 23.1;
+          const bx = hx - totalW / 2 + (c + 0.5) * (totalW / cols) + (hash01(seedF) - 0.5) * 0.018;
+          const staggerY = (hash01(seedF + 1) - 0.5) * 0.014;
+          const tiltZ = (hash01(seedF + 2) - 0.5) * 0.06;
+          const lenScale = 0.92 + hash01(seedF + 3) * 0.16;
+
+          const bundleF = createThatchBundle(bundleW, 0.24 * lenScale, 0.045);
+          bundleF.rotateZ(tiltZ);
+          bundleF.rotateX(farmRoofSlope);
+          bundleF.translate(bx, yPos + staggerY, hz + zOff);
+          push(pickFarmThatch(seedF + 5), bundleF);
+
+          const bundleB = createThatchBundle(bundleW, 0.24 * lenScale, 0.045);
+          bundleB.rotateY(Math.PI);
+          bundleB.rotateZ(-tiltZ);
+          bundleB.rotateX(-farmRoofSlope);
+          bundleB.translate(bx, yPos + staggerY, hz - zOff);
+          push(pickFarmThatch(seedB + 7), bundleB);
+
+          // Sợi tranh mảnh nhô ra ở mép mỗi tán tranh giống hệt Nhà Chính
+          for (let f = 0; f < 2; f++) {
+            const fiberOff = -0.04 + f * 0.08 + (hash01(seedF + f * 9) - 0.5) * 0.02;
+            const fLen = 0.1 + hash01(seedF + f * 13) * 0.06;
+            const fF = cyl(0.004, 0.008, fLen, 4, 0, 0, 0);
+            fF.rotateX(farmRoofSlope + Math.PI / 2 - 0.12);
+            fF.rotateZ(fiberOff * 1.6);
+            fF.translate(bx + fiberOff, yPos - 0.06, hz + zOff + 0.11);
+            push(pickFarmThatch(seedF + f * 3), fF);
+
+            const fB = cyl(0.004, 0.008, fLen, 4, 0, 0, 0);
+            fB.rotateX(-farmRoofSlope - Math.PI / 2 + 0.12);
+            fB.rotateZ(-fiberOff * 1.6);
+            fB.translate(bx + fiberOff, yPos - 0.06, hz - zOff - 0.11);
+            push(pickFarmThatch(seedB + f * 3), fB);
           }
         }
       }
-      // Bờ nóc mái tranh tối màu
-      push('thatchDark', box(1.18, 0.09, 0.2, hx, eaveY + 0.42, hz));
+      // Sống nóc bện rơm TubeGeometry xoắn kép giống Nhà Chính
+      const farmBraidA = createBraidedRidgeTube(1.24, 0);
+      farmBraidA.scale(1, 0.72, 0.72);
+      farmBraidA.translate(hx, eaveY + 0.43, hz);
+      const farmBraidB = createBraidedRidgeTube(1.24, Math.PI);
+      farmBraidB.scale(1, 0.72, 0.72);
+      farmBraidB.translate(hx, eaveY + 0.43, hz);
+      push('thatchDark', farmBraidA);
+      push('thatch', farmBraidB);
 
       // 4. VẬT DỤNG BÊN CẠNH CHÒI (LU NƯỚC SÀNH, ĐÔI THÚNG TRE, CÂY CUỐC TỰA CỘT)
       // 1 lu nước sành đặt cạnh chòi (phải chòi trên gò khô) có mặt nước phản chiếu
