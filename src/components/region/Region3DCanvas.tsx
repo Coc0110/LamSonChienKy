@@ -558,6 +558,7 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
     let findWorldPath: (sx: number, sz: number, gx: number, gz: number) => Array<{ x: number; z: number }> = () => [];
     const animatedFlags: THREE.Mesh[] = [];
     const animatedWaters: THREE.Mesh[] = [];
+    const animatedRices: THREE.Mesh[] = [];
     const animatedBillboards: THREE.Object3D[] = [];
     const animatedGates: Array<{
       wx: number;
@@ -584,6 +585,7 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
       walkableSpots = [];
       animatedFlags.length = 0;
       animatedWaters.length = 0;
+      animatedRices.length = 0;
       animatedBillboards.length = 0;
       animatedGates.length = 0;
 
@@ -664,6 +666,8 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
             animatedFlags.push(obj);
           } else if (obj instanceof THREE.Mesh && obj.name === 'animated_water') {
             animatedWaters.push(obj);
+          } else if (obj instanceof THREE.Mesh && obj.name === 'animated_rice') {
+            animatedRices.push(obj);
           }
         });
         if (b.type === 'gate') {
@@ -1417,6 +1421,11 @@ export const Region3DCanvas: React.FC<Region3DCanvasProps> = ({
           pos.setZ(i, Math.sin(r * 28 - t * 3.2) * 0.009);
         }
         pos.needsUpdate = true;
+      }
+      for (const rice of animatedRices) {
+        const phase = (rice.userData.phaseOffset as number | undefined) ?? 0;
+        rice.rotation.z = Math.sin(t * 1.15 + phase) * 0.022;
+        rice.rotation.x = Math.cos(t * 0.9 + phase) * 0.014;
       }
 
       for (const bb of animatedBillboards) {

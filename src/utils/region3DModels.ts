@@ -2835,56 +2835,97 @@ function getBuildingParts(
     }
 
     case 'forge': {
-      // 3x3 Xưởng rèn mái tranh 2 tầng thoát khói, lò gạch đỏ lửa, bễ thổi gió, bể tôi kiếm, đe sắt + phôi đỏ, giá binh khí & thùng quặng
-      push('earthDark', createOrganicEarthMound(2.86, 2.86, 0.14, 6.2));
-      // 6 cột gỗ & xà ngang
+      // 3x3 Lò Rèn chống cháy: Nền đá lát, tường hậu đá chịu nhiệt, mái ngói đất nung 2 tầng thoát khói, lò vòm đỏ lửa, bễ gió, đe sắt, đá mài, bể tôi kiếm & giá binh khí
+      push('earthDark', createOrganicEarthMound(2.88, 2.88, 0.14, 6.2));
+      push('stoneDark', box(2.35, 0.08, 2.15, -0.1, 0.15, -0.12));
+
+      // Tường hậu đá chịu nhiệt phía sau lò nung
+      push('stone', box(1.92, 0.72, 0.16, -0.22, 0.52, -1.04));
+
+      // 6 cột gỗ lim & xà ngang đỡ mái ngói
       for (const [cx, cz] of [
         [-1.08, -1.02], [-0.22, -1.02], [0.64, -1.02],
         [-1.08, 0.68], [-0.22, 0.68], [0.64, 0.68],
       ]) {
-        push('woodDark', cyl(0.06, 0.07, 1.06, 6, cx, 0.66, cz));
+        push('woodDark', cyl(0.06, 0.07, 1.12, 6, cx, 0.72, cz));
       }
-      push('woodDark', box(1.85, 0.07, 0.08, -0.22, 1.15, -1.02));
-      push('woodDark', box(1.85, 0.07, 0.08, -0.22, 1.15, 0.68));
-      // Mái tranh chính + nóc thoát khói
-      push('thatch', cone(1.62, 0.72, 4, -0.22, 1.48, -0.17, Math.PI / 4));
+      push('woodDark', box(1.92, 0.07, 0.08, -0.22, 1.24, -1.02));
+      push('woodDark', box(1.92, 0.07, 0.08, -0.22, 1.24, 0.68));
+
+      // Mái ngói đất nung chống cháy (2 mái dốc + gờ ngói ống + nóc thoát khói)
+      const forgeSlope = 0.52;
+      for (const side of [-1, 1]) {
+        const panel = box(2.14, 0.07, 1.14, 0, 0, 0);
+        panel.rotateX(side * forgeSlope);
+        panel.translate(-0.22, 1.48, -0.17 + side * 0.48);
+        push('roofRed', panel);
+
+        // Các dãy ngói ống nổi chạy dọc mái dốc
+        for (let rib = 0; rib < 9; rib++) {
+          const rx = -1.2 + rib * 0.245;
+          const tube = cyl(0.028, 0.032, 1.16, 6, 0, 0, 0);
+          tube.rotateX(Math.PI / 2 + side * forgeSlope);
+          tube.translate(rx, 1.52, -0.17 + side * 0.48);
+          push('roofRed', tube);
+        }
+      }
+      // Sống nóc ngói & tầng thoát nhiệt trên cao (Lv.2+)
+      push('stoneDark', box(2.18, 0.12, 0.2, -0.22, 1.76, -0.17));
       if (tier >= 2) {
-        push('thatch', cone(0.75, 0.36, 4, -0.22, 1.92, -0.17, Math.PI / 4));
+        for (const [vx, vz] of [[-0.55, -0.35], [0.1, -0.35], [-0.55, 0.0], [0.1, 0.0]]) {
+          push('woodDark', cyl(0.03, 0.035, 0.28, 5, vx, 1.84, vz));
+        }
+        for (const side of [-1, 1]) {
+          const cap = box(0.95, 0.05, 0.45, 0, 0, 0);
+          cap.rotateX(side * 0.45);
+          cap.translate(-0.22, 2.02, -0.17 + side * 0.19);
+          push('roofRed', cap);
+        }
+        push('stoneDark', box(0.98, 0.08, 0.12, -0.22, 2.13, -0.17));
       }
 
-      // Bếp lò đá/gạch nung & ống khói cao + vòm lửa đỏ rực
-      push('stoneDark', rbox(0.82, 0.72, 0.82, 0.06, -0.58, 0.48, -0.45));
-      push('earthDark', cyl(0.22, 0.34, 1.25 + tier * 0.1, 8, -0.58, 1.12, -0.45));
-      push('ember', box(0.46, 0.34, 0.24, -0.58, 0.36, -0.02));
-      // Bễ thổi gió bằng gỗ & da nối vào lò
-      push('wood', box(0.38, 0.22, 0.26, -1.08, 0.34, -0.42));
-      push('iron', cyl(0.04, 0.05, 0.32, 6, -0.84, 0.34, -0.42));
+      // Bếp lò đá gạch chịu nhiệt & ống khói cao thoát xuyên mái + vòm lửa đỏ rực
+      push('stoneDark', rbox(0.84, 0.78, 0.84, 0.06, -0.58, 0.54, -0.45));
+      push('stone', cyl(0.22, 0.34, 1.45 + tier * 0.12, 8, -0.58, 1.32, -0.45));
+      push('stoneDark', cyl(0.28, 0.26, 0.12, 8, -0.58, 2.04 + tier * 0.06, -0.45));
+      push('ember', box(0.46, 0.36, 0.24, -0.58, 0.38, -0.01));
 
-      // Đe sắt + phôi kiếm đang nung đỏ + búa tạ
-      push('wood', cyl(0.18, 0.2, 0.26, 8, 0.32, 0.25, 0.32));
-      push('iron', box(0.44, 0.22, 0.22, 0.32, 0.46, 0.32));
-      push('ember', box(0.28, 0.04, 0.06, 0.32, 0.59, 0.32));
-      push('wood', cyl(0.025, 0.025, 0.48, 6, 0.55, 0.56, 0.32));
-      push('iron', box(0.18, 0.1, 0.11, 0.55, 0.78, 0.32));
+      // Bễ thổi gió bằng gỗ & ống gió sắt nối vào lò
+      push('wood', box(0.42, 0.24, 0.28, -1.08, 0.36, -0.42));
+      push('iron', cyl(0.04, 0.05, 0.34, 6, -0.84, 0.36, -0.42));
+
+      // Đe sắt + phôi kiếm nung đỏ + búa tạ
+      push('wood', cyl(0.18, 0.2, 0.28, 8, 0.32, 0.29, 0.34));
+      push('iron', box(0.46, 0.22, 0.22, 0.32, 0.5, 0.34));
+      push('ember', box(0.3, 0.04, 0.06, 0.32, 0.63, 0.34));
+      push('wood', cyl(0.025, 0.025, 0.48, 6, 0.55, 0.6, 0.34));
+      push('iron', box(0.18, 0.1, 0.11, 0.55, 0.82, 0.34));
+
+      // Đá mài kiếm tròn đặt trên giá gỗ bên trái phía trước
+      push('woodDark', box(0.36, 0.28, 0.26, -0.45, 0.3, 0.44));
+      const grindWheel = cyl(0.2, 0.2, 0.08, 12, 0, 0, 0);
+      grindWheel.rotateZ(Math.PI / 2);
+      grindWheel.translate(-0.45, 0.46, 0.44);
+      push('stoneWarm', grindWheel);
 
       // Bể nước tôi kiếm cạnh đe
-      push('woodDark', box(0.56, 0.26, 0.34, 0.32, 0.26, -0.18));
-      push('water', box(0.48, 0.06, 0.26, 0.32, 0.37, -0.18));
+      push('woodDark', box(0.56, 0.26, 0.34, 0.32, 0.29, -0.18));
+      push('water', box(0.48, 0.06, 0.26, 0.32, 0.4, -0.18));
 
       // Đống than củi & thùng gỗ đựng quặng thô
-      push('charcoal', sphere(0.22, 0.96, 0.22, -0.55));
-      push('charcoal', sphere(0.18, 1.14, 0.2, -0.35));
-      push('charcoal', sphere(0.16, 0.86, 0.2, -0.32));
-      push('wood', cyl(0.2, 0.18, 0.34, 8, 1.02, 0.3, -0.1));
-      push('stoneDark', sphere(0.12, 0.98, 0.47, -0.12));
-      push('stoneDark', sphere(0.1, 1.08, 0.46, -0.04));
+      push('charcoal', sphere(0.22, 0.96, 0.24, -0.55));
+      push('charcoal', sphere(0.18, 1.14, 0.22, -0.35));
+      push('charcoal', sphere(0.16, 0.86, 0.22, -0.32));
+      push('wood', cyl(0.2, 0.18, 0.34, 8, 1.02, 0.32, -0.1));
+      push('stoneDark', sphere(0.12, 0.98, 0.49, -0.12));
+      push('stoneDark', sphere(0.1, 1.08, 0.48, -0.04));
 
       // Giá treo kiếm giáo 2 cột
-      push('woodDark', cyl(0.04, 0.04, 0.72, 6, 0.65, 0.48, 0.78));
-      push('woodDark', cyl(0.04, 0.04, 0.72, 6, 1.25, 0.48, 0.78));
-      push('woodDark', box(0.68, 0.06, 0.08, 0.95, 0.76, 0.78));
+      push('woodDark', cyl(0.04, 0.04, 0.76, 6, 0.65, 0.52, 0.8));
+      push('woodDark', cyl(0.04, 0.04, 0.76, 6, 1.25, 0.52, 0.8));
+      push('woodDark', box(0.68, 0.06, 0.08, 0.95, 0.8, 0.8));
       for (const sx of [0.76, 0.9, 1.04, 1.16]) {
-        push('iron', box(0.045, 0.58, 0.035, sx, 0.52, 0.78));
+        push('iron', box(0.045, 0.6, 0.035, sx, 0.55, 0.8));
       }
       break;
     }
@@ -3561,6 +3602,11 @@ export function createBuildingGroup(
     const mesh = new THREE.Mesh(part.geo, mat);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
+    if (part.matKey === 'riceYoung' || part.matKey === 'riceLush' || part.matKey === 'riceRipe') {
+      mesh.name = 'animated_rice';
+      mesh.userData.phaseOffset =
+        part.matKey === 'riceYoung' ? 0 : part.matKey === 'riceLush' ? 1.15 : 0.55;
+    }
     group.add(mesh);
   }
 
