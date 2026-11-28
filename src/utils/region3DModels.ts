@@ -1834,6 +1834,30 @@ function createBambooBasketLathe(topR: number, botR: number, height: number): TH
   return new THREE.LatheGeometry(pts, 8);
 }
 
+/**
+ * Khiên gỗ dáng giọt lệ/hình khiên cổ điển (ExtrudeGeometry low-poly).
+ */
+function createHeaterShieldGeo(width: number, height: number, depth: number): THREE.BufferGeometry {
+  const hw = width / 2;
+  const hh = height / 2;
+  const shape = new THREE.Shape();
+  shape.moveTo(-hw, hh * 0.88);
+  shape.quadraticCurveTo(0, hh * 1.06, hw, hh * 0.88);
+  shape.lineTo(hw * 0.94, 0.02);
+  shape.quadraticCurveTo(hw * 0.62, -hh * 0.72, 0, -hh);
+  shape.quadraticCurveTo(-hw * 0.62, -hh * 0.72, -hw * 0.94, 0.02);
+  shape.closePath();
+  const g = new THREE.ExtrudeGeometry(shape, {
+    depth,
+    bevelEnabled: true,
+    bevelThickness: 0.012,
+    bevelSize: 0.01,
+    bevelSegments: 1,
+  });
+  g.center();
+  return g;
+}
+
 function getBuildingParts(
   type: BaseBuildingType,
   level: number,
@@ -2835,143 +2859,335 @@ function getBuildingParts(
     }
 
     case 'forge': {
-      // 3x3 Lò Rèn lộ thiên (không mái): Nền, tường hậu, bếp lò & ống khói xếp khít từ các viên đá đa giác 5–7 cạnh tự nhiên
-      push('earthDark', createOrganicEarthMound(2.9, 2.9, 0.14, 6.2));
-      const fStoneTones: MaterialKey[] = ['stone', 'stoneDark', 'stoneWarm', 'stonePale', 'stoneMoss'];
-      const pickForgeStone = (seed: number): MaterialKey =>
-        fStoneTones[Math.floor(hash01(seed) * fStoneTones.length) % fStoneTones.length];
-
-      const makePolyStone = (rx: number, h: number, rz: number, sides: number, seed: number): THREE.BufferGeometry => {
-        const shape = new THREE.Shape();
-        for (let i = 0; i < sides; i++) {
-          const ang = (i / sides) * Math.PI * 2 + (hash01(seed + i * 3.1) - 0.5) * 0.28;
-          const rScale = 0.78 + hash01(seed + i * 7.7) * 0.42;
-          const px = Math.cos(ang) * rx * rScale;
-          const py = Math.sin(ang) * rz * rScale;
-          if (i === 0) shape.moveTo(px, py);
-          else shape.lineTo(px, py);
-        }
-        shape.closePath();
-        const g = new THREE.ExtrudeGeometry(shape, {
-          depth: h,
-          bevelEnabled: true,
-          bevelThickness: Math.min(0.025, h * 0.22),
-          bevelSize: Math.min(0.02, rx * 0.14),
-          bevelSegments: 1,
-        });
-        g.center();
-        g.rotateX(-Math.PI / 2);
+      // === 3×3 LÒ RÈN LỘ THIÊN — LOW-POLY STYLIZED DIORAMA THEO MẪU ===
+      const floorY = 0.17;
+      const fStoneTones: MaterialKey[] = ['stone', 'stoneWarm', 'stonePale'];
+      const pickStone = (s: number): MaterialKey =>
+        fStoneTones[Math.floor(hash01(s) * fStoneTones.length) % fStoneTones.length];
+      // Cục đá/than đa diện low-poly (20 tris thay vì 96 tris, dáng góc cạnh tự nhiên)
+      const rockChunk = (r: number, x: number, y: number, z: number, seed: number): THREE.BufferGeometry => {
+        const g = new THREE.IcosahedronGeometry(r, 0);
+        g.scale(
+          0.9 + hash01(seed + 1) * 0.25,
+          0.75 + hash01(seed + 2) * 0.25,
+          0.9 + hash01(seed + 3) * 0.25
+        );
+        g.rotateY(hash01(seed + 4) * Math.PI);
+        g.translate(x, y, z);
         return g;
       };
 
-      // 1. Nền đá lát đa giác xếp sát khít nhau (8 x 7 viên đá 5–7 cạnh)
-      for (let gx = 0; gx < 8; gx++) {
-        for (let gz = 0; gz < 7; gz++) {
-          const seed = gx * 31.7 + gz * 17.3 + 5.1;
-          const sides = 5 + (Math.floor(hash01(seed + 8) * 3) % 3);
-          const rx = 0.17 + hash01(seed + 1) * 0.045;
-          const rz = 0.175 + hash01(seed + 2) * 0.045;
-          const sh = 0.065 + hash01(seed + 3) * 0.025;
-          const px = -1.16 + gx * 0.285 + (gz % 2) * 0.07 + (hash01(seed + 4) - 0.5) * 0.02;
-          const pz = -1.04 + gz * 0.295 + (hash01(seed + 5) - 0.5) * 0.02;
-          const paver = makePolyStone(rx, sh, rz, sides, seed);
-          paver.rotateY((hash01(seed + 6) - 0.5) * 0.5);
-          paver.translate(px, 0.12 + sh / 2, pz);
-          push(pickForgeStone(seed), paver);
+      // 1. NỀN SÂN ĐẤT NỆN 2 BẬC & ĐÁ TẢNG 3 GÓC (vừa khít ô 3×3: ≤ 2.90 × 2.90)
+      push('earthDark', box(2.76, 0.08, 2.76, 0, 0.04, 0));
+      push('earth', box(2.62, 0.10, 2.62, 0, 0.12, 0));
+      // Viền gờ gỗ/đất thấp bao mặt mở phía trước-phải
+      push('woodLight', box(0.06, 0.06, 2.40, 1.20, floorY + 0.02, 0));
+
+      // 3 cụm đá tảng góc ngoài nền sân (góc trái, góc trước, góc phải)
+      for (const [bx, bz, r, sd] of [
+        [-1.30, 1.30, 0.145, 11.2],
+        [1.30, 1.30, 0.15, 23.7],
+        [1.30, -1.30, 0.135, 37.4],
+      ] as Array<[number, number, number, number]>) {
+        push('stoneWarm', rockChunk(r, bx, 0.08, bz, sd));
+        push('stone', rockChunk(r * 0.52, bx - Math.sign(bx) * 0.14, 0.05, bz + (bx > 0 ? -0.12 : 0.04), sd + 5.1));
+      }
+
+      // 2. TƯỜNG RÀO THẤP ĐÁ + GỖ BAO 3 MẶT & TRỤ ĐÁ
+      const addStonePillar = (px: number, pz: number, h = 0.34) => {
+        push('stoneWarm', box(0.13, h, 0.13, px, floorY + h / 2, pz));
+        push('stonePale', box(0.155, 0.045, 0.155, px, floorY + h + 0.01, pz));
+      };
+      addStonePillar(-1.20, -1.20, 0.36);
+      addStonePillar(-1.20, 0.02, 0.32);
+      addStonePillar(-1.20, 1.20, 0.34);
+      addStonePillar(-0.40, 1.20, 0.28);
+      addStonePillar(0.40, 1.20, 0.28);
+      addStonePillar(1.20, 1.20, 0.28);
+      addStonePillar(0.02, -1.20, 0.36);
+      addStonePillar(1.20, -1.20, 0.34);
+
+      // Tường sau-trái (x = -1.20): chân đá thấp + thanh ván gỗ trên
+      push('stoneWarm', box(0.10, 0.16, 2.34, -1.20, floorY + 0.08, 0));
+      push('woodLight', box(0.075, 0.14, 2.30, -1.20, floorY + 0.22, 0));
+
+      // Tường sau-phải (z = -1.20): hàng đá dưới + vách ván gỗ so le phía trên
+      for (let i = 0; i < 9; i++) {
+        const sx = -1.03 + i * 0.256;
+        push(pickStone(i * 17.3 + 2), box(0.23, 0.17, 0.11, sx, floorY + 0.085, -1.20));
+      }
+      push('woodLight', box(1.12, 0.15, 0.072, -0.58, floorY + 0.24, -1.20));
+      for (let p = 0; p < 8; p++) {
+        const px = 0.14 + p * 0.13;
+        const ph = 0.14 + (hash01(p * 11.7 + 3) - 0.3) * 0.09;
+        push(p % 2 === 0 ? 'woodLight' : 'wood', box(0.11, ph, 0.062, px, floorY + 0.16 + ph / 2, -1.20));
+      }
+
+      // Tường trước-trái (z = +1.20): tường đá thấp chia 3 nhịp có đá bo nóc
+      for (const segX of [-0.80, 0.0, 0.80]) {
+        push('stoneWarm', box(0.68, 0.15, 0.10, segX, floorY + 0.075, 1.20));
+        push('stonePale', box(0.70, 0.045, 0.12, segX, floorY + 0.165, 1.20));
+      }
+
+      // 3. BẾP LÒ ĐÁ VÒM LỬA & ỐNG KHÓI LOE (góc sau-trái (-0.78, -0.78), xoay 45° hướng vào sân)
+      const fRot = Math.PI / 4;
+      const fx = -0.78;
+      const fz = -0.78;
+      const placeForgePart = (m: MaterialKey, g: THREE.BufferGeometry) => {
+        g.rotateY(fRot);
+        g.translate(fx, floorY, fz);
+        push(m, g);
+      };
+
+      // Phiến đá phẳng lót cửa lò trên mặt sân
+      placeForgePart('stonePale', box(0.40, 0.032, 0.22, 0, 0.016, 0.54));
+
+      // Bệ lò đá bán nguyệt 3 tầng xếp gạch đá bo tròn
+      for (let row = 0; row < 3; row++) {
+        const ry = 0.055 + row * 0.105;
+        const rad = 0.43 - row * 0.024;
+        const count = 8;
+        for (let a = 0; a < count; a++) {
+          const ang = -Math.PI * 0.90 + (a / (count - 1)) * Math.PI * 1.80 + (row % 2) * 0.12;
+          const blk = box(0.175, 0.10, 0.135, 0, 0, 0);
+          blk.rotateY(-ang);
+          blk.translate(Math.sin(ang) * rad, ry, Math.cos(ang) * rad);
+          placeForgePart(pickStone(row * 41 + a * 13 + 7), blk);
         }
       }
+      // Lõi bệ lò & bàn than đỏ rực
+      placeForgePart('stoneDark', cyl(0.37, 0.40, 0.30, 8, 0, 0.15, 0));
+      placeForgePart('charcoal', cyl(0.24, 0.27, 0.08, 8, 0, 0.33, 0.08));
 
-      // 2. Tường hậu chắn lửa xếp sát chồng so le bằng đá đa giác 5–7 cạnh (4 hàng)
-      for (let row = 0; row < 4; row++) {
-        const y = 0.21 + row * 0.145;
-        const count = row % 2 === 0 ? 9 : 8;
-        const startX = row % 2 === 0 ? -1.12 : -1.01;
-        for (let col = 0; col < count; col++) {
-          const seed = row * 53.1 + col * 19.7 + 200;
-          const sides = 5 + ((row + col) % 3);
-          const rock = makePolyStone(
-            0.145 + hash01(seed + 1) * 0.03,
-            0.145 + hash01(seed + 2) * 0.025,
-            0.11 + hash01(seed + 3) * 0.025,
-            sides,
-            seed
-          );
-          rock.rotateY((hash01(seed + 5) - 0.5) * 0.3);
-          rock.translate(startX + col * 0.24, y, -1.04 + (hash01(seed + 4) - 0.5) * 0.02);
-          push(pickForgeStone(seed), rock);
+      // Thân chóp lò vát thuôn lên cao (tầng giữa) + các viên gạch đất nung điểm xuyết
+      const hoodH = 0.62 + tier * 0.035;
+      const hood = new THREE.CylinderGeometry(0.18, 0.41, hoodH, 4);
+      hood.rotateY(Math.PI / 4);
+      hood.translate(0, 0.32 + hoodH / 2, -0.04);
+      placeForgePart('stoneWarm', hood);
+
+      for (const [bx, by, bz, bw] of [
+        [-0.21, 0.56, 0.14, 0.105],
+        [-0.17, 0.68, 0.11, 0.085],
+        [0.19, 0.62, 0.12, 0.095],
+        [0.13, 0.78, 0.07, 0.085],
+        [-0.11, 0.84, 0.04, 0.08],
+      ] as Array<[number, number, number, number]>) {
+        placeForgePart('ceramic', box(bw, 0.052, 0.055, bx, by, bz));
+      }
+
+      // Vòm miệng lò (khung gạch đỏ + khoang tối + than hồng + ngọn lửa sáng)
+      placeForgePart('charcoal', box(0.31, 0.23, 0.15, 0, 0.43, 0.23));
+      for (let v = 0; v < 7; v++) {
+        const ang = -Math.PI * 0.46 + (v / 6) * Math.PI * 0.92;
+        const archBrick = box(0.072, 0.062, 0.105, 0, 0, 0);
+        archBrick.rotateZ(-ang);
+        archBrick.translate(Math.sin(ang) * 0.195, 0.40 + Math.cos(ang) * 0.165, 0.27);
+        placeForgePart(v % 2 === 0 ? 'ceramic' : 'stoneWarm', archBrick);
+      }
+      placeForgePart('ember', box(0.24, 0.075, 0.13, 0, 0.37, 0.24));
+      for (const [lx, h, lz] of [[-0.06, 0.11, 0.24], [0.01, 0.15, 0.23], [0.07, 0.10, 0.25]]) {
+        placeForgePart('ember', cone(0.045, h, 5, lx, 0.40 + h / 2, lz));
+      }
+
+      // Cổ ống khói vuông + vành loe trên đỉnh + lõi tối
+      const chimY = 0.32 + hoodH;
+      placeForgePart('stoneWarm', box(0.25, 0.22, 0.25, 0, chimY + 0.10, -0.04));
+      placeForgePart('stonePale', box(0.32, 0.08, 0.32, 0, chimY + 0.23, -0.04));
+      placeForgePart('charcoal', box(0.20, 0.05, 0.20, 0, chimY + 0.26, -0.04));
+
+      // 4. BỄ THỔI GIÓ XẾP NẾP (bên trái-trước lò: (-0.88, floorY, -0.14))
+      const belRot = 0.45;
+      const placeBellows = (m: MaterialKey, g: THREE.BufferGeometry) => {
+        g.rotateY(belRot);
+        g.translate(-0.88, floorY, -0.14);
+        push(m, g);
+      };
+      placeBellows('woodDark', box(0.11, 0.11, 0.13, 0, 0.055, 0.06));
+      for (let f = 0; f < 3; f++) {
+        const fy = 0.11 + f * 0.054;
+        const sc = 1 - f * 0.06;
+        const fold = new THREE.CylinderGeometry(0.135 * sc, 0.155 * sc, 0.046, 6);
+        fold.scale(0.85, 1, 1.35);
+        fold.translate(0, fy, 0);
+        placeBellows(f % 2 === 0 ? 'sack' : 'thatchDark', fold);
+      }
+      const topBoard = new THREE.CylinderGeometry(0.125, 0.125, 0.026, 6);
+      topBoard.scale(0.85, 1, 1.45);
+      topBoard.rotateX(0.16);
+      topBoard.translate(0, 0.255, -0.02);
+      placeBellows('woodLight', topBoard);
+      for (const hx of [-0.042, 0.042]) {
+        const handle = cyl(0.014, 0.017, 0.21, 5, 0, 0, 0);
+        handle.rotateX(-0.35);
+        handle.translate(hx, 0.33, 0.17);
+        placeBellows('wood', handle);
+      }
+      const nozzle = cyl(0.018, 0.035, 0.22, 6, 0, 0, 0);
+      nozzle.rotateX(Math.PI / 2);
+      nozzle.translate(0, 0.15, -0.25);
+      placeBellows('iron', nozzle);
+
+      // 5. GỐC CÂY LỚN & ĐE SẮT CÓ SỪNG + BÚA RÈN (trung tâm sân: (0.04, floorY, -0.14))
+      const ax = 0.04;
+      const az = -0.14;
+      push('wood', cyl(0.165, 0.215, 0.32, 8, ax, floorY + 0.16, az));
+      push('woodLight', cyl(0.16, 0.16, 0.02, 8, ax, floorY + 0.32, az));
+      for (let r = 0; r < 5; r++) {
+        const ra = (r / 5) * Math.PI * 2 + 0.3;
+        const root = box(0.075, 0.11, 0.15, 0, 0, 0);
+        root.rotateX(0.32);
+        root.rotateY(ra);
+        root.translate(ax + Math.sin(ra) * 0.175, floorY + 0.055, az + Math.cos(ra) * 0.175);
+        push('woodDark', root);
+      }
+
+      const anvRot = -0.35;
+      const placeAnvil = (m: MaterialKey, g: THREE.BufferGeometry) => {
+        g.rotateY(anvRot);
+        g.translate(ax, floorY + 0.33, az);
+        push(m, g);
+      };
+      placeAnvil('iron', box(0.27, 0.06, 0.155, 0, 0.03, 0)); // Chân đe
+      placeAnvil('iron', box(0.155, 0.11, 0.105, 0, 0.105, 0)); // Eo đe
+      placeAnvil('steel', box(0.31, 0.092, 0.145, 0.02, 0.195, 0)); // Mặt đe phẳng
+      const horn = new THREE.ConeGeometry(0.066, 0.21, 6);
+      horn.rotateZ(Math.PI / 2);
+      horn.translate(-0.21, 0.20, 0);
+      placeAnvil('steel', horn);
+      const hmHandle = cyl(0.014, 0.016, 0.25, 5, 0, 0, 0);
+      hmHandle.rotateZ(Math.PI / 2);
+      hmHandle.rotateY(0.45);
+      hmHandle.translate(0.06, 0.26, 0.02);
+      placeAnvil('wood', hmHandle);
+      const hmHead = box(0.062, 0.048, 0.09, 0, 0, 0);
+      hmHead.rotateY(0.45);
+      hmHead.translate(-0.04, 0.27, -0.02);
+      placeAnvil('iron', hmHead);
+
+      // 6. CỤM TƯỜNG SAU-PHẢI: ĐỐNG CỦI, KHIÊN GỖ VIỀN SẮT & KIẾM DỰNG TỰA TƯỜNG
+      for (let i = 0; i < 6; i++) {
+        const log = cyl(0.034, 0.038, 0.26, 6, 0, 0, 0);
+        log.rotateX(Math.PI / 2 - 0.12);
+        log.rotateY(0.35 + (i % 2) * 0.15);
+        log.translate(-0.34 + (i % 3) * 0.072, floorY + 0.038 + Math.floor(i / 3) * 0.062, -0.95);
+        push(i % 2 === 0 ? 'woodDark' : 'wood', log);
+      }
+
+      const addWallShield = (sx: number, sz: number) => {
+        const body = createHeaterShieldGeo(0.23, 0.29, 0.028);
+        body.rotateX(-0.22);
+        body.translate(sx, floorY + 0.175, sz);
+        push('wood', body);
+        const rim = createHeaterShieldGeo(0.26, 0.32, 0.016);
+        rim.rotateX(-0.22);
+        rim.translate(sx, floorY + 0.175, sz - 0.012);
+        push('iron', rim);
+        push('steel', rockChunk(0.032, sx, floorY + 0.185, sz + 0.02, sx * 31));
+      };
+      const addWallSword = (sx: number, sz: number, tiltZ: number) => {
+        const blade = box(0.04, 0.37, 0.015, 0, 0.215, 0);
+        const guard = box(0.135, 0.024, 0.026, 0, 0.41, 0);
+        const hilt = cyl(0.014, 0.016, 0.10, 5, 0, 0.47, 0);
+        for (const [mat, part] of [
+          ['steel', blade],
+          ['iron', guard],
+          ['woodDark', hilt],
+        ] as Array<[MaterialKey, THREE.BufferGeometry]>) {
+          part.rotateX(-0.18);
+          part.rotateZ(tiltZ);
+          part.translate(sx, floorY, sz);
+          push(mat, part);
         }
+      };
+      addWallShield(-0.04, -1.01);
+      addWallSword(0.16, -1.03, -0.08);
+      addWallShield(0.32, -1.01);
+      addWallSword(0.49, -1.03, 0.06);
+
+      // 7. CỤM GÓC PHẢI: THÙNG NƯỚC TÔI KIẾM + GIÁ TREO DỤNG CỤ + CHỒNG PHÔI SẮT
+      const bx = 0.85;
+      const bz = -0.58;
+      push('wood', cyl(0.185, 0.165, 0.33, 10, bx, floorY + 0.165, bz));
+      for (const hy of [0.09, 0.24]) {
+        const hoop = torus(0.182, 0.013, 4, 10);
+        hoop.rotateX(Math.PI / 2);
+        hoop.translate(bx, floorY + hy, bz);
+        push('iron', hoop);
+      }
+      const wDisc = new THREE.CircleGeometry(0.16, 10);
+      wDisc.rotateX(-Math.PI / 2);
+      wDisc.translate(bx, floorY + 0.32, bz);
+      push('water', wDisc);
+      push('steel', cyl(0.062, 0.052, 0.052, 8, bx - 0.02, floorY + 0.35, bz));
+      const ladleHandle = cyl(0.01, 0.01, 0.23, 5, 0, 0, 0);
+      ladleHandle.rotateZ(Math.PI / 2);
+      ladleHandle.translate(bx + 0.095, floorY + 0.36, bz);
+      push('steel', ladleHandle);
+
+      // Giá treo dụng cụ rèn bằng gỗ (kìm sắt, búa, đục)
+      const rx = 0.60;
+      const rz = 0.08;
+      push('woodDark', box(0.042, 0.37, 0.042, rx - 0.19, floorY + 0.185, rz));
+      push('woodDark', box(0.042, 0.37, 0.042, rx + 0.19, floorY + 0.185, rz));
+      push('woodDark', box(0.042, 0.038, 0.17, rx - 0.19, floorY + 0.019, rz));
+      push('woodDark', box(0.042, 0.038, 0.17, rx + 0.19, floorY + 0.019, rz));
+      push('wood', box(0.44, 0.038, 0.036, rx, floorY + 0.31, rz));
+      push('wood', box(0.42, 0.03, 0.03, rx, floorY + 0.15, rz));
+      for (let t = 0; t < 4; t++) {
+        const tx = rx - 0.125 + t * 0.084;
+        push('iron', box(0.022, 0.21, 0.016, tx, floorY + 0.195, rz + 0.024));
+        push('steel', box(0.048, 0.03, 0.024, tx, floorY + 0.30, rz + 0.026));
       }
 
-      // 3. Bếp lò & Ống khói xếp sát từ nhiều viên đá đa giác (lộ thiên hoàn toàn, không mái)
-      for (let row = 0; row < 4; row++) {
-        const y = 0.23 + row * 0.145;
-        for (let a = 0; a < 10; a++) {
-          const ang = (a / 10) * Math.PI * 2 + row * 0.31;
-          const rad = 0.34 - row * 0.015;
-          const seed = row * 41 + a * 13.7 + 700;
-          if (row <= 1 && Math.sin(ang) > 0.52) continue;
-          const stone = makePolyStone(0.135, 0.145, 0.115, 5 + ((row + a) % 3), seed);
-          stone.rotateY(-ang + (hash01(seed) - 0.5) * 0.25);
-          stone.translate(-0.58 + Math.cos(ang) * rad, y, -0.45 + Math.sin(ang) * rad);
-          push(pickForgeStone(seed), stone);
+      // Chồng phôi thanh sắt góc phải cạnh thùng nước
+      const addIngotStack = (ix: number, iz: number, rotY: number, rows: number) => {
+        for (let row = 0; row < rows; row++) {
+          const cols = rows - row;
+          for (let c = 0; c < cols; c++) {
+            const bar = box(0.31, 0.058, 0.072, 0, 0, 0);
+            bar.translate(0, row * 0.058 + 0.03, (c - (cols - 1) / 2) * 0.08);
+            bar.rotateY(rotY);
+            bar.translate(ix, floorY, iz);
+            push((row + c) % 2 === 0 ? 'steel' : 'iron', bar);
+          }
         }
-      }
-      // Ống khói đá xếp sát từng vòng thu nhỏ lên cao
-      const chimneyRings = 5 + tier;
-      for (let ring = 0; ring < chimneyRings; ring++) {
-        const y = 0.8 + ring * 0.14;
-        const rad = 0.25 - ring * 0.014;
-        const segs = 8;
-        for (let s = 0; s < segs; s++) {
-          const ang = (s / segs) * Math.PI * 2 + ring * 0.39;
-          const seed = ring * 67 + s * 23 + 900;
-          const st = makePolyStone(0.115, 0.14, 0.095, 5 + ((ring + s) % 3), seed);
-          st.rotateY(-ang);
-          st.translate(-0.58 + Math.cos(ang) * rad, y, -0.45 + Math.sin(ang) * rad);
-          push(pickForgeStone(seed), st);
+      };
+      addIngotStack(0.93, -0.06, 0.15, tier >= 3 ? 3 : 2);
+
+      // 8. CỤM DỌC TƯỜNG TRƯỚC-TRÁI: 2 THÙNG THAN, CHỒNG PHÔI THÉP & ĐỐNG QUẶNG
+      const addCoalCrate = (cx: number, cz: number, w: number, h: number, d: number, seed: number) => {
+        push('wood', box(w, h, 0.032, cx, floorY + h / 2, cz - d / 2));
+        push('wood', box(w, h, 0.032, cx, floorY + h / 2, cz + d / 2));
+        push('woodDark', box(0.032, h, d, cx - w / 2, floorY + h / 2, cz));
+        push('woodDark', box(0.032, h, d, cx + w / 2, floorY + h / 2, cz));
+        push('woodDark', box(w - 0.04, 0.03, d - 0.04, cx, floorY + 0.02, cz));
+        for (let k = 0; k < 7; k++) {
+          const kx = cx + (hash01(seed + k * 3.1) - 0.5) * (w * 0.62);
+          const kz = cz + (hash01(seed + k * 7.3) - 0.5) * (d * 0.62);
+          const ky = floorY + h * 0.62 + hash01(seed + k * 11.7) * 0.055;
+          push('charcoal', rockChunk(0.044 + hash01(seed + k * 5.3) * 0.018, kx, ky, kz, seed + k * 19));
         }
-      }
-      // Lõi rỗng tối màu ở miệng ống khói & lửa đỏ rực trong vòm lò
-      push('charcoal', cyl(0.12, 0.14, 0.14, 8, -0.58, 0.8 + chimneyRings * 0.14 - 0.08, -0.45));
-      push('ember', box(0.38, 0.3, 0.22, -0.58, 0.34, -0.14));
+      };
+      addCoalCrate(-0.90, 0.42, 0.33, 0.23, 0.31, 101);
+      addCoalCrate(-0.55, 0.86, 0.31, 0.19, 0.29, 202);
 
-      // Bễ thổi gió bằng gỗ & ống gió sắt nối vào lò
-      push('wood', box(0.42, 0.24, 0.28, -1.08, 0.36, -0.42));
-      push('iron', cyl(0.04, 0.05, 0.34, 6, -0.84, 0.36, -0.42));
+      addIngotStack(-0.08, 0.91, Math.PI / 2 - 0.06, 3);
 
-      // Đe sắt + phôi kiếm nung đỏ + búa tạ
-      push('wood', cyl(0.18, 0.2, 0.28, 8, 0.32, 0.29, 0.34));
-      push('iron', box(0.46, 0.22, 0.22, 0.32, 0.5, 0.34));
-      push('ember', box(0.3, 0.04, 0.06, 0.32, 0.63, 0.34));
-      push('wood', cyl(0.025, 0.025, 0.48, 6, 0.55, 0.6, 0.34));
-      push('iron', box(0.18, 0.1, 0.11, 0.55, 0.82, 0.34));
-
-      // Đá mài kiếm tròn đặt trên giá gỗ bên trái phía trước
-      push('woodDark', box(0.36, 0.28, 0.26, -0.45, 0.3, 0.44));
-      const grindWheel = cyl(0.2, 0.2, 0.08, 12, 0, 0, 0);
-      grindWheel.rotateZ(Math.PI / 2);
-      grindWheel.translate(-0.45, 0.46, 0.44);
-      push('stoneWarm', grindWheel);
-
-      // Bể nước tôi kiếm cạnh đe
-      push('woodDark', box(0.56, 0.26, 0.34, 0.32, 0.29, -0.18));
-      push('water', box(0.48, 0.06, 0.26, 0.32, 0.4, -0.18));
-
-      // Đống than củi & thùng gỗ đựng quặng thô
-      push('charcoal', sphere(0.22, 0.96, 0.24, -0.55));
-      push('charcoal', sphere(0.18, 1.14, 0.22, -0.35));
-      push('charcoal', sphere(0.16, 0.86, 0.22, -0.32));
-      push('wood', cyl(0.2, 0.18, 0.34, 8, 1.02, 0.32, -0.1));
-      push('stoneDark', sphere(0.12, 0.98, 0.49, -0.12));
-      push('stoneDark', sphere(0.1, 1.08, 0.48, -0.04));
-
-      // Giá treo kiếm giáo 2 cột
-      push('woodDark', cyl(0.04, 0.04, 0.76, 6, 0.65, 0.52, 0.8));
-      push('woodDark', cyl(0.04, 0.04, 0.76, 6, 1.25, 0.52, 0.8));
-      push('woodDark', box(0.68, 0.06, 0.08, 0.95, 0.8, 0.8));
-      for (const sx of [0.76, 0.9, 1.04, 1.16]) {
-        push('iron', box(0.045, 0.6, 0.035, sx, 0.55, 0.8));
-      }
+      const addOrePile = (ox: number, oz: number, matA: MaterialKey, matB: MaterialKey, count: number, seed: number) => {
+        for (let k = 0; k < count; k++) {
+          const ang = hash01(seed + k * 4.7) * Math.PI * 2;
+          const dist = hash01(seed + k * 8.3) * 0.135;
+          const r = 0.028 + hash01(seed + k * 12.1) * 0.018;
+          const py = floorY + r * 0.7 + (dist < 0.06 ? 0.032 : 0);
+          push(k % 3 === 0 ? matB : matA, rockChunk(r, ox + Math.cos(ang) * dist, py, oz + Math.sin(ang) * dist, seed + k * 23));
+        }
+      };
+      addOrePile(0.34, 0.93, 'iron', 'steel', 8, 301);
+      addOrePile(0.75, 0.93, 'ceramic', 'charcoal', 10, 401);
+      addOrePile(0.38, 0.43, 'ceramic', 'earthDark', 7, 501);
+      addOrePile(-0.24, -0.65, 'ceramic', 'charcoal', 6, 601);
+      addOrePile(-0.08, 0.28, 'charcoal', 'stoneDark', 4, 701);
       break;
     }
 
