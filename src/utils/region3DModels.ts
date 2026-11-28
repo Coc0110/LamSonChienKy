@@ -2835,60 +2835,127 @@ function getBuildingParts(
     }
 
     case 'forge': {
-      // 3x3 Lò Rèn chống cháy: Nền đá lát, tường hậu đá chịu nhiệt, mái ngói đất nung 2 tầng thoát khói, lò vòm đỏ lửa, bễ gió, đe sắt, đá mài, bể tôi kiếm & giá binh khí
-      push('earthDark', createOrganicEarthMound(2.88, 2.88, 0.14, 6.2));
-      push('stoneDark', box(2.35, 0.08, 2.15, -0.1, 0.15, -0.12));
+      // 3x3 Lò Rèn cổ thế kỷ XV: Nền đá cuội/đá phiến ghép từng viên, tường & lò xếp đá nhỏ, ống khói đá xếp tầng, mái ngói cổ xếp vảy từng viên (không phải tôn/ngói hiện đại)
+      push('earthDark', createOrganicEarthMound(2.9, 2.9, 0.14, 6.2));
+      const fStoneTones: MaterialKey[] = ['stone', 'stoneDark', 'stoneWarm', 'stonePale', 'stoneMoss'];
+      const pickForgeStone = (seed: number): MaterialKey =>
+        fStoneTones[Math.floor(hash01(seed) * fStoneTones.length) % fStoneTones.length];
 
-      // Tường hậu đá chịu nhiệt phía sau lò nung
-      push('stone', box(1.92, 0.72, 0.16, -0.22, 0.52, -1.04));
+      // 1. Nền đá lát ghép từng viên nhỏ nhiều kích cỡ & sắc độ (không dùng 1 phiến đá lớn)
+      for (let gx = 0; gx < 7; gx++) {
+        for (let gz = 0; gz < 6; gz++) {
+          const seed = gx * 31.7 + gz * 17.3 + 5.1;
+          const sx = 0.25 + hash01(seed + 1) * 0.1;
+          const sz = 0.26 + hash01(seed + 2) * 0.1;
+          const sh = 0.065 + hash01(seed + 3) * 0.03;
+          const px = -1.14 + gx * 0.34 + (hash01(seed + 4) - 0.5) * 0.04;
+          const pz = -1.04 + gz * 0.36 + (hash01(seed + 5) - 0.5) * 0.04;
+          const paver = rbox(sx, sh, sz, 0.015, 0, 0, 0);
+          paver.rotateY((hash01(seed + 6) - 0.5) * 0.28);
+          paver.translate(px, 0.12 + sh / 2, pz);
+          push(pickForgeStone(seed), paver);
+        }
+      }
 
-      // 6 cột gỗ lim & xà ngang đỡ mái ngói
+      // 2. Tường hậu chắn lửa xếp chồng từ nhiều tảng đá nhỏ so le (4 hàng đá)
+      for (let row = 0; row < 4; row++) {
+        const y = 0.22 + row * 0.17;
+        const count = row % 2 === 0 ? 7 : 6;
+        const startX = row % 2 === 0 ? -1.06 : -0.92;
+        for (let col = 0; col < count; col++) {
+          const seed = row * 53.1 + col * 19.7 + 200;
+          const w = 0.24 + hash01(seed + 1) * 0.07;
+          const h = 0.15 + hash01(seed + 2) * 0.03;
+          const d = 0.16 + hash01(seed + 3) * 0.04;
+          const x = startX + col * 0.3;
+          const z = -1.04 + (hash01(seed + 4) - 0.5) * 0.03;
+          const rock = rbox(w, h, d, 0.025, 0, 0, 0);
+          rock.rotateY((hash01(seed + 5) - 0.5) * 0.18);
+          rock.translate(x, y, z);
+          push(pickForgeStone(seed), rock);
+        }
+      }
+
+      // 3. 6 cột gỗ lim & hệ vì kèo xà ngang đỡ mái
       for (const [cx, cz] of [
-        [-1.08, -1.02], [-0.22, -1.02], [0.64, -1.02],
+        [-1.08, -1.0], [-0.22, -1.0], [0.64, -1.0],
         [-1.08, 0.68], [-0.22, 0.68], [0.64, 0.68],
       ]) {
         push('woodDark', cyl(0.06, 0.07, 1.12, 6, cx, 0.72, cz));
       }
-      push('woodDark', box(1.92, 0.07, 0.08, -0.22, 1.24, -1.02));
-      push('woodDark', box(1.92, 0.07, 0.08, -0.22, 1.24, 0.68));
-
-      // Mái ngói đất nung chống cháy (2 mái dốc + gờ ngói ống + nóc thoát khói)
-      const forgeSlope = 0.52;
-      for (const side of [-1, 1]) {
-        const panel = box(2.14, 0.07, 1.14, 0, 0, 0);
-        panel.rotateX(side * forgeSlope);
-        panel.translate(-0.22, 1.48, -0.17 + side * 0.48);
-        push('roofRed', panel);
-
-        // Các dãy ngói ống nổi chạy dọc mái dốc
-        for (let rib = 0; rib < 9; rib++) {
-          const rx = -1.2 + rib * 0.245;
-          const tube = cyl(0.028, 0.032, 1.16, 6, 0, 0, 0);
-          tube.rotateX(Math.PI / 2 + side * forgeSlope);
-          tube.translate(rx, 1.52, -0.17 + side * 0.48);
-          push('roofRed', tube);
-        }
-      }
-      // Sống nóc ngói & tầng thoát nhiệt trên cao (Lv.2+)
-      push('stoneDark', box(2.18, 0.12, 0.2, -0.22, 1.76, -0.17));
-      if (tier >= 2) {
-        for (const [vx, vz] of [[-0.55, -0.35], [0.1, -0.35], [-0.55, 0.0], [0.1, 0.0]]) {
-          push('woodDark', cyl(0.03, 0.035, 0.28, 5, vx, 1.84, vz));
-        }
+      push('woodDark', box(1.94, 0.07, 0.08, -0.22, 1.24, -1.0));
+      push('woodDark', box(1.94, 0.07, 0.08, -0.22, 1.24, 0.68));
+      for (const rx of [-1.08, -0.65, -0.22, 0.21, 0.64]) {
         for (const side of [-1, 1]) {
-          const cap = box(0.95, 0.05, 0.45, 0, 0, 0);
-          cap.rotateX(side * 0.45);
-          cap.translate(-0.22, 2.02, -0.17 + side * 0.19);
-          push('roofRed', cap);
+          const rafter = box(0.05, 0.05, 1.12, 0, 0, 0);
+          rafter.rotateX(side * 0.54);
+          rafter.translate(rx, 1.44, -0.16 + side * 0.45);
+          push('woodDark', rafter);
         }
-        push('stoneDark', box(0.98, 0.08, 0.12, -0.22, 2.13, -0.17));
       }
 
-      // Bếp lò đá gạch chịu nhiệt & ống khói cao thoát xuyên mái + vòm lửa đỏ rực
-      push('stoneDark', rbox(0.84, 0.78, 0.84, 0.06, -0.58, 0.54, -0.45));
-      push('stone', cyl(0.22, 0.34, 1.45 + tier * 0.12, 8, -0.58, 1.32, -0.45));
-      push('stoneDark', cyl(0.28, 0.26, 0.12, 8, -0.58, 2.04 + tier * 0.06, -0.45));
-      push('ember', box(0.46, 0.36, 0.24, -0.58, 0.38, -0.01));
+      // 4. Mái ngói cổ xếp lớp từng viên nhỏ so le (ngói đất nung pha rêu/gỗ mộc, không dùng tôn dài)
+      const forgeSlope = 0.54;
+      const forgeTileTones: MaterialKey[] = ['roofRed', 'thatchDark', 'stoneWarm', 'roofRed'];
+      for (const side of [-1, 1]) {
+        for (let row = 0; row < 5; row++) {
+          const t = row / 4;
+          const ry = 1.24 + t * 0.46;
+          const rz = -0.16 + side * (0.9 - t * 0.72);
+          const tilesInRow = 10;
+          const stagger = (row % 2) * 0.08;
+          for (let col = 0; col < tilesInRow; col++) {
+            const seed = (side + 2) * 97 + row * 31 + col * 11.3;
+            const tx = -1.16 + col * 0.21 + stagger * 0.35;
+            const tile = rbox(0.18, 0.032, 0.22, 0.008, 0, 0, 0);
+            tile.rotateX(side * forgeSlope + (hash01(seed + 1) - 0.5) * 0.05);
+            tile.rotateZ((hash01(seed + 2) - 0.5) * 0.04);
+            tile.translate(tx, ry + (hash01(seed + 3) - 0.5) * 0.01, rz);
+            push(forgeTileTones[Math.floor(hash01(seed + 4) * forgeTileTones.length)], tile);
+          }
+        }
+      }
+      // Sống nóc xếp viên ngói úp nhỏ nối tiếp nhau (không dùng thanh phẳng lớn)
+      for (let r = 0; r < 9; r++) {
+        const rx = -1.1 + r * 0.22;
+        push('stoneWarm', rbox(0.2, 0.09, 0.18, 0.02, rx, 1.74, -0.16));
+      }
+
+      // 5. Bếp lò & Ống khói xếp chồng từ nhiều viên đá nhỏ (có miệng khói tối rỗng ở đỉnh)
+      for (let row = 0; row < 4; row++) {
+        const y = 0.24 + row * 0.16;
+        for (let a = 0; a < 8; a++) {
+          const ang = (a / 8) * Math.PI * 2 + row * 0.38;
+          const rad = 0.34 - row * 0.015;
+          const seed = row * 41 + a * 13.7 + 700;
+          const bx = -0.58 + Math.cos(ang) * rad;
+          const bz = -0.45 + Math.sin(ang) * rad;
+          // Chừa cửa lò phía trước (+Z)
+          if (row <= 1 && Math.sin(ang) > 0.55) continue;
+          const stone = rbox(0.22, 0.15, 0.2, 0.025, 0, 0, 0);
+          stone.rotateY(-ang + (hash01(seed) - 0.5) * 0.2);
+          stone.translate(bx, y, bz);
+          push(pickForgeStone(seed), stone);
+        }
+      }
+      // Ống khói đá xếp từng vòng thu nhỏ lên cao
+      const chimneyRings = 6 + tier;
+      for (let ring = 0; ring < chimneyRings; ring++) {
+        const y = 0.88 + ring * 0.16;
+        const rad = 0.26 - ring * 0.014;
+        const segs = 6;
+        for (let s = 0; s < segs; s++) {
+          const ang = (s / segs) * Math.PI * 2 + ring * 0.52;
+          const seed = ring * 67 + s * 23 + 900;
+          const st = rbox(0.18, 0.15, 0.16, 0.025, 0, 0, 0);
+          st.rotateY(-ang);
+          st.translate(-0.58 + Math.cos(ang) * rad, y, -0.45 + Math.sin(ang) * rad);
+          push(pickForgeStone(seed), st);
+        }
+      }
+      // Lõi rỗng tối màu ở miệng ống khói & lửa đỏ rực trong vòm lò
+      push('charcoal', cyl(0.12, 0.14, 0.14, 8, -0.58, 0.88 + chimneyRings * 0.16 - 0.1, -0.45));
+      push('ember', box(0.38, 0.3, 0.22, -0.58, 0.34, -0.14));
 
       // Bễ thổi gió bằng gỗ & ống gió sắt nối vào lò
       push('wood', box(0.42, 0.24, 0.28, -1.08, 0.36, -0.42));
