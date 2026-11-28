@@ -2228,33 +2228,82 @@ function getBuildingParts(
     }
 
     case 'farm': {
-      // 5x5 Ruộng bậc thang / ruộng nước thấp trũng + luống lúa non + chòi canh + lu nước + cuốc cào
-      push('earthDark', createOrganicEarthMound(4.82, 4.82, 0.14, 1.3));
-      push('water', box(4.45, 0.08, 4.45, 0, 0.13, 0));
+      // 5x5 Ruộng bậc thang + khóm lúa chi tiết + guồng nước tre + bù nhìn rơm + chòi canh có lan can, thang, bao thóc
+      push('earthDark', createOrganicEarthMound(4.86, 4.86, 0.14, 1.3));
+      push('water', box(4.48, 0.08, 4.48, 0, 0.13, 0));
       // Bờ ruộng chia ô
-      push('earth', createOrganicEarthMound(4.55, 0.22, 0.14, 2.7).translate(0, 0.09, -0.1));
-      push('earth', createOrganicEarthMound(0.22, 4.55, 0.14, 3.9).translate(0.45, 0.09, 0));
-      // Luống lúa non xanh tốt
+      push('earth', createOrganicEarthMound(4.58, 0.24, 0.14, 2.7).translate(0, 0.09, -0.1));
+      push('earth', createOrganicEarthMound(0.24, 4.58, 0.14, 3.9).translate(0.45, 0.09, 0));
+      push('earth', createOrganicEarthMound(2.15, 0.18, 0.12, 4.4).translate(-1.05, 0.09, 0.2));
+
+      // Khóm lúa xanh tốt nhiều tầng dọc luống
       for (let r = 0; r < 5; r++) {
         const z = -1.65 + r * 0.82;
         if (Math.abs(z + 0.1) < 0.25) continue;
         push('earth', createOrganicEarthMound(2.3, 0.36, 0.1, 5.1 + r).translate(1.05, 0.11, z));
-        push(r % 2 === 0 ? 'riceYoung' : 'riceLush', box(2.15, 0.16 + tier * 0.02, 0.26, 1.05, 0.26, z));
+        for (let k = 0; k < 6; k++) {
+          const kx = 0.15 + k * 0.36;
+          const tuftH = 0.22 + tier * 0.03 + ((r + k) % 2) * 0.05;
+          push(
+            (r + k) % 2 === 0 ? 'riceYoung' : 'riceLush',
+            cone(0.14, tuftH, 5, kx, 0.18 + tuftH / 2, z)
+          );
+          if (tier >= 3 && (r + k) % 3 === 0) {
+            push('thatch', cyl(0.03, 0.05, 0.1, 5, kx, 0.24 + tuftH, z));
+          }
+        }
       }
       for (let r = 0; r < 3; r++) {
-        const z = 0.45 + r * 0.72;
+        const z = 0.55 + r * 0.68;
         push('earth', createOrganicEarthMound(1.85, 0.34, 0.1, 9.3 + r).translate(-1.15, 0.11, z));
-        push('riceYoung', box(1.72, 0.16, 0.24, -1.15, 0.26, z));
+        for (let k = 0; k < 5; k++) {
+          const kx = -1.85 + k * 0.35;
+          const tuftH = 0.2 + tier * 0.025;
+          push(k % 2 === 0 ? 'riceYoung' : 'riceLush', cone(0.13, tuftH, 5, kx, 0.18 + tuftH / 2, z));
+        }
       }
-      // Chòi canh điền nhỏ ở góc (-1.45, -1.45)
+
+      // Bù nhìn rơm đội nón lá đứng giữa ruộng
+      push('bambooDry', cyl(0.025, 0.03, 0.72, 6, 1.15, 0.45, 0.95));
+      push('bambooDry', box(0.48, 0.035, 0.035, 1.15, 0.62, 0.95));
+      push('sack', cyl(0.08, 0.11, 0.28, 6, 1.15, 0.56, 0.95));
+      push('thatch', cone(0.18, 0.12, 8, 1.15, 0.84, 0.95));
+
+      // Guồng nước tre & máng dẫn nước ở mép phải sau ruộng
+      push('bambooDry', cyl(0.04, 0.04, 0.72, 6, 2.05, 0.44, -1.78));
+      push('bambooDry', cyl(0.04, 0.04, 0.72, 6, 2.05, 0.44, -1.28));
+      for (let spoke = 0; spoke < 6; spoke++) {
+        const ang = (spoke * Math.PI) / 3;
+        const sb = box(0.035, 0.74, 0.04, 2.05, 0.56, -1.53);
+        sb.rotateZ(ang);
+        push('bamboo', sb);
+      }
+      push('bamboo', box(0.85, 0.06, 0.1, 1.65, 0.46, -1.53));
+
+      // Chòi canh điền có sàn tre, lan can, thang leo & bao thóc
       for (const [cx, cz] of [[-1.9, -1.9], [-1.0, -1.9], [-1.9, -1.0], [-1.0, -1.0]]) {
-        push('bambooDry', cyl(0.05, 0.06, 1.05, 6, cx, 0.65, cz));
+        push('bambooDry', cyl(0.05, 0.06, 1.12, 6, cx, 0.66, cz));
       }
-      push('bamboo', box(1.05, 0.08, 1.05, -1.45, 0.48, -1.45));
-      push('thatch', cone(0.95, 0.62, 4, -1.45, 1.42, -1.45, Math.PI / 4));
-      // Lu nước sành & nông cụ (cuốc, cào) dựng bên cạnh chòi
+      push('bamboo', box(1.12, 0.08, 1.12, -1.45, 0.52, -1.45));
+      // Lan can chòi
+      push('bambooDry', box(1.02, 0.035, 0.035, -1.45, 0.78, -1.92));
+      push('bambooDry', box(0.035, 0.035, 1.02, -1.92, 0.78, -1.45));
+      // Thang tre nhỏ leo lên chòi
+      push('bambooDry', box(0.04, 0.46, 0.04, -1.62, 0.32, -0.9));
+      push('bambooDry', box(0.04, 0.46, 0.04, -1.28, 0.32, -0.9));
+      push('bamboo', box(0.36, 0.035, 0.05, -1.45, 0.25, -0.9));
+      push('bamboo', box(0.36, 0.035, 0.05, -1.45, 0.38, -0.9));
+      // Mái tranh 2 lớp
+      push('thatch', cone(0.98, 0.64, 4, -1.45, 1.44, -1.45, Math.PI / 4));
+      push('thatch', cone(0.45, 0.26, 4, -1.45, 1.78, -1.45, Math.PI / 4));
+      // Bao thóc xếp dưới gầm chòi
+      push('sack', box(0.32, 0.18, 0.22, -1.58, 0.2, -1.55));
+      push('sack', box(0.3, 0.18, 0.22, -1.24, 0.2, -1.48));
+
+      // Lu nước sành, gánh thúng & cuốc cào bên cạnh chòi
       push('ceramic', cyl(0.18, 0.14, 0.36, 10, -0.68, 0.34, -1.3));
       push('water', cyl(0.15, 0.15, 0.04, 10, -0.68, 0.51, -1.3));
+      push('bamboo', cyl(0.14, 0.1, 0.16, 8, -0.62, 0.24, -0.88));
       const hoe = cyl(0.025, 0.025, 0.85, 6, -0.82, 0.56, -1.78);
       hoe.rotateZ(0.2);
       push('wood', hoe);
@@ -2263,31 +2312,56 @@ function getBuildingParts(
     }
 
     case 'forge': {
-      // 3x3 Nhà nhỏ mái tranh, vách hở thoát nhiệt, bếp lò đỏ lửa, ống khói đất nện, đe sắt, búa, giá vũ khí, than củi
-      push('earthDark', createOrganicEarthMound(2.82, 2.82, 0.14, 6.2));
-      // 4 cột gỗ vách hở
-      for (const [cx, cz] of [[-1.0, -1.0], [0.55, -1.0], [-1.0, 0.65], [0.55, 0.65]]) {
-        push('woodDark', cyl(0.06, 0.07, 1.0, 6, cx, 0.64, cz));
+      // 3x3 Xưởng rèn mái tranh 2 tầng thoát khói, lò gạch đỏ lửa, bễ thổi gió, bể tôi kiếm, đe sắt + phôi đỏ, giá binh khí & thùng quặng
+      push('earthDark', createOrganicEarthMound(2.86, 2.86, 0.14, 6.2));
+      // 6 cột gỗ & xà ngang
+      for (const [cx, cz] of [
+        [-1.08, -1.02], [-0.22, -1.02], [0.64, -1.02],
+        [-1.08, 0.68], [-0.22, 0.68], [0.64, 0.68],
+      ]) {
+        push('woodDark', cyl(0.06, 0.07, 1.06, 6, cx, 0.66, cz));
       }
-      // Mái tranh thoáng
-      push('thatch', cone(1.5, 0.72, 4, -0.22, 1.45, -0.18, Math.PI / 4));
-      // Bếp lò đất nện & ống khói + lửa đỏ rực
-      push('earth', rbox(0.75, 0.65, 0.75, 0.06, -0.5, 0.45, -0.45));
-      push('earthDark', cyl(0.2, 0.3, 1.15 + tier * 0.08, 8, -0.5, 1.05, -0.45));
-      push('ember', box(0.42, 0.32, 0.22, -0.5, 0.35, -0.05));
-      // Đe sắt & búa tạ bên ngoài
-      push('wood', cyl(0.16, 0.18, 0.24, 8, 0.35, 0.24, 0.35));
-      push('iron', box(0.4, 0.2, 0.22, 0.35, 0.44, 0.35));
-      push('wood', cyl(0.025, 0.025, 0.45, 6, 0.55, 0.55, 0.35));
-      push('iron', box(0.18, 0.1, 0.1, 0.55, 0.76, 0.35));
-      // Đống than củi
-      push('charcoal', sphere(0.22, 0.95, 0.22, -0.55));
-      push('charcoal', sphere(0.18, 1.12, 0.2, -0.35));
-      push('charcoal', sphere(0.16, 0.85, 0.2, -0.32));
-      // Giá treo kiếm giáo thô sơ
-      push('woodDark', box(0.7, 0.06, 0.08, 0.95, 0.72, 0.75));
-      for (const sx of [0.75, 0.95, 1.15]) {
-        push('iron', box(0.05, 0.55, 0.04, sx, 0.52, 0.75));
+      push('woodDark', box(1.85, 0.07, 0.08, -0.22, 1.15, -1.02));
+      push('woodDark', box(1.85, 0.07, 0.08, -0.22, 1.15, 0.68));
+      // Mái tranh chính + nóc thoát khói
+      push('thatch', cone(1.62, 0.72, 4, -0.22, 1.48, -0.17, Math.PI / 4));
+      if (tier >= 2) {
+        push('thatch', cone(0.75, 0.36, 4, -0.22, 1.92, -0.17, Math.PI / 4));
+      }
+
+      // Bếp lò đá/gạch nung & ống khói cao + vòm lửa đỏ rực
+      push('stoneDark', rbox(0.82, 0.72, 0.82, 0.06, -0.58, 0.48, -0.45));
+      push('earthDark', cyl(0.22, 0.34, 1.25 + tier * 0.1, 8, -0.58, 1.12, -0.45));
+      push('ember', box(0.46, 0.34, 0.24, -0.58, 0.36, -0.02));
+      // Bễ thổi gió bằng gỗ & da nối vào lò
+      push('wood', box(0.38, 0.22, 0.26, -1.08, 0.34, -0.42));
+      push('iron', cyl(0.04, 0.05, 0.32, 6, -0.84, 0.34, -0.42));
+
+      // Đe sắt + phôi kiếm đang nung đỏ + búa tạ
+      push('wood', cyl(0.18, 0.2, 0.26, 8, 0.32, 0.25, 0.32));
+      push('iron', box(0.44, 0.22, 0.22, 0.32, 0.46, 0.32));
+      push('ember', box(0.28, 0.04, 0.06, 0.32, 0.59, 0.32));
+      push('wood', cyl(0.025, 0.025, 0.48, 6, 0.55, 0.56, 0.32));
+      push('iron', box(0.18, 0.1, 0.11, 0.55, 0.78, 0.32));
+
+      // Bể nước tôi kiếm cạnh đe
+      push('woodDark', box(0.56, 0.26, 0.34, 0.32, 0.26, -0.18));
+      push('water', box(0.48, 0.06, 0.26, 0.32, 0.37, -0.18));
+
+      // Đống than củi & thùng gỗ đựng quặng thô
+      push('charcoal', sphere(0.22, 0.96, 0.22, -0.55));
+      push('charcoal', sphere(0.18, 1.14, 0.2, -0.35));
+      push('charcoal', sphere(0.16, 0.86, 0.2, -0.32));
+      push('wood', cyl(0.2, 0.18, 0.34, 8, 1.02, 0.3, -0.1));
+      push('stoneDark', sphere(0.12, 0.98, 0.47, -0.12));
+      push('stoneDark', sphere(0.1, 1.08, 0.46, -0.04));
+
+      // Giá treo kiếm giáo 2 cột
+      push('woodDark', cyl(0.04, 0.04, 0.72, 6, 0.65, 0.48, 0.78));
+      push('woodDark', cyl(0.04, 0.04, 0.72, 6, 1.25, 0.48, 0.78));
+      push('woodDark', box(0.68, 0.06, 0.08, 0.95, 0.76, 0.78));
+      for (const sx of [0.76, 0.9, 1.04, 1.16]) {
+        push('iron', box(0.045, 0.58, 0.035, sx, 0.52, 0.78));
       }
       break;
     }
