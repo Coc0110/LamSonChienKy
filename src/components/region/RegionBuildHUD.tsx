@@ -6,6 +6,7 @@ import {
   Eye,
   FileText,
   Gavel,
+  Hammer,
   Lock,
   Move,
   ScrollText,
@@ -17,6 +18,7 @@ import {
   Trash2,
   Trees,
   Users,
+  Wheat,
   X,
   ZoomOut,
 } from 'lucide-react';
@@ -29,6 +31,7 @@ import type {
 } from '../../store/slices/regionSlice';
 import {
   BASE_BUILDING_CATALOG,
+  FORAGED_ITEM_CATALOG,
   checkMainHallUpgradeRequirements,
   getBuildableHalfRadius,
   getUpgradeCost,
@@ -43,7 +46,7 @@ interface RegionBuildHUDProps {
   food: number;
   regularTroopsCount: number;
   eliteTroopsCount: number;
-  generals: Array<{ id: string; name: string; title: string; stats: { intellect: number; command: number; martial: number } }>;
+  generals: Array<{ id: string; name: string; title: string; portraitUrl?: string; stats: { intellect: number; command: number; martial: number } }>;
   onAssignSupervisor: (buildingId: string, generalId: string | null) => void;
   onRepairBuilding: (buildingId: string) => void;
   onPromoteElite: (count: number) => void;
@@ -192,6 +195,8 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
   const isScout = mode === 'scout_view';
   const [activeTab, setActiveTab] = useState<BuildTabKey>('facility');
   const [mainHallTab, setMainHallTab] = useState<'info' | 'commands' | 'military' | 'generals'>('info');
+  const [generalSearch, setGeneralSearch] = useState<string>('');
+  const [storageTab, setStorageTab] = useState<'rack' | 'treasures'>('rack');
   const [watchtowerTab, setWatchtowerTab] = useState<'scout' | 'hunt'>('scout');
   const [rareLeaderId, setRareLeaderId] = useState<string>('');
   const [districtBuyGood, setDistrictBuyGood] = useState<'wood' | 'ironOre' | 'food'>('wood');
@@ -440,24 +445,49 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
                     {/* TAB 1: THÔNG TIN (Yêu cầu nâng cấp & Công trình mở khóa cấp tiếp theo) */}
                     {mainHallTab === 'info' && (
                       <div className="mt-4 space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 text-xs">
-                          <div className="rounded-lg border border-[#8c6b44]/35 bg-black/[0.04] p-3">
-                            <div className="text-[#6b4423]">Độ bền thành lũy</div>
-                            <div className="mt-1 flex items-center gap-1.5 text-sm font-black text-[#261304]">
-                              <Shield className="h-4 w-4 text-emerald-700" />
-                              {selectedBuilding.hp}/{selectedBuilding.maxHp}
+                        {/* Khung Thông Tin Phong Cách Cuộn Thư 2 Cột (Chân Dung Chủ Tướng + Kiến Trúc) */}
+                        <div className="grid grid-cols-1 md:grid-cols-[190px_1fr] gap-3">
+                          <div className="rounded-xl border-2 border-[#8c6b44]/50 bg-[#f7eed8]/90 p-2.5 flex flex-col items-center text-center shadow-inner">
+                            <span className="rounded-full bg-[#8c2d19] px-2.5 py-0.5 text-[10px] font-black text-[#fff3db] mb-1.5">
+                              Chủ Tướng · Bình Định Vương
+                            </span>
+                            <div className="w-28 h-28 rounded-lg border-2 border-[#8c6b44]/60 bg-stone-900/10 overflow-hidden shadow">
+                              <img
+                                src={generals.find((g) => g.id === 'le_loi')?.portraitUrl || '/generals/le_loi.png?v=4'}
+                                alt="Lê Lợi"
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                            <div className="mt-1.5 text-sm font-black text-[#261304]">Lê Lợi</div>
+                            <div className="text-[10px] font-bold text-[#6e380e]">
+                              Khởi Nghĩa Lam Sơn (1416–1418)
                             </div>
                           </div>
-                          <div className="rounded-lg border border-[#8c6b44]/35 bg-black/[0.04] p-3">
-                            <div className="text-[#6b4423]">Phạm vi xây dựng hiện tại</div>
-                            <div className="mt-1 text-sm font-black text-[#8c2d19]">
-                              {buildSpan} × {buildSpan} ô
-                            </div>
-                          </div>
-                          <div className="rounded-lg border border-[#8c6b44]/35 bg-black/[0.04] p-3">
-                            <div className="text-[#6b4423]">Hiệu ứng hiện tại</div>
-                            <div className="mt-1 text-xs font-bold text-[#261304]">
-                              {spec.effectLabel(lv)}
+
+                          <div className="rounded-xl border border-[#8c6b44]/40 bg-black/[0.04] p-3 flex flex-col justify-between gap-2">
+                            <div className="flex items-start gap-3">
+                              <img
+                                src="/icons/structure_camp.png"
+                                alt="Nhà Chính"
+                                className="w-14 h-14 object-contain shrink-0 drop-shadow"
+                              />
+                              <div className="text-xs space-y-1 flex-1">
+                                <div className="font-black text-sm text-[#8c2d19]">
+                                  Đại Bản Doanh Cấp {lv}/{spec.maxLevel}
+                                </div>
+                                <div className="text-[#4a260a]">
+                                  • Độ bền thành lũy: <strong>{selectedBuilding.hp}/{selectedBuilding.maxHp}</strong>
+                                </div>
+                                <div className="text-[#4a260a]">
+                                  • Phạm vi xây dựng: <strong>{buildSpan} × {buildSpan} ô</strong>
+                                </div>
+                                <div className="text-[#4a260a]">
+                                  • Hiệu ứng: <strong>{spec.effectLabel(lv)}</strong>
+                                </div>
+                                <div className="text-[#4a260a]">
+                                  • Công trình hiện có: <strong>{layout.buildings.filter((b) => b.status !== 'destroyed').length}</strong> · Tướng: <strong>{generals.length}</strong>
+                                </div>
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -717,49 +747,75 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
                       </div>
                     )}
 
-                    {/* TAB 4: DANH TƯỚNG (18 Tướng Hội Thề Lũng Nhai) */}
-                    {mainHallTab === 'generals' && (
-                      <div className="mt-4 space-y-3">
-                        <div className="flex items-center justify-between">
-                          <h4 className="text-xs font-black uppercase tracking-wider text-[#8c2d19]">
-                            18 Tướng Hội Thề Lũng Nhai ({generals.length})
-                          </h4>
-                          <button
-                            onClick={onOpenGeneralsModal}
-                            className="rounded-lg bg-[#8c2d19] px-3 py-1.5 text-[11px] font-bold text-[#fff3db] hover:bg-[#6e1e0d] cursor-pointer shadow"
-                          >
-                            Mở Thẻ Đồng 3D
-                          </button>
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto pr-1">
-                          {generals.map((g) => {
-                            const supervised = layout.buildings.find((b) => b.supervisorGeneralId === g.id);
-                            return (
-                              <div
-                                key={g.id}
-                                className="rounded-lg border border-[#8c6b44]/35 bg-[#f7eed8]/75 p-2 text-xs flex items-center justify-between gap-2"
+                    {/* TAB 4: DANH TƯỚNG (Lưới Thẻ Chân Dung Phong Cách Tông Môn + Giấy Dó) */}
+                    {mainHallTab === 'generals' && (() => {
+                      const filteredGens = generals.filter((g) =>
+                        g.name.toLowerCase().includes(generalSearch.trim().toLowerCase())
+                      );
+                      return (
+                        <div className="mt-3 space-y-2.5">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <h4 className="text-xs font-black uppercase tracking-wider text-[#8c2d19]">
+                              18 Tướng Hội Thề Lũng Nhai ({filteredGens.length}/{generals.length})
+                            </h4>
+                            <div className="flex items-center gap-1.5">
+                              <input
+                                type="text"
+                                placeholder="Tìm tên tướng..."
+                                value={generalSearch}
+                                onChange={(e) => setGeneralSearch(e.target.value)}
+                                className="w-36 rounded-lg border border-[#8c6b44]/45 bg-white/80 px-2.5 py-1 text-[11px] font-bold text-[#261304]"
+                              />
+                              <button
+                                onClick={onOpenGeneralsModal}
+                                className="rounded-lg bg-[#8c2d19] px-3 py-1.5 text-[11px] font-bold text-[#fff3db] hover:bg-[#6e1e0d] cursor-pointer shadow"
                               >
-                                <div className="min-w-0">
-                                  <div className="font-black text-[#261304] truncate">{g.name}</div>
-                                  <div className="text-[10px] text-[#5c3e23]">
-                                    TL:{g.stats.command} · VN:{g.stats.martial} · TR:{g.stats.intellect}
+                                Thẻ Đồng 3D
+                              </button>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2 max-h-64 overflow-y-auto pr-1">
+                            {filteredGens.map((g) => {
+                              const supervised = layout.buildings.find((b) => b.supervisorGeneralId === g.id);
+                              return (
+                                <div
+                                  key={g.id}
+                                  className="relative rounded-lg border-2 border-[#8c6b44]/55 bg-[#f7eed8] p-1.5 flex flex-col items-center text-center shadow-sm"
+                                >
+                                  <div className="w-full flex items-center justify-between text-[9px] font-black mb-1">
+                                    <span
+                                      className={`rounded px-1 py-0.5 ${
+                                        supervised
+                                          ? 'bg-emerald-700 text-white'
+                                          : 'bg-[#8c6b44]/20 text-[#5c3e23]'
+                                      }`}
+                                    >
+                                      {supervised ? BASE_BUILDING_CATALOG[supervised.type].shortName : 'Rảnh'}
+                                    </span>
+                                    <span className="rounded bg-[#8c2d19]/15 px-1 py-0.5 text-[#8c2d19]">
+                                      {g.stats.command}
+                                    </span>
+                                  </div>
+                                  <div className="w-12 h-12 rounded border border-[#8c6b44]/40 bg-stone-900/10 overflow-hidden">
+                                    <img
+                                      src={g.portraitUrl || '/icons/general_token.png'}
+                                      alt={g.name}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  </div>
+                                  <div className="mt-1 text-[10px] font-black text-[#261304] truncate w-full">
+                                    {g.name}
+                                  </div>
+                                  <div className="text-[9px] font-semibold text-[#6e4927]">
+                                    VN:{g.stats.martial} · TR:{g.stats.intellect}
                                   </div>
                                 </div>
-                                <span
-                                  className={`shrink-0 rounded px-2 py-0.5 text-[10px] font-bold ${
-                                    supervised
-                                      ? 'bg-emerald-700/15 text-emerald-900 border border-emerald-700/30'
-                                      : 'bg-stone-500/15 text-stone-700'
-                                  }`}
-                                >
-                                  {supervised ? BASE_BUILDING_CATALOG[supervised.type].shortName : 'Rảnh'}
-                                </span>
-                              </div>
-                            );
-                          })}
+                              );
+                            })}
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      );
+                    })()}
                   </div>
                 </div>
 
@@ -908,148 +964,228 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
                         const costMult = lv >= 4 ? 0.75 : lv >= 2 ? 0.9 : 1;
                         const oreCost = Math.max(1, Math.round(batch * costMult));
                         const goldCost = Math.max(1, Math.round(batch * 1.5 * costMult));
+                        const supervisor = generals.find((g) => g.id === selectedBuilding.supervisorGeneralId);
                         return (
-                          <div className="rounded-lg border border-[#8c6b44]/35 bg-white/50 p-3 space-y-2">
-                            <div className="flex items-center justify-between text-xs font-bold text-[#261304]">
-                              <span>Xưởng Rèn 3D (Lv.{lv})</span>
-                              <span className="text-[#8c2d19]">
-                                Quặng: {resourcesSummary.ironOre} · Vàng: {resourcesSummary.gold}
+                          <div className="grid grid-cols-1 md:grid-cols-[175px_1fr] gap-2.5">
+                            {/* Cột trái: Tướng Giám Sát + Minh họa Lò Rèn */}
+                            <div className="rounded-xl border border-[#8c6b44]/45 bg-[#f7eed8]/85 p-2.5 flex flex-col justify-between items-center text-center">
+                              <div className="w-full rounded-lg border border-[#8c6b44]/30 bg-white/75 p-1.5 text-[11px]">
+                                <div className="font-bold text-[#6e4927]">Tướng Giám Sát</div>
+                                <div className="font-black text-[#8c2d19] truncate">
+                                  {supervisor ? supervisor.name : 'Chưa cắt cử'}
+                                </div>
+                              </div>
+                              <img
+                                src="/icons/structure_forge.png"
+                                alt="Lò Rèn"
+                                className="w-16 h-16 object-contain my-2 drop-shadow"
+                              />
+                              <button
+                                onClick={() => onOpenBuildingAction('forges')}
+                                className="w-full rounded-lg border border-[#8c5828]/40 bg-[#8c5828]/15 py-1.5 text-[11px] font-black text-[#6e380e] hover:bg-[#8c5828]/25 cursor-pointer flex items-center justify-center gap-1"
+                              >
+                                <Hammer className="h-3.5 w-3.5" />
+                                Xưởng Rèn Chi Tiết
+                              </button>
+                            </div>
+                            {/* Cột phải: Các hàng Sản xuất Thi hành */}
+                            <div className="space-y-1.5">
+                              {[
+                                { type: 'sword' as const, icon: '⚔️', name: `Đúc +${batch} Kiếm`, minLv: 1 },
+                                { type: 'bow' as const, icon: '🏹', name: `Đúc +${batch} Cung`, minLv: 2 },
+                                { type: 'spear' as const, icon: '🔱', name: `Đúc +${batch} Giáo`, minLv: 2 },
+                              ].map((row) => {
+                                const locked = lv < row.minLv;
+                                return (
+                                  <div
+                                    key={row.type}
+                                    className="flex items-center justify-between gap-2 rounded-xl border border-[#8c6b44]/35 bg-white/75 px-3 py-2"
+                                  >
+                                    <div className="flex items-center gap-2.5 min-w-0">
+                                      <span className="text-xl leading-none">{row.icon}</span>
+                                      <div className="min-w-0">
+                                        <div className="text-xs font-black text-[#261304] truncate">{row.name}</div>
+                                        <div className="text-[10px] font-semibold text-[#5c3e23]">
+                                          {oreCost} Quặng · {goldCost} Vàng
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <button
+                                      disabled={locked}
+                                      onClick={() => onCraftForgeWeapon(selectedBuilding.id, row.type)}
+                                      className="shrink-0 rounded-lg bg-[#d97706] px-3 py-1.5 text-xs font-black text-white hover:bg-[#b45309] disabled:opacity-40 cursor-pointer shadow"
+                                    >
+                                      {locked ? `Lv.${row.minLv}` : 'Thi hành'}
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })()}
+                      {selectedBuilding.type === 'farm' && (() => {
+                        const supervisor = generals.find((g) => g.id === selectedBuilding.supervisorGeneralId);
+                        return (
+                          <div className="grid grid-cols-1 md:grid-cols-[175px_1fr] gap-2.5">
+                            <div className="rounded-xl border border-[#8c6b44]/45 bg-[#f7eed8]/85 p-2.5 flex flex-col justify-between items-center text-center">
+                              <div className="w-full rounded-lg border border-[#8c6b44]/30 bg-white/75 p-1.5 text-[11px]">
+                                <div className="font-bold text-[#6e4927]">Tướng Giám Sát</div>
+                                <div className="font-black text-emerald-900 truncate">
+                                  {supervisor ? supervisor.name : 'Chưa cắt cử'}
+                                </div>
+                              </div>
+                              <img
+                                src="/icons/structure_farm.png"
+                                alt="Đồn Điền"
+                                className="w-16 h-16 object-contain my-2 drop-shadow"
+                              />
+                              <span className="rounded bg-emerald-700/15 px-2 py-0.5 text-[10px] font-black text-emerald-900">
+                                Đồn Điền Lv.{lv}
                               </span>
                             </div>
-                            <div className="grid grid-cols-3 gap-1.5">
+                            <div className="space-y-2 flex flex-col justify-between">
+                              <div className="rounded-xl border border-emerald-700/35 bg-white/75 p-3 text-xs space-y-1.5">
+                                <div className="font-black text-emerald-950 flex items-center justify-between">
+                                  <span>Sản lượng vụ mùa (15 ngày)</span>
+                                  <span className="text-[#8c2d19]">{BASE_BUILDING_CATALOG.farm.effectLabel(lv)}</span>
+                                </div>
+                                <p className="text-[11px] text-[#5c3e23]">
+                                  Binh sĩ &amp; Tinh nhuệ tự động luân phiên canh tác theo kế sách &ldquo;Ngụ binh ư nông&rdquo;.
+                                </p>
+                              </div>
                               <button
-                                onClick={() => onCraftForgeWeapon(selectedBuilding.id, 'sword')}
-                                className="rounded bg-[#8c5828] py-2 px-1 text-[11px] font-bold text-[#fff3db] hover:bg-[#6e421a] cursor-pointer"
+                                onClick={() => onOpenBuildingAction('farms')}
+                                className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#d97706] px-3 py-2 text-xs font-black text-white hover:bg-[#b45309] cursor-pointer shadow"
                               >
-                                Đúc +{batch} Kiếm
-                                <div className="text-[9px] opacity-90">{oreCost} Quặng · {goldCost}V</div>
-                              </button>
-                              <button
-                                disabled={lv < 2}
-                                onClick={() => onCraftForgeWeapon(selectedBuilding.id, 'bow')}
-                                className="rounded bg-[#8c5828] py-2 px-1 text-[11px] font-bold text-[#fff3db] hover:bg-[#6e421a] disabled:opacity-40 cursor-pointer"
-                              >
-                                {lv < 2 ? 'Cung (Mở Lv.2)' : `Đúc +${batch} Cung`}
-                                <div className="text-[9px] opacity-90">{oreCost} Quặng · {goldCost}V</div>
-                              </button>
-                              <button
-                                disabled={lv < 2}
-                                onClick={() => onCraftForgeWeapon(selectedBuilding.id, 'spear')}
-                                className="rounded bg-[#8c5828] py-2 px-1 text-[11px] font-bold text-[#fff3db] hover:bg-[#6e421a] disabled:opacity-40 cursor-pointer"
-                              >
-                                {lv < 2 ? 'Giáo (Mở Lv.2)' : `Đúc +${batch} Giáo`}
-                                <div className="text-[9px] opacity-90">{oreCost} Quặng · {goldCost}V</div>
+                                <Wheat className="h-4 w-4" />
+                                Thi hành · Quản Lý Ruộng Nương
                               </button>
                             </div>
                           </div>
                         );
                       })()}
-                      {selectedBuilding.type === 'farm' && (
-                        <div className="rounded-lg border border-emerald-700/35 bg-emerald-50/70 p-3 text-xs space-y-1">
-                          <div className="font-black text-emerald-950 flex items-center justify-between">
-                            <span>Đồn Điền 3D (Lv.{lv})</span>
-                            <span>{BASE_BUILDING_CATALOG.farm.effectLabel(lv)}</span>
-                          </div>
-                          <p className="text-[11px] text-emerald-900">
-                            Binh sĩ &amp; Tinh nhuệ tự động luân phiên canh tác theo kế sách &ldquo;Ngụ binh ư nông&rdquo;. Cắt cử Tướng Giám Sát để tăng sản lượng vụ mùa.
-                          </p>
-                        </div>
-                      )}
-                      {selectedBuilding.type === 'food_storage' && (() => {
-                        const grouped = new Map<string, { name: string; count: number; rare: boolean }>();
-                        for (const it of foragedInventory) {
-                          if (it.itemId === 'thao_duoc' || it.itemId === 'mat_ong_rung' || it.itemId === 'nhung_huou' || it.itemId === 'nhan_sam') {
-                            const prev = grouped.get(it.itemId);
-                            if (prev) prev.count += 1;
-                            else grouped.set(it.itemId, { name: it.name, count: 1, rare: it.rare });
-                          }
-                        }
-                        const slots = [
-                          { icon: '🌾', name: 'Lương thực', count: Math.floor(resourcesSummary.food), rare: false },
-                          ...Array.from(grouped.values()).map((g) => ({
-                            icon: g.rare ? '🌿' : '🍯',
-                            name: g.name,
-                            count: g.count,
-                            rare: g.rare,
-                          })),
-                        ];
+                      {(selectedBuilding.type === 'food_storage' || selectedBuilding.type === 'armory') && (() => {
+                        const capFood = 2000 + lv * 2000;
+                        const capMat = 400 + lv * 400;
+                        const drawers =
+                          selectedBuilding.type === 'food_storage'
+                            ? [
+                                { icon: '🌾', name: 'Lương Thực', val: Math.floor(resourcesSummary.food), max: capFood },
+                                { icon: '🌿', name: 'Thảo Dược', val: foragedInventory.filter((i) => i.itemId === 'thao_duoc').length, max: 50 },
+                                { icon: '🍯', name: 'Mật Ong Rừng', val: foragedInventory.filter((i) => i.itemId === 'mat_ong_rung').length, max: 50 },
+                                { icon: '🦌', name: 'Nhung Hươu', val: foragedInventory.filter((i) => i.itemId === 'nhung_huou').length, max: 20 },
+                                { icon: '🌱', name: 'Nhân Sâm', val: foragedInventory.filter((i) => i.itemId === 'nhan_sam').length, max: 20 },
+                                { icon: '🪙', name: 'Ngân Khố', val: Math.floor(resourcesSummary.gold), max: capFood },
+                              ]
+                            : [
+                                { icon: '🪵', name: 'Gỗ Rừng', val: Math.floor(resourcesSummary.wood), max: capMat },
+                                { icon: '⛏️', name: 'Quặng Thô', val: Math.floor(resourcesSummary.ironOre), max: capMat },
+                                { icon: '⚔️', name: 'Kiếm', val: Math.floor(resourcesSummary.swords), max: capMat },
+                                { icon: '🔱', name: 'Giáo', val: Math.floor(resourcesSummary.spears), max: capMat },
+                                { icon: '🏹', name: 'Cung', val: Math.floor(resourcesSummary.bows), max: capMat },
+                                { icon: '🛡️', name: 'Giáp Trụ', val: Math.floor(resourcesSummary.clothes), max: capMat },
+                              ];
+
                         return (
-                          <div className="rounded-lg border border-[#8c6b44]/35 bg-white/55 p-3">
-                            <div className="text-xs font-black text-[#261304] mb-2">
-                              Vật phẩm tồn trong Kho Lương
+                          <div className="space-y-2.5">
+                            <div className="flex gap-1.5 border-b border-[#8c6b44]/25 pb-2">
+                              <button
+                                onClick={() => setStorageTab('rack')}
+                                className={`flex-1 rounded-lg py-1.5 text-xs font-black cursor-pointer ${
+                                  storageTab === 'rack'
+                                    ? 'bg-[#8c5828] text-[#fff3db] shadow'
+                                    : 'bg-white/60 text-[#5c3e23]'
+                                }`}
+                              >
+                                Ngăn Kho Dự Trữ (Cấp {lv})
+                              </button>
+                              <button
+                                onClick={() => setStorageTab('treasures')}
+                                className={`flex-1 rounded-lg py-1.5 text-xs font-black cursor-pointer ${
+                                  storageTab === 'treasures'
+                                    ? 'bg-[#8c2d19] text-[#fff3db] shadow'
+                                    : 'bg-white/60 text-[#5c3e23]'
+                                }`}
+                              >
+                                Sưu Tầm Bảo Vật ({foragedInventory.length})
+                              </button>
                             </div>
-                            <div className="grid grid-cols-4 gap-2">
-                              {slots.map((slot, idx) => (
-                                <div
-                                  key={idx}
-                                  className={`rounded-lg border p-2 text-center ${
-                                    slot.rare
-                                      ? 'border-amber-600/50 bg-amber-50'
-                                      : 'border-[#8c6b44]/30 bg-[#f7eed8]/70'
-                                  }`}
-                                >
-                                  <div className="text-xl leading-none">{slot.icon}</div>
-                                  <div className="mt-1 text-[10px] font-bold text-[#261304] truncate" title={slot.name}>
-                                    {slot.name}
-                                  </div>
-                                  <div className="text-[11px] font-black text-[#8c2d19]">
-                                    ×{slot.count.toLocaleString()}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      })()}
-                      {selectedBuilding.type === 'armory' && (() => {
-                        const grouped = new Map<string, { name: string; count: number; rare: boolean }>();
-                        for (const it of foragedInventory) {
-                          if (it.itemId === 'da_thu' || it.itemId === 'ngoc_bich' || it.itemId === 'tram_huong') {
-                            const prev = grouped.get(it.itemId);
-                            if (prev) prev.count += 1;
-                            else grouped.set(it.itemId, { name: it.name, count: 1, rare: it.rare });
-                          }
-                        }
-                        const slots = [
-                          { icon: '🪙', name: 'Vàng', count: Math.floor(resourcesSummary.gold), rare: false },
-                          { icon: '🪵', name: 'Gỗ', count: Math.floor(resourcesSummary.wood), rare: false },
-                          { icon: '⛏️', name: 'Quặng thô', count: Math.floor(resourcesSummary.ironOre), rare: false },
-                          { icon: '⚔️', name: 'Kiếm', count: Math.floor(resourcesSummary.swords), rare: false },
-                          { icon: '🔱', name: 'Giáo', count: Math.floor(resourcesSummary.spears), rare: false },
-                          { icon: '🏹', name: 'Cung', count: Math.floor(resourcesSummary.bows), rare: false },
-                          { icon: '🛡️', name: 'Giáp', count: Math.floor(resourcesSummary.clothes), rare: false },
-                          ...Array.from(grouped.values()).map((g) => ({
-                            icon: g.rare ? '💎' : '🦊',
-                            name: g.name,
-                            count: g.count,
-                            rare: g.rare,
-                          })),
-                        ];
-                        return (
-                          <div className="rounded-lg border border-[#8c6b44]/35 bg-white/55 p-3">
-                            <div className="text-xs font-black text-[#261304] mb-2">
-                              Vật phẩm tồn trong Kho Bạc &amp; Quân Nhu
-                            </div>
-                            <div className="grid grid-cols-4 gap-2">
-                              {slots.map((slot, idx) => (
-                                <div
-                                  key={idx}
-                                  className={`rounded-lg border p-2 text-center ${
-                                    slot.rare
-                                      ? 'border-amber-600/50 bg-amber-50'
-                                      : 'border-[#8c6b44]/30 bg-[#f7eed8]/70'
-                                  }`}
-                                >
-                                  <div className="text-xl leading-none">{slot.icon}</div>
-                                  <div className="mt-1 text-[10px] font-bold text-[#261304] truncate" title={slot.name}>
-                                    {slot.name}
-                                  </div>
-                                  <div className="text-[11px] font-black text-[#8c2d19]">
-                                    ×{slot.count.toLocaleString()}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
+
+                            {storageTab === 'rack' ? (
+                              <div className="rounded-xl border-2 border-[#6e421a]/60 bg-[#e7d4b3]/80 p-2.5 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                {drawers.map((d) => {
+                                  const pct = Math.min(100, Math.round((d.val / Math.max(1, d.max)) * 100));
+                                  return (
+                                    <div
+                                      key={d.name}
+                                      className="rounded-lg border border-[#8c6b44]/40 bg-[#f7eed8] px-2.5 py-2 flex items-center gap-2.5 shadow-sm"
+                                    >
+                                      <div className="w-9 h-9 rounded-lg border border-[#8c6b44]/35 bg-white/80 flex items-center justify-center text-lg shrink-0">
+                                        {d.icon}
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex items-center justify-between text-[11px] font-black text-[#261304]">
+                                          <span className="truncate">{d.name}</span>
+                                          <span className="text-[#8c2d19]">
+                                            {d.val.toLocaleString()}/{d.max.toLocaleString()}
+                                          </span>
+                                        </div>
+                                        <div className="mt-1 h-2 w-full rounded-full bg-stone-300/90 overflow-hidden border border-[#8c6b44]/30">
+                                          <div
+                                            className="h-full bg-gradient-to-r from-amber-500 to-orange-500 transition-all"
+                                            style={{ width: `${pct}%` }}
+                                          />
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <div className="rounded-xl border border-[#8c6b44]/40 bg-[#f7eed8]/80 p-2.5 grid grid-cols-3 sm:grid-cols-4 gap-2">
+                                {FORAGED_ITEM_CATALOG.map((specItem) => {
+                                  const owned = foragedInventory.filter((it) => it.itemId === specItem.id).length;
+                                  const icon =
+                                    specItem.id === 'thao_duoc'
+                                      ? '🌿'
+                                      : specItem.id === 'mat_ong_rung'
+                                      ? '🍯'
+                                      : specItem.id === 'da_thu'
+                                      ? '🦊'
+                                      : specItem.id === 'nhung_huou'
+                                      ? '🦌'
+                                      : specItem.id === 'nhan_sam'
+                                      ? '🌱'
+                                      : specItem.id === 'ngoc_bich'
+                                      ? '💎'
+                                      : '🪵';
+                                  return (
+                                    <div
+                                      key={specItem.id}
+                                      className={`relative rounded-xl border p-2 text-center flex flex-col items-center justify-between ${
+                                        owned > 0
+                                          ? 'border-amber-600/60 bg-white/90 shadow-sm'
+                                          : 'border-[#8c6b44]/25 bg-stone-200/50 opacity-60'
+                                      }`}
+                                    >
+                                      {specItem.rare && (
+                                        <span className="self-end rounded bg-[#8c2d19] px-1.5 py-0.5 text-[8px] font-black text-[#fff3db]">
+                                          Đặc thù
+                                        </span>
+                                      )}
+                                      <div className="text-2xl my-1">{icon}</div>
+                                      <div className="text-[10px] font-black text-[#261304] leading-tight">
+                                        {specItem.name}
+                                      </div>
+                                      <div className="mt-1 w-full rounded bg-[#8c6b44]/15 py-0.5 text-[10px] font-black text-[#8c2d19]">
+                                        {owned > 0 ? `×${owned}` : 'Chưa có'}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
                           </div>
                         );
                       })()}
@@ -1127,77 +1263,103 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
                             const rareCooldown = Math.max(0, 7 - (currentAbsDay - lastRare));
                             const chosenLeader = rareLeaderId || selectedBuilding.supervisorGeneralId || generals[0]?.id || '';
                             const hasSupervisor = Boolean(selectedBuilding.supervisorGeneralId);
+                            const supervisor = generals.find((g) => g.id === selectedBuilding.supervisorGeneralId);
 
                             return (
-                              <div className="space-y-2.5">
-                                {/* Luồng 1: Đi săn thường Cấp 1-3 */}
-                                <div className="rounded-lg border border-[#8c6b44]/30 bg-white/65 p-2.5">
-                                  <div className="flex items-center justify-between mb-1.5">
-                                    <span className="text-[11px] font-black text-[#261304]">
-                                      Luồng Thường (Cấp 1–3 · 1 đội/lần)
-                                    </span>
-                                    {!hasSupervisor && (
-                                      <span className="text-[10px] font-bold text-[#8c2d19]">
-                                        Cần Tướng Giám Sát
-                                      </span>
-                                    )}
+                              <div className="grid grid-cols-1 md:grid-cols-[175px_1fr] gap-2.5">
+                                {/* Cột trái: Tướng Giám Sát + Minh họa Chòi Canh */}
+                                <div className="rounded-xl border border-[#8c6b44]/45 bg-[#f7eed8]/85 p-2.5 flex flex-col justify-between items-center text-center">
+                                  <div className="w-full rounded-lg border border-[#8c6b44]/30 bg-white/75 p-1.5 text-[11px]">
+                                    <div className="font-bold text-[#6e4927]">Tướng Giám Sát</div>
+                                    <div className="font-black text-[#8c2d19] truncate">
+                                      {supervisor ? supervisor.name : 'Chưa cắt cử'}
+                                    </div>
                                   </div>
+                                  <img
+                                    src="/icons/structure_camp.png"
+                                    alt="Chòi Canh"
+                                    className="w-16 h-16 object-contain my-2 drop-shadow"
+                                  />
+                                  <span className="rounded bg-emerald-700/15 px-2 py-0.5 text-[10px] font-black text-emerald-900">
+                                    Chòi Canh Lv.{lv}
+                                  </span>
+                                </div>
+
+                                {/* Cột phải: Các hàng Thi hành Đi săn Cấp 1-3 & Cấp 4 */}
+                                <div className="space-y-1.5">
                                   {normalTask ? (
-                                    <div className="rounded bg-emerald-50 border border-emerald-700/30 p-2 text-center text-xs">
+                                    <div className="rounded-xl border border-emerald-700/35 bg-emerald-50/85 px-3 py-2.5 text-center text-xs">
                                       <strong className="text-emerald-900">
                                         Đang đi săn Cấp {normalTask.tier}
                                       </strong>{' '}
                                       · Còn {normalTask.daysRemaining}/{normalTask.totalDays} ngày
                                     </div>
                                   ) : (
-                                    <div className="grid grid-cols-3 gap-1.5">
-                                      {(
-                                        [
-                                          { tier: 1 as const, label: 'Cấp 1 (3N)', loot: 'Lương' },
-                                          { tier: 2 as const, label: 'Cấp 2 (4N)', loot: 'Lương+Gỗ' },
-                                          { tier: 3 as const, label: 'Cấp 3 (5N)', loot: 'Lương+Gỗ+Quặng' },
-                                        ]
-                                      ).map((t) => (
-                                        <button
+                                    (
+                                      [
+                                        { tier: 1 as const, icon: '🍖', title: 'Săn Bắn Cấp 1', desc: 'Lương thực · 3 ngày' },
+                                        { tier: 2 as const, icon: '🪵', title: 'Săn Bắn Cấp 2', desc: 'Lương + Gỗ · 4 ngày' },
+                                        { tier: 3 as const, icon: '⛏️', title: 'Săn Bắn Cấp 3', desc: 'Lương + Gỗ + Quặng · 5 ngày' },
+                                      ]
+                                    ).map((t) => {
+                                      const locked = !hasSupervisor || lv < t.tier;
+                                      return (
+                                        <div
                                           key={t.tier}
-                                          disabled={!hasSupervisor || lv < t.tier}
-                                          onClick={() => onStartNormalHunt(selectedBuilding.id, t.tier)}
-                                          className="rounded border border-emerald-700/40 bg-emerald-50/70 p-1.5 text-center hover:bg-emerald-100 disabled:opacity-40 cursor-pointer"
+                                          className="flex items-center justify-between gap-2 rounded-xl border border-[#8c6b44]/35 bg-white/75 px-3 py-1.5"
                                         >
-                                          <div className="text-[11px] font-black text-emerald-950">{t.label}</div>
-                                          <div className="text-[9px] text-emerald-800">{t.loot}</div>
-                                        </button>
-                                      ))}
-                                    </div>
+                                          <div className="flex items-center gap-2 min-w-0">
+                                            <span className="text-lg leading-none">{t.icon}</span>
+                                            <div className="min-w-0">
+                                              <div className="text-xs font-black text-[#261304] truncate">{t.title}</div>
+                                              <div className="text-[10px] font-semibold text-[#5c3e23]">{t.desc}</div>
+                                            </div>
+                                          </div>
+                                          <button
+                                            disabled={locked}
+                                            onClick={() => onStartNormalHunt(selectedBuilding.id, t.tier)}
+                                            className="shrink-0 rounded-lg bg-[#d97706] px-2.5 py-1 text-[11px] font-black text-white hover:bg-[#b45309] disabled:opacity-40 cursor-pointer shadow"
+                                          >
+                                            {lv < t.tier ? `Lv.${t.tier}` : !hasSupervisor ? 'Cần tướng' : 'Thi hành'}
+                                          </button>
+                                        </div>
+                                      );
+                                    })
                                   )}
-                                </div>
 
-                                {/* Luồng 2: Đi săn Cấp 4 (Vật phẩm hiếm, tách riêng, 1 tuần/lần) */}
-                                <div className="rounded-lg border border-amber-700/35 bg-amber-50/65 p-2.5">
-                                  <div className="flex items-center justify-between mb-1.5">
-                                    <span className="text-[11px] font-black text-[#8c2d19]">
-                                      Cấp 4: Săn Bảo Vật Hiếm (1 tuần/lần)
-                                    </span>
-                                    {lv < 4 && (
-                                      <span className="text-[10px] font-bold text-[#6e4927]">
-                                        Mở ở Chòi Lv.4
-                                      </span>
-                                    )}
-                                  </div>
-                                  {rareTask ? (
-                                    <div className="rounded bg-amber-100/80 border border-amber-700/30 p-2 text-center text-xs">
-                                      <strong className="text-[#8c2d19]">
-                                        {rareTask.leaderName} đang săn Cấp 4
-                                      </strong>{' '}
-                                      · Còn {rareTask.daysRemaining}/{rareTask.totalDays} ngày
+                                  {/* Hàng Cấp 4: Săn Bảo Vật Hiếm (tách riêng, 1 tuần/lần) */}
+                                  <div className="rounded-xl border border-amber-700/40 bg-amber-50/75 px-3 py-2 space-y-1.5">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <div className="flex items-center gap-2 min-w-0">
+                                        <span className="text-lg leading-none">💎</span>
+                                        <div className="min-w-0">
+                                          <div className="text-xs font-black text-[#8c2d19] truncate">
+                                            Săn Bảo Vật Cấp 4
+                                          </div>
+                                          <div className="text-[10px] font-semibold text-[#5c3e23]">
+                                            Vật phẩm hiếm · 1 tuần/lần · 6 ngày
+                                          </div>
+                                        </div>
+                                      </div>
+                                      {rareTask ? (
+                                        <span className="shrink-0 rounded bg-[#8c2d19]/15 px-2 py-1 text-[10px] font-black text-[#8c2d19]">
+                                          {rareTask.leaderName} ({rareTask.daysRemaining}N)
+                                        </span>
+                                      ) : (
+                                        <button
+                                          disabled={lv < 4 || rareCooldown > 0 || !chosenLeader}
+                                          onClick={() => onStartRareHunt(selectedBuilding.id, chosenLeader)}
+                                          className="shrink-0 rounded-lg bg-[#8c2d19] px-2.5 py-1 text-[11px] font-black text-[#fff3db] hover:bg-[#6e1e0d] disabled:opacity-40 cursor-pointer shadow"
+                                        >
+                                          {lv < 4 ? 'Lv.4' : rareCooldown > 0 ? `Hồi ${rareCooldown}N` : 'Thi hành'}
+                                        </button>
+                                      )}
                                     </div>
-                                  ) : (
-                                    <div className="space-y-1.5">
+                                    {!rareTask && lv >= 4 && rareCooldown === 0 && (
                                       <select
-                                        disabled={lv < 4 || rareCooldown > 0}
                                         value={chosenLeader}
                                         onChange={(e) => setRareLeaderId(e.target.value)}
-                                        className="w-full rounded border border-[#8c6b44]/40 bg-white px-2 py-1 text-xs font-bold text-[#261304]"
+                                        className="w-full rounded border border-[#8c6b44]/40 bg-white px-2 py-1 text-[11px] font-bold text-[#261304]"
                                       >
                                         {generals.map((g) => (
                                           <option key={g.id} value={g.id}>
@@ -1208,17 +1370,8 @@ export const RegionBuildHUD: React.FC<RegionBuildHUDProps> = ({
                                           </option>
                                         ))}
                                       </select>
-                                      <button
-                                        disabled={lv < 4 || rareCooldown > 0 || !chosenLeader}
-                                        onClick={() => onStartRareHunt(selectedBuilding.id, chosenLeader)}
-                                        className="w-full rounded-lg bg-[#8c2d19] py-1.5 text-xs font-bold text-[#fff3db] hover:bg-[#6e1e0d] disabled:opacity-40 cursor-pointer shadow"
-                                      >
-                                        {rareCooldown > 0
-                                          ? `Đang hồi (còn ${rareCooldown} ngày)`
-                                          : 'Phái Tướng Đi Săn Cấp 4 (6 ngày)'}
-                                      </button>
-                                    </div>
-                                  )}
+                                    )}
+                                  </div>
                                 </div>
                               </div>
                             );

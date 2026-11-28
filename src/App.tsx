@@ -8,6 +8,8 @@ import { EndgameModal } from './components/common/EndgameModal';
 import { RefugeeIntakeModal } from './components/common/RefugeeIntakeModal';
 import { TimelineWheelScrubber } from './components/layout/topbar/TimelineWheelScrubber';
 import { LeftCommandDock } from './components/layout/LeftCommandDock';
+import { FarmsOverviewModal } from './components/layout/panel/FarmsOverviewModal';
+import { ForgesOverviewModal } from './components/layout/panel/ForgesOverviewModal';
 import { MilitaryBookPanel } from './components/layout/panel/MilitaryBookPanel';
 import { Region3DOverlay } from './components/region/Region3DOverlay';
 import { Ambush3DModal } from './components/region/Ambush3DModal';
@@ -141,6 +143,8 @@ function App() {
       <Suspense fallback={null}>
         <GeneralsModal />
       </Suspense>
+      <FarmsOverviewModal />
+      <ForgesOverviewModal />
       {isMilitaryBookOpen && <MilitaryBookPanel />}
       <ParchmentToastContainer />
       <ParchmentConfirmModal />
