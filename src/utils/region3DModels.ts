@@ -33,8 +33,9 @@ export const DIORAMA_PALETTE = {
   ember: 0xff5e14,
   charcoal: 0x242426,
   water: 0x4aa3c4,
-  riceYoung: 0x7ec845,
-  riceLush: 0x5ca832,
+  riceYoung: 0x84cc43,
+  riceLush: 0x4d942e,
+  riceRipe: 0xe3b83b,
   sack: 0xc8ad7f,
   ceramic: 0x78442a,
   leafDeep: 0x3d7335,
@@ -73,6 +74,7 @@ type MaterialKey =
   | 'water'
   | 'riceYoung'
   | 'riceLush'
+  | 'riceRipe'
   | 'sack'
   | 'ceramic'
   | 'bannerLS'
@@ -437,10 +439,25 @@ function getSharedMaterial(key: MaterialKey, transparent = false, opacity = 1): 
       mat = new THREE.MeshStandardMaterial({ color: DIORAMA_PALETTE.water, roughness: 0.22, metalness: 0.15 });
       break;
     case 'riceYoung':
-      mat = new THREE.MeshStandardMaterial({ color: DIORAMA_PALETTE.riceYoung, roughness: 0.86 });
+      mat = new THREE.MeshStandardMaterial({
+        color: DIORAMA_PALETTE.riceYoung,
+        roughness: 0.84,
+        side: THREE.DoubleSide,
+      });
       break;
     case 'riceLush':
-      mat = new THREE.MeshStandardMaterial({ color: DIORAMA_PALETTE.riceLush, roughness: 0.88 });
+      mat = new THREE.MeshStandardMaterial({
+        color: DIORAMA_PALETTE.riceLush,
+        roughness: 0.86,
+        side: THREE.DoubleSide,
+      });
+      break;
+    case 'riceRipe':
+      mat = new THREE.MeshStandardMaterial({
+        color: DIORAMA_PALETTE.riceRipe,
+        roughness: 0.82,
+        side: THREE.DoubleSide,
+      });
       break;
     case 'sack':
       mat = new THREE.MeshStandardMaterial({ color: DIORAMA_PALETTE.sack, roughness: 0.94 });
@@ -1626,6 +1643,255 @@ function sphere(r: number, x: number, y: number, z: number): THREE.BufferGeometr
   return g;
 }
 
+/**
+ * Đế ruộng đất tối low-poly với mép ngoài gồ ghề tự nhiên, đáy phẳng y = 0,
+ * giới hạn chặt trong khung [-width/2, width/2] × [-depth/2, depth/2].
+ */
+function createPaddyBaseGeo(
+  width: number,
+  depth: number,
+  height: number,
+  seed: number,
+  segs = 8
+): THREE.BufferGeometry {
+  const g = new THREE.BoxGeometry(width, height, depth, segs, 1, segs);
+  const pos = g.getAttribute('position');
+  const hw = width / 2;
+  const hd = depth / 2;
+  const hh = height / 2;
+
+  for (let i = 0; i < pos.count; i++) {
+    let x = pos.getX(i);
+    let y = pos.getY(i);
+    let z = pos.getZ(i);
+
+    const isTop = y > 0;
+    const rx = Math.abs(x) / hw;
+    const rz = Math.abs(z) / hd;
+    const edge = Math.max(rx, rz);
+
+    if (edge > 0.72) {
+      const ang = Math.atan2(z, x);
+      const wave =
+        (Math.sin(ang * 5 + seed) * 0.045 + Math.cos(ang * 9 - seed * 1.3) * 0.025) *
+        ((edge - 0.72) / 0.28);
+      const topInset = isTop ? 0.965 : 1.0;
+      x = Math.max(-hw, Math.min(hw, x * topInset + Math.cos(ang) * wave));
+      z = Math.max(-hd, Math.min(hd, z * topInset + Math.sin(ang) * wave));
+    }
+
+    if (isTop) {
+      const bump =
+        Math.sin(x * 2.6 + seed) * Math.cos(z * 2.4 - seed * 0.8) * 0.012 +
+        Math.cos((x - z) * 4.2 + seed) * 0.006;
+      y = hh + bump;
+    } else {
+      y = -hh;
+    }
+
+    pos.setXYZ(i, x, y, z);
+  }
+  g.translate(0, hh, 0);
+  g.computeVertexNormals();
+  return g;
+}
+
+/**
+ * Bờ đất đắp uốn nhẹ tiết diện hình thang (low-poly), dùng chia ô ruộng bậc thang.
+ */
+function createCurvedBundGeo(
+  points: Array<[number, number]>,
+  baseHalfW: number,
+  topHalfW: number,
+  height: number,
+  yBase: number,
+  seed: number
+): THREE.BufferGeometry {
+  const n = points.length;
+  const positions: number[] = [];
+  const pushTri = (a: number[], b: number[], c: number[]) => {
+    positions.push(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2]);
+  };
+  const pushQuad = (a: number[], b: number[], c: number[], d: number[]) => {
+    pushTri(a, b, c);
+    pushTri(a, c, d);
+  };
+
+  // Tính 4 đỉnh mặt cắt [BL, TL, TR, BR] tại từng điểm
+  const rings: Array<[number[], number[], number[], number[]]> = [];
+  for (let i = 0; i < n; i++) {
+    const [px, pz] = points[i];
+    const [ax, az] = points[Math.max(0, i - 1)];
+    const [bx, bz] = points[Math.min(n - 1, i + 1)];
+    let tx = bx - ax;
+    let tz = bz - az;
+    const len = Math.hypot(tx, tz) || 1;
+    tx /= len;
+    tz /= len;
+    // Pháp tuyến phải (nx, nz)
+    const nx = -tz;
+    const nz = tx;
+
+    const endTaper = i === 0 || i === n - 1 ? 0.78 : 1.0;
+    const hVar =
+      height * (0.94 + Math.sin(i * 1.9 + seed) * 0.07) * (i === 0 || i === n - 1 ? 0.82 : 1.0);
+    const bw = baseHalfW * endTaper;
+    const tw = topHalfW * endTaper;
+
+    const bl = [px - nx * bw, yBase, pz - nz * bw];
+    const tl = [px - nx * tw, yBase + hVar, pz - nz * tw];
+    const tr = [px + nx * tw, yBase + hVar, pz + nz * tw];
+    const br = [px + nx * bw, yBase, pz + nz * bw];
+    rings.push([bl, tl, tr, br]);
+  }
+
+  for (let i = 0; i < n - 1; i++) {
+    const r0 = rings[i];
+    const r1 = rings[i + 1];
+    // Mặt trái, mặt trên, mặt phải
+    pushQuad(r0[0], r1[0], r1[1], r0[1]);
+    pushQuad(r0[1], r1[1], r1[2], r0[2]);
+    pushQuad(r0[2], r1[2], r1[3], r0[3]);
+  }
+  // Nắp đầu & đuôi bờ
+  const first = rings[0];
+  pushQuad(first[3], first[2], first[1], first[0]);
+  const last = rings[n - 1];
+  pushQuad(last[0], last[1], last[2], last[3]);
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.computeVertexNormals();
+  return geo;
+}
+
+/**
+ * Khóm lúa low-poly gồm 5 lá lúa vươn cao, cong mềm ra ngoài (15 tris/khóm, DoubleSide).
+ */
+function createRiceClumpGeo(height: number, spread: number, seed: number): THREE.BufferGeometry {
+  const positions: number[] = [];
+  const blades = 5;
+  for (let i = 0; i < blades; i++) {
+    const yaw = (i / blades) * Math.PI * 2 + (hash01(seed + i * 7.3) - 0.5) * 0.45;
+    const cosY = Math.cos(yaw);
+    const sinY = Math.sin(yaw);
+    // Vector vuông góc với hướng lá để tạo bề rộng lá
+    const px = -sinY;
+    const pz = cosY;
+
+    const bladeH = height * (0.78 + hash01(seed + i * 13.1) * 0.32);
+    const bladeOut = spread * (0.72 + hash01(seed + i * 19.7) * 0.46);
+    const baseW = 0.024 + hash01(seed + i * 5.9) * 0.01;
+    const midW = baseW * 0.72;
+
+    const r0 = 0.018;
+    const x0 = cosY * r0;
+    const z0 = sinY * r0;
+
+    const xMid = cosY * (r0 + bladeOut * 0.44);
+    const yMid = bladeH * 0.62;
+    const zMid = sinY * (r0 + bladeOut * 0.44);
+
+    const xTip = cosY * (r0 + bladeOut);
+    const yTip = bladeH;
+    const zTip = sinY * (r0 + bladeOut);
+
+    const bL = [x0 - px * baseW, 0, z0 - pz * baseW];
+    const bR = [x0 + px * baseW, 0, z0 + pz * baseW];
+    const mL = [xMid - px * midW, yMid, zMid - pz * midW];
+    const mR = [xMid + px * midW, yMid, zMid + pz * midW];
+    const tip = [xTip, yTip, zTip];
+
+    // Thân lá dưới (quad = 2 tris) & ngọn lá nhọn vươn cong (1 tri) = 3 tris/lá đối xứng
+    positions.push(
+      bL[0], bL[1], bL[2],
+      bR[0], bR[1], bR[2],
+      mR[0], mR[1], mR[2],
+
+      bL[0], bL[1], bL[2],
+      mR[0], mR[1], mR[2],
+      mL[0], mL[1], mL[2],
+
+      mL[0], mL[1], mL[2],
+      mR[0], mR[1], mR[2],
+      tip[0], tip[1], tip[2]
+    );
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.computeVertexNormals();
+  return geo;
+}
+
+/**
+ * Bông lúa vàng trĩu hạt cong rũ tự nhiên (3 tris/bông, DoubleSide).
+ */
+function createRicePanicleGeo(height: number, yaw: number): THREE.BufferGeometry {
+  const cosY = Math.cos(yaw);
+  const sinY = Math.sin(yaw);
+  const px = -sinY;
+  const pz = cosY;
+
+  const p0 = [cosY * 0.02, height * 0.68, sinY * 0.02];
+  const p1 = [cosY * 0.11, height * 1.02, sinY * 0.11];
+  const p2 = [cosY * 0.22, height * 0.74, sinY * 0.22];
+
+  const w0 = 0.013;
+  const w1 = 0.028;
+
+  const positions: number[] = [
+    // Đoạn cuống vươn lên đỉnh cong (2 tris)
+    p0[0] - px * w0, p0[1], p0[2] - pz * w0,
+    p0[0] + px * w0, p0[1], p0[2] + pz * w0,
+    p1[0] + px * w1, p1[1], p1[2] + pz * w1,
+    p0[0] - px * w0, p0[1], p0[2] - pz * w0,
+    p1[0] + px * w1, p1[1], p1[2] + pz * w1,
+    p1[0] - px * w1, p1[1], p1[2] - pz * w1,
+    // Bông lúa trĩu nặng rũ xuống (1 tri)
+    p1[0] - px * w1, p1[1], p1[2] - pz * w1,
+    p1[0] + px * w1, p1[1], p1[2] + pz * w1,
+    p2[0], p2[1], p2[2],
+  ];
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.computeVertexNormals();
+  return geo;
+}
+
+/**
+ * Lu nước sành bầu tròn có miệng loe nhẹ (low-poly LatheGeometry).
+ */
+function createCeramicJarLathe(radius: number, height: number): THREE.BufferGeometry {
+  const pts = [
+    new THREE.Vector2(0.0, 0.0),
+    new THREE.Vector2(radius * 0.68, 0.0),
+    new THREE.Vector2(radius * 0.96, height * 0.34),
+    new THREE.Vector2(radius * 1.0, height * 0.62),
+    new THREE.Vector2(radius * 0.78, height * 0.88),
+    new THREE.Vector2(radius * 0.86, height * 0.96),
+    new THREE.Vector2(radius * 0.72, height),
+    new THREE.Vector2(radius * 0.66, height * 0.86),
+  ];
+  return new THREE.LatheGeometry(pts, 8);
+}
+
+/**
+ * Thúng tre đan dáng tròn miệng rộng (low-poly LatheGeometry).
+ */
+function createBambooBasketLathe(topR: number, botR: number, height: number): THREE.BufferGeometry {
+  const pts = [
+    new THREE.Vector2(0.0, 0.0),
+    new THREE.Vector2(botR, 0.0),
+    new THREE.Vector2(topR * 0.92, height * 0.58),
+    new THREE.Vector2(topR, height),
+    new THREE.Vector2(topR * 0.88, height),
+    new THREE.Vector2(botR * 0.86, height * 0.14),
+    new THREE.Vector2(0.0, height * 0.12),
+  ];
+  return new THREE.LatheGeometry(pts, 8);
+}
+
 function getBuildingParts(
   type: BaseBuildingType,
   level: number,
@@ -2228,86 +2494,293 @@ function getBuildingParts(
     }
 
     case 'farm': {
-      // 5x5 Ruộng bậc thang + khóm lúa chi tiết + guồng nước tre + bù nhìn rơm + chòi canh có lan can, thang, bao thóc
-      push('earthDark', createOrganicEarthMound(4.86, 4.86, 0.14, 1.3));
-      push('water', box(4.48, 0.08, 4.48, 0, 0.13, 0));
-      // Bờ ruộng chia ô
-      push('earth', createOrganicEarthMound(4.58, 0.24, 0.14, 2.7).translate(0, 0.09, -0.1));
-      push('earth', createOrganicEarthMound(0.24, 4.58, 0.14, 3.9).translate(0.45, 0.09, 0));
-      push('earth', createOrganicEarthMound(2.15, 0.18, 0.12, 4.4).translate(-1.05, 0.09, 0.2));
+      // === RUỘNG LÚA / ĐỒN ĐIỀN THẾ KỶ XV — LOW-POLY STYLIZED DIORAMA (5×5, max 4.8×4.8, cao ~1.94) ===
 
-      // Khóm lúa xanh tốt nhiều tầng dọc luống
-      for (let r = 0; r < 5; r++) {
-        const z = -1.65 + r * 0.82;
-        if (Math.abs(z + 0.1) < 0.25) continue;
-        push('earth', createOrganicEarthMound(2.3, 0.36, 0.1, 5.1 + r).translate(1.05, 0.11, z));
-        for (let k = 0; k < 6; k++) {
-          const kx = 0.15 + k * 0.36;
-          const tuftH = 0.22 + tier * 0.03 + ((r + k) % 2) * 0.05;
-          push(
-            (r + k) % 2 === 0 ? 'riceYoung' : 'riceLush',
-            cone(0.14, tuftH, 5, kx, 0.18 + tuftH / 2, z)
-          );
-          if (tier >= 3 && (r + k) % 3 === 0) {
-            push('thatch', cyl(0.03, 0.05, 0.1, 5, kx, 0.24 + tuftH, z));
+      // 1. NỀN RUỘNG BẬC THANG & BỜ ĐẮP
+      // Đế đất tối viền ngoài gồ ghề tự nhiên (4.78 × 4.78, đáy y = 0)
+      push('earthDark', createPaddyBaseGeo(4.78, 4.78, 0.14, 1.7, 6));
+
+      // Mặt ruộng ngập nước nông phản chiếu nhẹ (top y ≈ 0.135)
+      push('water', box(4.32, 0.04, 4.32, 0, 0.115, 0));
+
+      // Bờ bao viền ngoài uốn nhẹ (4 cạnh nằm gọn trong 4.78 × 4.78)
+      push(
+        'earth',
+        createCurvedBundGeo(
+          [[-2.18, -2.18], [-1.08, -2.21], [0.05, -2.16], [1.14, -2.2], [2.18, -2.16]],
+          0.14, 0.08, 0.14, 0.1, 1.1
+        )
+      );
+      push(
+        'earth',
+        createCurvedBundGeo(
+          [[-2.18, 2.18], [-1.04, 2.2], [0.12, 2.16], [1.18, 2.2], [2.18, 2.16]],
+          0.14, 0.08, 0.13, 0.1, 2.3
+        )
+      );
+      push(
+        'earth',
+        createCurvedBundGeo(
+          [[-2.18, -2.18], [-2.21, -1.06], [-2.16, 0.06], [-2.2, 1.14], [-2.18, 2.18]],
+          0.14, 0.08, 0.13, 0.1, 3.5
+        )
+      );
+      push(
+        'earth',
+        createCurvedBundGeo(
+          [[2.18, -2.16], [2.2, -1.04], [2.16, 0.1], [2.2, 1.14], [2.18, 2.16]],
+          0.14, 0.08, 0.13, 0.1, 4.7
+        )
+      );
+
+      // Bờ đất đắp uốn nhẹ chia thành 3 ô ruộng + rãnh dẫn nước giữa các ô
+      // Bờ ngang chính (tách 2 đoạn chừa rãnh dẫn nước tại x ≈ 0.76)
+      push(
+        'earth',
+        createCurvedBundGeo(
+          [[-2.18, -0.06], [-1.45, -0.11], [-0.65, -0.05], [0.02, -0.09], [0.6, -0.06]],
+          0.16, 0.085, 0.125, 0.1, 5.2
+        )
+      );
+      push(
+        'earth',
+        createCurvedBundGeo(
+          [[0.92, -0.08], [1.56, -0.04], [2.18, -0.09]],
+          0.15, 0.085, 0.125, 0.1, 6.1
+        )
+      );
+      // Bờ dọc dưới chia ô Tây Nam & Đông Nam (chừa rãnh dẫn nước tại z ≈ 1.02)
+      push(
+        'earth',
+        createCurvedBundGeo(
+          [[-0.08, -0.05], [-0.04, 0.42], [-0.09, 0.86]],
+          0.15, 0.08, 0.12, 0.1, 7.4
+        )
+      );
+      push(
+        'earth',
+        createCurvedBundGeo(
+          [[-0.09, 1.18], [-0.05, 1.68], [-0.08, 2.18]],
+          0.15, 0.08, 0.12, 0.1, 8.2
+        )
+      );
+      // Bờ dọc trên ngăn gò chòi canh điền với ô ruộng Đông Bắc (chừa rãnh thoát nước)
+      push(
+        'earth',
+        createCurvedBundGeo(
+          [[-0.36, -2.18], [-0.32, -1.42], [-0.37, -0.64]],
+          0.15, 0.085, 0.13, 0.1, 9.1
+        )
+      );
+
+      // Ống tre dẫn nước đặt qua 2 rãnh bờ ruộng
+      const pipe1 = cyl(0.032, 0.032, 0.36, 6, 0, 0, 0);
+      pipe1.rotateX(Math.PI / 2);
+      pipe1.translate(0.76, 0.15, -0.07);
+      push('bamboo', pipe1);
+
+      const pipe2 = cyl(0.03, 0.03, 0.34, 6, 0, 0, 0);
+      pipe2.rotateZ(Math.PI / 2);
+      pipe2.translate(-0.08, 0.15, 1.02);
+      push('bamboo', pipe2);
+
+      // Gò đất khô góc sau bên trái làm nền cho chòi canh điền, thang tre & lu nước
+      push('earth', createPaddyBaseGeo(1.74, 1.74, 0.19, 4.4, 4).translate(-1.36, 0.01, -1.36));
+
+      // 2. CÁC LUỐNG LÚA (TRỌNG TÂM THỊ GIÁC — LÁ VƯƠN LÊN CHI CHÍT, XEN KẼ XANH MẠ & XANH ĐẬM)
+      const addPaddyPlotRows = (
+        xStart: number,
+        xEnd: number,
+        zRows: number[],
+        clumpsPerRow: number,
+        plotSeed: number
+      ) => {
+        const spanX = xEnd - xStart;
+        const cx = (xStart + xEnd) / 2;
+        for (let r = 0; r < zRows.length; r++) {
+          const rz = zRows[r];
+          // Luống đất bùn thấp chạy dọc dưới chân hàng lúa
+          push('earthDark', box(spanX + 0.16, 0.04, 0.18, cx, 0.125, rz));
+
+          for (let k = 0; k < clumpsPerRow; k++) {
+            const t = clumpsPerRow > 1 ? k / (clumpsPerRow - 1) : 0.5;
+            const s = plotSeed + r * 31.7 + k * 13.3;
+            const jx = (hash01(s + 1.1) - 0.5) * 0.07;
+            const jz = (hash01(s + 2.3) - 0.5) * 0.06;
+            const px = xStart + t * spanX + jx;
+            const pz = rz + jz;
+
+            const clumpH = 0.30 + tier * 0.032 + (hash01(s + 3.7) - 0.5) * 0.08;
+            const spread = 0.14 + hash01(s + 4.9) * 0.05;
+            const clump = createRiceClumpGeo(clumpH, spread, s);
+            clump.translate(px, 0.13, pz);
+
+            // Xen kẽ màu xanh mạ non và xanh đậm tự nhiên theo khóm & hàng
+            const isYoung = (r + k) % 2 === 0 ? hash01(s + 6.1) > 0.2 : hash01(s + 6.1) > 0.78;
+            push(isYoung ? 'riceYoung' : 'riceLush', clump);
+
+            // Bông lúa vàng trĩu hạt ở cấp cao (tăng mật độ rõ rệt từ cấp 2 -> cấp 4)
+            const ripeChance = tier >= 4 ? 0.72 : tier === 3 ? 0.52 : tier === 2 ? 0.24 : 0;
+            if (ripeChance > 0 && hash01(s + 9.4) < ripeChance) {
+              const yaw1 = hash01(s + 11.2) * Math.PI * 2;
+              const ear1 = createRicePanicleGeo(clumpH * 1.02, yaw1);
+              ear1.translate(px, 0.13, pz);
+              push('riceRipe', ear1);
+
+              if (tier >= 3 && hash01(s + 14.8) < 0.55) {
+                const ear2 = createRicePanicleGeo(clumpH * 0.94, yaw1 + 2.1 + hash01(s + 16.5) * 1.2);
+                ear2.translate(px, 0.13, pz);
+                push('riceRipe', ear2);
+              }
+            }
           }
         }
-      }
-      for (let r = 0; r < 3; r++) {
-        const z = 0.55 + r * 0.68;
-        push('earth', createOrganicEarthMound(1.85, 0.34, 0.1, 9.3 + r).translate(-1.15, 0.11, z));
-        for (let k = 0; k < 5; k++) {
-          const kx = -1.85 + k * 0.35;
-          const tuftH = 0.2 + tier * 0.025;
-          push(k % 2 === 0 ? 'riceYoung' : 'riceLush', cone(0.13, tuftH, 5, kx, 0.18 + tuftH / 2, z));
-        }
+      };
+
+      // Ô ruộng 1 (Đông Bắc — 4 hàng × 8 khóm)
+      addPaddyPlotRows(0.0, 2.0, [-1.88, -1.42, -0.96, -0.48], 8, 100);
+      // Ô ruộng 2 (Đông Nam — 4 hàng × 7 khóm)
+      addPaddyPlotRows(0.24, 2.0, [0.3, 0.8, 1.32, 1.84], 7, 300);
+      // Ô ruộng 3 (Tây Nam — 4 hàng × 7 khóm)
+      addPaddyPlotRows(-1.98, -0.34, [0.3, 0.82, 1.34, 1.86], 7, 500);
+
+      // 3. CHÒI CANH ĐIỀN (GÓC SAU BÊN TRÁI: tâm (-1.52, y, -1.52))
+      const hx = -1.52;
+      const hz = -1.52;
+      const floorY = 0.54;
+      const eaveY = 1.22;
+      const pillarOff = 0.42;
+
+      // 4 cột tre đứng cắm từ gò đất lên đỡ mái + mắt tre nổi
+      for (const [ox, oz] of [
+        [-pillarOff, -pillarOff],
+        [pillarOff, -pillarOff],
+        [-pillarOff, pillarOff],
+        [pillarOff, pillarOff],
+      ]) {
+        const px = hx + ox;
+        const pz = hz + oz;
+        push('bambooDry', cyl(0.038, 0.048, 1.12, 6, px, 0.70, pz));
+        // Mắt đốt tre nhỏ ở 2 cao độ
+        push('bamboo', cyl(0.048, 0.048, 0.032, 6, px, 0.44, pz));
+        push('bamboo', cyl(0.044, 0.044, 0.03, 6, px, 0.88, pz));
       }
 
-      // Bù nhìn rơm đội nón lá đứng giữa ruộng
-      push('bambooDry', cyl(0.025, 0.03, 0.72, 6, 1.15, 0.45, 0.95));
-      push('bambooDry', box(0.48, 0.035, 0.035, 1.15, 0.62, 0.95));
-      push('sack', cyl(0.08, 0.11, 0.28, 6, 1.15, 0.56, 0.95));
-      push('thatch', cone(0.18, 0.12, 8, 1.15, 0.84, 0.95));
+      // Khung xà đỡ & giằng chéo gầm sàn tre
+      push('bambooDry', box(0.96, 0.05, 0.055, hx, floorY - 0.045, hz - pillarOff));
+      push('bambooDry', box(0.96, 0.05, 0.055, hx, floorY - 0.045, hz + pillarOff));
+      const brace1 = cyl(0.022, 0.022, 0.88, 5, 0, 0, 0);
+      brace1.rotateZ(1.16);
+      brace1.translate(hx, 0.36, hz - pillarOff);
+      push('bambooDry', brace1);
+      const brace2 = cyl(0.022, 0.022, 0.88, 5, 0, 0, 0);
+      brace2.rotateX(1.16);
+      brace2.translate(hx - pillarOff, 0.36, hz);
+      push('bambooDry', brace2);
 
-      // Guồng nước tre & máng dẫn nước ở mép phải sau ruộng
-      push('bambooDry', cyl(0.04, 0.04, 0.72, 6, 2.05, 0.44, -1.78));
-      push('bambooDry', cyl(0.04, 0.04, 0.72, 6, 2.05, 0.44, -1.28));
-      for (let spoke = 0; spoke < 6; spoke++) {
-        const ang = (spoke * Math.PI) / 3;
-        const sb = box(0.035, 0.74, 0.04, 2.05, 0.56, -1.53);
-        sb.rotateZ(ang);
-        push('bamboo', sb);
+      // Sàn tre ghép thanh nâng cao khỏi mặt nước
+      for (let s = 0; s < 8; s++) {
+        const slatX = hx - 0.44 + s * 0.125;
+        push(s % 2 === 0 ? 'bamboo' : 'bambooDry', box(0.095, 0.04, 1.0, slatX, floorY, hz));
       }
-      push('bamboo', box(0.85, 0.06, 0.1, 1.65, 0.46, -1.53));
 
-      // Chòi canh điền có sàn tre, lan can, thang leo & bao thóc
-      for (const [cx, cz] of [[-1.9, -1.9], [-1.0, -1.9], [-1.9, -1.0], [-1.0, -1.0]]) {
-        push('bambooDry', cyl(0.05, 0.06, 1.12, 6, cx, 0.66, cz));
+      // Lan can tre thấp 3 mặt (sau, trái, phải; chừa mặt trước cho thang leo)
+      const railMidY = floorY + 0.14;
+      const railTopY = floorY + 0.27;
+      // Mặt sau (-Z)
+      push('bambooDry', box(0.92, 0.03, 0.03, hx, railTopY, hz - pillarOff));
+      push('bamboo', box(0.88, 0.024, 0.024, hx, railMidY, hz - pillarOff));
+      push('bambooDry', cyl(0.02, 0.02, 0.28, 5, hx, floorY + 0.14, hz - pillarOff));
+      // Mặt trái (-X)
+      push('bambooDry', box(0.03, 0.03, 0.92, hx - pillarOff, railTopY, hz));
+      push('bamboo', box(0.024, 0.024, 0.88, hx - pillarOff, railMidY, hz));
+      push('bambooDry', cyl(0.02, 0.02, 0.28, 5, hx - pillarOff, floorY + 0.14, hz));
+      // Mặt phải (+X)
+      push('bambooDry', box(0.03, 0.03, 0.92, hx + pillarOff, railTopY, hz));
+      push('bamboo', box(0.024, 0.024, 0.88, hx + pillarOff, railMidY, hz));
+      push('bambooDry', cyl(0.02, 0.02, 0.28, 5, hx + pillarOff, floorY + 0.14, hz));
+
+      // Thang tre nhỏ bắc nghiêng từ sàn chòi xuống bờ đất mặt trước (+Z)
+      const ladTilt = -0.44;
+      for (const lx of [hx - 0.15, hx + 0.15]) {
+        const rail = cyl(0.022, 0.024, 0.56, 5, 0, 0, 0);
+        rail.rotateX(ladTilt);
+        rail.translate(lx, 0.36, hz + 0.56);
+        push('bambooDry', rail);
       }
-      push('bamboo', box(1.12, 0.08, 1.12, -1.45, 0.52, -1.45));
-      // Lan can chòi
-      push('bambooDry', box(1.02, 0.035, 0.035, -1.45, 0.78, -1.92));
-      push('bambooDry', box(0.035, 0.035, 1.02, -1.92, 0.78, -1.45));
-      // Thang tre nhỏ leo lên chòi
-      push('bambooDry', box(0.04, 0.46, 0.04, -1.62, 0.32, -0.9));
-      push('bambooDry', box(0.04, 0.46, 0.04, -1.28, 0.32, -0.9));
-      push('bamboo', box(0.36, 0.035, 0.05, -1.45, 0.25, -0.9));
-      push('bamboo', box(0.36, 0.035, 0.05, -1.45, 0.38, -0.9));
-      // Mái tranh 2 lớp
-      push('thatch', cone(0.98, 0.64, 4, -1.45, 1.44, -1.45, Math.PI / 4));
-      push('thatch', cone(0.45, 0.26, 4, -1.45, 1.78, -1.45, Math.PI / 4));
-      // Bao thóc xếp dưới gầm chòi
-      push('sack', box(0.32, 0.18, 0.22, -1.58, 0.2, -1.55));
-      push('sack', box(0.3, 0.18, 0.22, -1.24, 0.2, -1.48));
+      for (let rung = 0; rung < 4; rung++) {
+        const rt = (rung + 0.5) / 4;
+        const ry = 0.19 + rt * 0.35;
+        const rz = hz + 0.68 - rt * 0.24;
+        const step = cyl(0.018, 0.018, 0.34, 5, 0, 0, 0);
+        step.rotateZ(Math.PI / 2);
+        step.translate(hx, ry, rz);
+        push('bamboo', step);
+      }
 
-      // Lu nước sành, gánh thúng & cuốc cào bên cạnh chòi
-      push('ceramic', cyl(0.18, 0.14, 0.36, 10, -0.68, 0.34, -1.3));
-      push('water', cyl(0.15, 0.15, 0.04, 10, -0.68, 0.51, -1.3));
-      push('bamboo', cyl(0.14, 0.1, 0.16, 8, -0.62, 0.24, -0.88));
-      const hoe = cyl(0.025, 0.025, 0.85, 6, -0.82, 0.56, -1.78);
-      hoe.rotateZ(0.2);
-      push('wood', hoe);
-      push('iron', box(0.22, 0.05, 0.1, -0.9, 0.94, -1.78));
+      // Xà mái tre đỡ mái tranh
+      push('bambooDry', box(0.96, 0.045, 0.045, hx, eaveY, hz - pillarOff));
+      push('bambooDry', box(0.96, 0.045, 0.045, hx, eaveY, hz + pillarOff));
+      push('bambooDry', box(0.045, 0.045, 0.96, hx - pillarOff, eaveY, hz));
+      push('bambooDry', box(0.045, 0.045, 0.96, hx + pillarOff, eaveY, hz));
+
+      // Mái tranh 2 tầng: tầng mái lớn + khe thoáng + chóp nhỏ thoát gió (đỉnh y ≈ 1.94)
+      // Lớp diềm tranh tối dưới mái lớn tạo chiều dày
+      push('thatchDark', cone(1.06, 0.54, 4, hx, 1.40, hz, Math.PI / 4));
+      // Lớp mái tranh chính ấm áp phủ bên trên
+      push('thatch', cone(1.02, 0.56, 4, hx, 1.44, hz, Math.PI / 4));
+      // 4 trụ nhỏ nâng chóp thoát gió
+      for (const [vx, vz] of [[-0.18, -0.18], [0.18, -0.18], [-0.18, 0.18], [0.18, 0.18]]) {
+        push('bambooDry', cyl(0.018, 0.02, 0.14, 5, hx + vx, 1.66, hz + vz));
+      }
+      // Chóp mái tranh nhỏ thoát gió (tổng chiều cao ~1.94 units)
+      push('thatchDark', cone(0.46, 0.24, 4, hx, 1.79, hz, Math.PI / 4));
+      push('thatch', cone(0.43, 0.25, 4, hx, 1.815, hz, Math.PI / 4));
+
+      // 4. VẬT DỤNG BÊN CẠNH CHÒI (LU NƯỚC SÀNH, ĐÔI THÚNG TRE, CÂY CUỐC TỰA CỘT)
+      // 1 lu nước sành đặt cạnh chòi (phải chòi trên gò khô) có mặt nước phản chiếu
+      const jarX = -0.74;
+      const jarZ = -1.56;
+      push('ceramic', createCeramicJarLathe(0.18, 0.36).translate(jarX, 0.19, jarZ));
+      const jarWater = new THREE.CircleGeometry(0.125, 10);
+      jarWater.rotateX(-Math.PI / 2);
+      jarWater.translate(jarX, 0.515, jarZ);
+      push('water', jarWater);
+
+      // Đôi thúng tre đặt cạnh nhau gần lu nước & lối lên thang
+      const b1x = -0.74;
+      const b1z = -1.10;
+      push('bambooDry', createBambooBasketLathe(0.16, 0.10, 0.14).translate(b1x, 0.19, b1z));
+      const rim1 = torus(0.155, 0.014, 4, 8);
+      rim1.rotateX(Math.PI / 2);
+      rim1.translate(b1x, 0.33, b1z);
+      push('bamboo', rim1);
+
+      const b2x = -0.92;
+      const b2z = -0.78;
+      push('bambooDry', createBambooBasketLathe(0.145, 0.095, 0.13).translate(b2x, 0.19, b2z));
+      const rim2 = torus(0.14, 0.013, 4, 8);
+      rim2.rotateX(Math.PI / 2);
+      rim2.translate(b2x, 0.32, b2z);
+      push('bamboo', rim2);
+
+      // Ở cấp cao, có thóc vàng đong đầy trong 1 thúng tre
+      if (tier >= 2) {
+        push('riceRipe', cone(0.135, 0.08, 8, b1x, 0.35, b1z));
+      }
+
+      // 1 cây cuốc sắt cán gỗ dựng tựa vào cột trước-phải của chòi
+      const hoeHandle = cyl(0.018, 0.02, 0.84, 6, 0, 0, 0);
+      hoeHandle.rotateZ(0.24);
+      hoeHandle.rotateY(-0.2);
+      hoeHandle.translate(-0.98, 0.58, -1.04);
+      push('wood', hoeHandle);
+
+      const hoeBlade = box(0.18, 0.035, 0.11, 0, 0, 0);
+      hoeBlade.rotateZ(-0.35);
+      hoeBlade.rotateY(-0.2);
+      hoeBlade.translate(-1.09, 0.96, -1.04);
+      push('iron', hoeBlade);
       break;
     }
 
